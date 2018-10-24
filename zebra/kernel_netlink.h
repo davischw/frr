@@ -89,6 +89,7 @@ extern const char *nl_rtproto_to_str(uint8_t rtproto);
 extern const char *nl_family_to_str(uint8_t family);
 extern const char *nl_rttype_to_str(uint8_t rttype);
 
+extern void netlink_parse_extended_ack(struct nlmsghdr *h);
 extern int netlink_parse_info(int (*filter)(struct nlmsghdr *, ns_id_t, int),
 			      const struct nlsock *nl,
 			      const struct zebra_dplane_info *dp_info,
@@ -98,6 +99,8 @@ extern int netlink_talk(int (*filter)(struct nlmsghdr *, ns_id_t, int startup),
 			struct nlmsghdr *n, struct nlsock *nl,
 			struct zebra_ns *zns, int startup);
 extern int netlink_request(struct nlsock *nl, void *req);
+extern int netlink_information_fetch(struct nlmsghdr *h, ns_id_t ns_id,
+				     int startup);
 
 enum netlink_msg_status {
 	FRR_NETLINK_SUCCESS,

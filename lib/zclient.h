@@ -555,6 +555,10 @@ struct zapi_route {
  * offload situation.
  */
 #define ZEBRA_FLAG_OFFLOAD_FAILED     0x200
+/*
+ * Mark route for after synchronization removal.
+ */
+#define ZEBRA_FLAG_SYNC               0x400
 
 	/* The older XXX_MESSAGE flags live here */
 	uint32_t message;

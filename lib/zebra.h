@@ -25,6 +25,8 @@
 #include "config.h"
 #endif /* HAVE_CONFIG_H */
 
+#define NETLINK_PROXY
+
 #include "compiler.h"
 
 #include <unistd.h>

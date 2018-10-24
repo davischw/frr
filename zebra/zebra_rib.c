@@ -3218,6 +3218,34 @@ int rib_add_multipath_nhe(afi_t afi, safi_t safi, struct prefix *p,
 	 * withdraw. If the user has specified the No route replace semantics
 	 * for the install don't do a route replace.
 	 */
+	if (CHECK_FLAG(re->flags, ZEBRA_FLAG_SYNC)) {
+		/* Check for synchronized route. */
+		RNODE_FOREACH_RE (rn, same) {
+			if (CHECK_FLAG(same->status, ROUTE_ENTRY_REMOVED))
+				continue;
+			if (rib_compare_routes(re, same) == false)
+				continue;
+
+			/* Remove the synchronization flag. */
+			UNSET_FLAG(same->flags, ZEBRA_FLAG_SYNC);
+
+			/*
+			 * Exact match, lets free the incoming route to
+			 * not lose information (e.g. uptime).
+			 */
+			if (re->nhe && re->nhe_id) {
+				assert(re->nhe->id == re->nhe_id);
+				zebra_nhg_decrement_ref(re->nhe);
+			} else if (re->nhe && re->nhe->nhg.nexthop)
+				nexthops_free(re->nhe->nhg.nexthop);
+
+			nexthops_free(re->fib_ng.nexthop);
+			return -1;
+		}
+
+		UNSET_FLAG(re->flags, ZEBRA_FLAG_SYNC);
+	}
+
 	RNODE_FOREACH_RE (rn, same) {
 		if (CHECK_FLAG(same->status, ROUTE_ENTRY_REMOVED)) {
 			same_count++;
@@ -4156,7 +4184,7 @@ void rib_init(void)
  *
  * Returns true if a vrf id was found, false otherwise.
  */
-static inline int vrf_id_get_next(vrf_id_t vrf_id, vrf_id_t *next_id_p)
+int vrf_id_get_next(vrf_id_t vrf_id, vrf_id_t *next_id_p)
 {
 	struct vrf *vrf;
 

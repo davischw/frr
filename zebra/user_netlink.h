@@ -1,0 +1,49 @@
+/*
+ * Userland netlink code.
+ * Copyright (C) 2018 Network Device Education Foundation, Inc. ("NetDEF")
+ *
+ * FRR is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; either version 2, or (at your option) any
+ * later version.
+ *
+ * FRR is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with FRR; see the file COPYING.  If not, write to the Free
+ * Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+ * 02111-1307, USA.
+ */
+
+#ifndef USERLAND_NETLINK_H
+#define USERLAND_NETLINK_H
+
+#include <sys/types.h>
+
+#include <stdint.h>
+
+/* Enable UNIX socket mode. */
+/* #define NETLINK_PROXY_UNIX */
+
+/* Enable IP socket mode. */
+#define NETLINK_PROXY_IP
+
+struct nlbuf {
+	/* Netlink metadata. */
+	uint32_t nb_seq;
+
+	/* Request data buffer. */
+	size_t nb_datasiz;
+	size_t nb_dataoff;
+	uint8_t nb_data[];
+};
+
+extern int netlink_talk_info(int (*filter)(struct nlmsghdr *, ns_id_t,
+					   int startup),
+			     struct nlmsghdr *nlmsg,
+			     struct zebra_dplane_info *dp_info, int startup);
+
+#endif /* USERLAND_NETLINK_H */

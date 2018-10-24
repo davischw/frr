@@ -233,6 +233,7 @@ int netlink_talk_filter(struct nlmsghdr *h, ns_id_t ns_id, int startup)
 	return 0;
 }
 
+#ifndef NETLINK_PROXY
 static int netlink_recvbuf(struct nlsock *nl, uint32_t newsize)
 {
 	uint32_t oldsize;
@@ -323,9 +324,9 @@ static int netlink_socket(struct nlsock *nl, unsigned long groups,
 	nl->sock = sock;
 	return ret;
 }
+#endif /* !NETLINK_PROXY */
 
-static int netlink_information_fetch(struct nlmsghdr *h, ns_id_t ns_id,
-				     int startup)
+int netlink_information_fetch(struct nlmsghdr *h, ns_id_t ns_id, int startup)
 {
 	/*
 	 * When we handle new message types here
@@ -390,6 +391,7 @@ static int netlink_information_fetch(struct nlmsghdr *h, ns_id_t ns_id,
 	return 0;
 }
 
+#ifndef NETLINK_PROXY
 static int kernel_read(struct thread *thread)
 {
 	struct zebra_ns *zns = (struct zebra_ns *)THREAD_ARG(thread);
@@ -487,6 +489,7 @@ static void netlink_install_filter(int sock, __u32 pid, __u32 dplane_pid)
 		flog_err_sys(EC_LIB_SOCKET, "Can't install socket filter: %s",
 			     safe_strerror(errno));
 }
+#endif /* !NETLINK_PROXY */
 
 void netlink_parse_rtattr_flags(struct rtattr **tb, int max,
 		struct rtattr *rta, int len, unsigned short flags)
@@ -644,7 +647,7 @@ static void netlink_parse_nlattr(struct nlattr **tb, int max,
 	}
 }
 
-static void netlink_parse_extended_ack(struct nlmsghdr *h)
+void netlink_parse_extended_ack(struct nlmsghdr *h)
 {
 	struct nlattr *tb[NLMSGERR_ATTR_MAX + 1] = {};
 	const struct nlmsgerr *err = (const struct nlmsgerr *)NLMSG_DATA(h);
@@ -695,6 +698,10 @@ static void netlink_parse_extended_ack(struct nlmsghdr *h)
 	}
 }
 
+#ifdef NETLINK_PROXY
+extern ssize_t netlink_send_msg(struct nlsock *ns, const void *buf,
+				size_t buflen);
+#else
 /*
  * netlink_send_msg - send a netlink message of a certain size.
  *
@@ -1172,6 +1179,7 @@ static int nl_batch_read_resp(struct nl_batch *bth)
 
 	return 0;
 }
+#endif /* NETLINK_PROXY */
 
 static void nl_batch_reset(struct nl_batch *bth)
 {
@@ -1220,13 +1228,28 @@ static void nl_batch_send(struct nl_batch *bth)
 				   __func__, bth->zns->nls.name, bth->curlen,
 				   bth->msgcnt);
 
-		if (netlink_send_msg(&(bth->zns->nls), bth->buf, bth->curlen)
+		if (netlink_send_msg(
+#ifdef NETLINK_PROXY
+			    /* HACK: Fix `const` warning. */
+			    (struct nlsock *)(size_t)&bth->zns->nls,
+#else
+			    &bth->zns->nls
+#endif /* NETLINK_PROXY */
+			    bth->buf, bth->curlen)
 		    == -1)
 			err = true;
 
 		if (!err) {
+#ifdef NETLINK_PROXY
+			if (netlink_parse_info(netlink_information_fetch,
+					       &bth->zns->nls, bth->zns, 0,
+					       false)
+			    == -1)
+				err = true;
+#else
 			if (nl_batch_read_resp(bth) == -1)
 				err = true;
+#endif
 		}
 	}
 
@@ -1414,6 +1437,7 @@ void kernel_update_multi(struct dplane_ctx_q *ctx_list)
 	dplane_ctx_list_append(ctx_list, &handled_list);
 }
 
+#ifndef NETLINK_PROXY
 /* Exported interface function.  This function simply calls
    netlink_socket (). */
 void kernel_init(struct zebra_ns *zns)
@@ -1565,4 +1589,5 @@ void kernel_terminate(struct zebra_ns *zns, bool complete)
 		}
 	}
 }
+#endif /* !NETLINK_PROXY */
 #endif /* HAVE_NETLINK */

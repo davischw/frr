@@ -444,6 +444,8 @@ extern uint8_t route_distance(int type);
 
 extern void zebra_rib_evaluate_rn_nexthops(struct route_node *rn, uint32_t seq);
 
+extern int vrf_id_get_next(vrf_id_t, vrf_id_t *);
+
 /*
  * Inline functions.
  */

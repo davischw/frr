@@ -39,6 +39,14 @@ struct nlsock {
 	int seq;
 	struct sockaddr_nl snl;
 	char name[64];
+
+#ifdef NETLINK_PROXY
+	struct stream *nsbuf;
+	struct list *inbufs;
+	struct list *outbufs;
+	struct zebra_ns *zns;
+	uint32_t lastseq;
+#endif /* NETLINK_PROXY */
 };
 #endif
 
@@ -50,10 +58,17 @@ struct zebra_ns {
 	ns_id_t ns_id;
 
 #ifdef HAVE_NETLINK
-	struct nlsock netlink;        /* kernel messages */
-	struct nlsock netlink_cmd;    /* command channel */
+#ifdef NETLINK_PROXY
+	union {
+#endif /* NETLINK_PROXY */
+	struct nlsock netlink;     /* kernel messages */
+	struct nlsock netlink_cmd; /* command channel */
 	struct nlsock netlink_dplane; /* dataplane channel */
+#ifdef NETLINK_PROXY
+	};
+#endif /* NETLINK_PROXY */
 	struct thread *t_netlink;
+	struct thread *t_netlinkout;
 #endif
 
 	struct route_table *if_table;
