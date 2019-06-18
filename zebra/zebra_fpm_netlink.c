@@ -228,6 +228,10 @@ static uint8_t netlink_proto_from_route_type(int type)
 	case ZEBRA_ROUTE_KERNEL:
 	case ZEBRA_ROUTE_CONNECT:
 		return RTPROT_KERNEL;
+#ifdef NETLINK_PROXY
+	case ZEBRA_ROUTE_STATIC:
+		return RTPROT_STATIC;
+#endif /* NETLINK_PROXY */
 
 	default:
 		return RTPROT_ZEBRA;

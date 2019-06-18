@@ -62,6 +62,10 @@ extern "C" {
 #define RTPROT_OPENFABRIC  197
 #define RTPROT_SRTE        198
 
+#ifndef RTPROT_CONNECTED
+#define RTPROT_CONNECTED 200
+#endif /* RTPROT_CONNECTED */
+
 void rt_netlink_init(void);
 
 /* MPLS label forwarding table change, using dataplane context information. */

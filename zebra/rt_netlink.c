@@ -261,6 +261,10 @@ static inline int zebra2proto(int proto)
 		proto = RTPROT_ZEBRA;
 		break;
 	case ZEBRA_ROUTE_CONNECT:
+#ifdef NETLINK_PROXY
+		proto = RTPROT_CONNECTED;
+		break;
+#endif /* NETLINK_PROXY */
 	case ZEBRA_ROUTE_KERNEL:
 		proto = RTPROT_KERNEL;
 		break;
