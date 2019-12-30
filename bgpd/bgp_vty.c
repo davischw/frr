@@ -2471,6 +2471,48 @@ DEFUN (no_bgp_deterministic_med,
 }
 
 /* "bgp graceful-restart mode" configuration. */
+static void bgp_apply_immediately(struct vty *vty, struct bgp *bgp)
+{
+	struct listnode *node, *nnode;
+	struct peer *peer;
+	bool has_ipv4 = false;
+	bool has_ipv6 = false;
+	char errmsg[128];
+	int rv = NB_OK;
+
+	if (CHECK_FLAG(bgp->flags, BGP_FLAG_APPLY_IMMEDIATELY) == 0)
+		return;
+
+	for (ALL_LIST_ELEMENTS(bgp->peer, node, nnode, peer)) {
+		/* Shortcut: we found IPv4 and IPv6, no need to iterate. */
+		if (has_ipv4 && has_ipv6)
+			break;
+
+		if (peer->afc[AFI_IP][SAFI_UNICAST])
+			has_ipv4 = true;
+		if (peer->afc[AFI_IP6][SAFI_UNICAST])
+			has_ipv6 = true;
+	}
+
+	/*
+	 * We say AFI_IP only, but with BGP_CLEAR_SOFT_NONE will cause the
+	 * connection to reset.
+	 */
+	if (has_ipv4) {
+		rv = bgp_clear(vty, bgp, AFI_IP, SAFI_UNICAST, clear_all,
+			       BGP_CLEAR_SOFT_NONE, NULL);
+		if (rv != NB_OK)
+			vty_out(vty, "Error description: %s\n", errmsg);
+	}
+
+	if (has_ipv6) {
+		rv = bgp_clear(vty, bgp, AFI_IP6, SAFI_UNICAST, clear_all,
+			       BGP_CLEAR_SOFT_NONE, NULL);
+		if (rv != NB_OK)
+			vty_out(vty, "Error description: %s\n", errmsg);
+	}
+}
+
 DEFUN (bgp_graceful_restart,
 	bgp_graceful_restart_cmd,
 	"bgp graceful-restart",
@@ -2480,10 +2522,13 @@ DEFUN (bgp_graceful_restart,
 {
 	int ret = BGP_GR_FAILURE;
 
+	VTY_DECLVAR_CONTEXT(bgp, bgp);
+
+	if (bgp_global_gr_mode_get(bgp) == GLOBAL_GR)
+		return CMD_SUCCESS;
+
 	if (BGP_DEBUG(graceful_restart, GRACEFUL_RESTART))
 		zlog_debug("[BGP_GR] bgp_graceful_restart_cmd : START ");
-
-	VTY_DECLVAR_CONTEXT(bgp, bgp);
 
 	ret = bgp_gr_update_all(bgp, GLOBAL_GR_CMD);
 
@@ -2494,6 +2539,9 @@ DEFUN (bgp_graceful_restart,
 		zlog_debug("[BGP_GR] bgp_graceful_restart_cmd : END ");
 	vty_out(vty,
 		"Graceful restart configuration changed, reset all peers to take effect\n");
+
+	bgp_apply_immediately(vty, bgp);
+
 	return bgp_vty_return(vty, ret);
 }
 
@@ -2505,12 +2553,15 @@ DEFUN (no_bgp_graceful_restart,
 	NO_GR_CMD
       )
 {
+	int ret = BGP_GR_FAILURE;
+
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
+
+	if (bgp_global_gr_mode_get(bgp) == GLOBAL_HELPER)
+		return CMD_SUCCESS;
 
 	if (BGP_DEBUG(graceful_restart, GRACEFUL_RESTART))
 		zlog_debug("[BGP_GR] no_bgp_graceful_restart_cmd : START ");
-
-	int ret = BGP_GR_FAILURE;
 
 	ret = bgp_gr_update_all(bgp, NO_GLOBAL_GR_CMD);
 
@@ -2521,6 +2572,8 @@ DEFUN (no_bgp_graceful_restart,
 		zlog_debug("[BGP_GR] no_bgp_graceful_restart_cmd : END ");
 	vty_out(vty,
 		"Graceful restart configuration changed, reset all peers to take effect\n");
+
+	bgp_apply_immediately(vty, bgp);
 
 	return bgp_vty_return(vty, ret);
 }
@@ -2538,7 +2591,12 @@ DEFUN (bgp_graceful_restart_stalepath_time,
 	uint32_t stalepath;
 
 	stalepath = strtoul(argv[idx_number]->arg, NULL, 10);
+	if (bgp->stalepath_time == stalepath)
+		return CMD_SUCCESS;
+
 	bgp->stalepath_time = stalepath;
+	bgp_apply_immediately(vty, bgp);
+
 	return CMD_SUCCESS;
 }
 
@@ -2555,7 +2613,12 @@ DEFUN (bgp_graceful_restart_restart_time,
 	uint32_t restart;
 
 	restart = strtoul(argv[idx_number]->arg, NULL, 10);
+	if (bgp->restart_time == restart)
+		return CMD_SUCCESS;
+
 	bgp->restart_time = restart;
+	bgp_apply_immediately(vty, bgp);
+
 	return CMD_SUCCESS;
 }
 
@@ -2572,11 +2635,16 @@ DEFUN (bgp_graceful_restart_select_defer_time,
 	uint32_t defer_time;
 
 	defer_time = strtoul(argv[idx_number]->arg, NULL, 10);
+	if (bgp->select_defer_time == defer_time)
+		return CMD_SUCCESS;
+
 	bgp->select_defer_time = defer_time;
 	if (defer_time == 0)
 		SET_FLAG(bgp->flags, BGP_FLAG_SELECT_DEFER_DISABLE);
 	else
 		UNSET_FLAG(bgp->flags, BGP_FLAG_SELECT_DEFER_DISABLE);
+
+	bgp_apply_immediately(vty, bgp);
 
 	return CMD_SUCCESS;
 }
@@ -2592,7 +2660,12 @@ DEFUN (no_bgp_graceful_restart_stalepath_time,
 {
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
 
+	if (bgp->stalepath_time == BGP_DEFAULT_STALEPATH_TIME)
+		return CMD_SUCCESS;
+
 	bgp->stalepath_time = BGP_DEFAULT_STALEPATH_TIME;
+	bgp_apply_immediately(vty, bgp);
+
 	return CMD_SUCCESS;
 }
 
@@ -2607,7 +2680,12 @@ DEFUN (no_bgp_graceful_restart_restart_time,
 {
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
 
+	if (bgp->restart_time == BGP_DEFAULT_RESTART_TIME)
+		return CMD_SUCCESS;
+
 	bgp->restart_time = BGP_DEFAULT_RESTART_TIME;
+	bgp_apply_immediately(vty, bgp);
+
 	return CMD_SUCCESS;
 }
 
@@ -2622,8 +2700,12 @@ DEFUN (no_bgp_graceful_restart_select_defer_time,
 {
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
 
+	if (!CHECK_FLAG(bgp->flags, BGP_FLAG_SELECT_DEFER_DISABLE))
+		return CMD_SUCCESS;
+
 	bgp->select_defer_time = BGP_DEFAULT_SELECT_DEFERRAL_TIME;
 	UNSET_FLAG(bgp->flags, BGP_FLAG_SELECT_DEFER_DISABLE);
+	bgp_apply_immediately(vty, bgp);
 
 	return CMD_SUCCESS;
 }
@@ -2636,7 +2718,13 @@ DEFUN (bgp_graceful_restart_preserve_fw,
 	"Sets F-bit indication that fib is preserved while doing Graceful Restart\n")
 {
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
+
+	if (CHECK_FLAG(bgp->flags, BGP_FLAG_GR_PRESERVE_FWD))
+		return CMD_SUCCESS;
+
 	SET_FLAG(bgp->flags, BGP_FLAG_GR_PRESERVE_FWD);
+	bgp_apply_immediately(vty, bgp);
+
 	return CMD_SUCCESS;
 }
 
@@ -2649,7 +2737,13 @@ DEFUN (no_bgp_graceful_restart_preserve_fw,
 	"Unsets F-bit indication that fib is preserved while doing Graceful Restart\n")
 {
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
+
+	if (!CHECK_FLAG(bgp->flags, BGP_FLAG_GR_PRESERVE_FWD))
+		return CMD_SUCCESS;
+
 	UNSET_FLAG(bgp->flags, BGP_FLAG_GR_PRESERVE_FWD);
+	bgp_apply_immediately(vty, bgp);
+
 	return CMD_SUCCESS;
 }
 
@@ -2660,12 +2754,14 @@ DEFUN (bgp_graceful_restart_disable,
 	GR_DISABLE)
 {
 	int ret = BGP_GR_FAILURE;
+	VTY_DECLVAR_CONTEXT(bgp, bgp);
+
+	if (bgp_global_gr_mode_get(bgp) == GLOBAL_DISABLE)
+		return CMD_SUCCESS;
 
 	if (BGP_DEBUG(graceful_restart, GRACEFUL_RESTART))
 		zlog_debug(
 			"[BGP_GR] bgp_graceful_restart_disable_cmd : START ");
-
-	VTY_DECLVAR_CONTEXT(bgp, bgp);
 
 	ret = bgp_gr_update_all(bgp, GLOBAL_DISABLE_CMD);
 
@@ -2677,6 +2773,8 @@ DEFUN (bgp_graceful_restart_disable,
 			"[BGP_GR] bgp_graceful_restart_disable_cmd : END ");
 	vty_out(vty,
 		"Graceful restart configuration changed, reset all peers to take effect\n");
+
+	bgp_apply_immediately(vty, bgp);
 
 	return bgp_vty_return(vty, ret);
 }
@@ -2690,6 +2788,9 @@ DEFUN (no_bgp_graceful_restart_disable,
       )
 {
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
+
+	if (bgp_global_gr_mode_get(bgp) == GLOBAL_HELPER)
+		return CMD_SUCCESS;
 
 	if (BGP_DEBUG(graceful_restart, GRACEFUL_RESTART))
 		zlog_debug(
@@ -2707,6 +2808,8 @@ DEFUN (no_bgp_graceful_restart_disable,
 			"[BGP_GR] no_bgp_graceful_restart_disable_cmd : END ");
 	vty_out(vty,
 		"Graceful restart configuration changed, reset all peers to take effect\n");
+
+	bgp_apply_immediately(vty, bgp);
 
 	return bgp_vty_return(vty, ret);
 }
@@ -2999,6 +3102,27 @@ DEFUN (no_bgp_graceful_restart_rib_stale_time,
 	if (bgp_zebra_stale_timer_update(bgp))
 		return CMD_WARNING;
 
+	return CMD_SUCCESS;
+}
+
+DEFUN (bgp_apply_now, bgp_apply_immediately_cmd,
+       "bgp apply-immediately",
+       "BGP specific commands\n"
+       "Reset peer connection to apply configuration if needed.\n")
+{
+	VTY_DECLVAR_CONTEXT(bgp, bgp);
+	SET_FLAG(bgp->flags, BGP_FLAG_APPLY_IMMEDIATELY);
+	return CMD_SUCCESS;
+}
+
+DEFUN (no_bgp_apply_immediately, no_bgp_apply_immediately_cmd,
+       "no bgp apply-immediately",
+       NO_STR
+       "BGP specific commands\n"
+       "Reset peer connection to apply configuration if needed.\n")
+{
+	VTY_DECLVAR_CONTEXT(bgp, bgp);
+	UNSET_FLAG(bgp->flags, BGP_FLAG_APPLY_IMMEDIATELY);
 	return CMD_SUCCESS;
 }
 
@@ -16558,6 +16682,10 @@ int bgp_config_write(struct vty *vty)
 				? "view" : "vrf", bgp->name);
 		vty_out(vty, "\n");
 
+		/* BGP apply immediately settings that require peer reset. */
+		if (CHECK_FLAG(bgp->flags, BGP_FLAG_APPLY_IMMEDIATELY) == 0)
+			vty_out(vty, " no bgp apply-immediately\n");
+
 		/* BGP fast-external-failover. */
 		if (CHECK_FLAG(bgp->flags, BGP_FLAG_NO_FAST_EXT_FAILOVER))
 			vty_out(vty, " no bgp fast-external-failover\n");
@@ -17252,6 +17380,10 @@ void bgp_vty_init(void)
 	/* "bgp graceful-shutdown" commands */
 	install_element(BGP_NODE, &bgp_graceful_shutdown_cmd);
 	install_element(BGP_NODE, &no_bgp_graceful_shutdown_cmd);
+
+	/* "bgp apply-immediately commands. */
+	install_element(BGP_NODE, &bgp_apply_immediately_cmd);
+	install_element(BGP_NODE, &no_bgp_apply_immediately_cmd);
 
 	/* "bgp fast-external-failover" commands */
 	install_element(BGP_NODE, &bgp_fast_external_failover_cmd);
