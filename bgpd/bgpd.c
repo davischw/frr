@@ -3213,6 +3213,7 @@ static struct bgp *bgp_create(as_t *as, const char *name,
 	bgp->fast_convergence = false;
 	bgp->as = *as;
 	bgp->llgr_stale_time = BGP_DEFAULT_LLGR_STALE_TIME;
+	SET_FLAG(bgp->flags, BGP_FLAG_APPLY_IMMEDIATELY);
 
 #ifdef ENABLE_BGP_VNC
 	if (inst_type != BGP_INSTANCE_TYPE_VRF) {
