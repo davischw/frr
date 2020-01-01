@@ -681,6 +681,12 @@ static int netlink_route_change_read_unicast(struct nlmsghdr *h, ns_id_t ns_id,
 		flags |= ZEBRA_FLAG_SELFROUTE;
 		proto = proto2zebra(rtm->rtm_protocol, rtm->rtm_family, false);
 	}
+
+#ifdef NETLINK_PROXY
+	if (h->nlmsg_flags & NLM_F_APPEND)
+		flags |= ZEBRA_FLAG_APPEND;
+#endif /* NETLINK_PROXY */
+
 	if (tb[RTA_OIF])
 		index = *(int *)RTA_DATA(tb[RTA_OIF]);
 

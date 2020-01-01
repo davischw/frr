@@ -25,6 +25,8 @@
 
 #include <stdint.h>
 
+#include "zebra/zebra_nhg.h"
+
 /** Default netlink proxy port. */
 #define NETLINK_PROXY_PORT 2630
 
@@ -44,5 +46,11 @@ extern int netlink_talk_info(int (*filter)(struct nlmsghdr *, ns_id_t,
 					   int startup),
 			     struct nlmsghdr *nlmsg,
 			     struct zebra_dplane_info *dp_info, int startup);
+extern int rib_append_nexthop(afi_t afi, struct prefix *p,
+			      struct prefix_ipv6 *src_p, struct route_entry *re,
+			      struct nhg_hash_entry *rt_nhe,
+			      struct route_node *rn);
+extern int rib_delete_nexthop(afi_t afi, struct route_node *rn,
+			      struct route_entry *re, struct nexthop *nh);
 
 #endif /* USERLAND_NETLINK_H */

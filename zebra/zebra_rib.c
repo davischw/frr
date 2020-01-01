@@ -56,11 +56,15 @@
 #include "zebra/zebra_vxlan.h"
 #include "zebra/zapi_msg.h"
 #include "zebra/zebra_dplane.h"
+#ifdef NETLINK_PROXY
+#include "zebra/user_netlink.h"
+#endif /* NETLINK_PROXY */
 
 DEFINE_MGROUP(ZEBRA, "zebra");
 
 DEFINE_MTYPE(ZEBRA, RE,       "Route Entry");
 DEFINE_MTYPE_STATIC(ZEBRA, RIB_DEST,       "RIB destination");
+
 DEFINE_MTYPE_STATIC(ZEBRA, RIB_UPDATE_CTX, "Rib update context object");
 DEFINE_MTYPE_STATIC(ZEBRA, WQ_NHG_WRAPPER, "WQ nhg wrapper");
 
@@ -3213,6 +3217,13 @@ int rib_add_multipath_nhe(afi_t afi, safi_t safi, struct prefix *p,
 	/* Lookup route node.*/
 	rn = srcdest_rnode_get(table, p, src_p);
 
+#ifdef NETLINK_PROXY
+	/* We've got an append message, deal with it properly. */
+	if (CHECK_FLAG(re->flags, ZEBRA_FLAG_APPEND)
+	    && rib_append_nexthop(afi, p, src_p, re, nhe, rn) == -1)
+		return -1;
+#endif /* NETLINK_PROXY */
+
 	/*
 	 * If same type of route are installed, treat it as a implicit
 	 * withdraw. If the user has specified the No route replace semantics
@@ -3270,6 +3281,9 @@ int rib_add_multipath_nhe(afi_t afi, safi_t safi, struct prefix *p,
 	}
 
 	same = first_same;
+
+	/* If not treated here, then we are adding new entry. */
+	UNSET_FLAG(re->flags, ZEBRA_FLAG_APPEND);
 
 	/* If this route is kernel/connected route, notify the dataplane. */
 	if (RIB_SYSTEM_ROUTE(re)) {
@@ -3367,7 +3381,7 @@ void rib_delete(afi_t afi, safi_t safi, vrf_id_t vrf_id, int type,
 	struct route_entry *re;
 	struct route_entry *fib = NULL;
 	struct route_entry *same = NULL;
-	struct nexthop *rtnh;
+	struct nexthop *rtnh = NULL;
 	char buf2[INET6_ADDRSTRLEN];
 	rib_dest_t *dest;
 
@@ -3524,6 +3538,17 @@ void rib_delete(afi_t afi, safi_t safi, vrf_id_t vrf_id, int type,
 	}
 
 	if (same) {
+		/*
+		 * Kernel wants to delete specific next hop:
+		 * The loop above before the the `!same` check already found
+		 * the entry pointer and the next hop, now all we need is to
+		 * remove it.
+		 */
+		if (CHECK_FLAG(flags, ZEBRA_FLAG_APPEND) && rtnh != NULL) {
+			rib_delete_nexthop(afi, rn, re, rtnh);
+			return;
+		}
+
 		if (fromkernel && CHECK_FLAG(flags, ZEBRA_FLAG_SELFROUTE)
 		    && !allow_delete) {
 			rib_install_kernel(rn, same, NULL);

@@ -1211,4 +1211,183 @@ int user_netlink_event_cb(struct thread *t)
 	return 0;
 }
 
+/**
+ * Look up for old route and create a new group with the previous and new
+ * next hops.
+ *
+ * \returns '-1' on failure otherwise '0'.
+ */
+int
+rib_append_nexthop(afi_t afi, struct prefix *p, struct prefix_ipv6 *src_p,
+		   struct route_entry *re, struct nhg_hash_entry *rt_nhe,
+		   struct route_node *rn)
+{
+	struct nhg_hash_entry *nhe = NULL;
+	struct nexthop_group *nhg = NULL;
+	struct route_entry *same = NULL;
+	struct nexthop *nha, *nhb, *nhc;
+	bool found = false;
+	int copy_count;
+
+	/* Look up the route that matches the entry we want to append. */
+	RNODE_FOREACH_RE(rn, same) {
+		if (CHECK_FLAG(same->status, ROUTE_ENTRY_REMOVED))
+			continue;
+
+		if (same->type != re->type)
+			continue;
+		if (same->instance != re->instance)
+			continue;
+		if (re->type == ZEBRA_ROUTE_STATIC) {
+			if (same->distance != re->distance)
+				continue;
+			if (same->metric != re->metric)
+				continue;
+		}
+		if (same->type == ZEBRA_ROUTE_KERNEL
+		    && same->metric != re->metric)
+			continue;
+
+		if (CHECK_FLAG(re->flags, ZEBRA_FLAG_RR_USE_DISTANCE) &&
+		    same->distance != re->distance)
+			continue;
+
+		found = true;
+		break;
+	}
+
+	/*
+	 * Always allocate a next hop group, because this function might have
+	 * been called from `rib_add_multipath_nhe` using a stack pointer
+	 * instead of heap (or worse heap that is deallocated by
+	 * `rib_add_multipath`).
+	 */
+	nhg = nexthop_group_new();
+	if (rt_nhe != NULL)
+		nexthop_group_copy(nhg, &rt_nhe->nhg);
+
+	/* This is a new route, don't attempt to append it anywhere. */
+	if (found == false) {
+		if (rt_nhe == NULL)
+			goto error_and_return;
+
+		UNSET_FLAG(re->flags, ZEBRA_FLAG_APPEND);
+		goto skip_nh_copy;
+	}
+
+	/*
+	 * To append a nexthop to a new group, we actually do a copy of
+	 * all non duplicated next hops from previous group to a new one.
+	 */
+	copy_count = 0;
+	for (ALL_NEXTHOPS(same->nhe->nhg, nha)) {
+		found = false;
+		for (ALL_NEXTHOPS_PTR(nhg, nhb)) {
+			if (nexthop_same(nha, nhb) == false)
+				continue;
+
+			found = true;
+			break;
+		}
+		if (found)
+			continue;
+
+		nhc = nexthop_dup(nha, nha->rparent);
+		nexthop_group_add_sorted(nhg, nhc);
+		copy_count++;
+	}
+	for (ALL_NEXTHOPS_PTR(nhg, nha))
+		SET_FLAG(nha->flags, NEXTHOP_FLAG_FIB);
+
+	if (IS_ZEBRA_DEBUG_KERNEL)
+		zlog_debug("%s: copied %d routes from previous group",
+			   __func__, copy_count);
+
+skip_nh_copy:
+	/* Find or create next hop group for this entry. */
+	nhe = zebra_nhg_rib_find(0, nhg, afi, ZEBRA_ROUTE_NHG);
+
+	/* The next hops got copied over into an entry, so free them now. */
+	nexthop_group_delete(&nhg);
+
+	if (nhe == NULL) {
+	error_and_return:
+		nexthop_group_delete(&nhg);
+		if (src_p && src_p->family)
+			flog_err(
+				EC_ZEBRA_TABLE_LOOKUP_FAILED,
+				"%s: failed to find/create next hop group for "
+				"%pFX from %pFX", __func__, p, src_p);
+		else
+			flog_err(
+				EC_ZEBRA_TABLE_LOOKUP_FAILED,
+				"%s: failed to find/create next hop group for "
+				"%pFX", __func__, p);
+
+		return -1;
+	}
+
+	/* Attach next hop group to route entry. */
+	route_entry_update_nhe(re, nhe);
+	return 0;
+}
+
+/**
+ * Creates a new next hop group and removes selected next hop.
+ *
+ * \returns '-1' on failure otherwise '0'.
+ */
+int
+rib_delete_nexthop(afi_t afi, struct route_node *rn, struct route_entry *re,
+		   struct nexthop *nh)
+{
+	struct nhg_hash_entry *nhe;
+	struct nexthop *nha, *nhc;
+	struct nexthop_group *nhg;
+	int copy_count;
+
+	/* Easiest case: if there is only one next hop then delete it. */
+	if (nexthop_group_active_nexthop_num_no_recurse(&re->nhe->nhg) == 1) {
+		rib_delnode(rn, re);
+		route_unlock_node(rn);
+		return 0;
+	}
+
+	/*
+	 * To remove a next hop from a group we need to create a new one with
+	 * all next hops except the ones we want to remove.
+	 */
+	copy_count = 0;
+	nhg = nexthop_group_new();
+	for (ALL_NEXTHOPS(re->nhe->nhg, nha)) {
+		if (nexthop_same(nha, nh) == true)
+			continue;
+
+		nhc = nexthop_dup(nha, nha->rparent);
+		nexthop_group_add_sorted(nhg, nhc);
+		copy_count++;
+	}
+	for (ALL_NEXTHOPS_PTR(nhg, nha))
+		SET_FLAG(nha->flags, NEXTHOP_FLAG_FIB);
+
+	if (IS_ZEBRA_DEBUG_KERNEL)
+		zlog_debug("%s: copied %d routes from previous group",
+			   __func__, copy_count);
+
+	/* Find or create next hop group for this entry. */
+	nhe = zebra_nhg_rib_find(0, nhg, afi, ZEBRA_ROUTE_NHG);
+
+	/* The next hops got copied over into an entry, so free them now. */
+	nexthop_group_delete(&nhg);
+
+	/* Attach next hop group to route entry. */
+	route_entry_update_nhe(re, nhe);
+
+	/* Enqueue update and release reference. */
+	rib_queue_add(rn);
+	route_unlock_node(rn);
+
+	return 0;
+}
+
 #endif /* NETLINK_PROXY */

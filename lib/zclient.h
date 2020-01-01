@@ -559,6 +559,10 @@ struct zapi_route {
  * Mark route for after synchronization removal.
  */
 #define ZEBRA_FLAG_SYNC               0x400
+/*
+ * Append route information if it already exists.
+ */
+#define ZEBRA_FLAG_APPEND             0x800
 
 	/* The older XXX_MESSAGE flags live here */
 	uint32_t message;
