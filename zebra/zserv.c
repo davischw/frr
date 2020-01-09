@@ -595,6 +595,12 @@ static void zserv_client_free(struct zserv *client)
 		close(client->sock);
 
 		if (DYNAMIC_CLIENT_GR_DISABLED(client)) {
+#ifdef NETLINK_PROXY
+			/* Don't get rid of static routes. */
+			if (client->proto == ZEBRA_ROUTE_STATIC)
+				nroutes = 0;
+			else
+#endif /* NETLINK_PROXY */
 			nroutes = rib_score_proto(client->proto,
 						  client->instance);
 			zlog_notice(
