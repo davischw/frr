@@ -1302,6 +1302,42 @@ static void bgp_apply_immediately(struct vty *vty, struct bgp *bgp)
 	}
 }
 
+/**
+ * Apply BGP configurations to peer connection immediately causing it to
+ * restart.
+ */
+static void bgp_apply_immediately_peer(struct vty *vty, struct peer *peer)
+{
+	struct bgp *bgp = peer->bgp;
+	enum clear_sort clear_type;
+	int rv;
+	char errmsg[128];
+
+	if (CHECK_FLAG(bgp->flags, BGP_FLAG_APPLY_IMMEDIATELY) == 0)
+		return;
+
+	clear_type = CHECK_FLAG(peer->sflags, PEER_STATUS_GROUP) ? clear_group
+								 : clear_peer;
+
+	/*
+	 * We say AFI_IP only, but with BGP_CLEAR_SOFT_NONE will cause the
+	 * connection to reset.
+	 */
+	if (peer->afc[AFI_IP][SAFI_UNICAST]) {
+		rv = bgp_clear(vty, bgp, AFI_IP, SAFI_UNICAST, clear_type,
+			       BGP_CLEAR_SOFT_NONE, peer->host);
+		if (rv != NB_OK)
+			vty_out(vty, "Error description: %s\n", errmsg);
+	}
+
+	if (peer->afc[AFI_IP6][SAFI_UNICAST]) {
+		rv = bgp_clear(vty, bgp, AFI_IP6, SAFI_UNICAST, clear_type,
+			       BGP_CLEAR_SOFT_NONE, peer->host);
+		if (rv != NB_OK)
+			vty_out(vty, "Error description: %s\n", errmsg);
+	}
+}
+
 static int bgp_clear_vty(struct vty *vty, const char *name, afi_t afi,
 			 safi_t safi, enum clear_sort sort,
 			 enum bgp_clear_type stype, const char *arg)
@@ -8723,7 +8759,12 @@ DEFPY(
 	if (!peer)
 		return CMD_WARNING_CONFIG_FAILED;
 
+	/* Don't attempt to apply config if already in effect. */
+	if (peer->as_path_loop_detection == true)
+		return CMD_SUCCESS;
+
 	peer->as_path_loop_detection = true;
+	bgp_apply_immediately_peer(vty, peer);
 
 	return CMD_SUCCESS;
 }
@@ -8743,7 +8784,12 @@ DEFPY(
 	if (!peer)
 		return CMD_WARNING_CONFIG_FAILED;
 
+	/* Don't attempt to apply config if already in effect. */
+	if (peer->as_path_loop_detection == false)
+		return CMD_SUCCESS;
+
 	peer->as_path_loop_detection = false;
+	bgp_apply_immediately_peer(vty, peer);
 
 	return CMD_SUCCESS;
 }
