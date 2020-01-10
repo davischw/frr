@@ -45,6 +45,7 @@
 #include "mpls.h"
 
 #include "bgpd/bgpd.h"
+#include "bgpd/bgp_aspath.h"
 #include "bgpd/bgp_debug.h"
 #include "bgpd/bgp_errors.h"
 #include "bgpd/bgp_fsm.h"
@@ -79,6 +80,7 @@ void bpacket_free(struct bpacket *pkt)
 	if (pkt->buffer)
 		stream_free(pkt->buffer);
 	pkt->buffer = NULL;
+	XFREE(MTYPE_BGP_PACKET, pkt->aspath);
 	XFREE(MTYPE_BGP_PACKET, pkt);
 }
 
@@ -352,8 +354,24 @@ struct stream *bpacket_reformat_for_peer(struct bpacket *pkt,
 	struct peer *peer;
 	struct bgp_filter *filter;
 
-	s = stream_dup(pkt->buffer);
 	peer = PAF_PEER(paf);
+
+	/* Perform AS Path loop detection right before sending to wire. */
+	if (peer->as_path_loop_detection && pkt->aspath) {
+		int i;
+
+		for (i = 0; i < pkt->aspathlen; i++) {
+			if (peer->as != pkt->aspath[i])
+				continue;
+
+			zlog_debug(
+				"AS Path loop detected while sending UPDATE to neighbor %s",
+				peer->host);
+			return NULL;
+		}
+	}
+
+	s = stream_dup(pkt->buffer);
 
 	vec = &pkt->arr.entries[BGP_ATTR_VEC_NH];
 
@@ -678,6 +696,9 @@ struct bpacket *subgroup_update_packet(struct update_subgroup *subgrp)
 	struct prefix_rd *prd = NULL;
 	mpls_label_t label = MPLS_INVALID_LABEL, *label_pnt = NULL;
 	uint32_t num_labels = 0;
+	struct assegment *seg;
+	uint32_t *aspath = NULL;
+	int aspathlen = 0;
 
 	if (!subgrp)
 		return NULL;
@@ -722,6 +743,28 @@ struct bpacket *subgroup_update_packet(struct update_subgroup *subgrp)
 					peer->host, peer->pmax_out[afi][safi]);
 			}
 			goto next;
+		}
+
+		/*
+		 * The UPDATE packet will be shared with all peers within the
+		 * update group, so we need to store AS Path information for
+		 * the Sender Side Loop Detection to work.
+		 *
+		 * This conditional branch will only be execute once per
+		 * advertisement.
+		 */
+		seg = adv->baa->attr->aspath->segments;
+		if (stream_empty(s) && seg && seg->length) {
+			int i;
+
+			/* It is a bug to enter here twice. */
+			assert(aspath == NULL && aspathlen == 0);
+
+			aspath = XCALLOC(MTYPE_BGP_PACKET,
+					 seg->length * sizeof(uint32_t));
+			aspathlen = seg->length;
+			for (i = 0; i < seg->length; i++)
+				aspath[i] = seg->as[i];
 		}
 
 		space_remaining = STREAM_CONCAT_REMAIN(s, snlri, STREAM_SIZE(s))
@@ -905,6 +948,11 @@ next:
 		pkt = bpacket_queue_add(SUBGRP_PKTQ(subgrp), packet, &vecarr);
 		stream_reset(s);
 		stream_reset(snlri);
+
+		/* Record all paths to the shared binary packet. */
+		pkt->aspath = aspath;
+		pkt->aspathlen = aspathlen;
+
 		return pkt;
 	}
 	return NULL;

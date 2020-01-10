@@ -102,6 +102,8 @@ struct bpacket {
 
 	struct stream *buffer;
 	bpacket_attr_vec_arr arr;
+	uint32_t *aspath;
+	int aspathlen;
 
 	unsigned int ver;
 };
