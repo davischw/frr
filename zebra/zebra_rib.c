@@ -3252,6 +3252,14 @@ int rib_add_multipath_nhe(afi_t afi, safi_t safi, struct prefix *p,
 			continue;
 		}
 
+		/* Don't merge static routes with different distance/metric. */
+		if (re->type == ZEBRA_ROUTE_STATIC) {
+			if (same->distance != re->distance)
+				continue;
+			if (same->metric != re->metric)
+				continue;
+		}
+
 		/* Compare various route_entry properties */
 		if (rib_compare_routes(re, same)) {
 			same_count++;
