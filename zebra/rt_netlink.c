@@ -777,10 +777,17 @@ static int netlink_route_change_read_unicast(struct nlmsghdr *h, ns_id_t ns_id,
 	 *    values will end up with a admin distance of 0, which
 	 *    will cause them to win for the purposes of zebra.
 	 */
+#ifndef NETLINK_PROXY
 	if (proto == ZEBRA_ROUTE_KERNEL) {
 		distance = (metric >> 24) & 0xFF;
 		metric = (metric & 0x00FFFFFF);
 	}
+#else
+	distance = (metric >> 24) & 0xFF;
+	metric = (metric & 0x00FFFFFF);
+	if (!selfroute)
+		proto = proto2zebra(rtm->rtm_protocol, rtm->rtm_family, false);
+#endif /* NETLINK_PROXY */
 
 	if (IS_ZEBRA_DEBUG_KERNEL) {
 		char buf2[PREFIX_STRLEN];
