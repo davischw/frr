@@ -1765,6 +1765,7 @@ ssize_t netlink_route_multipath_msg_encode(int cmd,
 			nl_msg_type_to_str(cmd), p, dplane_ctx_get_vrf(ctx),
 			table_id);
 
+#ifndef NETLINK_PROXY
 	/*
 	 * If we are not updating the route and we have received
 	 * a route delete, then all we need to fill in is the
@@ -1773,6 +1774,7 @@ ssize_t netlink_route_multipath_msg_encode(int cmd,
 	 */
 	if (cmd == RTM_DELROUTE)
 		return NLMSG_ALIGN(req->n.nlmsg_len);
+#endif /* !NETLINK_PROXY */
 
 	if (dplane_ctx_get_mtu(ctx) || dplane_ctx_get_nh_mtu(ctx)) {
 		struct rtattr *nest;
