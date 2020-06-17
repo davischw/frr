@@ -399,7 +399,14 @@ static int ospf_make_md5_digest(struct ospf_interface *oi,
 	   waste CPU rewriting other headers.
 
 	   Note that frr_time /deliberately/ is not used here */
-	t = (time(NULL) & 0xFFFFFFFF);
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf_southbound_enabled)
+		t = (time(NULL) & 0xFFFFFFFF) +
+		    oi->ospf->southbound.auth_seq_num_offset;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		t = (time(NULL) & 0xFFFFFFFF);
+
 	if (t > oi->crypt_seqnum)
 		oi->crypt_seqnum = t;
 	else
@@ -674,8 +681,11 @@ static void ospf_write(struct thread *thread)
 
 		if (op->dst.s_addr == htonl(OSPF_ALLSPFROUTERS)
 		    || op->dst.s_addr == htonl(OSPF_ALLDROUTERS))
-			ospf_if_ipmulticast(ospf, oi->address,
-					    oi->ifp->ifindex);
+#ifdef VENDOR_SOUTHBOUND
+			if (!ospf_southbound_enabled)
+#endif /* VENDOR_SOUTHBOUND */
+				ospf_if_ipmulticast(ospf, oi->address,
+						    oi->ifp->ifindex);
 
 		/* Rewrite the md5 signature & update the seq */
 		ospf_make_md5_digest(oi, op);
@@ -686,6 +696,13 @@ static void ospf_write(struct thread *thread)
 
 		/* reset get pointer */
 		stream_set_getp(op->s, 0);
+
+#ifdef VENDOR_SOUTHBOUND
+		if (ospf_southbound_enabled) {
+			ospf_southbound_write(ospf, oi, op);
+			goto skip_regular_write;
+		}
+#endif /* VENDOR_SOUTHBOUND */
 
 		memset(&iph, 0, sizeof(iph));
 		memset(&sa_dst, 0, sizeof(sa_dst));
@@ -797,7 +814,9 @@ static void ospf_write(struct thread *thread)
 				__func__, &iph.ip_dst, iph.ip_id, iph.ip_off,
 				iph.ip_len, oi->ifp->name, oi->ifp->mtu,
 				safe_strerror(errno));
-
+#ifdef VENDOR_SOUTHBOUND
+	skip_regular_write:
+#endif /* VENDOR_SOUTHBOUND */
 		/* Show debug sending packet. */
 		if (IS_DEBUG_OSPF_PACKET(type - 1, SEND)) {
 			if (IS_DEBUG_OSPF_PACKET(type - 1, DETAIL)) {
@@ -2952,7 +2971,7 @@ enum ospf_read_return_enum {
 	OSPF_READ_CONTINUE,
 };
 
-static enum ospf_read_return_enum ospf_read_helper(struct ospf *ospf)
+static enum ospf_read_return_enum ospf_read_helper(struct ospf *ospf, int fd)
 {
 	int ret;
 	struct stream *ibuf;
@@ -2964,7 +2983,12 @@ static enum ospf_read_return_enum ospf_read_helper(struct ospf *ospf)
 	struct interface *ifp = NULL;
 
 	stream_reset(ospf->ibuf);
-	ibuf = ospf_recv_packet(ospf, ospf->fd, &ifp, ospf->ibuf);
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf_southbound_enabled)
+		ibuf = ospf_southbound_read(ospf, fd, &ifp, ospf->ibuf);
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		ibuf = ospf_recv_packet(ospf, fd, &ifp, ospf->ibuf);
 	if (ibuf == NULL)
 		return OSPF_READ_ERROR;
 
@@ -3213,11 +3237,17 @@ void ospf_read(struct thread *thread)
 	ospf = THREAD_ARG(thread);
 
 	/* prepare for next packet. */
-	thread_add_read(master, ospf_read, ospf, ospf->fd, &ospf->t_read);
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf_southbound_enabled)
+		ospf_southbound_read_prepare(ospf, THREAD_FD(thread));
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		thread_add_read(master, ospf_read, ospf, ospf->fd,
+				&ospf->t_read);
 
 	while (count < ospf->write_oi_count) {
 		count++;
-		ret = ospf_read_helper(ospf);
+		ret = ospf_read_helper(ospf, THREAD_FD(thread));
 		switch (ret) {
 		case OSPF_READ_ERROR:
 			return;

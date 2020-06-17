@@ -129,3 +129,13 @@ EXTRA_DIST += \
 nodist_ospfd_ospfd_SOURCES = \
 	yang/frr-ospf-route-map.yang.c \
 	# end
+
+if VENDOR_SOUTHBOUND
+ospfd_libfrrospf_a_SOURCES += \
+	ospfd/ospf_southbound.c \
+	# end
+
+noinst_HEADERS += \
+	ospfd/ospf_southbound.h \
+	# end
+endif

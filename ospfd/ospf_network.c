@@ -183,6 +183,12 @@ int ospf_sock_init(struct ospf *ospf)
 		/* silently return since VRF is not ready */
 		return -1;
 	}
+
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf_southbound_enabled)
+		return ospf_southbound_sock_init(ospf);
+#endif /* VENDOR_SOUTHBOUND */
+
 	frr_with_privs(&ospfd_privs) {
 		ospf_sock = vrf_socket(AF_INET, SOCK_RAW, IPPROTO_OSPFIGP,
 				       ospf->vrf_id, ospf->name);

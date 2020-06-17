@@ -34,6 +34,7 @@
 
 #include "ospf_memory.h"
 #include "ospf_dump_api.h"
+#include "ospf_southbound.h"
 
 #define OSPF_VERSION            2
 
@@ -281,6 +282,11 @@ struct ospf {
 	int fd;
 	struct stream *ibuf;
 	struct list *oi_write_q;
+
+#ifdef VENDOR_SOUTHBOUND
+	/** Southbound data. */
+	struct ospf_southbound southbound;
+#endif /* VENDOR_SOUTHBOUND */
 
 	/* Distribute lists out of other route sources. */
 	struct {

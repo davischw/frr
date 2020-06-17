@@ -172,7 +172,12 @@ void ospf_if_reset_variables(struct ospf_interface *oi)
 
 	oi->state = ISM_Down;
 
-	oi->crypt_seqnum = 0;
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf_southbound_enabled)
+		oi->crypt_seqnum = 0;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		oi->crypt_seqnum = time(NULL) & 0xFFFFFFFF;
 
 	/* This must be short, (less than RxmtInterval)
 	   - RFC 2328 Section 13.5 para 3.  Set to 1 second to avoid Acks being
@@ -274,7 +279,10 @@ struct ospf_interface *ospf_if_new(struct ospf *ospf, struct interface *ifp,
 	oi->t_ls_upd_event = NULL;
 	oi->t_ls_ack_direct = NULL;
 
-	oi->crypt_seqnum = time(NULL);
+#ifdef VENDOR_SOUTHBOUND
+	if (!ospf_southbound_enabled)
+#endif /* VENDOR_SOUTHBOUND */
+		oi->crypt_seqnum = time(NULL);
 
 	ospf_opaque_type9_lsa_init(oi);
 
@@ -327,7 +335,12 @@ void ospf_if_cleanup(struct ospf_interface *oi)
 		ospf_lsa_unlock(&lsa); /* oi->ls_ack */
 	list_delete_all_node(oi->ls_ack);
 
-	oi->crypt_seqnum = 0;
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf_southbound_enabled)
+		oi->crypt_seqnum = 0;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		oi->crypt_seqnum = time(NULL) & 0xFFFFFFFF;
 
 	/* Empty link state update queue */
 	ospf_ls_upd_queue_empty(oi);

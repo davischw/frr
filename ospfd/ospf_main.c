@@ -80,6 +80,9 @@ struct zebra_privs_t ospfd_privs = {
 const struct option longopts[] = {
 	{"instance", required_argument, NULL, 'n'},
 	{"apiserver", no_argument, NULL, 'a'},
+#ifdef VENDOR_SOUTHBOUND
+	{"dplane", no_argument, NULL, 'y'},
+#endif /* VENDOR_SOUTHBOUND */
 	{0}
 };
 
@@ -154,6 +157,9 @@ FRR_DAEMON_INFO(ospfd, OSPF, .vty_port = OSPF_VTY_PORT,
 /* OSPFd main routine. */
 int main(int argc, char **argv)
 {
+#ifdef VENDOR_SOUTHBOUND
+	bool southbound_enabled = false;
+#endif /* VENDOR_SOUTHBOUND */
 #ifdef SUPPORT_OSPF_API
 	/* OSPF apiserver is disabled by default. */
 	ospf_apiserver_enable = 0;
@@ -162,7 +168,11 @@ int main(int argc, char **argv)
 	frr_preinit(&ospfd_di, argc, argv);
 	frr_opt_add("n:a", longopts,
 		    "  -n, --instance     Set the instance id\n"
-		    "  -a, --apiserver    Enable OSPF apiserver\n");
+		    "  -a, --apiserver    Enable OSPF apiserver\n"
+#ifdef VENDOR_SOUTHBOUND
+		    "  --dplane           Use vendor southbound\n"
+#endif /* VENDOR_SOUTHBOUND */
+	);
 
 	while (1) {
 		int opt;
@@ -185,6 +195,11 @@ int main(int argc, char **argv)
 			ospf_apiserver_enable = 1;
 			break;
 #endif /* SUPPORT_OSPF_API */
+#ifdef VENDOR_SOUTHBOUND
+		case 'y':
+			southbound_enabled = true;
+			break;
+#endif /* VENDOR_SOUTHBOUND */
 		default:
 			frr_help_exit(1);
 		}
@@ -232,6 +247,11 @@ int main(int argc, char **argv)
 
 	/* OSPF errors init */
 	ospf_error_init();
+
+#ifdef VENDOR_SOUTHBOUND
+	if (southbound_enabled)
+		ospf_southbound_init();
+#endif /* VENDOR_SOUTHBOUND */
 
 	frr_config_fork();
 	frr_run(master);

@@ -461,6 +461,11 @@ static struct ospf *ospf_new(unsigned short instance, const char *name)
 	new->oi_running = 1;
 	ospf_router_id_update(new);
 
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf_southbound_enabled)
+		ospf_southbound_new(new);
+#endif /* VENDOR_SOUTHBOUND */
+
 	/*
 	 * Read from non-volatile memory whether this instance is performing a
 	 * graceful restart or not.
@@ -926,6 +931,11 @@ static void ospf_finish_final(struct ospf *ospf)
 	ospf->fd = -1;
 	ospf->max_multipath = MULTIPATH_NUM;
 	ospf_delete(ospf);
+
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf_southbound_enabled)
+		ospf_southbound_free(ospf);
+#endif /* VENDOR_SOUTHBOUND */
 
 	if (vrf)
 		ospf_vrf_unlink(ospf, vrf);
