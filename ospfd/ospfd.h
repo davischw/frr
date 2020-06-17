@@ -268,6 +268,16 @@ struct ospf {
 	struct stream *ibuf;
 	struct list *oi_write_q;
 
+	/* Special IP encapsulation. */
+	int ie_spf_sock;
+	struct thread *ie_spf_ev;
+
+	int ie_dr_sock;
+	struct thread *ie_dr_ev;
+
+	int ie_other_sock;
+	struct thread *ie_other_ev;
+
 	/* Distribute lists out of other route sources. */
 	struct {
 		char *name;

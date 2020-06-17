@@ -304,7 +304,6 @@ static unsigned int ospf_packet_max(struct ospf_interface *oi)
 	return max;
 }
 
-
 static int ospf_check_md5_digest(struct ospf_interface *oi,
 				 struct ospf_header *ospfh)
 {
@@ -551,10 +550,18 @@ int ospf_ls_ack_timer(struct thread *thread)
 	return 0;
 }
 
+static void ip_set_checksum(struct ip *iph)
+{
+	iph->ip_sum = 0;
+	iph->ip_sum = (unsigned short)in_cksum(iph, iph->ip_hl << 2);
+}
+
 #ifdef WANT_OSPF_WRITE_FRAGMENT
-static void ospf_write_frags(int fd, struct ospf_packet *op, struct ip *iph,
-			     struct msghdr *msg, unsigned int maxdatasize,
-			     unsigned int mtu, int flags, uint8_t type)
+static void ospf_write_frags(int fd, const struct ospf_interface *oi,
+			     struct ospf_packet *op, struct ip *iph,
+			     struct ip_encap *ie, struct msghdr *msg,
+			     unsigned int maxdatasize, unsigned int mtu,
+			     int flags, uint8_t type)
 {
 #define OSPF_WRITE_FRAG_SHIFT 3
 	uint16_t offset;
@@ -562,7 +569,11 @@ static void ospf_write_frags(int fd, struct ospf_packet *op, struct ip *iph,
 	int ret;
 
 	assert(op->length == stream_get_endp(op->s));
+#ifdef OSPF_IP_ENCAP
+	assert(msg->msg_iovlen == 3);
+#else /* !OSPF_IP_ENCAP */
 	assert(msg->msg_iovlen == 2);
+#endif
 
 	/* we can but try.
 	 *
@@ -584,7 +595,11 @@ static void ospf_write_frags(int fd, struct ospf_packet *op, struct ip *iph,
 	/* ip frag offset is expressed in units of 8byte words */
 	offset = maxdatasize >> OSPF_WRITE_FRAG_SHIFT;
 
+#ifdef OSPF_IP_ENCAP
+	iovp = &msg->msg_iov[2];
+#else /* !OSPF_IP_ENCAP */
 	iovp = &msg->msg_iov[1];
+#endif
 
 	while ((stream_get_endp(op->s) - stream_get_getp(op->s))
 	       > maxdatasize) {
@@ -594,6 +609,9 @@ static void ospf_write_frags(int fd, struct ospf_packet *op, struct ip *iph,
 		assert(iph->ip_len <= mtu);
 
 		sockopt_iphdrincl_swab_htosys(iph);
+
+		ip_set_checksum(iph);
+		ospf_ip_encap_set(ie, oi, iph);
 
 		ret = sendmsg(fd, msg, flags);
 
@@ -633,11 +651,12 @@ static int ospf_write(struct thread *thread)
 	struct ospf_packet *op;
 	struct sockaddr_in sa_dst;
 	struct ip iph;
+	struct ip_encap ie;
 	struct msghdr msg;
-	struct iovec iov[2];
-	uint8_t type;
+	struct iovec iov[3];
 	int ret;
 	int flags = 0;
+	uint8_t type;
 	struct listnode *node;
 #ifdef WANT_OSPF_WRITE_FRAGMENT
 	static uint16_t ipid = 0;
@@ -646,7 +665,7 @@ static int ospf_write(struct thread *thread)
 #define OSPF_WRITE_IPHL_SHIFT 2
 	int pkt_count = 0;
 
-#ifdef GNU_LINUX
+#if defined(GNU_LINUX) && !defined(OSPF_IP_ENCAP)
 	unsigned char cmsgbuf[64] = {};
 	struct cmsghdr *cm = (struct cmsghdr *)cmsgbuf;
 	struct in_pktinfo *pi;
@@ -760,14 +779,23 @@ static int ospf_write(struct thread *thread)
 		msg.msg_name = (caddr_t)&sa_dst;
 		msg.msg_namelen = sizeof(sa_dst);
 		msg.msg_iov = iov;
-		msg.msg_iovlen = 2;
+		msg.msg_iovlen = 3;
 
+#ifdef OSPF_IP_ENCAP
+		iov[0].iov_base = &ie;
+		iov[0].iov_len = sizeof(ie);
+		iov[1].iov_base = &iph;
+		iov[1].iov_len = iph.ip_hl << OSPF_WRITE_IPHL_SHIFT;
+		iov[2].iov_base = stream_pnt(op->s);
+		iov[2].iov_len = op->length;
+
+		sa_dst.sin_addr.s_addr = htonl(IP_ENCAP_DST);
+#else /* !OSPF_IP_ENCAP */
 		iov[0].iov_base = (char *)&iph;
 		iov[0].iov_len = iph.ip_hl << OSPF_WRITE_IPHL_SHIFT;
 		iov[1].iov_base = stream_pnt(op->s);
 		iov[1].iov_len = op->length;
 
-#ifdef GNU_LINUX
 		msg.msg_control = (caddr_t)cm;
 		cm->cmsg_level = SOL_IP;
 		cm->cmsg_type = IP_PKTINFO;
@@ -785,12 +813,15 @@ static int ospf_write(struct thread *thread)
 
 #ifdef WANT_OSPF_WRITE_FRAGMENT
 		if (op->length > maxdatasize)
-			ospf_write_frags(ospf->fd, op, &iph, &msg, maxdatasize,
-					 oi->ifp->mtu, flags, type);
+			ospf_write_frags(ospf->fd, oi, op, &iph, &ie, &msg,
+					 maxdatasize, oi->ifp->mtu, flags,
+					 type);
 #endif /* WANT_OSPF_WRITE_FRAGMENT */
 
 		/* send final fragment (could be first) */
 		sockopt_iphdrincl_swab_htosys(&iph);
+		ip_set_checksum(&iph);
+		ospf_ip_encap_set(&ie, oi, &iph);
 		ret = sendmsg(ospf->fd, &msg, flags);
 		sockopt_iphdrincl_swab_systoh(&iph);
 		if (IS_DEBUG_OSPF_EVENT)
@@ -2276,6 +2307,122 @@ static void ospf_ls_ack(struct ip *iph, struct ospf_header *ospfh,
 	return;
 }
 
+#ifdef OSPF_IP_ENCAP
+static struct stream *ospf_recv_packet(struct ospf *o, int fd,
+				       struct interface **ifp, struct stream *s)
+{
+	struct ip_encap *data;
+	struct ip *ip;
+	uint16_t cksum, length;
+	uint8_t ver, hl;
+	ssize_t rv;
+
+	rv = stream_read_try(s, fd, STREAM_WRITEABLE(s));
+	/* Interruption: try again later. */
+	if (rv == -2)
+		return NULL;
+
+	/*
+	 * Socket failure: don't bother logging `stream_read_try` already
+	 * does that.
+	 */
+	if (rv == -1) {
+		zlog_info("%s: read: %s", __func__, strerror(errno));
+		return NULL;
+	}
+
+	/* Check that the packet is big enough. */
+	if ((size_t)rv < sizeof(*data)) {
+		if (IS_DEBUG_OSPF_PACKET(0, RECV))
+			zlog_debug("%s: received packet too small", __func__);
+		return NULL;
+	}
+
+	/* Check IP header version and length. */
+	data = (struct ip_encap *)stream_pnt(s);
+	ver = ((data->ver_hl & 0xF0) >> 4);
+	if (ver != IP_ENCAP_VER) {
+		if (IS_DEBUG_OSPF_PACKET(0, RECV))
+			zlog_debug("%s: bad IP encap version: %d", __func__,
+				   ver);
+		return NULL;
+	}
+
+	hl = (data->ver_hl & 0x0F);
+	if (hl != 5) {
+		if (IS_DEBUG_OSPF_PACKET(0, RECV))
+			zlog_debug("%s: bad IP encap header words length: %d",
+				   __func__, hl);
+		return NULL;
+	}
+
+	/* Check packet length. */
+	length = ntohs(data->len);
+	if (length > rv
+	    || length < (sizeof(struct ip_encap) + sizeof(struct ip))) {
+		if (IS_DEBUG_OSPF_PACKET(0, RECV))
+			zlog_debug("%s: bad IP encap length: %d (read %zd)",
+				   __func__, length, rv);
+		return NULL;
+	}
+
+	/* Check packet checksum. */
+	cksum = (uint16_t)in_cksum(data, hl << 2);
+	if (cksum != 0) {
+		if (IS_DEBUG_OSPF_PACKET(0, RECV))
+			zlog_debug("%s: bad IP encap checksum", __func__);
+		return NULL;
+	}
+
+	/* Check for fragmentation. */
+	if (ntohs(data->frag) & IP_ENCAP_MF) {
+		if (IS_DEBUG_OSPF_PACKET(0, RECV))
+			zlog_debug("%s: unsupported incoming fragmentation",
+				   __func__);
+		return NULL;
+	}
+
+	/* Check encap data. */
+	if (data->ver != 0 || data->magic != htonl(IP_ENCAP_MAGIC_VALUE)) {
+		if (IS_DEBUG_OSPF_PACKET(0, RECV))
+			zlog_debug(
+				"%s: bad encap version (%d) or magic (0x%08x)",
+				__func__, ntohs(data->ver), ntohl(data->magic));
+		return NULL;
+	}
+
+	/* Move pointer to encapsulation payload. */
+	stream_forward_getp(s, sizeof(struct ip_encap));
+
+	/*
+	 * All good, decode the information to pass down.
+	 *
+	 * Direction            |        Source | Destination   | Proto | TTL
+	 * ---------------------+---------------+---------------+-------+----
+	 * DP -> MP (224.0.0.5) | 127.130.1.240 | DP IP         |   248 |  64
+	 * DP -> MP (224.0.0.6) | 127.130.1.240 | DP IP         |   250 |  64
+	 * DP -> MP (other)     | 127.130.1.240 | DP IP         |   249 |  64
+	 */
+	if (IS_DEBUG_OSPF_PACKET(0, RECV)) {
+		ip = (struct ip *)stream_pnt(s);
+		zlog_debug(
+			"%s: ip encap [ver=%d magic=0x%08x ifindex=%d proto=%d]"
+			" ip [src=%pI4 dst=%pI4 proto=%d]",
+			__func__, ntohs(data->ver), ntohl(data->magic),
+			ntohs(data->ifindex), data->proto, &ip->ip_src,
+			&ip->ip_dst, ip->ip_p);
+	}
+
+	*ifp = if_lookup_by_index(ntohs(data->ifindex), o->vrf_id);
+
+	/* Rearrange the packet in stream. */
+	memmove(STREAM_DATA(s), stream_pnt(s), STREAM_READABLE(s));
+	s->endp = STREAM_READABLE(s);
+	s->getp = 0;
+
+	return s;
+}
+#else
 static struct stream *ospf_recv_packet(struct ospf *ospf, int fd,
 				       struct interface **ifp,
 				       struct stream *ibuf)
@@ -2363,6 +2510,7 @@ static struct stream *ospf_recv_packet(struct ospf *ospf, int fd,
 			   *ifp ? (*ifp)->name : "Unknown");
 	return ibuf;
 }
+#endif /* !OSPF_IP_ENCAP */
 
 static struct ospf_interface *
 ospf_associate_packet_vl(struct ospf *ospf, struct interface *ifp,
@@ -2935,7 +3083,7 @@ enum ospf_read_return_enum {
 	OSPF_READ_CONTINUE,
 };
 
-static enum ospf_read_return_enum ospf_read_helper(struct ospf *ospf)
+static enum ospf_read_return_enum ospf_read_helper(struct ospf *ospf, int fd)
 {
 	int ret;
 	struct stream *ibuf;
@@ -2947,7 +3095,7 @@ static enum ospf_read_return_enum ospf_read_helper(struct ospf *ospf)
 	struct interface *ifp = NULL;
 
 	stream_reset(ospf->ibuf);
-	ibuf = ospf_recv_packet(ospf, ospf->fd, &ifp, ospf->ibuf);
+	ibuf = ospf_recv_packet(ospf, fd, &ifp, ospf->ibuf);
 	if (ibuf == NULL)
 		return OSPF_READ_ERROR;
 
@@ -3191,16 +3339,25 @@ int ospf_read(struct thread *thread)
 	struct ospf *ospf;
 	int32_t count = 0;
 	enum ospf_read_return_enum ret;
+	int fd = THREAD_FD(thread);
 
 	/* first of all get interface pointer. */
 	ospf = THREAD_ARG(thread);
 
 	/* prepare for next packet. */
-	thread_add_read(master, ospf_read, ospf, ospf->fd, &ospf->t_read);
+	if (fd == ospf->ie_spf_sock)
+		thread_add_read(master, ospf_read, ospf, fd, &ospf->ie_spf_ev);
+	else if (fd == ospf->ie_dr_sock)
+		thread_add_read(master, ospf_read, ospf, fd, &ospf->ie_dr_ev);
+	else if (fd == ospf->ie_other_sock)
+		thread_add_read(master, ospf_read, ospf, fd,
+				&ospf->ie_other_ev);
+	else
+		thread_add_read(master, ospf_read, ospf, fd, &ospf->t_read);
 
 	while (count < ospf->write_oi_count) {
 		count++;
-		ret = ospf_read_helper(ospf);
+		ret = ospf_read_helper(ospf, fd);
 		switch (ret) {
 		case OSPF_READ_ERROR:
 			return -1;

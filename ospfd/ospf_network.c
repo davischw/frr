@@ -169,12 +169,52 @@ int ospf_if_ipmulticast(struct ospf *top, struct prefix *p, ifindex_t ifindex)
 	return ret;
 }
 
-int ospf_sock_init(struct ospf *ospf)
+static int
+ospf_create_socket(struct ospf *ospf, int protocol)
 {
-	int ospf_sock;
+	int sock;
 	int ret, hincl = 1;
 	int bufsize = (8 * 1024 * 1024);
 
+	frr_with_privs(&ospfd_privs) {
+		sock = vrf_socket(AF_INET, SOCK_RAW | SOCK_NONBLOCK, protocol,
+				  ospf->vrf_id, ospf->name);
+		if (sock == -1) {
+			flog_err(EC_LIB_SOCKET,
+				 "ospf_read_sock_init: socket: %s",
+				 safe_strerror(errno));
+			exit(1);
+		}
+
+		/* we will include IP header with packet */
+		ret = setsockopt(sock, IPPROTO_IP, IP_HDRINCL, &hincl,
+				 sizeof(hincl));
+		if (ret == -1) {
+			flog_err(EC_LIB_SOCKET,
+				 "Can't set IP_HDRINCL option for fd %d: %s",
+				 sock, safe_strerror(errno));
+			close(sock);
+			break;
+		}
+
+		ret = setsockopt_ipv4_tos(sock, IPTOS_PREC_INTERNETCONTROL);
+		if (ret == -1) {
+			flog_err(EC_LIB_SOCKET,
+				 "can't set sockopt IP_TOS to socket %d: %s",
+				 sock, safe_strerror(errno));
+			close(sock);
+			break;
+		}
+	}
+
+	setsockopt_so_sendbuf(sock, bufsize);
+	setsockopt_so_recvbuf(sock, bufsize);
+
+	return sock;
+}
+
+int ospf_sock_init(struct ospf *ospf)
+{
 	/* silently ignore. already done */
 	if (ospf->fd > 0)
 		return -1;
@@ -183,53 +223,11 @@ int ospf_sock_init(struct ospf *ospf)
 		/* silently return since VRF is not ready */
 		return -1;
 	}
-	frr_with_privs(&ospfd_privs) {
-		ospf_sock = vrf_socket(AF_INET, SOCK_RAW, IPPROTO_OSPFIGP,
-				       ospf->vrf_id, ospf->name);
-		if (ospf_sock < 0) {
-			flog_err(EC_LIB_SOCKET,
-				 "ospf_read_sock_init: socket: %s",
-				 safe_strerror(errno));
-			exit(1);
-		}
 
-#ifdef IP_HDRINCL
-		/* we will include IP header with packet */
-		ret = setsockopt(ospf_sock, IPPROTO_IP, IP_HDRINCL, &hincl,
-				 sizeof(hincl));
-		if (ret < 0) {
-			flog_err(EC_LIB_SOCKET,
-				 "Can't set IP_HDRINCL option for fd %d: %s",
-				 ospf_sock, safe_strerror(errno));
-			break;
-		}
-#elif defined(IPTOS_PREC_INTERNETCONTROL)
-#warning "IP_HDRINCL not available on this system"
-#warning "using IPTOS_PREC_INTERNETCONTROL"
-		ret = setsockopt_ipv4_tos(ospf_sock,
-					  IPTOS_PREC_INTERNETCONTROL);
-		if (ret < 0) {
-			flog_err(EC_LIB_SOCKET,
-				 "can't set sockopt IP_TOS %d to socket %d: %s",
-				 tos, ospf_sock, safe_strerror(errno));
-			break;
-		}
-#else /* !IPTOS_PREC_INTERNETCONTROL */
-#warning "IP_HDRINCL not available, nor is IPTOS_PREC_INTERNETCONTROL"
-		flog_err(EC_LIB_UNAVAILABLE, "IP_HDRINCL option not available");
-#endif /* IP_HDRINCL */
+	ospf->fd = ospf_create_socket(ospf, IPPROTO_OSPFIGP);
+	ospf->ie_dr_sock = ospf_create_socket(ospf, OSPF_IP_ENCAP_DR);
+	ospf->ie_spf_sock = ospf_create_socket(ospf, OSPF_IP_ENCAP_SPF);
+	ospf->ie_other_sock = ospf_create_socket(ospf, OSPF_IP_ENCAP_OTHER);
 
-		ret = setsockopt_ifindex(AF_INET, ospf_sock, 1);
-
-		if (ret < 0)
-			flog_err(EC_LIB_SOCKET,
-				 "Can't set pktinfo option for fd %d",
-				 ospf_sock);
-	}
-
-	setsockopt_so_sendbuf(ospf_sock, bufsize);
-	setsockopt_so_recvbuf(ospf_sock, bufsize);
-
-	ospf->fd = ospf_sock;
-	return ret;
+	return 0;
 }
