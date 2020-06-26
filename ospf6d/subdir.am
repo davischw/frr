@@ -110,3 +110,13 @@ nodist_ospf6d_ospf6d_SOURCES = \
 	yang/frr-ospf-route-map.yang.c \
 	yang/frr-ospf6-route-map.yang.c \
 	# end
+
+if VENDOR_SOUTHBOUND
+ospf6d_libospf6_a_SOURCES += \
+	ospf6d/ospf6_southbound.c \
+	# end
+
+noinst_HEADERS += \
+	ospf6d/ospf6_southbound.h \
+	# end
+endif

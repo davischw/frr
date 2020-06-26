@@ -35,6 +35,7 @@
 #include "ospf6_top.h"
 #include "ospf6_network.h"
 #include "ospf6_message.h"
+#include "ospf6_southbound.h"
 
 #include "ospf6_area.h"
 #include "ospf6_neighbor.h"
@@ -1922,8 +1923,13 @@ void ospf6_receive(struct thread *thread)
 	ospf6 = THREAD_ARG(thread);
 	sockfd = THREAD_FD(thread);
 
-	thread_add_read(master, ospf6_receive, ospf6, ospf6->fd,
-			&ospf6->t_ospf6_receive);
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf6_southbound_enabled)
+		ospf6_sb_schedule(sockfd);
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		thread_add_read(master, ospf6_receive, ospf6, ospf6->fd,
+				&ospf6->t_ospf6_receive);
 
 	while (count < ospf6->write_oi_count) {
 		count++;
@@ -2135,8 +2141,8 @@ static void ospf6_write(struct thread *thread)
 		}
 
 		len = ospf6_sendmsg(oi->linklocal_addr, &op->dst,
-				    oi->interface->ifindex, iovector,
-				    ospf6->fd);
+				    oi->interface->ifindex, iovector, ospf6->fd,
+				    ospf6);
 
 		if (len != (op->length + (int)at_len))
 			flog_err(EC_LIB_DEVELOPMENT,

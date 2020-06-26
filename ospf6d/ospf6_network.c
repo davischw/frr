@@ -22,6 +22,7 @@
 
 #include "log.h"
 #include "memory.h"
+#include "network.h"
 #include "sockunion.h"
 #include "sockopt.h"
 #include "privs.h"
@@ -34,12 +35,13 @@
 #include "ospf6_network.h"
 #include "ospf6d.h"
 #include "ospf6_message.h"
+#include "ospf6_southbound.h"
 
 struct in6_addr allspfrouters6;
 struct in6_addr alldrouters6;
 
 /* setsockopt MulticastLoop to off */
-static void ospf6_reset_mcastloop(int ospf6_sock)
+void ospf6_reset_mcastloop(int ospf6_sock)
 {
 	unsigned int off = 0;
 	if (setsockopt(ospf6_sock, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &off,
@@ -75,6 +77,11 @@ int ospf6_serv_sock(struct ospf6 *ospf6)
 {
 	int ospf6_sock;
 
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf6_southbound_enabled)
+		return ospf6_sb_serv_sock(ospf6);
+#endif /* VENDOR_SOUTHBOUND */
+
 	if (ospf6->fd != -1)
 		return -1;
 
@@ -107,11 +114,19 @@ int ospf6_serv_sock(struct ospf6 *ospf6)
 }
 
 /* ospf6 set socket option */
-int ospf6_sso(ifindex_t ifindex, struct in6_addr *group, int option, int sockfd)
+int ospf6_sso(struct ospf6_interface *ospf6_interface, struct in6_addr *group,
+	      int option)
 {
 	struct ipv6_mreq mreq6;
 	int ret;
 	int bufsize = (8 * 1024 * 1024);
+	int sockfd = ospf6_interface->area->ospf6->fd;
+	unsigned int ifindex = ospf6_interface->interface->ifindex;
+
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf6_southbound_enabled)
+		return ospf6_sb_sso(ospf6_interface, group, option);
+#endif /* VENDOR_SOUTHBOUND */
 
 	if (sockfd == -1)
 		return -1;
@@ -135,7 +150,7 @@ int ospf6_sso(ifindex_t ifindex, struct in6_addr *group, int option, int sockfd)
 	return 0;
 }
 
-static int iov_count(struct iovec *iov)
+int iov_count(struct iovec *iov)
 {
 	int i;
 	for (i = 0; iov[i].iov_base; i++)
@@ -143,7 +158,7 @@ static int iov_count(struct iovec *iov)
 	return i;
 }
 
-static int iov_totallen(struct iovec *iov)
+int iov_totallen(struct iovec *iov)
 {
 	int i;
 	int totallen = 0;
@@ -152,8 +167,8 @@ static int iov_totallen(struct iovec *iov)
 	return totallen;
 }
 
-int ospf6_sendmsg(struct in6_addr *src, struct in6_addr *dst,
-		  ifindex_t ifindex, struct iovec *message, int ospf6_sock)
+int ospf6_sendmsg(struct in6_addr *src, struct in6_addr *dst, ifindex_t ifindex,
+		  struct iovec *message, int ospf6_sock, struct ospf6 *ospf6)
 {
 	int retval;
 	struct msghdr smsghdr;
@@ -166,6 +181,12 @@ int ospf6_sendmsg(struct in6_addr *src, struct in6_addr *dst,
 	struct sockaddr_in6 dst_sin6;
 
 	assert(dst);
+
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf6_southbound_enabled)
+		return ospf6_sb_sendmsg(ospf6, src, dst, ifindex, message,
+					ospf6_sock);
+#endif /* VENDOR_SOUTHBOUND */
 
 	memset(&cmsgbuf, 0, sizeof(cmsgbuf));
 	scmsgp = (struct cmsghdr *)&cmsgbuf;
@@ -220,6 +241,11 @@ int ospf6_recvmsg(struct in6_addr *src, struct in6_addr *dst,
 	uint8_t cmsgbuf[CMSG_SPACE(sizeof(struct in6_pktinfo))];
 	struct in6_pktinfo *pktinfo;
 	struct sockaddr_in6 src_sin6;
+
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf6_southbound_enabled)
+		return ospf6_sb_recvmsg(src, dst, ifindex, message, ospf6_sock);
+#endif /* VENDOR_SOUTHBOUND */
 
 	rcmsgp = (struct cmsghdr *)cmsgbuf;
 	pktinfo = (struct in6_pktinfo *)(CMSG_DATA(rcmsgp));

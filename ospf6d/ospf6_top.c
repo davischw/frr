@@ -501,6 +501,11 @@ void ospf6_delete(struct ospf6 *o)
 	struct ospf6_area *oa;
 	struct vrf *vrf;
 
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf6_southbound_enabled)
+		ospf6_vif_free_all(o);
+#endif /* VENDOR_SOUTHBOUND */
+
 	QOBJ_UNREG(o);
 
 	ospf6_gr_helper_deinit(o);

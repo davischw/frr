@@ -75,7 +75,12 @@ struct zebra_privs_t ospf6d_privs = {
 	.cap_num_i = 0};
 
 /* ospf6d options, we use GNU getopt library. */
-struct option longopts[] = {{0}};
+#define OPTION_DPLANE 1001
+struct option longopts[] = {
+#ifdef VENDOR_SOUTHBOUND
+	{"dplane", no_argument, NULL, OPTION_DPLANE},
+#endif /* VENDOR_SOUTHBOUND */
+	{0}};
 
 /* Master of threads. */
 struct thread_master *master;
@@ -99,6 +104,11 @@ static void __attribute__((noreturn)) ospf6_exit(int status)
 			if (ifp->info != NULL)
 				ospf6_interface_delete(ifp->info);
 	}
+
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf6_southbound_enabled)
+		ospf6_sb_finish();
+#endif /* VENDOR_SOUTHBOUND */
 
 	ospf6_message_terminate();
 	ospf6_asbr_terminate();
@@ -207,6 +217,11 @@ int main(int argc, char *argv[], char *envp[])
 			break;
 
 		switch (opt) {
+#ifdef VENDOR_SOUTHBOUND
+		case OPTION_DPLANE:
+			ospf6_southbound_enabled = true;
+			break;
+#endif /* VENDOR_SOUTHBOUND */
 		case 0:
 			break;
 		default:
@@ -237,6 +252,11 @@ int main(int argc, char *argv[], char *envp[])
 
 	/* initialize ospf6 */
 	ospf6_init(master);
+
+#ifdef VENDOR_SOUTHBOUND
+	if (ospf6_southbound_enabled)
+		ospf6_sb_init();
+#endif /* VENDOR_SOUTHBOUND */
 
 	frr_config_fork();
 	frr_run(master);

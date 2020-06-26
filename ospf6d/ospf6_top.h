@@ -23,6 +23,9 @@
 
 #include "qobj.h"
 #include "routemap.h"
+
+#include "ospf6d/ospf6_southbound.h"
+
 struct ospf6_master {
 
 	/* OSPFv3 instance. */
@@ -235,6 +238,10 @@ struct ospf6 {
 	uint16_t aggr_delay_interval;
 	/* Table of configured Aggregate addresses */
 	struct route_table *rt_aggr_tbl;
+
+#ifdef VENDOR_SOUTHBOUND
+	struct ospf6_vif_ctx_list vif_ctx_list;
+#endif /* VENDOR_SOUTHBOUND */
 
 	QOBJ_FIELDS;
 };

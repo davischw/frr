@@ -480,7 +480,6 @@ static int ospf6_interface_state_change(uint8_t next_state,
 					struct ospf6_interface *oi)
 {
 	uint8_t prev_state;
-	struct ospf6 *ospf6;
 
 	prev_state = oi->state;
 	oi->state = next_state;
@@ -500,21 +499,17 @@ static int ospf6_interface_state_change(uint8_t next_state,
 	}
 	oi->state_change++;
 
-	ospf6 = oi->area->ospf6;
-
 	if ((prev_state == OSPF6_INTERFACE_DR
 	     || prev_state == OSPF6_INTERFACE_BDR)
 	    && (next_state != OSPF6_INTERFACE_DR
 		&& next_state != OSPF6_INTERFACE_BDR))
-		ospf6_sso(oi->interface->ifindex, &alldrouters6,
-			  IPV6_LEAVE_GROUP, ospf6->fd);
+		ospf6_sso(oi, &alldrouters6, IPV6_LEAVE_GROUP);
 
 	if ((prev_state != OSPF6_INTERFACE_DR
 	     && prev_state != OSPF6_INTERFACE_BDR)
 	    && (next_state == OSPF6_INTERFACE_DR
 		|| next_state == OSPF6_INTERFACE_BDR))
-		ospf6_sso(oi->interface->ifindex, &alldrouters6,
-			  IPV6_JOIN_GROUP, ospf6->fd);
+		ospf6_sso(oi, &alldrouters6, IPV6_JOIN_GROUP);
 
 	OSPF6_ROUTER_LSA_SCHEDULE(oi->area);
 	OSPF6_LINK_LSA_SCHEDULE(oi);
@@ -732,7 +727,6 @@ static bool ifmaddr_check(ifindex_t ifindex, struct in6_addr *addr)
 void interface_up(struct thread *thread)
 {
 	struct ospf6_interface *oi;
-	struct ospf6 *ospf6;
 
 	oi = (struct ospf6_interface *)THREAD_ARG(thread);
 	assert(oi && oi->interface);
@@ -801,12 +795,8 @@ void interface_up(struct thread *thread)
 	}
 #endif /* __FreeBSD__ */
 
-	ospf6 = oi->area->ospf6;
-
 	/* Join AllSPFRouters */
-	if (ospf6_sso(oi->interface->ifindex, &allspfrouters6, IPV6_JOIN_GROUP,
-		      ospf6->fd)
-	    < 0) {
+	if (ospf6_sso(oi, &allspfrouters6, IPV6_JOIN_GROUP) < 0) {
 		if (oi->sso_try_cnt++ < OSPF6_INTERFACE_SSO_RETRY_MAX) {
 			zlog_info(
 				"Scheduling %s for sso retry, trial count: %d",
@@ -937,8 +927,7 @@ void interface_down(struct thread *thread)
 	ospf6 = oi->area->ospf6;
 	/* Leave AllSPFRouters */
 	if (oi->state > OSPF6_INTERFACE_DOWN)
-		ospf6_sso(oi->interface->ifindex, &allspfrouters6,
-			  IPV6_LEAVE_GROUP, ospf6->fd);
+		ospf6_sso(oi, &allspfrouters6, IPV6_LEAVE_GROUP);
 
 	/* deal with write fifo */
 	ospf6_fifo_flush(oi->obuf);
