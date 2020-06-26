@@ -2551,6 +2551,10 @@ int netlink_nexthop_change(struct nlmsghdr *h, ns_id_t ns_id, int startup)
 	if (ns_id)
 		vrf_id = ns_id;
 
+	/* Tell zebra to disable nexthop groups. */
+	if (startup && h->nlmsg_type == NLMSG_ERROR)
+		return -1;
+
 	if (startup && h->nlmsg_type != RTM_NEWNEXTHOP)
 		return 0;
 
