@@ -129,6 +129,12 @@ struct ospf6 {
 	struct thread *t_distribute_update; /* Distirbute update timer. */
 	struct thread *t_ospf6_receive; /* OSPF6 receive timer */
 
+	struct thread *t_sock;
+	int dr_sock;
+	struct thread *t_dr_sock;
+	int spf_sock;
+	struct thread *t_spf_sock;
+
 	uint32_t ref_bandwidth;
 
 	/* Distance parameters */

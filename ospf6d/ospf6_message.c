@@ -1584,6 +1584,16 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 	struct ospf6_interface *oi;
 	struct ospf6_header *oh;
 
+	if (sockfd == ospf6->dr_sock)
+		thread_add_read(master, ospf6_receive, ospf6, sockfd,
+				&ospf6->t_dr_sock);
+	else if (sockfd == ospf6->spf_sock)
+		thread_add_read(master, ospf6_receive, ospf6, sockfd,
+				&ospf6->t_spf_sock);
+	else
+		thread_add_read(master, ospf6_receive, ospf6, sockfd,
+				&ospf6->t_sock);
+
 	/* initialize */
 	memset(&src, 0, sizeof(src));
 	memset(&dst, 0, sizeof(dst));
@@ -1722,7 +1732,7 @@ int ospf6_receive(struct thread *thread)
 static void ospf6_send(struct in6_addr *src, struct in6_addr *dst,
 		       struct ospf6_interface *oi, struct ospf6_header *oh)
 {
-	unsigned int len;
+	ssize_t len;
 	char srcname[64];
 	struct iovec iovector[2];
 
@@ -1779,8 +1789,8 @@ static void ospf6_send(struct in6_addr *src, struct in6_addr *dst,
 
 	/* send message */
 	if (oi->area->ospf6->fd != -1) {
-		len = ospf6_sendmsg(src, dst, oi->interface->ifindex, iovector,
-				    oi->area->ospf6->fd);
+		len = ospf6_sendmsg(oi->area->ospf6, src, dst, oi->interface,
+				    iovector, oi->area->ospf6->fd);
 		if (len != ntohs(oh->length))
 			flog_err(EC_LIB_DEVELOPMENT,
 				 "Could not send entire message");

@@ -24,16 +24,18 @@
 extern struct in6_addr allspfrouters6;
 extern struct in6_addr alldrouters6;
 
+/* forward declaration. */
+struct ospf6;
+
 extern int ospf6_serv_sock(struct ospf6 *ospf6);
 extern void ospf6_serv_close(int *ospf6_sock);
 extern int ospf6_sso(ifindex_t ifindex, struct in6_addr *group, int option,
 		     int sockfd);
 
-extern int ospf6_sendmsg(struct in6_addr *src, struct in6_addr *dst,
-			 ifindex_t ifindex, struct iovec *message,
-			 int ospf6_sock);
-extern int ospf6_recvmsg(struct in6_addr *src, struct in6_addr *dst,
-			 ifindex_t *ifindex, struct iovec *message,
-			 int ospf6_sock);
+extern ssize_t ospf6_sendmsg(struct ospf6 *, struct in6_addr *,
+			     struct in6_addr *, struct interface *,
+			     struct iovec *, int);
+extern ssize_t ospf6_recvmsg(struct in6_addr *, struct in6_addr *, ifindex_t *,
+			     struct iovec *, int);
 
 #endif /* OSPF6_NETWORK_H */
