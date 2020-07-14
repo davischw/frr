@@ -23,6 +23,8 @@
 #include "config.h" /* Include this explicitly */
 #endif
 
+#include <linux/netlink.h>
+
 #include <arpa/inet.h>
 
 #include <sys/types.h>
@@ -110,6 +112,19 @@ struct fpm_nl_ctx {
 	struct thread *t_rmacreset;
 	struct thread *t_rmacwalk;
 
+	/* Route filters. */
+	struct {
+		int table_id;
+		int family;
+		int oif;
+	} filters;
+	/* FPM input response sequence number. */
+	uint32_t resp_seq;
+	/* FPM input reply trigger. */
+	bool trigger_reply;
+	/* FPM input allow processing. */
+	bool reply_sent;
+
 	/* Statistic counters. */
 	struct {
 		/* Amount of bytes read into ibuf. */
@@ -163,6 +178,9 @@ enum fpm_nl_events {
 	FNE_RIB_FINISHED,
 	/* RMAC walk finished. */
 	FNE_RMAC_FINISHED,
+
+	/* Ask synchrously FPM to send a reply. */
+	FNE_TRIGGER_REPLY,
 };
 
 #define FPM_RECONNECT(fnc)                                                     \
@@ -172,6 +190,18 @@ enum fpm_nl_events {
 #define WALK_FINISH(fnc, ev)                                                   \
 	thread_add_event((fnc)->fthread->master, fpm_process_event, (fnc),     \
 			 (ev), NULL)
+
+#define TRIGGER_REPLY(fnc)                                                     \
+	do {                                                                   \
+		if ((fnc)->trigger_reply) {                                    \
+			zlog_warn("%s: attempted to reply while in progress",  \
+				  __func__);                                   \
+			break;                                                 \
+		}                                                              \
+		(fnc)->trigger_reply = true;                                   \
+		thread_add_event((fnc)->fthread->master, fpm_process_event,    \
+				 (fnc), FNE_TRIGGER_REPLY, &(fnc)->t_event);   \
+	} while (0)
 
 /*
  * Prototypes.
@@ -186,6 +216,34 @@ static int fpm_rib_send(struct thread *t);
 static int fpm_rib_reset(struct thread *t);
 static int fpm_rmac_send(struct thread *t);
 static int fpm_rmac_reset(struct thread *t);
+
+/**
+ * Read the FPM frame in the buffer.
+ *
+ * \param fnc FPM data plane context.
+ * \param frame the message binary.
+ * \param total the total amount of bytes available.
+ */
+static ssize_t fpm_read_frame(struct fpm_nl_ctx *fnc, const void *frame,
+			      size_t total);
+
+/**
+ * Run filter function to decide whether or not to send this context.
+ *
+ * \param fnc the FPM data plane context.
+ * \param ctx the zebra data plane context.
+ *
+ * \returns `0` to not filter and `1` to filter.
+ */
+static bool fpm_rib_filter(const struct fpm_nl_ctx *fnc,
+			   const struct zebra_dplane_ctx *ctx);
+
+/**
+ * Ask FPM to walk all tables again to reply a request.
+ *
+ * \param fnc the FPM data plane context.
+ */
+static void fpm_enqueue_all(struct fpm_nl_ctx *fnc);
 
 /*
  * CLI.
@@ -434,6 +492,9 @@ static void fpm_reconnect(struct fpm_nl_ctx *fnc)
 	thread_cancel_async(zrouter.master, &fnc->t_rmacreset, NULL);
 	thread_cancel_async(zrouter.master, &fnc->t_rmacwalk, NULL);
 
+	/* Reset filters. */
+	memset(&fnc->filters, 0, sizeof(fnc->filters));
+
 	/*
 	 * Grab the lock to empty the streams (data plane might try to
 	 * enqueue updates while we are closing).
@@ -464,6 +525,15 @@ static int fpm_read(struct thread *t)
 	struct fpm_nl_ctx *fnc = THREAD_ARG(t);
 	ssize_t rv;
 
+	/* Check if we are processing a reply. */
+	if (!fnc->reply_sent) {
+		/*
+		 * We are in the middle of a request reply, we must first
+		 * finish the current operation before moving to the next.
+		 */
+		return 0;
+	}
+
 	/* Let's ignore the input at the moment. */
 	rv = stream_read_try(fnc->ibuf, fnc->socket,
 			     STREAM_WRITEABLE(fnc->ibuf));
@@ -492,12 +562,29 @@ static int fpm_read(struct thread *t)
 		FPM_RECONNECT(fnc);
 		return 0;
 	}
-	stream_reset(fnc->ibuf);
 
 	/* Account all bytes read. */
 	atomic_fetch_add_explicit(&fnc->counters.bytes_read, rv,
 				  memory_order_relaxed);
 
+	/* Handle message. */
+	rv = fpm_read_frame(fnc, stream_pnt(fnc->ibuf),
+			    STREAM_READABLE(fnc->ibuf));
+	if (rv == -1) {
+		if (IS_ZEBRA_DEBUG_FPM)
+			zlog_debug("%s: fpm_read_frame failed", __func__);
+
+		FPM_RECONNECT(fnc);
+		return 0;
+	}
+
+	/* Consume read message. */
+	stream_forward_getp(fnc->ibuf, rv);
+
+	/* Reorganize input buffer to fit more bytes next read. */
+	stream_pulldown(fnc->ibuf);
+
+	/* Schedule next read. */
 	thread_add_read(fnc->fthread->master, fpm_read, fnc, fnc->socket,
 			&fnc->t_read);
 
@@ -944,6 +1031,11 @@ static int fpm_nhg_send_cb(struct hash_bucket *bucket, void *arg)
 	/* Reset ctx to reuse allocated memory, take a snapshot and send it. */
 	dplane_ctx_reset(fna->ctx);
 	dplane_ctx_nexthop_init(fna->ctx, DPLANE_OP_NH_INSTALL, nhe);
+
+	/* Set sequence number if this is a reply. */
+	if (fna->fnc->resp_seq)
+		dplane_ctx_set_seq(fna->ctx, fna->fnc->resp_seq);
+
 	if (fpm_nl_enqueue(fna->fnc, fna->ctx) == -1) {
 		/* Our buffers are full, lets give it some cycles. */
 		fna->complete = false;
@@ -1015,6 +1107,15 @@ static int fpm_rib_send(struct thread *t)
 			dplane_ctx_reset(ctx);
 			dplane_ctx_route_init(ctx, DPLANE_OP_ROUTE_INSTALL, rn,
 					      dest->selected_fib);
+
+			/* Check if user wants this. */
+			if (fpm_rib_filter(fnc, ctx))
+				continue;
+
+			/* Set sequence number if this is a reply. */
+			if (fnc->resp_seq)
+				dplane_ctx_set_seq(ctx, fnc->resp_seq);
+
 			if (fpm_nl_enqueue(fnc, ctx) == -1) {
 				/* Free the temporary allocated context. */
 				dplane_ctx_fini(&ctx);
@@ -1077,6 +1178,11 @@ static void fpm_enqueue_rmac_table(struct hash_bucket *bucket, void *arg)
 			zif->brslave_info.br_if, vid,
 			&zrmac->macaddr, zrmac->fwd_info.r_vtep_ip, sticky,
 			0 /*nhg*/, 0 /*update_flags*/);
+
+	/* Set sequence number if this is a reply. */
+	if (fra->fnc->resp_seq)
+		dplane_ctx_set_seq(fra->ctx, fra->fnc->resp_seq);
+
 	if (fpm_nl_enqueue(fra->fnc, fra->ctx) == -1) {
 		thread_add_timer(zrouter.master, fpm_rmac_send,
 				 fra->fnc, 1, &fra->fnc->t_rmacwalk);
@@ -1328,10 +1434,25 @@ static int fpm_process_event(struct thread *t)
 	case FNE_RMAC_FINISHED:
 		if (IS_ZEBRA_DEBUG_FPM)
 			zlog_debug("%s: RMAC walk finished", __func__);
+
+		/* We are done sending replies, re-enable reads. */
+		fnc->reply_sent = true;
+		thread_add_read(fnc->fthread->master, fpm_read, fnc,
+				fnc->socket, &fnc->t_read);
 		break;
 	case FNE_LSP_FINISHED:
 		if (IS_ZEBRA_DEBUG_FPM)
 			zlog_debug("%s: LSP walk finished", __func__);
+		break;
+	case FNE_TRIGGER_REPLY:
+		if (!fnc->trigger_reply)
+			break;
+
+		fpm_enqueue_all(fnc);
+		fnc->trigger_reply = false;
+		fnc->reply_sent = false;
+		if (IS_ZEBRA_DEBUG_FPM)
+			zlog_debug("%s: reply triggered", __func__);
 		break;
 
 	default:
@@ -1518,3 +1639,265 @@ FRR_MODULE_SETUP(
 	.description = "Data plane plugin for FPM using netlink.",
 	.init = fpm_nl_init,
 );
+
+/*
+ * FPM input handling.
+ */
+static bool fpm_rib_filter(const struct fpm_nl_ctx *fnc,
+			   const struct zebra_dplane_ctx *ctx)
+{
+	struct nexthop *nexthop;
+	bool found = false;
+
+	/* No filters configured. */
+	if (fnc->filters.oif == 0 && fnc->filters.table_id == 0
+	    && fnc->filters.family == 0)
+		return false;
+
+	/* Check family type. */
+	if (fnc->filters.family) {
+		switch (dplane_ctx_get_afi(ctx)) {
+		case AFI_IP:
+			if (fnc->filters.family != AF_INET)
+				return true;
+			break;
+		case AFI_IP6:
+			if (fnc->filters.family != AF_INET6)
+				return true;
+			break;
+		default:
+			return true;
+		}
+	}
+
+	/* Different table id. */
+	if (fnc->filters.table_id
+	    && fnc->filters.table_id != (int)dplane_ctx_get_table(ctx))
+		return true;
+
+	/* Filter by looking at destination. */
+	if (fnc->filters.oif) {
+		found = false;
+		for (ALL_NEXTHOPS_PTR(dplane_ctx_get_ng(ctx), nexthop)) {
+			if (CHECK_FLAG(nexthop->flags, NEXTHOP_FLAG_RECURSIVE))
+				continue;
+			if (!NEXTHOP_IS_ACTIVE(nexthop->flags))
+				continue;
+
+			if (fnc->filters.oif == nexthop->ifindex) {
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+			return true;
+	}
+
+	return false;
+}
+
+static void fpm_enqueue_all(struct fpm_nl_ctx *fnc)
+{
+	/* Cancel previously running walks in order to run a new one. */
+	thread_cancel_async(zrouter.master, &fnc->t_lspreset, NULL);
+	thread_cancel_async(zrouter.master, &fnc->t_lspwalk, NULL);
+	thread_cancel_async(zrouter.master, &fnc->t_nhgreset, NULL);
+	thread_cancel_async(zrouter.master, &fnc->t_nhgwalk, NULL);
+	thread_cancel_async(zrouter.master, &fnc->t_ribreset, NULL);
+	thread_cancel_async(zrouter.master, &fnc->t_ribwalk, NULL);
+	thread_cancel_async(zrouter.master, &fnc->t_rmacreset, NULL);
+	thread_cancel_async(zrouter.master, &fnc->t_rmacwalk, NULL);
+
+	/* Start the table walk. */
+	thread_add_event(zrouter.master, fpm_lsp_reset, fnc, 0,
+			 &fnc->t_lspreset);
+}
+
+static ssize_t fpm_read_netlink(struct fpm_nl_ctx *fnc,
+				const struct nlmsghdr *nlmsg, size_t total)
+{
+	struct rtmsg *rtm;
+	struct rtattr *rta;
+	size_t bytes_left;
+	int plen;
+
+	/* Sanity check: must be at least header size. */
+	if (nlmsg->nlmsg_len < sizeof(*nlmsg)) {
+		zlog_warn("%s: [seq=%u] invalid message length %u (< %zu)",
+			  __func__, nlmsg->nlmsg_seq, nlmsg->nlmsg_len,
+			  sizeof(*nlmsg));
+		return -1;
+	}
+
+	/* Not enough bytes available. */
+	if (nlmsg->nlmsg_len > total) {
+		zlog_warn("%s: [seq=%u] invalid message length %u (> %zu)",
+			  __func__, nlmsg->nlmsg_seq, nlmsg->nlmsg_len, total);
+		return -1;
+	}
+
+	/* This is not a request, skip it. */
+	if (!(nlmsg->nlmsg_flags & NLM_F_REQUEST)) {
+		if (IS_ZEBRA_DEBUG_FPM)
+			zlog_debug("%s: [seq=%u] not a request", __func__,
+				   nlmsg->nlmsg_seq);
+
+		return nlmsg->nlmsg_len;
+	}
+
+	switch (nlmsg->nlmsg_type) {
+	case RTM_GETROUTE:
+		if (nlmsg->nlmsg_len < sizeof(*rtm)) {
+			zlog_warn("%s: [seq=%u] invalid message length %d",
+				  __func__, nlmsg->nlmsg_seq, nlmsg->nlmsg_len);
+			return -1;
+		}
+		break;
+
+	case NLMSG_NOOP:
+	case NLMSG_DONE:
+		/* NOTHING */
+		return nlmsg->nlmsg_len;
+
+	default:
+		/* Log unsupported message and move on. */
+		zlog_warn("%s: [seq=%u] unhandled message type %d", __func__,
+			  nlmsg->nlmsg_seq, nlmsg->nlmsg_type);
+
+		return nlmsg->nlmsg_len;
+	}
+
+	/* Send all entries. */
+	if (nlmsg->nlmsg_flags & NLM_F_ROOT) {
+		/* Select the sequence to send. */
+		fnc->resp_seq = nlmsg->nlmsg_seq;
+
+		memset(&fnc->filters, 0, sizeof(fnc->filters));
+		TRIGGER_REPLY(fnc);
+		return nlmsg->nlmsg_len;
+	}
+
+	/* Sanity check: nothing was requested. */
+	if (!(nlmsg->nlmsg_flags & NLM_F_MATCH)) {
+		if (IS_ZEBRA_DEBUG_FPM)
+			zlog_debug("%s: [seq=%u] no selectors specified",
+				   __func__, nlmsg->nlmsg_seq);
+
+		return nlmsg->nlmsg_len;
+	}
+
+	/* Sanity check: something was selected, but no selectors. */
+	if (nlmsg->nlmsg_len == NLMSG_LENGTH(0)) {
+		if (IS_ZEBRA_DEBUG_FPM)
+			zlog_debug("%s: [seq=%u] request is empty", __func__,
+				   nlmsg->nlmsg_seq);
+
+		return nlmsg->nlmsg_len;
+	}
+
+	/* Partial request: get the filters. */
+	memset(&fnc->filters, 0, sizeof(fnc->filters));
+	rtm = NLMSG_DATA(nlmsg);
+	fnc->filters.table_id = rtm->rtm_table;
+	fnc->filters.family = rtm->rtm_family;
+
+	/* Select the sequence to send. */
+	fnc->resp_seq = nlmsg->nlmsg_seq;
+
+	bytes_left = nlmsg->nlmsg_len - NLMSG_LENGTH(sizeof(*rtm));
+	for (rta = RTM_RTA(rtm); RTA_OK(rta, bytes_left);
+	     rta = RTA_NEXT(rta, bytes_left)) {
+		plen = RTA_PAYLOAD(rta);
+
+		switch (rta->rta_type) {
+		case RTA_OIF:
+			if (RTA_PAYLOAD(rta) < sizeof(int)) {
+				zlog_warn("%s: invalid RTA_OIF size %d",
+					  __func__, plen);
+				return -1;
+			}
+
+			fnc->filters.oif = *(int *)RTA_DATA(rta);
+			break;
+		case RTA_TABLE:
+			if (RTA_PAYLOAD(rta) < sizeof(int)) {
+				zlog_warn(
+					"%s: [seq=%u] invalid RTA_TABLE size %d",
+					__func__, nlmsg->nlmsg_seq, plen);
+				return -1;
+			}
+
+			fnc->filters.table_id = *(int *)RTA_DATA(rta);
+			break;
+
+		default:
+			if (IS_ZEBRA_DEBUG_FPM)
+				zlog_debug(
+					"%s: [seq=%u] unhandled attribute %d",
+					__func__, nlmsg->nlmsg_seq,
+					rta->rta_type);
+			break;
+		}
+	}
+
+	/* Send all routes with new filters. */
+	TRIGGER_REPLY(fnc);
+
+	return nlmsg->nlmsg_len;
+}
+
+static ssize_t fpm_read_frame(struct fpm_nl_ctx *fnc, const void *frame,
+			      size_t total)
+{
+	struct _fpm_header {
+		uint8_t version;
+		uint8_t type;
+		uint16_t length;
+	} const *fh = frame;
+	size_t framelen, framepos, frametotal;
+	ssize_t rv;
+	const void *nlmsgp;
+
+	/* Check version. */
+	if (fh->version != 1) {
+		zlog_warn("%s: invalid fpm version %d", __func__, fh->version);
+		return -1;
+	}
+
+	/* Check type. */
+	if (fh->type != 1) {
+		zlog_warn("%s: invalid fpm type %d", __func__, fh->type);
+		return -1;
+	}
+
+	/* Sanity check: packet length. */
+	frametotal = framelen = ntohs(fh->length);
+	if (framelen <= sizeof(*fh)) {
+		zlog_warn("%s: invalid fpm length %d", __func__, fh->length);
+		return -1;
+	}
+
+	/* Check for incomplete reads. */
+	if (framelen > total)
+		return 0;
+
+	/* Read all netlink messages. */
+	framepos = sizeof(*fh);
+	framelen -= sizeof(*fh);
+	while (framelen > 0) {
+		/* Get next message. */
+		nlmsgp = ((uint8_t *)frame) + framepos;
+
+		/* Parse and find out next position. */
+		rv = fpm_read_netlink(fnc, nlmsgp, framelen);
+		/* Bad message format, abort. */
+		if (rv == -1)
+			return -1;
+
+		/* Update bytes left and position. */
+		framelen -= rv;
+		framepos += rv;
+	}
+
+	return frametotal;
+}
