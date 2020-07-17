@@ -1685,6 +1685,7 @@ ssize_t netlink_route_multipath_msg_encode(int cmd,
 
 	req->n.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
 	req->n.nlmsg_flags = NLM_F_CREATE | NLM_F_REQUEST;
+	req->n.nlmsg_seq = dplane_ctx_get_seq(ctx);
 
 	if ((cmd == RTM_NEWROUTE) &&
 	    ((p->family == AF_INET) || v6_rr_semantics))
@@ -2167,6 +2168,7 @@ ssize_t netlink_nexthop_msg_encode(uint16_t cmd,
 
 	req->n.nlmsg_len = NLMSG_LENGTH(sizeof(struct nhmsg));
 	req->n.nlmsg_flags = NLM_F_CREATE | NLM_F_REQUEST;
+	req->n.nlmsg_seq = dplane_ctx_get_seq(ctx);
 
 	if (cmd == RTM_NEWNEXTHOP)
 		req->n.nlmsg_flags |= NLM_F_REPLACE;
@@ -2768,6 +2770,7 @@ static ssize_t netlink_neigh_update_msg_encode(
 
 	req->n.nlmsg_len = NLMSG_LENGTH(sizeof(struct ndmsg));
 	req->n.nlmsg_flags = NLM_F_REQUEST;
+	req->n.nlmsg_seq = dplane_ctx_get_seq(ctx);
 	if (cmd == RTM_NEWNEIGH)
 		req->n.nlmsg_flags |=
 			NLM_F_CREATE

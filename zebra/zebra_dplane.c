@@ -1079,6 +1079,13 @@ bool dplane_ctx_is_update(const struct zebra_dplane_ctx *ctx)
 	return ctx->zd_is_update;
 }
 
+void dplane_ctx_set_seq(struct zebra_dplane_ctx *ctx, uint32_t seq)
+{
+	DPLANE_CTX_VALID(ctx);
+
+	ctx->zd_seq = seq;
+}
+
 uint32_t dplane_ctx_get_seq(const struct zebra_dplane_ctx *ctx)
 {
 	DPLANE_CTX_VALID(ctx);

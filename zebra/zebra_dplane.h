@@ -301,6 +301,7 @@ const struct prefix *dplane_ctx_get_src(const struct zebra_dplane_ctx *ctx);
 void dplane_ctx_set_src(struct zebra_dplane_ctx *ctx, const struct prefix *src);
 
 bool dplane_ctx_is_update(const struct zebra_dplane_ctx *ctx);
+void dplane_ctx_set_seq(struct zebra_dplane_ctx *ctx, uint32_t seq);
 uint32_t dplane_ctx_get_seq(const struct zebra_dplane_ctx *ctx);
 uint32_t dplane_ctx_get_old_seq(const struct zebra_dplane_ctx *ctx);
 void dplane_ctx_set_vrf(struct zebra_dplane_ctx *ctx, vrf_id_t vrf);
