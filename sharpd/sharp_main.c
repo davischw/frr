@@ -44,6 +44,7 @@
 #include "routemap.h"
 #include "nexthop_group.h"
 #include "link_state.h"
+#include "lib/address_list.h"
 
 #include "sharp_zebra.h"
 #include "sharp_vty.h"
@@ -116,6 +117,7 @@ struct quagga_signal_t sharp_signals[] = {
 #define SHARP_VTY_PORT 2614
 
 static const struct frr_yang_module_info *const sharpd_yang_modules[] = {
+	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_route_map_info,

@@ -100,6 +100,9 @@ sub scan_file {
         elsif ($file =~ /lib\/if\.c$/) {
             $protocol = "VTYSH_INTERFACE";
         }
+        elsif ($file =~ /lib\/address_list_cli\.c$/) {
+            $protocol = "VTYSH_ADDRESSLIST";
+        }
         elsif ($file =~ /lib\/(filter|filter_cli)\.c$/) {
             $protocol = "VTYSH_ACL";
         }

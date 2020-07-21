@@ -40,6 +40,7 @@
 #include "qobj.h"
 #include "libfrr.h"
 #include "routemap.h"
+#include "lib/address_list.h"
 
 #include "isisd/isis_constants.h"
 #include "isisd/isis_common.h"
@@ -168,6 +169,7 @@ struct quagga_signal_t isisd_signals[] = {
 
 
 static const struct frr_yang_module_info *const isisd_yang_modules[] = {
+	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 #ifndef FABRICD

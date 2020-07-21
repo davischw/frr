@@ -939,8 +939,14 @@ DEFUN (no_vrf_debug,
 
 static int vrf_write_host(struct vty *vty)
 {
+	struct lyd_node *dnode;
+
 	if (debug_vrf)
 		vty_out(vty, "debug vrf\n");
+
+	dnode = yang_dnode_get(running_config->dnode, "/frr-address-list:lib");
+	if (dnode)
+		nb_cli_show_dnode_cmds(vty, dnode, false);
 
 	return 1;
 }

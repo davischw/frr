@@ -36,6 +36,7 @@
 #include "if_rmap.h"
 #include "libfrr.h"
 #include "routemap.h"
+#include "lib/address_list.h"
 
 #include "ripd/ripd.h"
 #include "ripd/rip_nb.h"
@@ -114,6 +115,7 @@ static struct quagga_signal_t ripd_signals[] = {
 };
 
 static const struct frr_yang_module_info *const ripd_yang_modules[] = {
+	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_ripd_info,

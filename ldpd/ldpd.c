@@ -43,6 +43,7 @@
 #include "qobj.h"
 #include "libfrr.h"
 #include "lib_errors.h"
+#include "lib/address_list.h"
 
 static void		 ldpd_shutdown(void);
 static pid_t		 start_child(enum ldpd_process, char *, int, int);
@@ -202,6 +203,7 @@ static struct quagga_signal_t ldp_signals[] =
 };
 
 static const struct frr_yang_module_info *const ldpd_yang_modules[] = {
+	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_vrf_info,
 };

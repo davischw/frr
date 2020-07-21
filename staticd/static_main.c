@@ -32,6 +32,7 @@
 #include "nexthop.h"
 #include "filter.h"
 #include "routing_nb.h"
+#include "address_list.h"
 
 #include "static_vrf.h"
 #include "static_vty.h"
@@ -111,6 +112,7 @@ struct quagga_signal_t static_signals[] = {
 };
 
 static const struct frr_yang_module_info *const staticd_yang_modules[] = {
+	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_vrf_info,

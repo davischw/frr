@@ -35,6 +35,7 @@
 #include "libfrr.h"
 #include "routemap.h"
 #include "routing_nb.h"
+#include "lib/address_list.h"
 
 #include "zebra/zebra_router.h"
 #include "zebra/zebra_errors.h"
@@ -259,6 +260,7 @@ struct quagga_signal_t zebra_signals[] = {
 };
 
 static const struct frr_yang_module_info *const zebra_yang_modules[] = {
+	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_route_map_info,

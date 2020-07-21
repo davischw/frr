@@ -41,6 +41,7 @@
 #include "bfd.h"
 #include "libfrr.h"
 #include "ns.h"
+#include "address_list.h"
 
 #include "bgpd/bgpd.h"
 #include "bgpd/bgp_attr.h"
@@ -375,6 +376,7 @@ static void bgp_vrf_terminate(void)
 }
 
 static const struct frr_yang_module_info *const bgpd_yang_modules[] = {
+	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_route_map_info,

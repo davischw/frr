@@ -38,6 +38,7 @@
 #include "vrf.h"
 #include "bfd.h"
 #include "libfrr.h"
+#include "lib/address_list.h"
 
 #include "ospf6d.h"
 #include "ospf6_top.h"
@@ -168,6 +169,7 @@ struct quagga_signal_t ospf6_signals[] = {
 };
 
 static const struct frr_yang_module_info *const ospf6d_yang_modules[] = {
+	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_route_map_info,

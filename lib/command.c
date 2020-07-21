@@ -48,6 +48,7 @@
 #include "lib_errors.h"
 #include "northbound_cli.h"
 #include "network.h"
+#include "address_list.h"
 
 #include "frrscript.h"
 
@@ -2539,6 +2540,9 @@ void cmd_init(int terminal)
 
 		log_cmd_init();
 		vrf_install_commands();
+
+		/* Address list initializations. */
+		address_list_cli_init();
 	}
 
 #ifdef DEV_BUILD
