@@ -1,0 +1,82 @@
+module frr-address-list {
+  yang-version 1.1;
+  namespace "http://frrouting.org/yang/address-list";
+  prefix frr-address-list;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  organization
+    "Free Range Routing";
+  description
+    "This module defines a model for managing address lists for CLI
+     configuration.
+
+     Copyright 2020 FRRouting
+
+     Redistribution and use in source and binary forms, with or without
+     modification, are permitted provided that the following conditions
+     are met:
+
+     1. Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in the
+     documentation and/or other materials provided with the distribution.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+     \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+     LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+     A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+     HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+     LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+     DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+     THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.";
+
+  revision 2020-07-20 {
+    description
+      "Initial revision.";
+  }
+
+  typedef address-list-name {
+    type string {
+      length "1..64";
+    }
+    description "Address list name format.";
+  }
+
+  container lib {
+    list address-list {
+      description "Address list to use as placeholder.";
+      key "name";
+
+      leaf name {
+        type address-list-name;
+        description "Address list name to use as reference.";
+      }
+
+      list addresses {
+        description "List of addresses associated with the name.";
+        key "address";
+        unique "sequence";
+
+        leaf address {
+          type inet:ip-address;
+          description "Internet Protocol Address.";
+        }
+
+        leaf sequence {
+          type uint32;
+          mandatory true;
+          description
+            "Address usage order (lower numbers first, higher numbers last).";
+        }
+      }
+    }
+  }
+}
