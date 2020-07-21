@@ -72,6 +72,7 @@ extern struct thread_master *master;
 #define VTYSH_NH_GROUP    VTYSH_PBRD|VTYSH_SHARPD
 #define VTYSH_SR          VTYSH_ZEBRA|VTYSH_PATHD
 #define VTYSH_DPDK VTYSH_ZEBRA
+#define VTYSH_ADDRESSLIST VTYSH_BGPD|VTYSH_STATICD
 
 enum vtysh_write_integrated {
 	WRITE_INTEGRATED_UNSPECIFIED,

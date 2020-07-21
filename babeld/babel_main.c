@@ -34,6 +34,7 @@ THE SOFTWARE.
 #include "memory.h"
 #include "libfrr.h"
 #include "lib_errors.h"
+#include "lib/address_list.h"
 
 #include "babel_main.h"
 #include "babeld.h"
@@ -137,6 +138,7 @@ struct option longopts[] =
   };
 
 static const struct frr_yang_module_info *const babeld_yang_modules[] = {
+	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_vrf_info,

@@ -7,6 +7,8 @@ lib_libfrr_la_LDFLAGS = $(LIB_LDFLAGS) -version-info 0:0:0 -Xlinker -e_libfrr_ve
 lib_libfrr_la_LIBADD = $(LIBCAP) $(UNWIND_LIBS) $(LIBYANG_LIBS) $(LUA_LIB) $(UST_LIBS) $(LIBCRYPT) $(LIBDL) $(LIBM)
 
 lib_libfrr_la_SOURCES = \
+	lib/address_list_cli.c \
+	lib/address_list_nb.c \
 	lib/agg_table.c \
 	lib/atomlist.c \
 	lib/base64.c \
@@ -126,6 +128,7 @@ lib_libfrr_la_SOURCES = \
 	# end
 
 nodist_lib_libfrr_la_SOURCES = \
+	yang/frr-address-list.yang.c \
 	yang/frr-filter.yang.c \
 	yang/frr-interface.yang.c \
 	yang/frr-route-map.yang.c \
@@ -140,6 +143,7 @@ nodist_lib_libfrr_la_SOURCES = \
 	# end
 
 vtysh_scan += \
+	lib/address_list_cli.c \
 	lib/distribute.c \
 	lib/filter.c \
 	lib/filter_cli.c \
@@ -166,6 +170,7 @@ lib_libfrr_la_SOURCES += lib/db.c
 endif
 
 clippy_scan += \
+	lib/address_list_cli.c \
 	lib/if.c \
 	lib/filter_cli.c \
 	lib/log_vty.c \
@@ -179,6 +184,7 @@ clippy_scan += \
 	# end
 
 pkginclude_HEADERS += \
+	lib/address_list.h \
 	lib/agg_table.h \
 	lib/atomlist.h \
 	lib/base64.h \
