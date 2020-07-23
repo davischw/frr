@@ -1114,8 +1114,8 @@ static void peer_free(struct peer *peer)
 	pthread_mutex_destroy(&peer->io_mtx);
 
 	/* Free connected nexthop, if present */
-	if (CHECK_FLAG(peer->flags, PEER_FLAG_CONFIG_NODE)
-	    && !peer_dynamic_neighbor(peer))
+	if (CHECK_FLAG(peer->flags, PEER_FLAG_CONFIG_NODE) &&
+	    !peer_dynamic_neighbor(peer))
 		bgp_delete_connected_nexthop(family2afi(peer->su.sa.sa_family),
 					     peer);
 
@@ -1903,9 +1903,11 @@ int peer_remote_as(struct bgp *bgp, union sockunion *su, const char *conf_if,
 	struct peer *peer;
 	as_t local_as;
 
-	if (conf_if)
+	if (conf_if) {
 		peer = peer_lookup_by_conf_if(bgp, conf_if);
-	else
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp, conf_if);
+	} else
 		peer = peer_lookup(bgp, su);
 
 	if (peer) {
@@ -1991,9 +1993,8 @@ const char *bgp_get_name_by_role(uint8_t role)
 	return "unknown";
 }
 
-static void peer_group2peer_config_copy_af(struct peer_group *group,
-					   struct peer *peer, afi_t afi,
-					   safi_t safi)
+void peer_group2peer_config_copy_af(struct peer_group *group, struct peer *peer,
+				    afi_t afi, safi_t safi)
 {
 	int in = FILTER_IN;
 	int out = FILTER_OUT;
@@ -2415,6 +2416,12 @@ int peer_delete(struct peer *peer)
 	struct listnode *pn;
 	int accept_peer;
 
+	/* Use special address list delete function. */
+	if (peer_address_list_neighbor(peer)) {
+		address_list_peer_free(&peer->np);
+		return 0;
+	}
+
 	assert(peer->status != Deleted);
 
 	bgp = peer->bgp;
@@ -2621,8 +2628,7 @@ struct peer_group *peer_group_get(struct bgp *bgp, const char *name)
 	return group;
 }
 
-static void peer_group2peer_config_copy(struct peer_group *group,
-					struct peer *peer)
+void peer_group2peer_config_copy(struct peer_group *group, struct peer *peer)
 {
 	uint32_t flags_tmp;
 	struct peer *conf;
@@ -3793,6 +3799,9 @@ void bgp_free(struct bgp *bgp)
 	struct bgp_rmap *rmap;
 
 	QOBJ_UNREG(bgp);
+
+	/* Must be called before `list_delete` peers. */
+	bgp_address_list_peers_free(bgp);
 
 	list_delete(&bgp->group);
 	list_delete(&bgp->peer);
@@ -8202,6 +8211,7 @@ void bgp_init(unsigned short instance)
 
 	/* BGP VTY commands installation.  */
 	bgp_vty_init();
+	bgp_address_list_init();
 
 	/* BGP inits. */
 	bgp_attr_init();
@@ -8297,6 +8307,8 @@ struct peer *peer_lookup_in_view(struct vty *vty, struct bgp *bgp,
 	ret = str2sockunion(ip_str, &su);
 	if (ret < 0) {
 		peer = peer_lookup_by_conf_if(bgp, ip_str);
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp, ip_str);
 		if (!peer) {
 			peer = peer_lookup_by_hostname(bgp, ip_str);
 

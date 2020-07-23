@@ -33,6 +33,7 @@
 #include "iana_afi.h"
 
 /* For union sockunion.  */
+#include "address_list.h"
 #include "queue.h"
 #include "sockunion.h"
 #include "routemap.h"
@@ -333,6 +334,19 @@ struct bgp_srv6_function {
 	struct in6_addr sid;
 	char locator_name[SRV6_LOCNAME_SIZE];
 };
+
+/** BGP address list */
+struct bgp_named_peer {
+	/** Address list entry name. */
+	char name[ADDRESS_LIST_NAME_LONGEST];
+	/** BGP instance pointer. */
+	struct bgp *bgp;
+	/** Dynamically created peer data structure. */
+	struct peer *peer;
+
+	LIST_ENTRY(bgp_named_peer) entry;
+};
+LIST_HEAD(bgp_named_peer_list, bgp_named_peer);
 
 /* BGP instance structure.  */
 struct bgp {
@@ -776,6 +790,9 @@ struct bgp {
 
 	bool allow_martian;
 
+	/* BGP named peers. */
+	struct bgp_named_peer_list named_peer_list;
+
 	QOBJ_FIELDS;
 };
 DECLARE_QOBJ_TYPE(bgp);
@@ -828,6 +845,9 @@ struct peer_group {
 
 	/* Peer-group config */
 	struct peer *conf;
+
+	/** Back pointer to named peer. */
+	struct bgp_named_peer *named_peer;
 };
 
 /* BGP Notify message format. */
@@ -1737,6 +1757,9 @@ struct peer {
 
 	bool shut_during_cfg;
 
+	/** Address list back pointer. */
+	struct bgp_named_peer *np;
+
 	QOBJ_FIELDS;
 };
 DECLARE_QOBJ_TYPE(peer);
@@ -2482,6 +2505,11 @@ static inline bool peer_dynamic_neighbor_no_nsf(struct peer *peer)
 		!CHECK_FLAG(peer->sflags, PEER_STATUS_NSF_WAIT));
 }
 
+static inline bool peer_address_list_neighbor(const struct peer *peer)
+{
+	return peer->np ? true : false;
+}
+
 static inline int peer_cap_enhe(struct peer *peer, afi_t afi, safi_t safi)
 {
 	return (CHECK_FLAG(peer->af_cap[afi][safi], PEER_CAP_ENHE_AF_NEGO));
@@ -2584,5 +2612,22 @@ extern void bgp_recalculate_afi_safi_bestpaths(struct bgp *bgp, afi_t afi,
 #pragma FRR printfrr_ext "%pBP" (struct peer *)
 /* clang-format on */
 #endif
+
+extern bool peer_address_self_check(struct bgp *bgp, union sockunion *su);
+extern void peer_group2peer_config_copy(struct peer_group *group,
+					struct peer *peer);
+extern void peer_group2peer_config_copy_af(struct peer_group *group,
+					   struct peer *peer, afi_t afi,
+					   safi_t safi);
+
+/* bgp_address_list.c */
+extern struct peer *peer_lookup_by_address_list(struct bgp *bgp,
+						const char *name);
+extern struct bgp_named_peer *address_list_lookup_by_name(struct bgp *bgp,
+							  const char *name);
+extern void peer_address_list_remote_as(struct bgp *bgp, const char *name,
+					as_t as, int as_type);
+extern void address_list_peer_free(struct bgp_named_peer **np);
+extern void bgp_address_list_peers_free(struct bgp *bgp);
 
 #endif /* _QUAGGA_BGPD_H */

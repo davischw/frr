@@ -50,6 +50,7 @@ endif
 
 bgpd_libbgp_a_SOURCES = \
 	bgpd/bgp_addpath.c \
+	bgpd/bgp_address_list.c \
 	bgpd/bgp_advertise.c \
 	bgpd/bgp_aspath.c \
 	bgpd/bgp_attr.c \

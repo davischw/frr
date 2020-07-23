@@ -710,7 +710,7 @@ int bgp_vty_find_and_parse_afi_safi_bgp(struct vty *vty,
 	return *idx;
 }
 
-static bool peer_address_self_check(struct bgp *bgp, union sockunion *su)
+bool peer_address_self_check(struct bgp *bgp, union sockunion *su)
 {
 	struct interface *ifp = NULL;
 	struct listnode *node;
@@ -763,6 +763,8 @@ static struct peer *peer_lookup_vty(struct vty *vty, const char *ip_str)
 	ret = str2sockunion(ip_str, &su);
 	if (ret < 0) {
 		peer = peer_lookup_by_conf_if(bgp, ip_str);
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp, ip_str);
 		if (!peer) {
 			if ((peer = peer_lookup_by_hostname(bgp, ip_str))
 			    == NULL) {
@@ -812,6 +814,8 @@ struct peer *peer_and_group_lookup_vty(struct vty *vty, const char *peer_str)
 		/* Not IP, could match either peer configured on interface or a
 		 * group. */
 		peer = peer_lookup_by_conf_if(bgp, peer_str);
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp, peer_str);
 		if (!peer)
 			group = peer_group_lookup(bgp, peer_str);
 	}
@@ -1120,6 +1124,8 @@ static int bgp_clear(struct vty *vty, struct bgp *bgp, afi_t afi, safi_t safi,
 		ret = str2sockunion(arg, &su);
 		if (ret < 0) {
 			peer = peer_lookup_by_conf_if(bgp, arg);
+			if (peer == NULL)
+				peer = peer_lookup_by_address_list(bgp, arg);
 			if (!peer) {
 				peer = peer_lookup_by_hostname(bgp, arg);
 				if (!peer) {
@@ -4522,11 +4528,10 @@ static int peer_remote_as_vty(struct vty *vty, const char *peer_str,
 		/* if not interface peer, check peer-group settings */
 		if (ret < 0 && !peer) {
 			ret = peer_group_remote_as(bgp, peer_str, &as, as_type);
-			if (ret < 0) {
-				vty_out(vty,
-					"%% Create the peer-group or interface first\n");
-				return CMD_WARNING_CONFIG_FAILED;
-			}
+			if (ret < 0)
+				peer_address_list_remote_as(bgp, peer_str, as,
+							    as_type);
+
 			return CMD_SUCCESS;
 		}
 	} else {
@@ -4877,6 +4882,7 @@ DEFUN (no_neighbor,
 	struct peer_group *group;
 	struct peer *peer;
 	struct peer *other;
+	struct bgp_named_peer *np;
 
 	ret = str2sockunion(argv[idx_peer]->arg, &su);
 	if (ret < 0) {
@@ -4889,6 +4895,13 @@ DEFUN (no_neighbor,
 				bgp_zebra_terminate_radv(peer->bgp, peer);
 			peer_notify_unconfig(peer);
 			peer_delete(peer);
+			return CMD_SUCCESS;
+		}
+
+		/* Handle address list case. */
+		np = address_list_lookup_by_name(bgp, argv[idx_peer]->arg);
+		if (np != NULL) {
+			address_list_peer_free(&np);
 			return CMD_SUCCESS;
 		}
 
@@ -5263,6 +5276,10 @@ DEFUN (neighbor_set_peer_group,
 	ret = str2sockunion(argv[idx_peer]->arg, &su);
 	if (ret < 0) {
 		peer = peer_lookup_by_conf_if(bgp, argv[idx_peer]->arg);
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp,
+							   argv[idx_peer]->arg);
+
 		if (!peer) {
 			vty_out(vty, "%% Malformed address or name: %s\n",
 				argv[idx_peer]->arg);
@@ -10598,7 +10615,8 @@ static void bgp_show_failed_summary(struct vty *vty, struct bgp *bgp,
 	int len;
 
 	if (use_json) {
-		if (peer_dynamic_neighbor(peer))
+		if (peer_dynamic_neighbor(peer)
+		    || peer_address_list_neighbor(peer))
 			json_object_boolean_true_add(json_peer,
 						     "dynamicPeer");
 		if (peer->hostname)
@@ -10621,7 +10639,10 @@ static void bgp_show_failed_summary(struct vty *vty, struct bgp *bgp,
 			bgp_show_peer_reset(NULL, peer, json_peer, true);
 	} else {
 		dn_flag[1] = '\0';
-		dn_flag[0] = peer_dynamic_neighbor(peer) ? '*' : '\0';
+		dn_flag[0] = (peer_dynamic_neighbor(peer)
+			      || peer_address_list_neighbor(peer))
+				     ? '*'
+				     : '\0';
 		if (peer->hostname
 		    && CHECK_FLAG(bgp->flags, BGP_FLAG_SHOW_HOSTNAME))
 			len = vty_out(vty, "%s%s(%s)", dn_flag,
@@ -10762,7 +10783,8 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 					failed_count++;
 				count++;
 			}
-			if (peer_dynamic_neighbor(peer))
+			if (peer_dynamic_neighbor(peer)
+			    || peer_address_list_neighbor(peer))
 				dn_count++;
 		}
 
@@ -10784,7 +10806,8 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 
 			if (peer->afc[afi][safi]) {
 				memset(dn_flag, '\0', sizeof(dn_flag));
-				if (peer_dynamic_neighbor(peer))
+				if (peer_dynamic_neighbor(peer)
+				    || peer_address_list_neighbor(peer))
 					dn_flag[0] = '*';
 
 				if (peer->hostname
@@ -11064,7 +11087,8 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 
 		count++;
 		/* Works for both failed & successful cases */
-		if (peer_dynamic_neighbor(peer))
+		if (peer_dynamic_neighbor(peer)
+		    || peer_address_list_neighbor(peer))
 			dn_count++;
 
 		if (use_json) {
@@ -11087,7 +11111,8 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 				}
 
 				json_peer = json_object_new_object();
-				if (peer_dynamic_neighbor(peer)) {
+				if (peer_dynamic_neighbor(peer)
+				    || peer_address_list_neighbor(peer)) {
 					json_object_boolean_true_add(json_peer,
 								     "dynamicPeer");
 				}
@@ -11259,7 +11284,8 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 				}
 
 				memset(dn_flag, '\0', sizeof(dn_flag));
-				if (peer_dynamic_neighbor(peer)) {
+				if (peer_dynamic_neighbor(peer)
+				    || peer_address_list_neighbor(peer)) {
 					dn_flag[0] = '*';
 				}
 
@@ -12064,7 +12090,8 @@ static void bgp_show_peer_gr_status(struct vty *vty, struct peer *p,
 	/* '*' + v6 address of neighbor */
 	char neighborAddr[INET6_ADDRSTRLEN + 1] = {0};
 
-	if (!p->conf_if && peer_dynamic_neighbor(p))
+	if (!p->conf_if
+	    && (peer_dynamic_neighbor(p) || peer_address_list_neighbor(p)))
 		dn_flag[0] = '*';
 
 	if (p->conf_if) {
@@ -12760,7 +12787,8 @@ static void bgp_show_peer(struct vty *vty, struct peer *p, bool use_json,
 		json_neigh = json_object_new_object();
 
 	memset(dn_flag, '\0', sizeof(dn_flag));
-	if (!p->conf_if && peer_dynamic_neighbor(p))
+	if (!p->conf_if
+	    && (peer_dynamic_neighbor(p) || peer_address_list_neighbor(p)))
 		dn_flag[0] = '*';
 
 	if (!use_json) {
@@ -14655,7 +14683,9 @@ static int bgp_show_neighbor(struct vty *vty, struct bgp *bgp,
 				if ((peer->conf_if
 				     && !strcmp(peer->conf_if, conf_if))
 				    || (peer->hostname
-					&& !strcmp(peer->hostname, conf_if))) {
+					&& !strcmp(peer->hostname, conf_if))
+				    || (peer->np
+					&& strcmp(peer->host, conf_if) == 0)) {
 					find = 1;
 					bgp_show_peer(vty, peer, use_json,
 						      json);
@@ -14676,7 +14706,9 @@ static int bgp_show_neighbor(struct vty *vty, struct bgp *bgp,
 						if ((peer->conf_if
 						     && !strcmp(peer->conf_if, conf_if))
 						    || (peer->hostname
-							&& !strcmp(peer->hostname, conf_if))) {
+							&& !strcmp(peer->hostname, conf_if))
+						    || (peer->np
+							&& strcmp(peer->host, conf_if) == 0)) {
 							find = 1;
 							bgp_show_peer(vty, peer, use_json,
 								      json);
