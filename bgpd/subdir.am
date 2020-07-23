@@ -7,6 +7,7 @@ noinst_LIBRARIES += bgpd/libbgp.a
 sbin_PROGRAMS += bgpd/bgpd
 noinst_PROGRAMS += bgpd/bgp_btoa
 vtysh_scan += \
+	bgpd/bgp_address_list.c \
 	bgpd/bgp_bfd.c \
 	bgpd/bgp_debug.c \
 	bgpd/bgp_dump.c \
@@ -50,6 +51,7 @@ endif
 
 bgpd_libbgp_a_SOURCES = \
 	bgpd/bgp_addpath.c \
+	bgpd/bgp_address_list.c \
 	bgpd/bgp_advertise.c \
 	bgpd/bgp_aspath.c \
 	bgpd/bgp_attr.c \
@@ -229,6 +231,7 @@ bgpd_bgpd_bmp_la_LIBADD = lib/libfrrcares.la
 bgpd_bgpd_bmp_la_LDFLAGS = $(MODULE_LDFLAGS)
 
 clippy_scan += \
+	bgpd/bgp_address_list.c \
 	bgpd/bgp_bmp.c \
 	bgpd/bgp_debug.c \
 	bgpd/bgp_evpn_vty.c \

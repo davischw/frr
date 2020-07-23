@@ -765,6 +765,11 @@ struct peer_group {
 
 	/* Peer-group config */
 	struct peer *conf;
+
+	/* Configured address list name (if any). */
+	char *pg_al_name;
+	/* Pointer to dynamically created peer. */
+	struct peer *pg_peer;
 };
 
 /* BGP Notify message format. */
@@ -1245,6 +1250,9 @@ struct peer {
 #define PEER_FLAG_RTT_SHUTDOWN (1U << 26) /* shutdown rtt */
 #define PEER_FLAG_TIMER_DELAYOPEN (1U << 27) /* delayopen timer */
 #define PEER_FLAG_TCP_MSS (1U << 28)	 /* tcp-mss */
+
+	/** Used by address list generated peers. */
+#define PEER_FLAG_ADDRESS_LIST_USER         (1 << 31)
 
 	/*
 	 *GR-Disabled mode means unset PEER_FLAG_GRACEFUL_RESTART
@@ -2321,6 +2329,12 @@ static inline int peer_dynamic_neighbor(struct peer *peer)
 	return (CHECK_FLAG(peer->flags, PEER_FLAG_DYNAMIC_NEIGHBOR)) ? 1 : 0;
 }
 
+static inline bool peer_address_list_neighbor(const struct peer *peer)
+{
+	return CHECK_FLAG(peer->flags, PEER_FLAG_ADDRESS_LIST_USER) ? true
+								    : false;
+}
+
 static inline int peer_cap_enhe(struct peer *peer, afi_t afi, safi_t safi)
 {
 	return (CHECK_FLAG(peer->af_cap[afi][safi], PEER_CAP_ENHE_AF_NEGO));
@@ -2414,4 +2428,10 @@ void peer_nsf_stop(struct peer *peer);
 
 void peer_tcp_mss_set(struct peer *peer, uint32_t tcp_mss);
 void peer_tcp_mss_unset(struct peer *peer);
+
+bool peer_address_self_check(struct bgp *bgp, union sockunion *su);
+void peer_group2peer_config_copy(struct peer_group *group, struct peer *peer);
+void peer_group2peer_config_copy_af(struct peer_group *group, struct peer *peer,
+				    afi_t afi, safi_t safi);
+
 #endif /* _QUAGGA_BGPD_H */

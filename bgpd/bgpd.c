@@ -1131,7 +1131,8 @@ static void peer_free(struct peer *peer)
 
 	/* Free connected nexthop, if present */
 	if (CHECK_FLAG(peer->flags, PEER_FLAG_CONFIG_NODE)
-	    && !peer_dynamic_neighbor(peer))
+	    && (!peer_dynamic_neighbor(peer)
+		|| !peer_address_list_neighbor(peer)))
 		bgp_delete_connected_nexthop(family2afi(peer->su.sa.sa_family),
 					     peer);
 
@@ -1921,7 +1922,8 @@ int peer_remote_as(struct bgp *bgp, union sockunion *su, const char *conf_if,
 
 	if (peer) {
 		/* Not allowed for a dynamic peer. */
-		if (peer_dynamic_neighbor(peer)) {
+		if (peer_dynamic_neighbor(peer)
+		    || peer_address_list_neighbor(peer)) {
 			*as = peer->as;
 			return BGP_ERR_INVALID_FOR_DYNAMIC_PEER;
 		}
@@ -1983,9 +1985,8 @@ int peer_remote_as(struct bgp *bgp, union sockunion *su, const char *conf_if,
 	return 0;
 }
 
-static void peer_group2peer_config_copy_af(struct peer_group *group,
-					   struct peer *peer, afi_t afi,
-					   safi_t safi)
+void peer_group2peer_config_copy_af(struct peer_group *group, struct peer *peer,
+				    afi_t afi, safi_t safi)
 {
 	int in = FILTER_IN;
 	int out = FILTER_OUT;
@@ -2416,7 +2417,8 @@ int peer_delete(struct peer *peer)
 	/* If this peer belongs to peer group, clear up the
 	   relationship.  */
 	if (peer->group) {
-		if (peer_dynamic_neighbor(peer))
+		if (peer_dynamic_neighbor(peer)
+		    || peer_address_list_neighbor(peer))
 			peer_drop_dynamic_neighbor(peer);
 
 		if ((pn = listnode_lookup(peer->group->peer, peer))) {
@@ -2594,8 +2596,7 @@ struct peer_group *peer_group_get(struct bgp *bgp, const char *name)
 	return group;
 }
 
-static void peer_group2peer_config_copy(struct peer_group *group,
-					struct peer *peer)
+void peer_group2peer_config_copy(struct peer_group *group, struct peer *peer)
 {
 	uint32_t flags_tmp;
 	struct peer *conf;
@@ -2875,7 +2876,8 @@ int peer_group_listen_range_del(struct peer_group *group, struct prefix *range)
 	/* Dispose off any dynamic neighbors that exist due to this listen range
 	 */
 	for (ALL_LIST_ELEMENTS(group->peer, node, nnode, peer)) {
-		if (!peer_dynamic_neighbor(peer))
+		if (!peer_dynamic_neighbor(peer)
+		    || !peer_address_list_neighbor(peer))
 			continue;
 
 		if (sockunion2hostprefix(&peer->su, &prefix2)
@@ -7742,6 +7744,7 @@ void bgp_init(unsigned short instance)
 
 	/* BGP VTY commands installation.  */
 	bgp_vty_init();
+	bgp_address_list_init();
 
 	/* BGP inits. */
 	bgp_attr_init();

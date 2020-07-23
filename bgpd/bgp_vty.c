@@ -566,7 +566,7 @@ int bgp_vty_find_and_parse_afi_safi_bgp(struct vty *vty,
 	return *idx;
 }
 
-static bool peer_address_self_check(struct bgp *bgp, union sockunion *su)
+bool peer_address_self_check(struct bgp *bgp, union sockunion *su)
 {
 	struct interface *ifp = NULL;
 
@@ -655,7 +655,8 @@ struct peer *peer_and_group_lookup_vty(struct vty *vty, const char *peer_str)
 	}
 
 	if (peer) {
-		if (peer_dynamic_neighbor(peer)) {
+		if (peer_dynamic_neighbor(peer)
+		    || peer_address_list_neighbor(peer)) {
 			vty_out(vty,
 				"%% Operation not allowed on a dynamic neighbor\n");
 			return NULL;
@@ -4851,7 +4852,9 @@ DEFUN (neighbor_set_peer_group,
 
 		/* Disallow for dynamic neighbor. */
 		peer = peer_lookup(bgp, &su);
-		if (peer && peer_dynamic_neighbor(peer)) {
+		if (peer
+		    && (peer_dynamic_neighbor(peer)
+			|| peer_address_list_neighbor(peer))) {
 			vty_out(vty,
 				"%% Operation not allowed on a dynamic neighbor\n");
 			return CMD_WARNING_CONFIG_FAILED;
@@ -9786,7 +9789,8 @@ static void bgp_show_failed_summary(struct vty *vty, struct bgp *bgp,
 	int len;
 
 	if (use_json) {
-		if (peer_dynamic_neighbor(peer))
+		if (peer_dynamic_neighbor(peer)
+		    || peer_address_list_neighbor(peer))
 			json_object_boolean_true_add(json_peer,
 						     "dynamicPeer");
 		if (peer->hostname)
@@ -9809,7 +9813,10 @@ static void bgp_show_failed_summary(struct vty *vty, struct bgp *bgp,
 			bgp_show_peer_reset(NULL, peer, json_peer, true);
 	} else {
 		dn_flag[1] = '\0';
-		dn_flag[0] = peer_dynamic_neighbor(peer) ? '*' : '\0';
+		dn_flag[0] = (peer_dynamic_neighbor(peer)
+			      || peer_address_list_neighbor(peer))
+				     ? '*'
+				     : '\0';
 		if (peer->hostname
 		    && CHECK_FLAG(bgp->flags, BGP_FLAG_SHOW_HOSTNAME))
 			len = vty_out(vty, "%s%s(%s)", dn_flag,
@@ -9900,7 +9907,8 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 					failed_count++;
 				count++;
 			}
-			if (peer_dynamic_neighbor(peer))
+			if (peer_dynamic_neighbor(peer)
+			    || peer_address_list_neighbor(peer))
 				dn_count++;
 		}
 
@@ -9915,7 +9923,8 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 
 			if (peer->afc[afi][safi]) {
 				memset(dn_flag, '\0', sizeof(dn_flag));
-				if (peer_dynamic_neighbor(peer))
+				if (peer_dynamic_neighbor(peer)
+				    || peer_address_list_neighbor(peer))
 					dn_flag[0] = '*';
 
 				if (peer->hostname
@@ -10187,7 +10196,8 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 
 		count++;
 		/* Works for both failed & successful cases */
-		if (peer_dynamic_neighbor(peer))
+		if (peer_dynamic_neighbor(peer)
+		    || peer_address_list_neighbor(peer))
 			dn_count++;
 
 		if (use_json) {
@@ -10204,7 +10214,8 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 					continue;
 
 				json_peer = json_object_new_object();
-				if (peer_dynamic_neighbor(peer)) {
+				if (peer_dynamic_neighbor(peer)
+				    || peer_address_list_neighbor(peer)) {
 					json_object_boolean_true_add(json_peer,
 								     "dynamicPeer");
 				}
@@ -10353,7 +10364,8 @@ static int bgp_show_summary(struct vty *vty, struct bgp *bgp, int afi, int safi,
 					continue;
 
 				memset(dn_flag, '\0', sizeof(dn_flag));
-				if (peer_dynamic_neighbor(peer)) {
+				if (peer_dynamic_neighbor(peer)
+				    || peer_address_list_neighbor(peer)) {
 					dn_flag[0] = '*';
 				}
 
@@ -11124,7 +11136,8 @@ static void bgp_show_peer_gr_status(struct vty *vty, struct peer *p,
 	/* '*' + v6 address of neighbor */
 	char neighborAddr[INET6_ADDRSTRLEN + 1] = {0};
 
-	if (!p->conf_if && peer_dynamic_neighbor(p))
+	if (!p->conf_if
+	    && (peer_dynamic_neighbor(p) || peer_address_list_neighbor(p)))
 		dn_flag[0] = '*';
 
 	if (p->conf_if) {
@@ -11825,7 +11838,8 @@ static void bgp_show_peer(struct vty *vty, struct peer *p, bool use_json,
 		json_neigh = json_object_new_object();
 
 	memset(dn_flag, '\0', sizeof(dn_flag));
-	if (!p->conf_if && peer_dynamic_neighbor(p))
+	if (!p->conf_if
+	    && (peer_dynamic_neighbor(p) || peer_address_list_neighbor(p)))
 		dn_flag[0] = '*';
 
 	if (!use_json) {
@@ -14879,7 +14893,8 @@ static int bgp_show_one_peer_group(struct vty *vty, struct peer_group *group,
 				peer_status = lookup_msg(bgp_status_msg,
 							 peer->status, NULL);
 
-			dynamic = peer_dynamic_neighbor(peer);
+			dynamic = peer_dynamic_neighbor(peer)
+				  || peer_address_list_neighbor(peer);
 
 			if (json) {
 				json_object *json_peer_group_member =
@@ -16007,7 +16022,7 @@ static void bgp_config_write_peer_global(struct vty *vty, struct bgp *bgp,
 	int if_ras_printed = false;
 
 	/* Skip dynamic neighbors. */
-	if (peer_dynamic_neighbor(peer))
+	if (peer_dynamic_neighbor(peer) || peer_address_list_neighbor(peer))
 		return;
 
 	if (peer->conf_if)
@@ -16089,6 +16104,12 @@ static void bgp_config_write_peer_global(struct vty *vty, struct bgp *bgp,
 					addr);
 			}
 		}
+
+		/* Address list feature implemented in `bgp_address_list.c`. */
+		if (CHECK_FLAG(peer->sflags, PEER_STATUS_GROUP)
+		    && peer->group->pg_al_name)
+			vty_out(vty, " neighbor named %s peer-group %s\n",
+				peer->group->pg_al_name, peer->group->name);
 	}
 
 	/* local-as */
@@ -16296,7 +16317,7 @@ static void bgp_config_write_peer_af(struct vty *vty, struct bgp *bgp,
 	bool flag_scomm, flag_secomm, flag_slcomm;
 
 	/* Skip dynamic neighbors. */
-	if (peer_dynamic_neighbor(peer))
+	if (peer_dynamic_neighbor(peer) || peer_address_list_neighbor(peer))
 		return;
 
 	if (peer->conf_if)
