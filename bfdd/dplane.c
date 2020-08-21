@@ -196,11 +196,12 @@ static void bfd_dplane_debug_message(const struct bfddp_message *msg)
 
 		zlog_debug(
 			"  [flags=0x%08x{%s} %s ttl=%d detect_mult=%d "
-			"ifindex=%d ifname=%s]",
+			"ifindex=%d ifname=%s hold-time=%u]",
 			flags, buf, addrs, msg->data.session.ttl,
 			msg->data.session.detect_mult,
 			ntohl(msg->data.session.ifindex),
-			msg->data.session.ifname);
+			msg->data.session.ifname,
+			ntohl(msg->data.session.hold_time));
 		break;
 
 	case BFD_STATE_CHANGE:
@@ -768,6 +769,7 @@ static void _bfd_dplane_session_fill(const struct bfd_session *bs,
 	msg->data.session.min_rx = htonl(bs->timers.required_min_rx);
 	msg->data.session.min_echo_tx = htonl(bs->timers.desired_min_echo_tx);
 	msg->data.session.min_echo_rx = htonl(bs->timers.required_min_echo_rx);
+	msg->data.session.hold_time = htonl(bs->hold_time);
 }
 
 static int _bfd_dplane_add_session(struct bfd_dplane_ctx *bdc,

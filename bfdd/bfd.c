@@ -212,6 +212,12 @@ void bfd_session_apply(struct bfd_session *bs)
 	else
 		bfd_set_passive_mode(bs, bs->peer_profile.passive);
 
+	/* Toggle hold time: default is no hold time. */
+	if (bs->peer_profile.hold_time)
+		bs->hold_time = bs->peer_profile.hold_time;
+	else
+		bs->hold_time = bp->hold_time;
+
 	/* Toggle 'no shutdown' if default value. */
 	if (bs->peer_profile.admin_shutdown == false)
 		bfd_set_shutdown(bs, bp->admin_shutdown);

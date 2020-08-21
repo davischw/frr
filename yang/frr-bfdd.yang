@@ -195,6 +195,16 @@ module frr-bfdd {
       description
         "Don't attempt to start session establishment.";
     }
+
+    leaf hold-time {
+      type uint32 {
+        range 0..120000000;
+      }
+      units microseconds;
+      default 0;
+      description
+        "Delay after link comes up before starting to transmit packets.";
+    }
   }
 
   grouping session-echo {

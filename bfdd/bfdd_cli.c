@@ -315,6 +315,48 @@ void bfd_cli_show_passive(struct vty *vty, struct lyd_node *dnode,
 }
 
 DEFPY_YANG(
+	bfd_peer_hold_time, bfd_peer_hold_time_cmd,
+	"[no] hold-time (0-120000)$holdtime",
+	NO_STR
+	"Hold time before starting to send packets\n"
+	"Hold time in milliseconds\n")
+{
+	char value[32];
+
+	if (no)
+		nb_cli_enqueue_change(vty, "./hold-time", NB_OP_DESTROY, NULL);
+	else {
+		snprintf(value, sizeof(value), "%ld", holdtime * 1000);
+		nb_cli_enqueue_change(vty, "./hold-time", NB_OP_MODIFY, value);
+	}
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY_YANG(
+	no_bfd_peer_hold_time, no_bfd_peer_hold_time_cmd,
+	"no hold-time",
+	NO_STR
+	"Hold time before starting to send packets\n")
+{
+	nb_cli_enqueue_change(vty, "./hold-time", NB_OP_DESTROY, NULL);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+void bfd_cli_show_hold_time(struct vty *vty, struct lyd_node *dnode,
+			    bool show_defaults)
+{
+	uint32_t value;
+
+	if (show_defaults)
+		vty_out(vty, "  hold-time 0\n");
+	else {
+		value = yang_dnode_get_uint32(dnode, NULL);
+		vty_out(vty, "  hold-time %u\n", value / 1000);
+	}
+}
+
+DEFPY_YANG(
 	bfd_peer_minimum_ttl, bfd_peer_minimum_ttl_cmd,
 	"[no] minimum-ttl (1-254)$ttl",
 	NO_STR
@@ -613,6 +655,17 @@ ALIAS_YANG(no_bfd_peer_minimum_ttl, no_bfd_profile_minimum_ttl_cmd,
       NO_STR
       "Expect packets with at least this TTL\n")
 
+ALIAS_YANG(bfd_peer_hold_time, bfd_profile_hold_time_cmd,
+      "[no] hold-time (0-120000)$holdtime",
+      NO_STR
+      "Hold time before starting to send packets\n"
+      "Hold time in milliseconds\n")
+
+ALIAS_YANG(no_bfd_peer_hold_time, no_bfd_profile_hold_time_cmd,
+      "no hold-time",
+      NO_STR
+      "Hold time before starting to send packets\n")
+
 ALIAS_YANG(bfd_peer_echo, bfd_profile_echo_cmd,
       "[no] echo-mode",
       NO_STR
@@ -701,6 +754,8 @@ bfdd_cli_init(void)
 	install_element(BFD_PEER_NODE, &bfd_peer_passive_cmd);
 	install_element(BFD_PEER_NODE, &bfd_peer_minimum_ttl_cmd);
 	install_element(BFD_PEER_NODE, &no_bfd_peer_minimum_ttl_cmd);
+	install_element(BFD_PEER_NODE, &bfd_peer_hold_time_cmd);
+	install_element(BFD_PEER_NODE, &no_bfd_peer_hold_time_cmd);
 
 	/* Profile commands. */
 	cmd_variable_handler_register(bfd_vars);
@@ -722,4 +777,6 @@ bfdd_cli_init(void)
 	install_element(BFD_PROFILE_NODE, &bfd_profile_passive_cmd);
 	install_element(BFD_PROFILE_NODE, &bfd_profile_minimum_ttl_cmd);
 	install_element(BFD_PROFILE_NODE, &no_bfd_profile_minimum_ttl_cmd);
+	install_element(BFD_PROFILE_NODE, &bfd_profile_hold_time_cmd);
+	install_element(BFD_PROFILE_NODE, &no_bfd_profile_hold_time_cmd);
 }

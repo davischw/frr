@@ -223,6 +223,8 @@ struct bfd_profile {
 	bool passive;
 	/** Minimum expected TTL value. */
 	uint8_t minimum_ttl;
+	/** Hold time configuration. */
+	uint32_t hold_time;
 
 	/** Echo mode (only applies to single hop). */
 	bool echo_mode;
@@ -262,6 +264,7 @@ struct bfd_session {
 	uint8_t remote_detect_mult;
 	uint8_t mh_ttl;
 	uint8_t remote_cbit;
+	uint32_t hold_time;
 
 	/** BFD profile name. */
 	char *profile_name;

@@ -84,6 +84,13 @@ const struct frr_yang_module_info frr_bfdd_info = {
 				.cli_show = bfd_cli_show_passive,
                         }
                 },
+                {
+                        .xpath = "/frr-bfdd:bfdd/bfd/profile/hold-time",
+                        .cbs = {
+                                .modify = bfdd_bfd_profile_hold_time_modify,
+				.cli_show = bfd_cli_show_hold_time,
+                        }
+                },
 		{
 			.xpath = "/frr-bfdd:bfdd/bfd/profile/minimum-ttl",
 			.cbs = {
@@ -175,6 +182,13 @@ const struct frr_yang_module_info frr_bfdd_info = {
 				.cli_show = bfd_cli_show_passive,
 			}
 		},
+                {
+                        .xpath = "/frr-bfdd:bfdd/bfd/sessions/single-hop/hold-time",
+                        .cbs = {
+				.modify = bfdd_bfd_sessions_single_hop_hold_time_modify,
+				.cli_show = bfd_cli_show_hold_time,
+                        }
+                },
 		{
 			.xpath = "/frr-bfdd:bfdd/bfd/sessions/single-hop/echo-mode",
 			.cbs = {
@@ -371,6 +385,13 @@ const struct frr_yang_module_info frr_bfdd_info = {
 				.cli_show = bfd_cli_show_passive,
 			}
 		},
+                {
+                        .xpath = "/frr-bfdd:bfdd/bfd/sessions/multi-hop/hold-time",
+                        .cbs = {
+				.modify = bfdd_bfd_sessions_single_hop_hold_time_modify,
+				.cli_show = bfd_cli_show_hold_time,
+                        }
+                },
 		{
 			.xpath = "/frr-bfdd:bfdd/bfd/sessions/multi-hop/minimum-ttl",
 			.cbs = {

@@ -447,6 +447,28 @@ int bfdd_bfd_profile_passive_mode_modify(struct nb_cb_modify_args *args)
 }
 
 /*
+ * XPath: /frr-bfdd:bfdd/bfd/profile/hold-time
+ */
+int bfdd_bfd_profile_hold_time_modify(struct nb_cb_modify_args *args)
+{
+	struct bfd_profile *bp;
+	uint32_t hold_time;
+
+	if (args->event != NB_EV_APPLY)
+		return NB_OK;
+
+	hold_time = yang_dnode_get_uint32(args->dnode, NULL);
+	bp = nb_running_get_entry(args->dnode, NULL, true);
+	if (bp->hold_time == hold_time)
+		return NB_OK;
+
+	bp->hold_time = hold_time;
+	bfd_profile_update(bp);
+
+	return NB_OK;
+}
+
+/*
  * XPath: /frr-bfdd:bfdd/bfd/profile/minimum-ttl
  */
 int bfdd_bfd_profile_minimum_ttl_modify(struct nb_cb_modify_args *args)
@@ -796,6 +818,36 @@ int bfdd_bfd_sessions_single_hop_passive_mode_modify(
 
 	bs = nb_running_get_entry(args->dnode, NULL, true);
 	bs->peer_profile.passive = passive;
+	bfd_session_apply(bs);
+
+	return NB_OK;
+}
+
+/*
+ * XPath: /frr-bfdd:bfdd/bfd/sessions/single-hop/hold-time
+ */
+int bfdd_bfd_sessions_single_hop_hold_time_modify(
+	struct nb_cb_modify_args *args)
+{
+	struct bfd_session *bs;
+	uint32_t hold_time;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+		return NB_OK;
+
+	case NB_EV_APPLY:
+		break;
+
+	case NB_EV_ABORT:
+		return NB_OK;
+	}
+
+	hold_time = yang_dnode_get_uint32(args->dnode, NULL);
+
+	bs = nb_running_get_entry(args->dnode, NULL, true);
+	bs->peer_profile.hold_time = hold_time;
 	bfd_session_apply(bs);
 
 	return NB_OK;
