@@ -75,6 +75,9 @@ static void zserv_encode_interface(struct stream *s, struct interface *ifp)
 
 	stream_put(s, ifp->name, INTERFACE_NAMSIZ);
 	stream_putl(s, ifp->ifindex);
+#ifdef VENDOR_SOUTHBOUND
+	stream_putl(s, ifp->vif_index);
+#endif /* VENDOR_SOUTHBOUND */
 	stream_putc(s, ifp->status);
 	stream_putq(s, ifp->flags);
 	stream_putc(s, ifp->ptm_enable);

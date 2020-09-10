@@ -226,6 +226,11 @@ struct interface {
 	ifindex_t ifindex;
 	ifindex_t oldifindex;
 
+#ifdef VENDOR_SOUTHBOUND
+	/* Virtual interface index */
+	ifindex_t vif_index;
+#endif /* VENDOR_SOUTHBOUND */
+
 	/*
 	 * ifindex of parent interface, if any
 	 */

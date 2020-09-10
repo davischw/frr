@@ -2394,6 +2394,14 @@ static void zebra_interface_if_set_value(struct stream *s,
 	/* Read interface's index. */
 	STREAM_GETL(s, new_ifindex);
 	if_set_index(ifp, new_ifindex);
+
+#ifdef VENDOR_SOUTHBOUND
+	/* Skip vif on non special environment. */
+	STREAM_GETL(s, ifp->vif_index);
+	if (ifp->vif_index == 0)
+		ifp->vif_index = new_ifindex;
+#endif /* VENDOR_SOUTHBOUND */
+
 	STREAM_GETC(s, ifp->status);
 
 	/* Read interface's value. */
