@@ -983,6 +983,10 @@ static int netlink_interface(struct nlmsghdr *h, ns_id_t ns_id, int startup)
 
 	if_set_name(ifp, name);
 
+	/* Save virtual interface index. */
+	if (tb[IFLA_VIF])
+		ifp->vif_index = if_nametoindex(RTA_DATA(tb[IFLA_VIF]));
+
 	ifp->flags = ifi->ifi_flags & 0x0000fffff;
 	ifp->mtu6 = ifp->mtu = *(uint32_t *)RTA_DATA(tb[IFLA_MTU]);
 	ifp->metric = 0;
@@ -1604,6 +1608,11 @@ int netlink_link_change(struct nlmsghdr *h, ns_id_t ns_id, int startup)
 					if_update_to_new_vrf(ifp, vrf_id);
 			}
 
+			/* Save virtual interface index. */
+			if (tb[IFLA_VIF])
+				ifp->vif_index =
+					if_nametoindex(RTA_DATA(tb[IFLA_VIF]));
+
 			/* Update interface information. */
 			set_ifindex(ifp, ifi->ifi_index, zns);
 			ifp->flags = ifi->ifi_flags & 0x0000fffff;
@@ -1768,6 +1777,15 @@ int netlink_link_change(struct nlmsghdr *h, ns_id_t ns_id, int startup)
 					tb[IFLA_PROTO_DOWN]);
 				netlink_proc_dplane_if_protodown(ifp->info,
 								 !!protodown);
+			}
+		}
+
+		/* Update virtual interface index if necessary. */
+		if (tb[IFLA_VIF]) {
+			link_ifindex = if_nametoindex(RTA_DATA(tb[IFLA_VIF]));
+			if (ifp->vif_index != link_ifindex) {
+				ifp->vif_index = link_ifindex;
+				zebra_interface_add_update(ifp);
 			}
 		}
 

@@ -1497,12 +1497,14 @@ static void if_dump_vty(struct vty *vty, struct interface *ifp)
 		vty_out(vty, "  pseudo interface\n");
 		return;
 	} else if (!CHECK_FLAG(ifp->status, ZEBRA_INTERFACE_ACTIVE)) {
-		vty_out(vty, "  index %d inactive interface\n", ifp->ifindex);
+		vty_out(vty, "  index %d virtual index %d inactive interface\n",
+			ifp->ifindex, ifp->vif_index);
 		return;
 	}
 
-	vty_out(vty, "  index %d metric %d mtu %d speed %u ", ifp->ifindex,
-		ifp->metric, ifp->mtu, ifp->speed);
+	vty_out(vty, "  index %d virtual index %d metric %d mtu %d speed %u ",
+		ifp->ifindex, ifp->vif_index, ifp->metric, ifp->mtu,
+		ifp->speed);
 	if (ifp->mtu6 != ifp->mtu)
 		vty_out(vty, "mtu6 %d ", ifp->mtu6);
 	vty_out(vty, "\n  flags: %s\n", if_flag_dump(ifp->flags));

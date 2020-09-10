@@ -226,6 +226,9 @@ struct interface {
 	ifindex_t ifindex;
 	ifindex_t oldifindex;
 
+	/* Virtual interface index */
+	ifindex_t vif_index;
+
 	/*
 	 * ifindex of parent interface, if any
 	 */
