@@ -44,6 +44,9 @@ FRR_CFG_DEFAULT_ULONG(BGP_KEEPALIVE,
         { .val_ulong = 3, .match_profile = "datacenter", },
         { .val_ulong = 60 },
 )
+FRR_CFG_DEFAULT_ULONG(BGP_DELAYOPEN,
+	{ .val_ulong = 120 },
+)
 
 int routing_control_plane_protocols_name_validate(
 	struct nb_cb_create_args *args)
@@ -1425,8 +1428,8 @@ int bgp_global_global_config_timers_hold_time_modify(
 		keepalive = yang_dnode_get_uint16(args->dnode, "../keepalive");
 		holdtime = yang_dnode_get_uint16(args->dnode, NULL);
 
-		bgp_timers_set(bgp, keepalive, holdtime,
-			       DFLT_BGP_CONNECT_RETRY);
+		bgp_timers_set(bgp, keepalive, holdtime, DFLT_BGP_CONNECT_RETRY,
+			       DFLT_BGP_DELAYOPEN);
 
 		break;
 	}
@@ -1466,8 +1469,8 @@ int bgp_global_global_config_timers_keepalive_modify(
 		keepalive = yang_dnode_get_uint16(args->dnode, NULL);
 		holdtime = yang_dnode_get_uint16(args->dnode, "../hold-time");
 
-		bgp_timers_set(bgp, keepalive, holdtime,
-			       DFLT_BGP_CONNECT_RETRY);
+		bgp_timers_set(bgp, keepalive, holdtime, DFLT_BGP_CONNECT_RETRY,
+			       DFLT_BGP_DELAYOPEN);
 
 		break;
 	}
