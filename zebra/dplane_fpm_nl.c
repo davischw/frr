@@ -1346,13 +1346,13 @@ static int fpm_nl_start(struct zebra_dplane_provider *prov)
 	fnc->obuf = stream_new(NL_PKT_BUF_SIZE * 128);
 	pthread_mutex_init(&fnc->obuf_mutex, NULL);
 	fnc->socket = -1;
-	fnc->disabled = true;
 	fnc->prov = prov;
 	TAILQ_INIT(&fnc->ctxqueue);
 	pthread_mutex_init(&fnc->ctxqueue_mutex, NULL);
 
-	/* Set default values. */
-	fnc->use_nhg = true;
+	/* If we started with configuration, then start connections now. */
+	if (!fnc->disabled)
+		FPM_RECONNECT(fnc);
 
 	return 0;
 }
@@ -1476,7 +1476,6 @@ static int fpm_nl_new(struct thread_master *tm)
 	struct zebra_dplane_provider *prov = NULL;
 	int rv;
 
-	gfnc = calloc(1, sizeof(*gfnc));
 	rv = dplane_provider_register(prov_name, DPLANE_PRIO_POSTPROCESS,
 				      DPLANE_PROV_FLAG_THREADED, fpm_nl_start,
 				      fpm_nl_process, fpm_nl_finish, gfnc,
@@ -1497,8 +1496,93 @@ static int fpm_nl_new(struct thread_master *tm)
 	return 0;
 }
 
+static void fpm_parse_address(char *params)
+{
+	struct network_address address;
+
+	if (!network_address_parse(params, &address, SOUTHBOUND_DEFAULT_PORT)) {
+		zlog_err("FPM address initialization: %s", address.error);
+		return;
+	}
+
+	/* Don't allow UNIX sockets. */
+	if (address.address.ss_family == AF_UNIX) {
+		zlog_warn(
+			"FPM address initialization: UNIX socket not supported");
+		return;
+	}
+
+	if (!address.listen) {
+		zlog_warn(
+			"FPM address initialization: client mode not supported");
+		return;
+	}
+
+	gfnc->disabled = false;
+	gfnc->addr = address.address;
+}
+
+static void fpm_load_argv(const char *params, char **argv, size_t *argvlen)
+{
+	const char *sptr = params;
+	const char *saptr;
+	size_t idx = 0;
+
+	/* No parameters. */
+	if (params == NULL) {
+		*argvlen = 0;
+		return;
+	}
+
+	do {
+		/* We don't have more space for new arguments. */
+		if (idx >= *argvlen)
+			return;
+
+		/* Copy the current argument until the comma. */
+		saptr = strchr(sptr, ',');
+		if (saptr == NULL) {
+			argv[idx++] = strdup(sptr);
+			*argvlen = idx;
+			return;
+		} else
+			argv[idx++] = strndup(sptr, saptr - sptr);
+
+		sptr = saptr + 1;
+	} while (*sptr != 0);
+}
+
 static int fpm_nl_init(void)
 {
+	const char *params = THIS_MODULE->load_args;
+	size_t argvlen = 2, idx;
+	char *argv[2] = {};
+
+	/* Early initialization: memory and module settings. */
+	gfnc = calloc(1, sizeof(*gfnc));
+
+	/* Set defaults. */
+	gfnc->disabled = true;
+	gfnc->use_nhg = true;
+
+	/* Get parameters from command line. */
+	fpm_load_argv(params, argv, &argvlen);
+
+	for (idx = 0; idx < argvlen; idx++) {
+		assert(argv[idx]);
+		if (strcmp(argv[idx], "no-next-hop-groups") == 0) {
+			zlog_info("%s: disabling next hop groups", __func__);
+			gfnc->use_nhg = false;
+		} else if (strncmp(argv[idx], "ipv4", 4) == 0
+			   || strncmp(argv[idx], "ipv6", 4) == 0) {
+			fpm_parse_address(argv[idx]);
+		} else
+			zlog_info("%s: unknown option %s", __func__, argv[idx]);
+
+		free(argv[idx]);
+		argv[idx] = NULL;
+	}
+
 	hook_register(frr_late_init, fpm_nl_new);
 	return 0;
 }
