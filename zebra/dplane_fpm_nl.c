@@ -1478,13 +1478,13 @@ static int fpm_nl_start(struct zebra_dplane_provider *prov)
 	fnc->obuf = stream_new(NL_PKT_BUF_SIZE * 128);
 	pthread_mutex_init(&fnc->obuf_mutex, NULL);
 	fnc->socket = -1;
-	fnc->disabled = true;
 	fnc->prov = prov;
 	TAILQ_INIT(&fnc->ctxqueue);
 	pthread_mutex_init(&fnc->ctxqueue_mutex, NULL);
 
-	/* Set default values. */
-	fnc->use_nhg = true;
+	/* If we started with configuration, then start connections now. */
+	if (!fnc->disabled)
+		FPM_RECONNECT(fnc);
 
 	return 0;
 }
@@ -1606,7 +1606,6 @@ static int fpm_nl_new(struct thread_master *tm)
 	struct zebra_dplane_provider *prov = NULL;
 	int rv;
 
-	gfnc = calloc(1, sizeof(*gfnc));
 	rv = dplane_provider_register(prov_name, DPLANE_PRIO_POSTPROCESS,
 				      DPLANE_PROV_FLAG_THREADED, fpm_nl_start,
 				      fpm_nl_process, fpm_nl_finish, gfnc,
@@ -1627,8 +1626,191 @@ static int fpm_nl_new(struct thread_master *tm)
 	return 0;
 }
 
+static uint16_t fpm_parse_port(const char *str)
+{
+	char *nulbyte;
+	long rv;
+
+	errno = 0;
+	rv = strtol(str, &nulbyte, 10);
+	/* No conversion performed. */
+	if (rv == 0 && errno == EINVAL) {
+		zlog_err("invalid FPM port: %s", str);
+		return SOUTHBOUND_DEFAULT_PORT;
+	}
+	/* Invalid number range. */
+	if ((rv <= 0 || rv >= 65535) || errno == ERANGE) {
+		zlog_err("invalid FPM port range: %s", str);
+		return SOUTHBOUND_DEFAULT_PORT;
+	}
+	/* There was garbage at the end of the string. */
+	if (*nulbyte != 0) {
+		zlog_err("invalid FPM port: %s", str);
+		return SOUTHBOUND_DEFAULT_PORT;
+	}
+
+	return (uint16_t)rv;
+}
+
+static void fpm_parse_address(char *params)
+{
+	struct sockaddr_in6 *sin6;
+	struct sockaddr_in *sin;
+	char *sptr, *saux;
+	size_t slen;
+	char addr[64];
+	char type[64];
+
+	/* Basic parsing: find ':' to figure out type part and address part. */
+	sptr = strchr(params, ':');
+	if (sptr == NULL) {
+		zlog_err("invalid FPM address: %s", params);
+		return;
+	}
+
+	/* Calculate type string length. */
+	slen = (size_t)(sptr - params);
+
+	/* Copy the address part. */
+	sptr++;
+	strlcpy(addr, sptr, sizeof(addr));
+
+	/* Copy type part. */
+	strlcpy(type, params, slen + 1);
+
+	/* Fill the address information. */
+	if (strcmp(type, "ipv4") == 0) {
+		sin = (struct sockaddr_in *)&gfnc->addr;
+		sin->sin_family = AF_INET;
+#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+		sin->sin_len = sizeof(*sin);
+#endif /* HAVE_STRUCT_SOCKADDR_SA_LEN */
+
+		/* Parse port if any. */
+		sptr = strchr(addr, ':');
+		if (sptr == NULL) {
+			sin->sin_port = htons(SOUTHBOUND_DEFAULT_PORT);
+		} else {
+			*sptr = 0;
+			sin->sin_port = htons(fpm_parse_port(sptr + 1));
+		}
+
+		if (inet_pton(AF_INET, addr, &sin->sin_addr) == 1) {
+			gfnc->disabled = false;
+			zlog_info("%s: server address %pI4", __func__,
+				  &sin->sin_addr);
+		} else
+			zlog_err("%s: inet_pton: invalid address %s", __func__,
+				 addr);
+	} else if (strcmp(type, "ipv6") == 0) {
+		sin6 = (struct sockaddr_in6 *)&gfnc->addr;
+		sin6->sin6_family = AF_INET6;
+#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+		sin6->sin6_len = sizeof(*sin6);
+#endif /* HAVE_STRUCT_SOCKADDR_SA_LEN */
+
+		/* Check for IPv6 enclosures '[]' */
+		sptr = &addr[0];
+		if (*sptr != '[') {
+			zlog_err("%s: invalid IPv6 address format: %s",
+				 __func__, addr);
+			return;
+		}
+
+		saux = strrchr(addr, ']');
+		if (saux == NULL) {
+			zlog_err("%s: invalid IPv6 address format: %s",
+				 __func__, addr);
+			return;
+		}
+
+		/* Consume the '[]:' part. */
+		slen = saux - sptr;
+		memmove(addr, addr + 1, slen);
+		addr[slen - 1] = 0;
+
+		/* Parse port if any. */
+		saux++;
+		sptr = strrchr(saux, ':');
+		if (sptr == NULL) {
+			sin6->sin6_port = htons(SOUTHBOUND_DEFAULT_PORT);
+		} else {
+			*sptr = 0;
+			sin6->sin6_port = htons(fpm_parse_port(sptr + 1));
+		}
+
+		if (inet_pton(AF_INET6, addr, &sin6->sin6_addr) == 1) {
+			gfnc->disabled = false;
+			zlog_info("%s: server address %pI6", __func__,
+				  &sin6->sin6_addr);
+		} else
+			zlog_err("%s: inet_pton: invalid address %s", __func__,
+				 addr);
+	} else
+		zlog_err("invalid FPM socket type: %s", type);
+}
+
+static void fpm_load_argv(const char *params, char **argv, size_t *argvlen)
+{
+	const char *sptr = params;
+	const char *saptr;
+	size_t idx = 0;
+
+	/* No parameters. */
+	if (params == NULL) {
+		*argvlen = 0;
+		return;
+	}
+
+	do {
+		/* We don't have more space for new arguments. */
+		if (idx >= *argvlen)
+			return;
+
+		/* Copy the current argument until the comma. */
+		saptr = strchr(sptr, ',');
+		if (saptr == NULL) {
+			argv[idx++] = strdup(sptr);
+			*argvlen = idx;
+			return;
+		} else
+			argv[idx++] = strndup(sptr, saptr - sptr);
+
+		sptr = saptr + 1;
+	} while (*sptr != 0);
+}
+
 static int fpm_nl_init(void)
 {
+	const char *params = THIS_MODULE->load_args;
+	size_t argvlen = 2, idx;
+	char *argv[2] = {};
+
+	/* Early initialization: memory and module settings. */
+	gfnc = calloc(1, sizeof(*gfnc));
+
+	/* Set defaults. */
+	gfnc->disabled = true;
+	gfnc->use_nhg = true;
+
+	/* Get parameters from command line. */
+	fpm_load_argv(params, argv, &argvlen);
+
+	for (idx = 0; idx < argvlen; idx++) {
+		assert(argv[idx]);
+		if (strcmp(argv[idx], "no-next-hop-groups") == 0) {
+			zlog_info("%s: disabling next hop groups", __func__);
+			gfnc->use_nhg = false;
+		} else if (strncmp(argv[idx], "ipv4", 4) == 0
+			   || strncmp(argv[idx], "ipv6", 4) == 0) {
+			fpm_parse_address(argv[idx]);
+		} else
+			zlog_info("%s: unknown option %s", __func__, argv[idx]);
+
+		free(argv[idx]);
+		argv[idx] = NULL;
+	}
+
 	hook_register(frr_late_init, fpm_nl_new);
 	return 0;
 }
