@@ -47,6 +47,17 @@
 #include "zebra/if_netlink.h"
 #include "zebra/interface.h"
 
+struct user_netlink_settings {
+	/** Server address. */
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+		struct sockaddr_un sun;
+		struct sockaddr_in6 sin6;
+	} addr;
+	socklen_t addrlen;
+} uns;
+
 enum user_netlink_event {
 	UNE_SYNC_ROUTES,
 	UNE_SYNC_INTERFACES,
@@ -97,6 +108,139 @@ int user_netlink_event_cb(struct thread *t);
 /*
  * Netlink proxy implementation.
  */
+static uint16_t dpd_parse_port(const char *str)
+{
+	char *nulbyte;
+	long rv;
+
+	errno = 0;
+	rv = strtol(str, &nulbyte, 10);
+	/* No conversion performed. */
+	if (rv == 0 && errno == EINVAL) {
+		zlog_err("invalid IFM port: %s", str);
+		return NETLINK_PROXY_PORT;
+	}
+	/* Invalid number range. */
+	if ((rv <= 0 || rv >= 65535) || errno == ERANGE) {
+		zlog_err("invalid IFM port range: %s", str);
+		return NETLINK_PROXY_PORT;
+	}
+	/* There was garbage at the end of the string. */
+	if (*nulbyte != 0) {
+		zlog_err("invalid IFM port: %s", str);
+		return NETLINK_PROXY_PORT;
+	}
+
+	return (uint16_t)rv;
+}
+
+void dpd_parse_address(const char *address)
+{
+	struct sockaddr_in6 *sin6;
+	struct sockaddr_in *sin;
+	struct sockaddr_un *sun;
+	char *sptr, *saux;
+	size_t slen;
+	char addr[64];
+	char type[64];
+
+	/* Basic parsing: find ':' to figure out type part and address part. */
+	sptr = strchr(address, ':');
+	if (sptr == NULL) {
+		zlog_err("invalid IFM address: %s", address);
+		return;
+	}
+
+	/* Calculate type string length. */
+	slen = (size_t)(sptr - address);
+
+	/* Copy the address part. */
+	sptr++;
+	strlcpy(addr, sptr, sizeof(addr));
+
+	/* Copy type part. */
+	strlcpy(type, address, slen + 1);
+
+	/* Fill the address information. */
+	if (strcmp(type, "unix") == 0) {
+		uns.addrlen = sizeof(*sun);
+		sun = &uns.addr.sun;
+		sun->sun_family = AF_UNIX;
+#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+		sun->sun_len = sizeof(*sun);
+#endif /* HAVE_STRUCT_SOCKADDR_SA_LEN */
+		strlcpy(sun->sun_path, addr, sizeof(sun->sun_path));
+	} else if (strcmp(type, "ipv4") == 0) {
+		uns.addrlen = sizeof(*sin);
+		sin = &uns.addr.sin;
+		sin->sin_family = AF_INET;
+#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+		sin->sin_len = sizeof(*sin);
+#endif /* HAVE_STRUCT_SOCKADDR_SA_LEN */
+
+		/* Parse port if any. */
+		sptr = strchr(addr, ':');
+		if (sptr == NULL) {
+			sin->sin_port = htons(NETLINK_PROXY_PORT);
+		} else {
+			*sptr = 0;
+			sin->sin_port = htons(dpd_parse_port(sptr + 1));
+		}
+
+		if (inet_pton(AF_INET, addr, &sin->sin_addr) == 1) {
+			zlog_info("%s: IFM server address %pI4", __func__,
+				  &sin->sin_addr);
+		} else
+			zlog_err("%s: inet_pton: invalid address %s", __func__,
+				 addr);
+	} else if (strcmp(type, "ipv6") == 0) {
+		uns.addrlen = sizeof(*sin6);
+		sin6 = &uns.addr.sin6;
+		sin6->sin6_family = AF_INET6;
+#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+		sin6->sin6_len = sizeof(*sin6);
+#endif /* HAVE_STRUCT_SOCKADDR_SA_LEN */
+
+		/* Check for IPv6 enclosures '[]' */
+		sptr = &addr[0];
+		if (*sptr != '[') {
+			zlog_err("%s: invalid IPv6 address format: %s",
+				 __func__, addr);
+			return;
+		}
+
+		saux = strrchr(addr, ']');
+		if (saux == NULL) {
+			zlog_err("%s: invalid IPv6 address format: %s",
+				 __func__, addr);
+			return;
+		}
+
+		/* Consume the '[]:' part. */
+		slen = saux - sptr;
+		memmove(addr, addr + 1, slen);
+		addr[slen - 1] = 0;
+
+		/* Parse port if any. */
+		saux++;
+		sptr = strrchr(saux, ':');
+		if (sptr == NULL) {
+			sin6->sin6_port = htons(NETLINK_PROXY_PORT);
+		} else {
+			*sptr = 0;
+			sin6->sin6_port = htons(dpd_parse_port(sptr + 1));
+		}
+
+		if (inet_pton(AF_INET6, addr, &sin6->sin6_addr) == 1) {
+			zlog_info("%s: IFM server address %pI6", __func__,
+				  &sin6->sin6_addr);
+		} else
+			zlog_err("%s: inet_pton: invalid address %s", __func__,
+				 addr);
+	} else
+		zlog_err("invalid IFM socket type: %s", type);
+}
+
 void dpd_socket_data(struct zebra_ns *zns, struct nlsock *ns)
 {
 	/* Back-point to zebra_ns. */
@@ -147,59 +291,60 @@ void dpd_socket_data_reset(const struct nlsock *nsc)
 int dpd_socket(void)
 {
 	int sd;
-#if defined NETLINK_PROXY_UNIX
-	struct sockaddr_un _sun;
-#elif defined NETLINK_PROXY_IP
-	struct sockaddr_in sin;
 	int on = 1;
-#endif /* NETLINK_PROXY_IP */
+	int errno_copy;
 
 	/* Create and connect to the proxy. */
-#if defined(NETLINK_PROXY_UNIX)
-	memset(&_sun, 0, sizeof(_sun));
-	_sun.sun_family = AF_UNIX;
-	snprintf(_sun.sun_path, sizeof(_sun.sun_path), "/var/run/dpd.sock");
-#elif defined(NETLINK_PROXY_IP)
-	memset(&sin, 0, sizeof(sin));
-	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-	sin.sin_port = htons(2630);
-#endif /* NETLINK_PROXY_IP */
+	if (uns.addr.sa.sa_family == 0) {
+		uns.addr.sin.sin_family = AF_INET;
+		uns.addr.sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+		uns.addr.sin.sin_port = htons(NETLINK_PROXY_PORT);
+		uns.addrlen = sizeof(struct sockaddr_in);
+	}
+
 	frr_with_privs (&zserv_privs) {
-#if defined(NETLINK_PROXY_UNIX)
-		sd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
-#elif defined(NETLINK_PROXY_IP)
-		sd = socket(AF_INET, SOCK_STREAM, 0);
-#endif /* NETLINK_PROXY_IP */
+		sd = socket(uns.addr.sa.sa_family, SOCK_STREAM, 0);
 		if (sd == -1) {
 			zlog_err("Failure to create netlink socket");
 			exit(-1);
 		}
 
 		do {
-#if defined(NETLINK_PROXY_UNIX)
-			if (connect(sd, (struct sockaddr *)&_sun, sizeof(_sun))
-			    == -1) {
-#elif defined(NETLINK_PROXY_IP)
-			if (connect(sd, (struct sockaddr *)&sin, sizeof(sin))
-			    == -1) {
-#endif /* NETLINK_PROXY_IP */
+			switch (uns.addr.sa.sa_family) {
+			case AF_INET:
+				zlog_debug("%s: connecting to %pI4:%d",
+					   __func__, &uns.addr.sin.sin_addr,
+					   ntohs(uns.addr.sin.sin_port));
+				break;
+			case AF_INET6:
+				zlog_debug("%s: connecting to %pI6:%d",
+					   __func__, &uns.addr.sin6.sin6_addr,
+					   ntohs(uns.addr.sin6.sin6_port));
+				break;
+			case AF_UNIX:
+				zlog_debug("%s: connecting to %s", __func__,
+					   uns.addr.sun.sun_path);
+				break;
+			}
+
+			if (connect(sd, &uns.addr.sa, uns.addrlen) == -1) {
+				errno_copy = errno;
 				zlog_err(
 					"%s: failure to connect to dataplane: (%d) %s",
-					__func__, errno, strerror(errno));
-				if (errno != ECONNREFUSED)
+					__func__, errno_copy,
+					strerror(errno_copy));
+				if (errno_copy != ECONNREFUSED
+				    && errno_copy != ECONNRESET)
 					exit(-1);
 
 				/* Sleep a bit to avoid log message flooding. */
 				sleep(1);
 				continue;
 			}
-
 			break;
 		} while (true);
 
-#if defined(NETLINK_PROXY_IP)
-		if (fcntl(sd, F_SETFL, O_NONBLOCK) < 0)
+		if (fcntl(sd, F_SETFL, O_NONBLOCK) == -1)
 			flog_err_sys(EC_LIB_SOCKET, "%s: fcntl(O_NONBLOCK): %s",
 				     __func__, safe_strerror(errno));
 
@@ -207,12 +352,12 @@ int dpd_socket(void)
 		 * Don't use Nagle algorithm to delay TCP messages, we
 		 * always write the whole thing in a single write.
 		 */
-		if (setsockopt(sd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on))
-		    == -1)
+		if (uns.addr.sa.sa_family != AF_UNIX
+		    && setsockopt(sd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on))
+			       == -1)
 			flog_err_sys(EC_LIB_SOCKET,
 				     "%s: setsockopt(TCP_NODELAY): %s",
 				     __func__, safe_strerror(errno));
-#endif /* NETLINK_PROXY_IP */
 	}
 
 	return sd;

@@ -58,6 +58,8 @@
 #include "zebra/zebra_opaque.h"
 #include "zebra/zebra_srte.h"
 
+#include "zebra/user_netlink.h"
+
 #define ZEBRA_PTM_SUPPORT
 
 /* process id. */
@@ -99,6 +101,9 @@ const struct option longopts[] = {
 	{"nl-bufsize", required_argument, NULL, 's'},
 	{"v6-rr-semantics", no_argument, NULL, OPTION_V6_RR_SEMANTICS},
 #endif /* HAVE_NETLINK */
+#ifdef NETLINK_PROXY
+	{"nl-proxy", required_argument, NULL, 'y'},
+#endif /* NETLINK_PROXY */
 	{0}};
 
 zebra_capabilities_t _caps_p[] = {
@@ -298,6 +303,9 @@ int main(int argc, char **argv)
 #ifdef HAVE_NETLINK
 		"s:n"
 #endif
+#ifdef NETLINK_PROXY
+		"y:"
+#endif /* NETLINK_PROXY */
 		,
 		longopts,
 		"  -b, --batch              Runs in batch mode\n"
@@ -313,6 +321,9 @@ int main(int argc, char **argv)
 		"  -s, --nl-bufsize         Set netlink receive buffer size\n"
 		"      --v6-rr-semantics    Use v6 RR semantics\n"
 #endif /* HAVE_NETLINK */
+#ifdef NETLINK_PROXY
+		"  -y, --nl-proxy           Netlink proxy server address\n"
+#endif /* NETLINK_PROXY */
 	);
 
 	while (1) {
@@ -381,6 +392,11 @@ int main(int argc, char **argv)
 			asic_offload = true;
 			break;
 #endif /* HAVE_NETLINK */
+#ifdef NETLINK_PROXY
+		case 'y':
+			dpd_parse_address(optarg);
+			break;
+#endif /* NETLINK_PROXY */
 		default:
 			frr_help_exit(1);
 			break;

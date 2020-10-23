@@ -25,11 +25,8 @@
 
 #include <stdint.h>
 
-/* Enable UNIX socket mode. */
-/* #define NETLINK_PROXY_UNIX */
-
-/* Enable IP socket mode. */
-#define NETLINK_PROXY_IP
+/** Default netlink proxy port. */
+#define NETLINK_PROXY_PORT 2630
 
 struct nlbuf {
 	/* Netlink metadata. */
@@ -40,6 +37,8 @@ struct nlbuf {
 	size_t nb_dataoff;
 	uint8_t nb_data[];
 };
+
+extern void dpd_parse_address(const char *address);
 
 extern int netlink_talk_info(int (*filter)(struct nlmsghdr *, ns_id_t,
 					   int startup),
