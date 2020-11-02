@@ -46,6 +46,7 @@
 #include "bgp_addpath_types.h"
 #include "bgp_nexthop.h"
 #include "bgp_io.h"
+#include "bgp_damp.h"
 
 #include "lib/bfd.h"
 
@@ -790,6 +791,9 @@ struct bgp {
 
 	bool allow_martian;
 
+	/* BGP route flap dampening configuration */
+	struct bgp_damp_config damp[AFI_MAX][SAFI_MAX];
+
 	/* BGP named peers. */
 	struct bgp_named_peer_list named_peer_list;
 
@@ -1420,6 +1424,9 @@ struct peer {
 	/* Last update packet sent time */
 	time_t pkt_stime[AFI_MAX][SAFI_MAX];
 
+	/* Peer / peer group route flap dampening configuration */
+	struct bgp_damp_config damp[AFI_MAX][SAFI_MAX];
+
 	/* Peer Per AF flags */
 	/*
 	 * Please consult the comments for *flags_override*, *flags_invert* and
@@ -1460,6 +1467,7 @@ struct peer {
 #define PEER_FLAG_DISABLE_ADDPATH_RX (1ULL << 29)
 #define PEER_FLAG_SOO (1ULL << 30)
 #define PEER_FLAG_ADVERTISE_MAPS (1ULL << 32)
+#define PEER_FLAG_CONFIG_DAMPENING (1ULL << 33)
 
 	enum bgp_addpath_strat addpath_type[AFI_MAX][SAFI_MAX];
 
@@ -2231,7 +2239,7 @@ extern int peer_af_flag_set(struct peer *peer, afi_t afi, safi_t safi,
 			    uint64_t flag);
 extern int peer_af_flag_unset(struct peer *peer, afi_t afi, safi_t safi,
 			      uint64_t flag);
-extern int peer_af_flag_check(struct peer *, afi_t, safi_t, uint32_t);
+extern int peer_af_flag_check(struct peer *, afi_t, safi_t, uint64_t);
 extern void peer_af_flag_inherit(struct peer *peer, afi_t afi, safi_t safi,
 				 uint64_t flag);
 extern void peer_change_action(struct peer *peer, afi_t afi, safi_t safi,
