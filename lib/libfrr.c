@@ -709,6 +709,24 @@ static void _err_print(const void *cookie, const char *errstr)
 	fprintf(stderr, "%s: %s\n", prefix, errstr);
 }
 
+static unsigned int frr_generate_seed(void)
+{
+	unsigned int seed;
+	int fd;
+
+	fd = open("/dev/urandom", O_RDONLY);
+	if (fd == -1) {
+		/* Failed to open urandom, fallback to less optimal seed. */
+		return time(NULL) + getpid();
+	}
+
+	/* Read a good seed from /dev/urandom. */
+	read(fd, &seed, sizeof(seed));
+	close(fd);
+
+	return seed + time(NULL) + getpid();
+}
+
 static struct thread_master *master;
 struct thread_master *frr_init(void)
 {
@@ -721,7 +739,7 @@ struct thread_master *frr_init(void)
 
 	dir = di->module_path ? di->module_path : frr_moduledir;
 
-	srandom(time(NULL));
+	srandom(frr_generate_seed());
 	frr_defaults_apply();
 
 	if (di->instance) {
