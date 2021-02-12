@@ -371,9 +371,15 @@ Commands available for MSDP:
    Create or update a mesh group to set the source address used to connect to
    peers.
 
-.. clicmd:: ip msdp peer A.B.C.D source A.B.C.D
+.. clicmd:: ip msdp peer A.B.C.D source A.B.C.D [as (1-4294967295)]
 
    Create a regular MSDP session with peer using the specified source address.
+
+   .. note::
+
+      When using eBGP the parameter AS can be specified to MSDP so it
+      can use the peer AS number information to detect loops.
+
 
 .. clicmd:: ip msdp peer A.B.C.D password WORD
 
