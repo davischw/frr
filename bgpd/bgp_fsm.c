@@ -660,9 +660,11 @@ static int bgp_graceful_restart_timer_expire(struct thread *thread)
 	BGP_TIMER_OFF(peer->t_gr_stale);
 
 	if (bgp_debug_neighbor_events(peer)) {
-		zlog_debug("%s graceful restart timer expired", peer->host);
-		zlog_debug("%s graceful restart stalepath timer stopped",
+		zlog_debug("neighbor %s graceful restart timer expired",
 			   peer->host);
+		zlog_debug(
+			"neighbor %s graceful restart stalepath timer stopped",
+			peer->host);
 	}
 
 	bgp_timer_set(peer);
@@ -679,8 +681,9 @@ static int bgp_graceful_stale_timer_expire(struct thread *thread)
 	peer = THREAD_ARG(thread);
 
 	if (bgp_debug_neighbor_events(peer))
-		zlog_debug("%s graceful restart stalepath timer expired",
-			   peer->host);
+		zlog_debug(
+			"neighbor %s graceful restart stalepath timer expired",
+			peer->host);
 
 	/* NSF delete stale route */
 	for (afi = AFI_IP; afi < AFI_MAX; afi++)
@@ -1183,7 +1186,7 @@ void bgp_fsm_change_status(struct peer *peer, int status)
 		bgp_update_delay_process_status_change(peer);
 
 	if (bgp_debug_neighbor_events(peer))
-		zlog_debug("%s went from %s to %s", peer->host,
+		zlog_debug("neighbor %s went from %s to %s", peer->host,
 			   lookup_msg(bgp_status_msg, peer->ostatus, NULL),
 			   lookup_msg(bgp_status_msg, peer->status, NULL));
 }
@@ -1256,16 +1259,16 @@ int bgp_stop(struct peer *peer)
 			BGP_TIMER_OFF(peer->t_gr_stale);
 			if (bgp_debug_neighbor_events(peer))
 				zlog_debug(
-					"%s graceful restart stalepath timer stopped",
+					"neighbor %s graceful restart stalepath timer stopped",
 					peer->host);
 		}
 		if (CHECK_FLAG(peer->sflags, PEER_STATUS_NSF_WAIT)) {
 			if (bgp_debug_neighbor_events(peer)) {
 				zlog_debug(
-					"%s graceful restart timer started for %d sec",
+					"neighbor %s graceful restart timer started for %d sec",
 					peer->host, peer->v_gr_restart);
 				zlog_debug(
-					"%s graceful restart stalepath timer started for %d sec",
+					"neighbor %s graceful restart stalepath timer started for %d sec",
 					peer->host, peer->bgp->stalepath_time);
 			}
 			BGP_TIMER_ON(peer->t_gr_restart,
@@ -1289,7 +1292,7 @@ int bgp_stop(struct peer *peer)
 
 			if (bgp_debug_neighbor_events(peer))
 				zlog_debug(
-					"%s: route-refresh restart stalepath timer stopped",
+					"neighbor %s: route-refresh restart stalepath timer stopped",
 					peer->host);
 		}
 
@@ -2037,7 +2040,7 @@ static int bgp_establish(struct peer *peer)
 			BGP_TIMER_OFF(peer->t_gr_stale);
 			if (bgp_debug_neighbor_events(peer))
 				zlog_debug(
-					"%s graceful restart stalepath timer stopped",
+					"neighbor %s graceful restart stalepath timer stopped",
 					peer->host);
 		}
 	}
@@ -2045,7 +2048,7 @@ static int bgp_establish(struct peer *peer)
 	if (peer->t_gr_restart) {
 		BGP_TIMER_OFF(peer->t_gr_restart);
 		if (bgp_debug_neighbor_events(peer))
-			zlog_debug("%s graceful restart timer stopped",
+			zlog_debug("neighbor %s graceful restart timer stopped",
 				   peer->host);
 	}
 
@@ -2405,7 +2408,7 @@ int bgp_event_update(struct peer *peer, enum bgp_fsm_events event)
 	next = FSM[peer->status - 1][event - 1].next_state;
 
 	if (bgp_debug_neighbor_events(peer) && peer->status != next)
-		zlog_debug("%s [FSM] %s (%s->%s), fd %d", peer->host,
+		zlog_debug("neighbor %s [FSM] %s (%s->%s), fd %d", peer->host,
 			   bgp_event_str[event],
 			   lookup_msg(bgp_status_msg, peer->status, NULL),
 			   lookup_msg(bgp_status_msg, next, NULL), peer->fd);

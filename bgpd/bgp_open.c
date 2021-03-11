@@ -256,21 +256,28 @@ static int bgp_capability_mp(struct peer *peer, struct capability_header *hdr)
 	if (hdr->length != 4) {
 		flog_warn(
 			EC_BGP_CAPABILITY_INVALID_LENGTH,
-			"MP Cap: Received invalid length %d, non-multiple of 4",
-			hdr->length);
+			"MP Cap: neighbor %s received invalid length %d, non-multiple of 4",
+			peer->host, hdr->length);
 		return -1;
 	}
 
 	bgp_capability_mp_data(s, &mpc);
 
 	if (bgp_debug_neighbor_events(peer))
-		zlog_debug("%s OPEN has MP_EXT CAP for afi/safi: %s/%s",
-			   peer->host, iana_afi2str(mpc.afi),
-			   iana_safi2str(mpc.safi));
+		zlog_debug(
+			"neighbor %s OPEN has MP_EXT CAP for afi/safi: %s/%s",
+			peer->host, iana_afi2str(mpc.afi),
+			iana_safi2str(mpc.safi));
 
 	/* Convert AFI, SAFI to internal values, check. */
-	if (bgp_map_afi_safi_iana2int(mpc.afi, mpc.safi, &afi, &safi))
+	if (bgp_map_afi_safi_iana2int(mpc.afi, mpc.safi, &afi, &safi)) {
+		if (bgp_debug_neighbor_events(peer))
+			zlog_debug(
+				"neighbor %s OPEN MP_EXT failed: invalid combination of afi/safi: %s/%s",
+				peer->host, iana_afi2str(mpc.afi),
+				iana_safi2str(mpc.safi));
 		return -1;
+	}
 
 	/* Now safi remapped, and afi/safi are valid array indices */
 	peer->afc_recv[afi][safi] = 1;

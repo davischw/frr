@@ -5200,17 +5200,30 @@ static void peer_on_policy_change(struct peer *peer, afi_t afi, safi_t safi,
 {
 	if (outbound) {
 		update_group_adjust_peer(peer_af_find(peer, afi, safi));
-		if (peer->status == Established)
+		if (peer->status == Established) {
+			if (bgp_debug_neighbor_events(peer))
+				zlog_debug(
+					"neighbor %s rib-%s recalculation on %d/%d",
+					peer->host, outbound ? "out" : "in",
+					afi, safi);
+
 			bgp_announce_route(peer, afi, safi);
+		}
 	} else {
 		if (peer->status != Established)
 			return;
 
 		if (CHECK_FLAG(peer->af_flags[afi][safi],
-			       PEER_FLAG_SOFT_RECONFIG))
+			       PEER_FLAG_SOFT_RECONFIG)) {
+			if (bgp_debug_neighbor_events(peer))
+				zlog_debug(
+					"neighbor %s rib-%s recalculation on %d/%d",
+					peer->host, outbound ? "out" : "in",
+					afi, safi);
+
 			bgp_soft_reconfig_in(peer, afi, safi);
-		else if (CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_OLD_RCV)
-			 || CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_NEW_RCV))
+		} else if (CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_OLD_RCV)
+			   || CHECK_FLAG(peer->cap, PEER_CAP_REFRESH_NEW_RCV))
 			bgp_route_refresh_send(peer, afi, safi, 0, 0, 0,
 					       BGP_ROUTE_REFRESH_NORMAL);
 	}

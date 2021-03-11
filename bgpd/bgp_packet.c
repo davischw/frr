@@ -898,7 +898,7 @@ void bgp_route_refresh_send(struct peer *peer, afi_t afi, safi_t safi,
 				stream_putc(s, ORF_COMMON_PART_REMOVE_ALL);
 				if (bgp_debug_neighbor_events(peer))
 					zlog_debug(
-						"%s sending REFRESH_REQ to remove ORF(%d) (%s) for afi/safi: %s/%s",
+						"neighbor %s sending REFRESH_REQ to remove ORF(%d) (%s) for afi/safi: %s/%s",
 						peer->host, orf_type,
 						(when_to_refresh == REFRESH_DEFER
 							 ? "defer"
@@ -915,7 +915,7 @@ void bgp_route_refresh_send(struct peer *peer, afi_t afi, safi_t safi,
 					ORF_COMMON_PART_DENY);
 				if (bgp_debug_neighbor_events(peer))
 					zlog_debug(
-						"%s sending REFRESH_REQ with pfxlist ORF(%d) (%s) for afi/safi: %s/%s",
+						"neighbor %s sending REFRESH_REQ with pfxlist ORF(%d) (%s) for afi/safi: %s/%s",
 						peer->host, orf_type,
 						(when_to_refresh == REFRESH_DEFER
 							 ? "defer"
@@ -934,9 +934,10 @@ void bgp_route_refresh_send(struct peer *peer, afi_t afi, safi_t safi,
 
 	if (bgp_debug_neighbor_events(peer)) {
 		if (!orf_refresh)
-			zlog_debug("%s sending REFRESH_REQ for afi/safi: %s/%s",
-				   peer->host, iana_afi2str(pkt_afi),
-				   iana_safi2str(pkt_safi));
+			zlog_debug(
+				"neighbor %s sending REFRESH_REQ for afi/safi: %s/%s",
+				peer->host, iana_afi2str(pkt_afi),
+				iana_safi2str(pkt_safi));
 	}
 
 	/* Add packet to the peer. */
