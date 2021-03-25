@@ -45,6 +45,7 @@
 #include "ospf6_asbr.h"
 #include "ospf6d.h"
 #include "lib/json.h"
+#include "ospf6_nssa.h"
 
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_AREA,      "OSPF6 area");
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_PLISTNAME, "Prefix list name");
@@ -82,6 +83,7 @@ int ospf6_area_cmp(void *va, void *vb)
 static void ospf6_area_lsdb_hook_add(struct ospf6_lsa *lsa)
 {
 	switch (ntohs(lsa->header->type)) {
+
 	case OSPF6_LSTYPE_ROUTER:
 	case OSPF6_LSTYPE_NETWORK:
 		if (IS_OSPF6_DEBUG_EXAMIN_TYPE(lsa->header->type)) {
@@ -102,6 +104,10 @@ static void ospf6_area_lsdb_hook_add(struct ospf6_lsa *lsa)
 	case OSPF6_LSTYPE_INTER_ROUTER:
 		ospf6_abr_examin_summary(lsa,
 					 (struct ospf6_area *)lsa->lsdb->data);
+		break;
+
+	case OSPF6_LSTYPE_TYPE_7:
+		ospf6_asbr_lsa_add(lsa);
 		break;
 
 	default:
@@ -633,6 +639,8 @@ void ospf6_area_config_write(struct vty *vty, struct ospf6 *ospf6)
 			else
 				vty_out(vty, " area %s stub\n", oa->name);
 		}
+		if (IS_AREA_NSSA(oa))
+			vty_out(vty, " area %s nssa\n", oa->name);
 		if (PREFIX_NAME_IN(oa))
 			vty_out(vty, " area %s filter-list prefix %s in\n",
 				oa->name, PREFIX_NAME_IN(oa));
@@ -1238,6 +1246,48 @@ DEFUN (no_ospf6_area_stub_no_summary,
 	return CMD_SUCCESS;
 }
 
+DEFUN(ospf6_area_nssa, ospf6_area_nssa_cmd,
+      "area <A.B.C.D|(0-4294967295)> nssa",
+      "OSPF6 area parameters\n"
+      "OSPF6 area ID in IP address format\n"
+      "OSPF6 area ID as a decimal value\n"
+      "Configure OSPF6 area as nssa\n")
+{
+	int idx_ipv4_number = 1;
+	struct ospf6_area *area;
+
+	VTY_DECLVAR_CONTEXT(ospf6, ospf6);
+	OSPF6_CMD_AREA_GET(argv[idx_ipv4_number]->arg, area, ospf6);
+
+	if (!ospf6_area_nssa_set(ospf6, area)) {
+		vty_out(vty,
+			"First deconfigure all virtual link through this area\n");
+		return CMD_WARNING_CONFIG_FAILED;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_ospf6_area_nssa, no_ospf6_area_nssa_cmd,
+      "no area <A.B.C.D|(0-4294967295)> nssa",
+      NO_STR
+      "OSPF6 area parameters\n"
+      "OSPF6 area ID in IP address format\n"
+      "OSPF6 area ID as a decimal value\n"
+      "Configure OSPF6 area as nssa\n")
+{
+	int idx_ipv4_number = 2;
+	struct ospf6_area *area;
+
+	VTY_DECLVAR_CONTEXT(ospf6, ospf6);
+	OSPF6_CMD_AREA_GET(argv[idx_ipv4_number]->arg, area, ospf6);
+
+	ospf6_area_nssa_unset(ospf6, area);
+
+	return CMD_SUCCESS;
+}
+
+
 void ospf6_area_init(void)
 {
 	install_element(VIEW_NODE, &show_ipv6_ospf6_spf_tree_cmd);
@@ -1259,6 +1309,10 @@ void ospf6_area_init(void)
 
 	install_element(OSPF6_NODE, &area_filter_list_cmd);
 	install_element(OSPF6_NODE, &no_area_filter_list_cmd);
+
+	/* "area nssa" commands. */
+	install_element(OSPF6_NODE, &ospf6_area_nssa_cmd);
+	install_element(OSPF6_NODE, &no_ospf6_area_nssa_cmd);
 }
 
 void ospf6_area_interface_delete(struct ospf6_interface *oi)
