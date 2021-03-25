@@ -1118,7 +1118,7 @@ void ospf6_remove_temp_router_lsa(struct ospf6_area *area)
 int ospf6_ase_calculate_route(struct ospf6 *ospf6, struct ospf6_lsa *lsa,
 			      struct ospf6_area *area)
 {
-	struct ospf6_route *route, *old;
+	struct ospf6_route *route;
 	struct ospf6_as_external_lsa *external;
 	struct prefix prefix;
 	void (*hook_add)(struct ospf6_route *) = NULL;
@@ -1153,14 +1153,6 @@ int ospf6_ase_calculate_route(struct ospf6 *ospf6, struct ospf6_lsa *lsa,
 		ospf6->route_table->hook_add = NULL;
 		ospf6->route_table->hook_remove = NULL;
 
-		old = ospf6_route_lookup(&prefix, ospf6->route_table);
-		if (old) {
-			if (IS_OSPF6_DEBUG_SPF(PROCESS))
-				zlog_debug("%s : remove external route %pFX",
-					   __func__, &prefix);
-			old->flag = OSPF6_ROUTE_REMOVE;
-		}
-
 		if (!OSPF6_LSA_IS_MAXAGE(lsa))
 			ospf6_asbr_lsa_add(lsa);
 
@@ -1170,14 +1162,13 @@ int ospf6_ase_calculate_route(struct ospf6 *ospf6, struct ospf6_lsa *lsa,
 		route = ospf6_route_lookup(&prefix, ospf6->route_table);
 		if (route == NULL) {
 			if (IS_OSPF6_DEBUG_SPF(PROCESS))
-				zlog_debug("%s : no external route %pFX",
+				zlog_debug("%s: no external route %pFX",
 					   __func__, &prefix);
 			return 0;
 		}
 
 		if (CHECK_FLAG(route->flag, OSPF6_ROUTE_REMOVE)
-		    && (CHECK_FLAG(route->flag, OSPF6_ROUTE_ADD)
-			|| (old == route))) {
+		    && CHECK_FLAG(route->flag, OSPF6_ROUTE_ADD)) {
 			UNSET_FLAG(route->flag, OSPF6_ROUTE_REMOVE);
 			UNSET_FLAG(route->flag, OSPF6_ROUTE_ADD);
 		}
@@ -1193,22 +1184,12 @@ int ospf6_ase_calculate_route(struct ospf6 *ospf6, struct ospf6_lsa *lsa,
 						__func__, &prefix);
 				(*hook_add)(route);
 			}
-			route->flag = 0;
 		}
 	} else if (ntohs(lsa->header->type) == OSPF6_LSTYPE_TYPE_7) {
 		hook_add = area->route_table->hook_add;
 		hook_remove = area->route_table->hook_remove;
 		area->route_table->hook_add = NULL;
 		area->route_table->hook_remove = NULL;
-
-		old = ospf6_route_lookup(&prefix, area->route_table);
-		if (old) {
-			if (IS_OSPF6_DEBUG_SPF(PROCESS))
-				zlog_debug(
-					"%s: set remove flag nssa route %pFX, area %s",
-					__func__, &prefix, area->name);
-			old->flag = OSPF6_ROUTE_REMOVE;
-		}
 
 		if (!OSPF6_LSA_IS_MAXAGE(lsa))
 			ospf6_asbr_lsa_add(lsa);
@@ -1219,14 +1200,13 @@ int ospf6_ase_calculate_route(struct ospf6 *ospf6, struct ospf6_lsa *lsa,
 		route = ospf6_route_lookup(&prefix, area->route_table);
 		if (route == NULL) {
 			if (IS_OSPF6_DEBUG_SPF(PROCESS))
-				zlog_debug("%s : no route %pFX, area %s",
+				zlog_debug("%s: no route %pFX, area %s",
 					   __func__, &prefix, area->name);
 			return 0;
 		}
 
 		if (CHECK_FLAG(route->flag, OSPF6_ROUTE_REMOVE)
-		    && (CHECK_FLAG(route->flag, OSPF6_ROUTE_ADD)
-			|| (old == route))) {
+		    && CHECK_FLAG(route->flag, OSPF6_ROUTE_ADD)) {
 			UNSET_FLAG(route->flag, OSPF6_ROUTE_REMOVE);
 			UNSET_FLAG(route->flag, OSPF6_ROUTE_ADD);
 		}
@@ -1246,7 +1226,6 @@ int ospf6_ase_calculate_route(struct ospf6 *ospf6, struct ospf6_lsa *lsa,
 				(*hook_add)(route);
 			}
 			ospf6_abr_check_translate_nssa(area, lsa);
-			route->flag = 0;
 		}
 	}
 	return 0;
