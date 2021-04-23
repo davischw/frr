@@ -455,6 +455,7 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 	struct ospf6_interface *oi;
 	unsigned long result;
 	json_object *json_area;
+	json_object *json_lsa_stats;
 	json_object *array_interfaces;
 
 	if (use_json) {
@@ -486,6 +487,9 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 		json_object_object_add(json_area, "interfacesAttachedToArea",
 				       array_interfaces);
 
+		/* SPF Calculations */
+		json_object_int_add(json_area, "spfExecutedCounter",
+				    oa->spf_calculation);
 		if (oa->ts_spf.tv_sec || oa->ts_spf.tv_usec) {
 			json_object_boolean_true_add(json_area, "spfHasRun");
 			result = monotime_since(&oa->ts_spf, NULL);
@@ -532,6 +536,9 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 			vty_out(vty, " %pOI", oi);
 		vty_out(vty, "\n");
 
+		/* SPF Calculations */
+		vty_out(vty, "SPF algorithm executed %d times\n",
+			oa->spf_calculation);
 		if (oa->ts_spf.tv_sec || oa->ts_spf.tv_usec) {
 			result = monotime_since(&oa->ts_spf, NULL);
 			if (result / TIMER_SECOND_MICRO > 0) {
