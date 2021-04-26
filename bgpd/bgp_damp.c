@@ -541,6 +541,9 @@ int bgp_damp_enable(struct bgp *bgp, afi_t afi, safi_t safi, time_t half,
 	thread_add_timer(bm->master, bgp_reuse_timer, bdc, DELTA_REUSE,
 			 &bdc->t_reuse);
 
+	/* TODO: remove after debugging */
+	zlog_debug_bgp_damp_config(bdc, "bgp_damp_enable");
+
 	return 0;
 }
 
@@ -628,6 +631,10 @@ void bgp_config_write_damp(struct vty *vty, struct bgp *bgp, afi_t afi,
 	struct bgp_damp_config *bdc;
 
 	bdc = &bgp->damp[afi][safi];
+
+	/* TODO: remove after debugging */
+	zlog_debug_bgp_damp_config(bdc, "bgp_config_write_damp");
+
 	if (bdc->half_life == DEFAULT_HALF_LIFE * 60
 	    && bdc->reuse_limit == DEFAULT_REUSE
 	    && bdc->suppress_value == DEFAULT_SUPPRESS
@@ -888,6 +895,9 @@ void bgp_peer_damp_enable(struct peer *peer, afi_t afi, safi_t safi,
 	bdc->safi = safi;
 	thread_add_timer(bm->master, bgp_reuse_timer, bdc, DELTA_REUSE,
 			 &bdc->t_reuse);
+	
+	/* TODO: remove after debugging */
+	zlog_debug_bgp_damp_config(bdc, "bgp_damp_enable");
 }
 
 /* Disable route flap dampening for a peer.
@@ -914,6 +924,10 @@ void bgp_config_write_peer_damp(struct vty *vty, struct peer *peer, afi_t afi,
 	struct bgp_damp_config *bdc;
 
 	bdc = &peer->damp[afi][safi];
+
+	/* TODO: remove after debugging */
+	zlog_debug_bgp_damp_config(bdc, "bgp_config_write_peer_damp");
+
 	if (bdc->half_life == DEFAULT_HALF_LIFE * 60
 	    && bdc->reuse_limit == DEFAULT_REUSE
 	    && bdc->suppress_value == DEFAULT_SUPPRESS
@@ -993,4 +1007,22 @@ void bgp_show_peer_dampening_parameters(struct vty *vty, struct peer *peer,
 		bgp_print_peer_dampening_parameters(vty, peer, afi, safi, false,
 						    NULL);
 	}
+}
+
+
+void zlog_debug_bgp_damp_config(struct bgp_damp_config *bdc, const char* marker)
+{
+	if (!bdc) {
+		zlog_debug("damp_debug: (FOO) marker        = %s\n", marker);
+		zlog_debug("damp_debug: (FOO) ptr(bdc)      = %p\n", bdc);
+		return;
+	}
+
+	zlog_debug("damp_debug: marker              = %s\n", marker);
+	zlog_debug("damp_debug: ptr(bdc)            = %p\n", bdc);
+	zlog_debug("damp_debug: AFI / SAFI          = %s\n", get_afi_safi_str(bdc->afi, bdc->safi, true));
+	zlog_debug("damp_debug: halfLifeSecs        = %lld\n", bdc->half_life / 60LL);
+	zlog_debug("damp_debug: reusePenalty        = %d\n", bdc->reuse_limit);
+	zlog_debug("damp_debug: suppressPenalty     = %d\n", bdc->suppress_value);
+	zlog_debug("damp_debug: maxSuppressTimeSecs = %lld\n", bdc->max_suppress_time / 60LL);
 }

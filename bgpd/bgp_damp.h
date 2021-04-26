@@ -177,4 +177,8 @@ extern void bgp_show_peer_dampening_parameters(struct vty *vty,
 					       struct peer *peer, afi_t afi,
 					       safi_t safi, bool use_json);
 
+/* TODO: remove after debugging */
+extern void zlog_debug_bgp_damp_config(struct bgp_damp_config *bdc, const char* marker);
+
+
 #endif /* _QUAGGA_BGP_DAMP_H */
