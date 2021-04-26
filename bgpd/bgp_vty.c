@@ -8867,8 +8867,13 @@ DEFPY(neighbor_damp,
 {
 	struct peer *peer = peer_and_group_lookup_vty(vty, neighbor);
 
-	if (!peer)
+	if (!peer) {
+		/* TODO: remove after debugging */
+		zlog_debug("damp_debug: (FOO) marker = %s\n", "neighbor_damp_cmd");
+		zlog_debug("damp_debug: (FOO) peer/peer-group %s not found", neighbor);
+
 		return CMD_WARNING_CONFIG_FAILED;
+	}
 	if (!half)
 		half = DEFAULT_HALF_LIFE;
 	if (!reuse) {
@@ -8883,6 +8888,15 @@ DEFPY(neighbor_damp,
 	}
 	bgp_peer_damp_enable(peer, bgp_node_afi(vty), bgp_node_safi(vty),
 			     half * 60, reuse, suppress, max * 60);
+
+	/* TODO: remove after debugging */
+	zlog_debug("damp_debug: marker   = %s\n", "neighbor_damp_cmd");
+	zlog_debug("damp_debug: neighbor = %s\n", neighbor);
+	zlog_debug("damp_debug: half     = %ld\n", half);
+	zlog_debug("damp_debug: reuse    = %ld\n", reuse);
+	zlog_debug("damp_debug: suppress = %ld\n", suppress);
+	zlog_debug("damp_debug: max      = %ld\n", max);
+
 	return CMD_SUCCESS;
 }
 
@@ -8900,9 +8914,18 @@ DEFPY(no_neighbor_damp,
 {
 	struct peer *peer = peer_and_group_lookup_vty(vty, neighbor);
 
-	if (!peer)
+	if (!peer) {
+		/* TODO: remove after debugging */
+		zlog_debug("damp_debug: (FOO) marker = %s\n", "no_neighbor_damp_cmd");
+		zlog_debug("damp_debug: (FOO) peer/peer-group %s not found", neighbor);
+
 		return CMD_WARNING_CONFIG_FAILED;
+	}
 	bgp_peer_damp_disable(peer, bgp_node_afi(vty), bgp_node_safi(vty));
+
+	/* TODO: remove after debugging */
+	zlog_debug("damp_debug: marker = %s\n", "no_neighbor_damp_cmd");
+
 	return CMD_SUCCESS;
 }
 
