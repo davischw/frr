@@ -348,6 +348,12 @@ module frr-pim {
         description
           "MSDP source IP address.";
       }
+
+      leaf as {
+        type inet:as-number;
+        description
+          "BGP Autonomous System number.";
+      }
     }
 
     container mlag {
