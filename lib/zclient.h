@@ -43,6 +43,8 @@ struct zclient;
 #include "srte.h"
 #include "srv6.h"
 
+#include "openbsd-queue.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -241,6 +243,7 @@ typedef enum {
 	ZEBRA_GRE_UPDATE,
 	ZEBRA_GRE_SOURCE_SET,
 	ZEBRA_PIM_FPM_SYNC,
+	ZEBRA_ROUTE_LOOKUP,
 } zebra_message_types_t;
 
 enum zebra_error_types {
@@ -1279,6 +1282,73 @@ extern int zapi_client_close_notify_decode(struct stream *s,
 
 extern int zclient_send_zebra_gre_request(struct zclient *client,
 					  struct interface *ifp);
+
+/*
+ * Route lookup zebra API.
+ */
+
+/**
+ * Zebra route next hop information.
+ */
+struct zroute_nh_info {
+	/** Next hop pointer to next. */
+	SLIST_ENTRY(zroute_nh_info) rni_entry;
+
+	/** Next hop VRF. */
+	vrf_id_t rni_vrf_id;
+	/** Next hop type (see `enum nexthop_types_t`). */
+	uint8_t rni_type;
+	/** Next hop address. */
+	union {
+		struct in_addr v4;
+		struct in6_addr v6;
+	} rni_addr;
+	/** Next hop interface index. */
+	ifindex_t rni_ifindex;
+};
+
+/**
+ * Zebra route information.
+ */
+struct zroute_info {
+	/** Route prefix. */
+	struct prefix ri_p;
+	/** Route distance */
+	int ri_distance;
+	/** Route metric */
+	int ri_metric;
+	/** Route type. */
+	int ri_type;
+	/** Amount of next hops. */
+	uint32_t ri_nexthop_num;
+
+	/** List of next hops. */
+	SLIST_HEAD(, zroute_nh_info) ri_nhlist;
+
+	/** Opaque data size. */
+	uint32_t ri_opaque_size;
+	/** Protocol specific opaque information. */
+	uint8_t ri_opaque[ZAPI_MESSAGE_OPAQUE_LENGTH];
+};
+
+/**
+ * Request zebra to lookup a route for us matching those specifications.
+ *
+ * \param zc Zebra client context pointer.
+ * \param vrf_id the VRF identification.
+ * \param family Address type (e.g. `AF_INET`).
+ * \param addr Address (usually `struct in_addr *`).
+ * \returns a pointer to the result allocated in the heap. Memory should
+ *          be returned using `zroute_info_free()`.
+ */
+struct zroute_info *zapi_route_lookup(struct zclient *zc, vrf_id_t vrf_id,
+				      int family, const void *addr);
+
+/**
+ * Unallocates all memory allocated by `zapi_route_lookup`.
+ */
+void zroute_info_free(struct zroute_info **ri);
+
 #ifdef __cplusplus
 }
 #endif
