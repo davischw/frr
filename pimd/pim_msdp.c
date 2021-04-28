@@ -711,7 +711,7 @@ bool pim_msdp_peer_rpf_check(struct pim_msdp_peer *mp, struct in_addr rp)
 	}
 
 	/* check if the MSDP peer is the nexthop for the RP */
-	if (pim_nexthop_lookup(mp->pim, &nexthop, rp, 0) &&
+	if (pim_route_lookup(mp->pim, rp, mp->asn, &nexthop) &&
 	    nexthop.mrib_nexthop_addr.s_addr == mp->peer.s_addr) {
 		return true;
 	}
@@ -1347,8 +1347,11 @@ bool pim_msdp_peer_config_write(struct vty *vty, struct pim_instance *pim,
 		if (mp->flags & PIM_MSDP_PEERF_IN_GROUP)
 			continue;
 
-		vty_out(vty, "%sip msdp peer %pI4 source %pI4\n", spaces,
+		vty_out(vty, "%sip msdp peer %pI4 source %pI4", spaces,
 			&mp->peer, &mp->local);
+		if (mp->asn)
+			vty_out(vty, " as %u", mp->asn);
+		vty_out(vty, "\n");
 
 		if (mp->auth_type == MSDP_AUTH_MD5)
 			vty_out(vty, "%sip msdp peer %pI4 password %s\n",

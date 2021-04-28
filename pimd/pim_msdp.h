@@ -168,6 +168,9 @@ struct pim_msdp_peer {
 	char *acl_in;
 	/** SA output access list name. */
 	char *acl_out;
+
+	/** BGP AS number for RPF check. */
+	uint32_t asn;
 };
 
 struct pim_msdp_mg_mbr {

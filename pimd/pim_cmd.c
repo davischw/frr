@@ -6695,13 +6695,15 @@ ALIAS(no_ip_pim_bfd, no_ip_pim_bfd_param_cmd,
 #endif /* !HAVE_BFDD */
 
 DEFPY(ip_msdp_peer, ip_msdp_peer_cmd,
-      "ip msdp peer A.B.C.D$peer source A.B.C.D$source",
+      "ip msdp peer A.B.C.D$peer source A.B.C.D$source [as (1-4294967295)$asn]",
       IP_STR
       CFG_MSDP_STR
       "Configure MSDP peer\n"
       "Peer IP address\n"
       "Source address for TCP connection\n"
-      "Local IP address\n")
+      "Local IP address\n"
+      "BGP Autonomous System peer information\n"
+      "BGP Autonomous System peer number\n")
 {
 	const char *vrfname;
 	char temp_xpath[XPATH_MAXLEN];
@@ -6721,6 +6723,18 @@ DEFPY(ip_msdp_peer, ip_msdp_peer_cmd,
 
 	nb_cli_enqueue_change(vty, msdp_peer_source_xpath, NB_OP_MODIFY,
 			      source_str);
+
+	if (asn_str) {
+		snprintf(msdp_peer_source_xpath, sizeof(msdp_peer_source_xpath),
+			 FRR_PIM_VRF_XPATH, "frr-pim:pimd", "pim", vrfname,
+			 "frr-routing:ipv4");
+		snprintf(temp_xpath, sizeof(temp_xpath),
+			 "/msdp-peer[peer-ip='%s']/as", peer_str);
+		strlcat(msdp_peer_source_xpath, temp_xpath,
+			sizeof(msdp_peer_source_xpath));
+		nb_cli_enqueue_change(vty, msdp_peer_source_xpath, NB_OP_MODIFY,
+				      asn_str);
+	}
 
 	return nb_cli_apply_changes(vty,
 			FRR_PIM_INTERFACE_XPATH, "frr-routing:ipv4");

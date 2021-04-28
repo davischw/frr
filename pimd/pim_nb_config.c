@@ -1829,6 +1829,47 @@ int pim_msdp_peer_sa_filter_out_destroy(struct nb_cb_destroy_args *args)
 }
 
 /*
+ * XPath: /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-peer/as
+ */
+int pim_msdp_peer_as_modify(struct nb_cb_modify_args *args)
+{
+	struct pim_msdp_peer *peer;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		/* NOTHING */
+		break;
+	case NB_EV_APPLY:
+		peer = nb_running_get_entry(args->dnode, NULL, true);
+		peer->asn = yang_dnode_get_uint32(args->dnode, NULL);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int pim_msdp_peer_as_destroy(struct nb_cb_destroy_args *args)
+{
+	struct pim_msdp_peer *peer;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		/* NOTHING */
+		break;
+	case NB_EV_APPLY:
+		peer = nb_running_get_entry(args->dnode, NULL, true);
+		peer->asn = 0;
+		break;
+	}
+
+	return NB_OK;
+}
+
+/*
  * XPath: /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/mlag
  */
 int routing_control_plane_protocols_control_plane_protocol_pim_address_family_mlag_create(
