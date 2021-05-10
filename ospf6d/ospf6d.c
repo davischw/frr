@@ -1309,20 +1309,31 @@ DEFPY (show_ipv6_ospf6_border_routers,
 	vty_out(vty, "DEBUG_1237\n");
 
 	for (ALL_LIST_ELEMENTS_RO(om6->ospf6, node, ospf6)) {
-		if (vrf_all)
+		vty_out(vty, "DEBUG_1238\n");
+		if (vrf_all) {
+			vty_out(vty, "DEBUG_1239\n");
 			show_ospf6_border_routers_common(vty, ospf6, &brouter,
 							 brouter_str, dt, uj);
-		else if (vrf_name)
+			vty_out(vty, "DEBUG_1240\n");
+		} else if (vrf_name) {
+			vty_out(vty, "DEBUG_1241\n");
 			if (strcmp(ospf6->name, vrf_name) == 0) {
+				vty_out(vty, "DEBUG_1242\n");
 				show_ospf6_border_routers_common(vty, ospf6,
 								 &brouter,
 								 brouter_str,
 								 dt, uj);
+				vty_out(vty, "DEBUG_1243\n");
 				break;
 			}
-		else
+			vty_out(vty, "DEBUG_1244\n");
+		} else {
+			vty_out(vty, "DEBUG_1245\n");
 			show_ospf6_border_routers_common(vty, ospf6, &brouter,
 							 brouter_str, dt, uj);
+			vty_out(vty, "DEBUG_1246\n");
+		}
+		vty_out(vty, "DEBUG_1247\n");
 	}
 
 	/* TODO: remove after debuging */
