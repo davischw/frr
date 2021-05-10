@@ -1228,7 +1228,7 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 	json_object *json_array_brouters = NULL;
 
 	/* TODO: remove after debuging */
-	vty_out(vty, "DEBUG_1337\n")
+	vty_out(vty, "DEBUG_1337\n");
 	vty_out(vty, "DEBUG ospf6       = %p\n", ospf6);
 	vty_out(vty, "DEBUG brouter     = %p\n", brouter);
 	vty_out(vty, "DEBUG brouter_str = %p\n", brouter_str);
@@ -1317,7 +1317,7 @@ DEFPY (show_ipv6_ospf6_border_routers,
 	}
 
 	/* TODO: remove after debuging */
-	vty_out("DEBUG_1537\n")
+	vty_out("DEBUG_1537\n");
 
 	return CMD_SUCCESS;
 }
