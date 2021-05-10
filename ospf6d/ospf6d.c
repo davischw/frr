@@ -1285,7 +1285,7 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 
 DEFPY (show_ipv6_ospf6_border_routers,
        show_ipv6_ospf6_border_routers_cmd,
-       "show ipv6 ospf6 [vrf <NAME$vrf_name|all$vrf_all>] border-routers {<A.B.C.D>$brouter|detail$detail|json$json}",
+       "show ipv6 ospf6 [vrf <NAME$vrf_name|all$vrf_all>] border-routers [<A.B.C.D>$brouter] [detail$detail] [json$json]",
        SHOW_STR
        IP6_STR
        OSPF6_STR
