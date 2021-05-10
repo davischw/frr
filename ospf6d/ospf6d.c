@@ -1317,7 +1317,7 @@ DEFPY (show_ipv6_ospf6_border_routers,
 	}
 
 	/* TODO: remove after debuging */
-	vty_out("DEBUG_1537\n");
+	vty_out(vty, "DEBUG_1537\n");
 
 	return CMD_SUCCESS;
 }
