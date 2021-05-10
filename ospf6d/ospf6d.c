@@ -1316,7 +1316,7 @@ DEFPY (show_ipv6_ospf6_border_routers,
 								 brouter_str,
 								 dt, uj);
 			} else if (vrf_name) {
-				if (strcmp(ospf6->name, vrf_name_str) == 0) {
+				if (strcmp(ospf6->name, vrf_name) == 0) {
 					show_ospf6_border_routers_common(vty,
 									 ospf6,
 									 &brouter,
