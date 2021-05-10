@@ -1298,21 +1298,37 @@ DEFPY (show_ipv6_ospf6_border_routers,
 {
 	struct ospf6 *ospf6 = NULL;
 	struct listnode *node;
+	bool dt;
+	bool uj;
 
 	OSPF6_CMD_CHECK_RUNNING();
+	dt = detail ? true : false;
+	uj = json ? true : false;
 
 	/* TODO: remove after debuging */
 	vty_out(vty, "DEBUG_1237\n");
 
 	for (ALL_LIST_ELEMENTS_RO(om6->ospf6, node, ospf6)) {
-		if (vrf_all || strcmp(ospf6->name, vrf_name) == 0) {
+		if (vrf) {
+			if (vrf_all) {
+				show_ospf6_border_routers_common(vty, ospf6,
+								 &brouter,
+								 brouter_str,
+								 dt, uj);
+			} else if (vrf_name) {
+				if (strcmp(ospf6->name, vrf_name_str) == 0) {
+					show_ospf6_border_routers_common(vty,
+									 ospf6,
+									 &brouter,
+									 brouter_str,
+									 dt,
+									 uj);
+					break;
+				}
+			}
+		} else {
 			show_ospf6_border_routers_common(vty, ospf6, &brouter,
-							 brouter_str,
-							 detail ? true : false,
-							 json ? true : false);
-
-			if (!vrf_all)
-				break;
+							 brouter_str, dt, uj);
 		}
 	}
 
