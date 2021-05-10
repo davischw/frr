@@ -1227,6 +1227,14 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 	json_object *json_vty = NULL;
 	json_object *json_array_brouters = NULL;
 
+	/* TODO: remove after debuging */
+	vty_out(vty, "DEBUG_1337\n")
+	vty_out(vty, "DEBUG ospf6       = %p\n", ospf6);
+	vty_out(vty, "DEBUG brouter     = %p\n", brouter);
+	vty_out(vty, "DEBUG brouter_str = %p\n", brouter_str);
+	vty_out(vty, "DEBUG detail      = %s\n", detail ? "true" : "false");
+	vty_out(vty, "DEBUG uj          = %s\n", uj ? "true" : "false");
+
 	if (uj)
 		json_array_brouters = json_object_new_array();
 
@@ -1270,6 +1278,9 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 				json_vty, JSON_C_TO_STRING_PRETTY));
 		json_object_free(json_vty);
 	}
+
+	/* TODO: remove after debuging */
+	vty_out(vty, "DEBUG_1437\n");
 }
 
 DEFPY (show_ipv6_ospf6_border_routers,
@@ -1290,6 +1301,9 @@ DEFPY (show_ipv6_ospf6_border_routers,
 
 	OSPF6_CMD_CHECK_RUNNING();
 
+	/* TODO: remove after debuging */
+	vty_out(vty, "DEBUG_1237\n");
+
 	for (ALL_LIST_ELEMENTS_RO(om6->ospf6, node, ospf6)) {
 		if (vrf_all || strcmp(ospf6->name, vrf_name) == 0) {
 			show_ospf6_border_routers_common(vty, ospf6, &brouter,
@@ -1301,6 +1315,9 @@ DEFPY (show_ipv6_ospf6_border_routers,
 				break;
 		}
 	}
+
+	/* TODO: remove after debuging */
+	vty_out("DEBUG_1537\n")
 
 	return CMD_SUCCESS;
 }
