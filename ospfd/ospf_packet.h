@@ -130,11 +130,6 @@ struct ospf_ls_update {
 #define IS_SET_DD_I(X)          ((X) & OSPF_DD_FLAG_I)
 #define IS_SET_DD_ALL(X)        ((X) & OSPF_DD_FLAG_ALL)
 
-/* Special IP encapsulation. */
-#define OSPF_IP_ENCAP_SPF       248
-#define OSPF_IP_ENCAP_DR        250
-#define OSPF_IP_ENCAP_OTHER     249
-
 /* Prototypes. */
 extern void ospf_packet_free(struct ospf_packet *);
 extern struct ospf_fifo *ospf_fifo_new(void);
@@ -166,44 +161,5 @@ extern const struct message ospf_packet_type_str[];
 extern const size_t ospf_packet_type_str_max;
 
 extern void ospf_proactively_arp(struct ospf_neighbor *);
-
-/* ospf_encap.c */
-
-/* Special IP encapsulation. */
-#define OSPF_IP_ENCAP
-
-#define IP_ENCAP_DST 0x7F8201FE
-#define IP_ENCAP_WORD_SIZE 5
-
-/* Magic encapsulation header. */
-struct ip_encap {
-	/* IP encap. */
-	uint8_t ver_hl; /* 4 bits | 4 bits */
-#define IP_ENCAP_VER 4
-	uint8_t dsf_ecn; /* 6 bits | 2 bits */
-#define IP_ENCAP_DSF 0xC0
-	uint16_t len;
-	uint16_t id;
-	uint16_t frag; /* 3 bits | 13 bits */;
-#define IP_ENCAP_DF 0x4000
-#define IP_ENCAP_MF 0x2000
-#define IP_ENCAP_FRAGMASK 0x1FFF
-	uint8_t ttl;
-	uint8_t proto;
-	uint16_t checksum;
-	uint32_t src;
-	uint32_t dst;
-
-	/* comm header. */
-	uint16_t ver;
-	uint16_t ifindex;
-	uint32_t magic;
-#define IP_ENCAP_MAGIC_VALUE 0x676F6C64
-};
-
-/** IP encapsulation magic header initializer. */
-extern void ospf_ip_encap_set(struct ip_encap *ie,
-			      const struct ospf_interface *oi,
-			      const struct ip *ip);
 
 #endif /* _ZEBRA_OSPF_PACKET_H */

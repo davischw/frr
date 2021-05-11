@@ -36,6 +36,7 @@
 #include "stream.h"
 #include "log.h"
 #include "memory.h"
+#include "network.h"
 #include "privs.h"
 #include "sigevent.h"
 #include "zclient.h"
@@ -231,6 +232,9 @@ int main(int argc, char **argv)
 
 	/* OSPF errors init */
 	ospf_error_init();
+
+	/* Wire the IP assembly API with main thread. */
+	ip_fragmentation_handler_init(master);
 
 	frr_config_fork();
 	frr_run(master);

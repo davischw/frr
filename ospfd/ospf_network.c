@@ -27,6 +27,7 @@
 #include "if.h"
 #include "sockunion.h"
 #include "log.h"
+#include "network.h"
 #include "sockopt.h"
 #include "privs.h"
 #include "lib_errors.h"
@@ -224,10 +225,10 @@ int ospf_sock_init(struct ospf *ospf)
 		return -1;
 	}
 
-	ospf->fd = ospf_create_socket(ospf, IPPROTO_OSPFIGP);
 	ospf->ie_dr_sock = ospf_create_socket(ospf, OSPF_IP_ENCAP_DR);
 	ospf->ie_spf_sock = ospf_create_socket(ospf, OSPF_IP_ENCAP_SPF);
 	ospf->ie_other_sock = ospf_create_socket(ospf, OSPF_IP_ENCAP_OTHER);
+	ospf->fd = ospf->ie_other_sock;
 
 	return 0;
 }

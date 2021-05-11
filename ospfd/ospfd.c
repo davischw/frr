@@ -418,7 +418,6 @@ static struct ospf *ospf_new(unsigned short instance, const char *name)
 	thread_add_timer(master, ospf_lsa_refresh_walker, new,
 			 new->lsa_refresh_interval, &new->t_lsa_refresher);
 
-	thread_add_read(master, ospf_read, new, new->fd, &new->t_read);
 	thread_add_read(master, ospf_read, new, new->ie_dr_sock,
 			&new->ie_dr_ev);
 	thread_add_read(master, ospf_read, new, new->ie_spf_sock,

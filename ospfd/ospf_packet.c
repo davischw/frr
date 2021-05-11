@@ -22,6 +22,7 @@
 #include <zebra.h>
 
 #include "monotime.h"
+#include "network.h"
 #include "thread.h"
 #include "memory.h"
 #include "linklist.h"
@@ -299,7 +300,7 @@ static unsigned int ospf_packet_max(struct ospf_interface *oi)
 
 	max = oi->ifp->mtu - ospf_packet_authspace(oi);
 
-	max -= (OSPF_HEADER_SIZE + sizeof(struct ip));
+	max -= (OSPF_HEADER_SIZE + IPV4_ENCAP_DATA_SIZE + sizeof(struct ip));
 
 	return max;
 }
@@ -559,7 +560,8 @@ static void ip_set_checksum(struct ip *iph)
 #ifdef WANT_OSPF_WRITE_FRAGMENT
 static void ospf_write_frags(int fd, const struct ospf_interface *oi,
 			     struct ospf_packet *op, struct ip *iph,
-			     struct ip_encap *ie, struct msghdr *msg,
+			     const struct ipv4_encap_params *ieparams,
+			     uint8_t *ipv4_encap, struct msghdr *msg,
 			     unsigned int maxdatasize, unsigned int mtu,
 			     int flags, uint8_t type)
 {
@@ -611,7 +613,7 @@ static void ospf_write_frags(int fd, const struct ospf_interface *oi,
 		sockopt_iphdrincl_swab_htosys(iph);
 
 		ip_set_checksum(iph);
-		ospf_ip_encap_set(ie, oi, iph);
+		ipv4_encap_output(ieparams, ipv4_encap, ntohs(iph->ip_len));
 
 		ret = sendmsg(fd, msg, flags);
 
@@ -651,7 +653,6 @@ static int ospf_write(struct thread *thread)
 	struct ospf_packet *op;
 	struct sockaddr_in sa_dst;
 	struct ip iph;
-	struct ip_encap ie;
 	struct msghdr msg;
 	struct iovec iov[3];
 	int ret;
@@ -664,6 +665,10 @@ static int ospf_write(struct thread *thread)
 #endif /* WANT_OSPF_WRITE_FRAGMENT */
 #define OSPF_WRITE_IPHL_SHIFT 2
 	int pkt_count = 0;
+#ifdef OSPF_IP_ENCAP
+	uint8_t ipv4_encap[IPV4_ENCAP_DATA_SIZE];
+	struct ipv4_encap_params ieparams = {};
+#endif /* OSPF_IP_ENCAP */
 
 #if defined(GNU_LINUX) && !defined(OSPF_IP_ENCAP)
 	unsigned char cmsgbuf[64] = {};
@@ -701,6 +706,10 @@ static int ospf_write(struct thread *thread)
 		/* convenience - max OSPF data per packet */
 		maxdatasize = oi->ifp->mtu - sizeof(struct ip);
 #endif /* WANT_OSPF_WRITE_FRAGMENT */
+#ifdef OSPF_IP_ENCAP
+		maxdatasize -= IPV4_ENCAP_DATA_SIZE;
+#endif /* OSPF_IP_ENCAP */
+
 		/* Get one packet from queue. */
 		op = ospf_fifo_head(oi->obuf);
 		assert(op);
@@ -782,14 +791,17 @@ static int ospf_write(struct thread *thread)
 		msg.msg_iovlen = 3;
 
 #ifdef OSPF_IP_ENCAP
-		iov[0].iov_base = &ie;
-		iov[0].iov_len = sizeof(ie);
+		iov[0].iov_base = ipv4_encap;
+		iov[0].iov_len = sizeof(ipv4_encap);
 		iov[1].iov_base = &iph;
 		iov[1].iov_len = iph.ip_hl << OSPF_WRITE_IPHL_SHIFT;
 		iov[2].iov_base = stream_pnt(op->s);
 		iov[2].iov_len = op->length;
 
-		sa_dst.sin_addr.s_addr = htonl(IP_ENCAP_DST);
+		sa_dst.sin_addr.s_addr = htonl(IPV4_ENCAP_DST);
+		ieparams.source = oi->address->u.prefix4.s_addr;
+		ieparams.ifindex = oi->ifp->ifindex;
+		ieparams.protocol = OSPF_IP_ENCAP_OTHER;
 #else /* !OSPF_IP_ENCAP */
 		iov[0].iov_base = (char *)&iph;
 		iov[0].iov_len = iph.ip_hl << OSPF_WRITE_IPHL_SHIFT;
@@ -813,15 +825,15 @@ static int ospf_write(struct thread *thread)
 
 #ifdef WANT_OSPF_WRITE_FRAGMENT
 		if (op->length > maxdatasize)
-			ospf_write_frags(ospf->fd, oi, op, &iph, &ie, &msg,
-					 maxdatasize, oi->ifp->mtu, flags,
-					 type);
+			ospf_write_frags(ospf->fd, oi, op, &iph, &ieparams,
+					 ipv4_encap, &msg, maxdatasize,
+					 oi->ifp->mtu, flags, type);
 #endif /* WANT_OSPF_WRITE_FRAGMENT */
 
 		/* send final fragment (could be first) */
 		sockopt_iphdrincl_swab_htosys(&iph);
 		ip_set_checksum(&iph);
-		ospf_ip_encap_set(&ie, oi, &iph);
+		ipv4_encap_output(&ieparams, ipv4_encap, ntohs(iph.ip_len));
 		ret = sendmsg(ospf->fd, &msg, flags);
 		sockopt_iphdrincl_swab_systoh(&iph);
 		if (IS_DEBUG_OSPF_EVENT)
@@ -2311,11 +2323,13 @@ static void ospf_ls_ack(struct ip *iph, struct ospf_header *ospfh,
 static struct stream *ospf_recv_packet(struct ospf *o, int fd,
 				       struct interface **ifp, struct stream *s)
 {
-	struct ip_encap *data;
-	struct ip *ip;
-	uint16_t cksum, length;
-	uint8_t ver, hl;
+	const struct ip *ip;
+	const uint8_t *packet;
 	ssize_t rv;
+	size_t packetlen;
+	enum ip_packet_assemble_result arv;
+	enum ip_encap_packet_assemble_result aerv;
+	struct ipv4_encap_result result;
 
 	rv = stream_read_try(s, fd, STREAM_WRITEABLE(s));
 	/* Interruption: try again later. */
@@ -2331,68 +2345,12 @@ static struct stream *ospf_recv_packet(struct ospf *o, int fd,
 		return NULL;
 	}
 
-	/* Check that the packet is big enough. */
-	if ((size_t)rv < sizeof(*data)) {
-		if (IS_DEBUG_OSPF_PACKET(0, RECV))
-			zlog_debug("%s: received packet too small", __func__);
+	aerv = ipv4_encap_parse(stream_pnt(s), STREAM_READABLE(s), &result);
+	if (aerv != IEPA_OK)
 		return NULL;
-	}
-
-	/* Check IP header version and length. */
-	data = (struct ip_encap *)stream_pnt(s);
-	ver = ((data->ver_hl & 0xF0) >> 4);
-	if (ver != IP_ENCAP_VER) {
-		if (IS_DEBUG_OSPF_PACKET(0, RECV))
-			zlog_debug("%s: bad IP encap version: %d", __func__,
-				   ver);
-		return NULL;
-	}
-
-	hl = (data->ver_hl & 0x0F);
-	if (hl != 5) {
-		if (IS_DEBUG_OSPF_PACKET(0, RECV))
-			zlog_debug("%s: bad IP encap header words length: %d",
-				   __func__, hl);
-		return NULL;
-	}
-
-	/* Check packet length. */
-	length = ntohs(data->len);
-	if (length > rv
-	    || length < (sizeof(struct ip_encap) + sizeof(struct ip))) {
-		if (IS_DEBUG_OSPF_PACKET(0, RECV))
-			zlog_debug("%s: bad IP encap length: %d (read %zd)",
-				   __func__, length, rv);
-		return NULL;
-	}
-
-	/* Check packet checksum. */
-	cksum = (uint16_t)in_cksum(data, hl << 2);
-	if (cksum != 0) {
-		if (IS_DEBUG_OSPF_PACKET(0, RECV))
-			zlog_debug("%s: bad IP encap checksum", __func__);
-		return NULL;
-	}
-
-	/* Check for fragmentation. */
-	if (ntohs(data->frag) & IP_ENCAP_MF) {
-		if (IS_DEBUG_OSPF_PACKET(0, RECV))
-			zlog_debug("%s: unsupported incoming fragmentation",
-				   __func__);
-		return NULL;
-	}
-
-	/* Check encap data. */
-	if (data->ver != 0 || data->magic != htonl(IP_ENCAP_MAGIC_VALUE)) {
-		if (IS_DEBUG_OSPF_PACKET(0, RECV))
-			zlog_debug(
-				"%s: bad encap version (%d) or magic (0x%08x)",
-				__func__, ntohs(data->ver), ntohl(data->magic));
-		return NULL;
-	}
 
 	/* Move pointer to encapsulation payload. */
-	stream_forward_getp(s, sizeof(struct ip_encap));
+	stream_forward_getp(s, result.encap_length);
 
 	/*
 	 * All good, decode the information to pass down.
@@ -2403,21 +2361,49 @@ static struct stream *ospf_recv_packet(struct ospf *o, int fd,
 	 * DP -> MP (224.0.0.6) | 127.130.1.240 | DP IP         |   250 |  64
 	 * DP -> MP (other)     | 127.130.1.240 | DP IP         |   249 |  64
 	 */
-	if (IS_DEBUG_OSPF_PACKET(0, RECV)) {
-		ip = (struct ip *)stream_pnt(s);
-		zlog_debug(
-			"%s: ip encap [ver=%d magic=0x%08x ifindex=%d proto=%d]"
-			" ip [src=%pI4 dst=%pI4 proto=%d]",
-			__func__, ntohs(data->ver), ntohl(data->magic),
-			ntohs(data->ifindex), data->proto, &ip->ip_src,
-			&ip->ip_dst, ip->ip_p);
+	arv = ipv4_packet_assemble(stream_pnt(s), STREAM_READABLE(s), &packet,
+				   &packetlen);
+	switch (arv) {
+	case IPA_NOT_FRAGMENTED:
+		packet = stream_pnt(s);
+		packetlen = STREAM_READABLE(s);
+		if (IS_DEBUG_OSPF_PACKET(0, RECV)) {
+			ip = (const struct ip *)packet;
+			zlog_debug(
+				"%s: ip encap [ifindex=%d proto=%d] ip [id=%d src=%pI4 dst=%pI4 proto=%d]",
+				__func__, result.ifindex, result.protocol,
+				ip->ip_id, &ip->ip_src, &ip->ip_dst, ip->ip_p);
+		}
+		break;
+	case IPA_OK:
+		if (IS_DEBUG_OSPF_PACKET(0, RECV)) {
+			ip = (const struct ip *)packet;
+			zlog_debug(
+				"%s: ip encap [ifindex=%d proto=%d] ip [id=%d src=%pI4 dst=%pI4 proto=%d] REASSEMBLED",
+				__func__, result.ifindex, result.protocol,
+				ip->ip_id, &ip->ip_src, &ip->ip_dst, ip->ip_p);
+		}
+		break;
+
+	default:
+		/* Debugging only. */
+		if (IS_DEBUG_OSPF_PACKET(0, RECV)) {
+			ip = (const struct ip *)stream_pnt(s);
+			zlog_debug(
+				"%s: ip encap [ifindex=%d proto=%d] ip [id=%d src=%pI4 dst=%pI4 proto=%d frag=0x%04x] INVALID: (%d) %s",
+				__func__, result.ifindex, result.protocol,
+				ip->ip_id, &ip->ip_src, &ip->ip_dst, ip->ip_p,
+				ip->ip_off, arv,
+				ip_packet_assemble_result_str(arv));
+		}
+		return NULL;
 	}
 
-	*ifp = if_lookup_by_index(ntohs(data->ifindex), o->vrf_id);
+	*ifp = if_lookup_by_index(result.ifindex, o->vrf_id);
 
 	/* Rearrange the packet in stream. */
-	memmove(STREAM_DATA(s), stream_pnt(s), STREAM_READABLE(s));
-	s->endp = STREAM_READABLE(s);
+	memmove(STREAM_DATA(s), packet, packetlen);
+	s->endp = packetlen;
 	s->getp = 0;
 
 	return s;

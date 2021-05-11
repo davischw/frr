@@ -32,7 +32,6 @@ ospfd_libfrrospf_a_SOURCES = \
 	ospfd/ospf_bfd.c \
 	ospfd/ospf_dump.c \
 	ospfd/ospf_dump_api.c \
-	ospfd/ospf_encap.c \
 	ospfd/ospf_errors.c \
 	ospfd/ospf_ext.c \
 	ospfd/ospf_flood.c \
