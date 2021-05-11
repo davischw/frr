@@ -24,7 +24,7 @@ struct ipv6_ph {
 	uint8_t next_hdr;
 } __attribute__((packed));
 
-extern int in_cksum(void *data, int nbytes);
+extern int in_cksum(const void *data, int nbytes);
 extern int in_cksum_with_ph4(struct ipv4_ph *ph, void *data, int nbytes);
 extern int in_cksum_with_ph6(struct ipv6_ph *ph, void *data, int nbytes);
 

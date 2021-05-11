@@ -10,9 +10,9 @@
 #include "checksum.h"
 
 int /* return checksum in low-order 16 bits */
-	in_cksum(void *parg, int nbytes)
+in_cksum(const void *parg, int nbytes)
 {
-	unsigned short *ptr = parg;
+	const unsigned short *ptr = parg;
 	register long sum; /* assumes long == 32 bits */
 	unsigned short oddbyte;
 	register unsigned short answer; /* assumes unsigned short == 16 bits */
