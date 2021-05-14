@@ -21,6 +21,7 @@
 
 #include <zebra.h>
 #include "log.h"
+#include "command.h"
 #include "memory.h"
 #include "monotime.h"
 #include "network.h"
@@ -606,11 +607,73 @@ static int ip_packet_periodic(struct thread *t __attribute__((unused)))
 	return 0;
 }
 
+DEFUN(show_ip_packet_statistics, show_ip_packet_statistics_cmd,
+      "show ip assembly",
+      SHOW_STR
+      IP_STR
+      "IP fragmentation assembly statistics\n")
+{
+	vty_out(vty, "IP Assembly Statistics\n");
+	vty_out(vty, "======================\n");
+	vty_out(vty, "Invalid version: %Lu\n", ip_packet_stats.invalid_version);
+	vty_out(vty, "Invalid header length: %Lu\n",
+		ip_packet_stats.invalid_header_length);
+	vty_out(vty, "Invalid packet length: %Lu\n",
+		ip_packet_stats.invalid_packet_length);
+	vty_out(vty, "Invalid checksum: %Lu\n",
+		ip_packet_stats.invalid_checksum);
+	vty_out(vty, "Fragment overlap: %Lu\n",
+		ip_packet_stats.fragment_overlap);
+	vty_out(vty, "Too many packets (no slots): %Lu\n",
+		ip_packet_stats.too_many_packets);
+	vty_out(vty, "Too many fragments: %Lu\n",
+		ip_packet_stats.too_many_fragments);
+	vty_out(vty, "Whole packets: %Lu\n", ip_packet_stats.whole_packets);
+	vty_out(vty, "Assembled packets: %Lu\n",
+		ip_packet_stats.assembled_packets);
+	vty_out(vty, "Repeated packets: %Lu\n",
+		ip_packet_stats.repeated_packet);
+	vty_out(vty, "Huge packets: %Lu\n", ip_packet_stats.huge_packets);
+
+	return CMD_SUCCESS;
+}
+
+DEFUN(show_ip_encap_packet_statistics, show_ip_encap_packet_statistics_cmd,
+      "show ip-encap assembly",
+      SHOW_STR
+      "IP encapsulation information\n"
+      "IP encapsulation statistics\n")
+{
+	vty_out(vty, "IP Encapsulation Statistics\n");
+	vty_out(vty, "===========================\n");
+	vty_out(vty, "Invalid version: %Lu\n",
+		ip_encap_packet_stats.invalid_version);
+	vty_out(vty, "Invalid header length: %Lu\n",
+		ip_encap_packet_stats.invalid_header_length);
+	vty_out(vty, "Invalid packet length: %Lu\n",
+		ip_encap_packet_stats.invalid_packet_length);
+	vty_out(vty, "Invalid checksum: %Lu\n",
+		ip_encap_packet_stats.invalid_checksum);
+	vty_out(vty, "Fragmented encapsulation packets (invalid): %Lu\n",
+		ip_encap_packet_stats.fragmented);
+	vty_out(vty, "Invalid encapsulation version: %Lu\n",
+		ip_encap_packet_stats.invalid_encapsulation_version);
+	vty_out(vty, "Invalid encapsulation magic: %Lu\n",
+		ip_encap_packet_stats.invalid_encapsulation_magic);
+	vty_out(vty, "Valid packets: %Lu\n",
+		ip_encap_packet_stats.valid_packets);
+
+	return CMD_SUCCESS;
+}
+
 void ip_fragmentation_handler_init(struct thread_master *tm)
 {
 	packet_thread = tm;
 	thread_add_timer(packet_thread, ip_packet_periodic, NULL,
 			 IP_PACKET_INACTIVE_INTERVAL, &packet_cleanup_timer);
+
+	install_element(ENABLE_NODE, &show_ip_packet_statistics_cmd);
+	install_element(ENABLE_NODE, &show_ip_encap_packet_statistics_cmd);
 }
 
 const char *ip_packet_assemble_result_str(enum ip_packet_assemble_result result)

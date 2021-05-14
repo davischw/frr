@@ -146,6 +146,7 @@ vtysh_scan += \
 	lib/keychain.c \
 	lib/lib_vty.c \
 	lib/log_vty.c \
+	lib/network.c \
 	lib/nexthop_group.c \
 	lib/plist.c \
 	lib/resolver.c \
