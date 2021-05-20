@@ -18,6 +18,10 @@
 #ifndef _FRR_STATIC_NB_H_
 #define _FRR_STATIC_NB_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern const struct frr_yang_module_info frr_staticd_info;
 
 /* Mandatory callbacks. */
@@ -216,5 +220,9 @@ int routing_control_plane_protocols_name_validate(
 /* staticd root XPath. */
 #define FRR_STATIC_ROOT_XPATH                                                  \
 	"/frr-routing:routing/control-plane-protocols/control-plane-protocol"
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
