@@ -444,6 +444,8 @@ struct cmd_node {
 #define BFD_INT_SOURCE_ADDRV4_STR "BFD IPv4 local address\n"
 #define BFD_INT_SOURCE_ADDRV6_STR "BFD IPv6 local address\n"
 #define SHARP_STR "Sharp Routing Protocol\n"
+#define OSPF_GR_STR                                                            \
+	"OSPF non-stop forwarding (NSF) also known as OSPF Graceful Restart\n"
 
 #define CMD_VNI_RANGE "(1-16777215)"
 #define CONF_BACKUP_EXT ".sav"
