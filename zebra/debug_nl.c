@@ -30,6 +30,8 @@
 
 #include "zebra/rt_netlink.h"
 
+#define MAX_SPACES 64
+
 const char *nlmsg_type2str(uint16_t type)
 {
 	switch (type) {
@@ -575,8 +577,8 @@ const char *nhm_rta2str(int type)
 	}
 }
 
-static inline void flag_write(int flags, int flag, const char *flagstr,
-			      char *buf, size_t buflen)
+static inline void flag_write(uint32_t flags, uint32_t flag,
+			      const char *flagstr, char *buf, size_t buflen)
 {
 	if (CHECK_FLAG(flags, flag) == 0)
 		return;
@@ -846,30 +848,49 @@ next_rta:
 	goto next_rta;
 }
 
-static void nlroute_dump(struct rtmsg *rtm, size_t msglen)
+static const char *get_spaces(size_t amount)
 {
-	struct rtattr *rta;
-	size_t plen;
-	uint32_t u32v;
+	static char spaces[MAX_SPACES];
+	size_t idx;
 
-	/* Get the first attribute and go from there. */
-	rta = RTM_RTA(rtm);
+	if (amount >= MAX_SPACES)
+		amount = MAX_SPACES - 1;
+
+	for (idx = 0; idx < amount; idx++)
+		spaces[idx] = ' ';
+
+	spaces[idx] = 0;
+
+	return spaces;
+}
+
+static void rta_validate(const struct rtattr *rta, size_t msglen,
+			 size_t space_count)
+{
+	struct rtnexthop *rtnh;
+	size_t plen;
+	size_t nh_remaining;
+	uint32_t u32v;
+	int rta_type;
+
 next_rta:
 	/* Check the header for valid length and for outbound access. */
 	if (RTA_OK(rta, msglen) == 0)
 		return;
 
 	plen = RTA_PAYLOAD(rta);
-	zlog_debug("    rta [len=%d (payload=%zu) type=(%d) %s]", rta->rta_len,
-		   plen, rta->rta_type, rtm_rta2str(rta->rta_type));
-	switch (rta->rta_type) {
+	rta_type = rta->rta_type & ~NLA_F_NESTED;
+	zlog_debug("%srta [len=%d (payload=%lu) type=(%d) %s]",
+		   get_spaces(space_count), rta->rta_len, plen, rta->rta_type,
+		   rtm_rta2str(rta_type));
+	switch (rta_type) {
 	case RTA_IIF:
 	case RTA_OIF:
 	case RTA_PRIORITY:
 	case RTA_TABLE:
 	case RTA_NH_ID:
 		u32v = *(uint32_t *)RTA_DATA(rta);
-		zlog_debug("      %u", u32v);
+		zlog_debug("%s%u", get_spaces(space_count + 2), u32v);
 		break;
 
 	case RTA_GATEWAY:
@@ -878,15 +899,65 @@ next_rta:
 	case RTA_PREFSRC:
 		switch (plen) {
 		case sizeof(struct in_addr):
-			zlog_debug("      %pI4",
-				   (struct in_addr *)RTA_DATA(rta));
+			zlog_debug("%s%pI4", get_spaces(space_count + 2),
+				   RTA_DATA(rta));
 			break;
 		case sizeof(struct in6_addr):
-			zlog_debug("      %pI6",
-				   (struct in6_addr *)RTA_DATA(rta));
+			zlog_debug("%s%pI6", get_spaces(space_count + 2),
+				   RTA_DATA(rta));
 			break;
 		default:
 			break;
+		}
+		break;
+
+	case RTA_MULTIPATH:
+		nh_remaining = RTA_PAYLOAD(rta);
+		if (nh_remaining > msglen) {
+			zlog_debug("%srtnexthop [truncated]",
+				   get_spaces(space_count + 2));
+			break;
+		}
+
+		rtnh = (struct rtnexthop *)RTA_DATA(rta);
+		while (nh_remaining) {
+			if (rtnh->rtnh_len < sizeof(*rtnh)) {
+				zlog_debug(
+					"%srtnexthop [invalid length %d vs %zu]",
+					get_spaces(space_count + 2),
+					rtnh->rtnh_len, sizeof(*rtnh));
+				break;
+			}
+			if (rtnh->rtnh_len > nh_remaining) {
+				zlog_debug("%srtnexthop [truncated %d vs %zu]",
+					   get_spaces(space_count + 2),
+					   rtnh->rtnh_len, nh_remaining);
+				break;
+			}
+
+			zlog_debug(
+				"%srtnexthop [len=%d flags=0x%04x "
+				"ifindex=%d hops=%d]",
+				get_spaces(space_count + 2), rtnh->rtnh_len,
+				rtnh->rtnh_flags, rtnh->rtnh_ifindex,
+				rtnh->rtnh_hops);
+
+			/*
+			 * XXX: simulate RTNH_DATA() to avoid warning:
+			 *
+			 *   warning: unsigned conversion from ‘int’ to
+			 *     ‘long unsigned int’ changes value from ‘-4’ to
+			 *     ‘18446744073709551612’ [-Wsign-conversion]
+			 *     line  |    rta_validate(RTNH_DATA(rtnh),
+			 *           |                 ^~~~~~~~~
+			 */
+			rta_validate(
+				(struct rtattr *)((uint8_t *)rtnh
+						  + NLMSG_ALIGN(sizeof(*rtnh))),
+				rtnh->rtnh_len - sizeof(*rtnh),
+				space_count + 4);
+			nh_remaining -= NLMSG_ALIGN(rtnh->rtnh_len);
+			rtnh = RTNH_NEXT(rtnh);
 		}
 		break;
 
@@ -898,6 +969,15 @@ next_rta:
 	/* Get next pointer and start iteration again. */
 	rta = RTA_NEXT(rta, msglen);
 	goto next_rta;
+}
+
+static void nlroute_dump(struct rtmsg *rtm, size_t msglen)
+{
+	struct rtattr *rta;
+
+	/* Get the first attribute and go from there. */
+	rta = RTM_RTA(rtm);
+	rta_validate(rta, msglen, 4);
 }
 
 static void nlneigh_dump(struct ndmsg *ndm, size_t msglen)
