@@ -44,6 +44,7 @@
 #include "zebra/rib.h"
 #include "zebra/rt.h"
 #include "zebra/user_netlink.h"
+#include "zebra/rt_netlink.h"
 #include "zebra/if_netlink.h"
 #include "zebra/interface.h"
 
@@ -717,7 +718,11 @@ nl_next:
 	/* Validate incoming data. */
 	if (IS_ZEBRA_DEBUG_KERNEL_MSGDUMP_RECV) {
 		zlog_debug("%s: << netlink message dump [recv]", __func__);
+#ifdef NETLINK_DEBUG
+		nl_dump(nlmsg, mlen);
+#else
 		zlog_hexdump(nlmsg, mlen);
+#endif /* NETLINK_DEBUG */
 	}
 
 	/* Check for errors. */
@@ -781,6 +786,15 @@ dequeue_buf:
 	nb->nb_dataoff += wlen;
 	/* If we emptied the buffer, then get rid of it. */
 	if (nb->nb_dataoff == nb->nb_datasiz) {
+		if (IS_ZEBRA_DEBUG_KERNEL_MSGDUMP_SEND) {
+			zlog_debug("%s: >> netlink message dump [sent]",
+				   __func__);
+#ifdef NETLINK_DEBUG
+			nl_dump(nb->nb_data, nb->nb_datasiz);
+#else
+			zlog_hexdump(nb->nb_data, nb->nb_datasiz);
+#endif /* NETLINK_DEBUG */
+		}
 		listnode_delete(ns->outbufs, nb);
 		netlink_buf_del(nb);
 	}
