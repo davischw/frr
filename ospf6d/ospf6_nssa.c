@@ -1099,7 +1099,7 @@ static int ospf6_abr_task_timer(struct thread *thread)
 	if (IS_OSPF6_DEBUG_ABR)
 		zlog_debug("Running ABR task on timer");
 
-	ospf6_is_router_abr(ospf6);
+	(void)ospf6_check_and_set_router_abr(ospf6);
 	ospf6_abr_nssa_check_status(ospf6);
 	ospf6_abr_task(ospf6);
 	/* if nssa-abr, then scan Type-7 LSDB */
@@ -1143,7 +1143,7 @@ static void ospf6_nssa_flush_area(struct ospf6_area *area)
 		SET_FLAG(lsa->flag, OSPF6_LSA_FLUSH);
 		ospf6_flood(NULL, lsa);
 		/* Flush the translated LSA */
-		if (ospf6_is_router_abr(ospf6)) {
+		if (ospf6_check_and_set_router_abr(ospf6)) {
 			type = htons(OSPF6_LSTYPE_AS_EXTERNAL);
 			type5 = ospf6_lsdb_lookup(
 				htons(type), lsa->external_lsa_id,
@@ -1164,7 +1164,7 @@ static void ospf6_area_nssa_update(struct ospf6_area *area)
 	struct ospf6_route *route;
 
 	if (IS_AREA_NSSA(area)) {
-		if (!ospf6_is_router_abr(area->ospf6))
+		if (!ospf6_check_and_set_router_abr(area->ospf6))
 			OSPF6_OPT_CLEAR(area->options, OSPF6_OPT_E);
 		area->ospf6->anyNSSA++;
 		OSPF6_OPT_SET(area->options, OSPF6_OPT_N);
@@ -1173,7 +1173,7 @@ static void ospf6_area_nssa_update(struct ospf6_area *area)
 		if (IS_OSPF6_DEBUG_ORIGINATE(ROUTER))
 			zlog_debug("Normal area for if %s", area->name);
 		OSPF6_OPT_CLEAR(area->options, OSPF6_OPT_N);
-		if (ospf6_is_router_abr(area->ospf6))
+		if (ospf6_check_and_set_router_abr(area->ospf6))
 			OSPF6_OPT_SET(area->options, OSPF6_OPT_E);
 		area->ospf6->anyNSSA--;
 		area->NSSATranslatorState = OSPF6_NSSA_TRANSLATE_DISABLED;
@@ -1184,7 +1184,7 @@ static void ospf6_area_nssa_update(struct ospf6_area *area)
 		OSPF6_ROUTER_LSA_SCHEDULE(area);
 
 		/* Check if router is ABR */
-		if (ospf6_is_router_abr(area->ospf6)) {
+		if (ospf6_check_and_set_router_abr(area->ospf6)) {
 			if (IS_OSPF6_DEBUG_NSSA)
 				zlog_debug("Router is ABR area %s", area->name);
 			ospf6_schedule_abr_task(area->ospf6);
@@ -1359,7 +1359,7 @@ void ospf6_abr_check_translate_nssa(struct ospf6_area *area,
 				  lsa->external_lsa_id, ospf6->router_id,
 				  ospf6->lsdb);
 
-	if (ospf6_is_router_abr(ospf6) && (type5 == NULL)) {
+	if (ospf6_check_and_set_router_abr(ospf6) && (type5 == NULL)) {
 		if (IS_OSPF6_DEBUG_NSSA)
 			zlog_debug("%s : Originating type5 LSA", __func__);
 		ospf6_lsa_translated_nssa_new(area, lsa);
