@@ -92,6 +92,8 @@ extern ssize_t netlink_nexthop_msg_encode(uint16_t cmd,
 
 extern ssize_t netlink_lsp_msg_encoder(struct zebra_dplane_ctx *ctx, void *buf,
 				       size_t buflen);
+ssize_t netlink_mroute_encode(const struct zebra_dplane_ctx *ctx, void *nl_buf,
+			      size_t nl_buf_len);
 
 extern int netlink_neigh_change(struct nlmsghdr *h, ns_id_t ns_id);
 extern int netlink_macfdb_read(struct zebra_ns *zns);

@@ -70,3 +70,58 @@ stream_failure:
 	stream_putw_at(s, 0, stream_get_endp(s));
 	zserv_send_message(client, s);
 }
+
+void zmroute_event(ZAPI_HANDLER_ARGS)
+{
+	size_t output_idx;
+	uint16_t family;
+	uint16_t type;
+	struct ipaddr ipa = {};
+	struct mroute_args args = {};
+
+	STREAM_GETW(msg, type);
+	if (type == 0)
+		args.mroute_op = DPLANE_OP_MROUTE_INSTALL;
+	else
+		args.mroute_op = DPLANE_OP_MROUTE_DELETE;
+
+	STREAM_GETW(msg, family);
+	if (family == AF_INET) {
+		ipa.ipa_type = AF_INET;
+		STREAM_GETL(msg, ipa.ipaddr_v4.s_addr);
+		args.source = ipa;
+
+		STREAM_GETL(msg, ipa.ipaddr_v4.s_addr);
+		args.group = ipa;
+	}
+
+	STREAM_GETL(msg, args.input);
+	STREAM_GETL(msg, args.notif_idx);
+	STREAM_GETW(msg, args.flags);
+	STREAM_GETW(msg, args.output_amount);
+	if (args.output_amount > MAXVIFS) {
+		if (IS_ZEBRA_DEBUG_KERNEL)
+			zlog_debug(
+				"%s: invalid amount of interfaces %zu, truncating to %d",
+				__func__, args.output_amount, MAXVIFS);
+
+		args.output_amount = MAXVIFS;
+	}
+	for (output_idx = 0; output_idx < args.output_amount; output_idx++)
+		STREAM_GETL(msg, args.output[output_idx]);
+
+	STREAM_GETL(msg, args.spt_threshold);
+
+	STREAM_GETL(msg, ipa.ipaddr_v4.s_addr);
+	args.local = ipa;
+	STREAM_GETL(msg, ipa.ipaddr_v4.s_addr);
+	args.remote = ipa;
+
+	dplane_mroute_enqueue(&args);
+	return;
+
+stream_failure:
+	if (IS_ZEBRA_DEBUG_KERNEL)
+		zlog_debug("%s: message parse failure", __func__);
+	return;
+}

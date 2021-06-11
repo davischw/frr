@@ -22,6 +22,8 @@
 #ifndef __ZEBRA_MROUTE_H__
 #define __ZEBRA_MROUTE_H__
 
+#include <linux/mroute.h>
+
 #include "zebra/zserv.h"
 
 #ifdef __cplusplus
@@ -35,6 +37,57 @@ struct mcast_route_data {
 };
 
 void zebra_ipmr_route_stats(ZAPI_HANDLER_ARGS);
+
+/** Custom netlink attribute value definition. */
+#define RTA_MRT_EXTRA 64
+
+/** Custom netlink attribute for passing extra multicast route information. */
+struct mrt_extra_attr {
+	/** Bandwidth threshold in kbps. */
+	int32_t spt_threshold;
+	/** RPF interface index. */
+	int32_t notif_idx;
+	/** Multicast flags. */
+	uint32_t flags;
+	/** RP encapsulated data: source. */
+	struct in6_addr local;
+	/** RP encapsulated data: destination. */
+	struct in6_addr remote;
+};
+
+/** Multicast route argument represantation. */
+struct mroute_args {
+	/** Source address. */
+	struct ipaddr source;
+	/** Multicast group address. */
+	struct ipaddr group;
+	/** Flags to signalize different options. */
+	uint32_t flags;
+	/** Input interface index. */
+	ifindex_t input;
+	/** Amount of output interfaces. */
+	size_t output_amount;
+	/** Output interface indexes. */
+	ifindex_t output[MAXVIFS];
+	/** RPF interface information. */
+	ifindex_t notif_idx;
+
+	/** Bandwidth threshold information (in kbps). */
+	int32_t spt_threshold;
+
+	/** RP encap local information. */
+	struct ipaddr local;
+	/** RP encap remote information. */
+	struct ipaddr remote;
+
+	/** Multicast route operation. */
+	/* enum dplane_op_e */ int mroute_op;
+
+	/** VRF identification. */
+	vrf_id_t vrf_id;
+};
+
+void zmroute_event(ZAPI_HANDLER_ARGS);
 
 #ifdef __cplusplus
 }
