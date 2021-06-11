@@ -1576,6 +1576,8 @@ void zebra_if_dplane_result(struct zebra_dplane_ctx *ctx)
 	case DPLANE_OP_TC_INSTALL:
 	case DPLANE_OP_TC_UPDATE:
 	case DPLANE_OP_TC_DELETE:
+	case DPLANE_OP_MROUTE_INSTALL:
+	case DPLANE_OP_MROUTE_DELETE:
 		break; /* should never hit here */
 	}
 }
