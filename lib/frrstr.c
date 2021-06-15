@@ -217,3 +217,13 @@ int all_digit(const char *str)
 			return 0;
 	return 1;
 }
+
+
+char *frrstr_hex(char *buff, const char *str, size_t num)
+{
+	for (size_t i = 0; i < num; ++i) {
+		snprintf(&buff[2 * i], 3, "%02x", (unsigned char)str[i]);
+	}
+	buff[2 * num] = 0;
+	return buff;
+}
