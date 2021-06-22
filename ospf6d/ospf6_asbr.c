@@ -58,7 +58,7 @@ DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_EXTERNAL_INFO, "OSPF6 ext. info");
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_DIST_ARGS,     "OSPF6 Distribute arguments");
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_REDISTRIBUTE, "OSPF6 Redistribute arguments");
 
-static void ospf6_asbr_redistribute_set(int type, vrf_id_t vrf_id);
+static void ospf6_asbr_redistribute_set(struct ospf6 *ospf6, int type);
 static void ospf6_asbr_redistribute_unset(struct ospf6 *ospf6,
 					  struct ospf6_redist *red, int type);
 
@@ -1112,8 +1112,7 @@ void ospf6_asbr_routemap_update(const char *mapname)
 								type));
 				ospf6_asbr_redistribute_unset(ospf6, red, type);
 				ospf6_asbr_routemap_set(red, mapname);
-				ospf6_asbr_redistribute_set(
-						type, ospf6->vrf_id);
+				ospf6_asbr_redistribute_set(ospf6, type);
 			}
 		}
 	}
@@ -1232,15 +1231,9 @@ void ospf6_asbr_status_update(struct ospf6 *ospf6, int status)
 		OSPF6_ROUTER_LSA_SCHEDULE(oa);
 }
 
-static void ospf6_asbr_redistribute_set(int type, vrf_id_t vrf_id)
+static void ospf6_asbr_redistribute_set(struct ospf6 *ospf6, int type)
 {
-	struct ospf6 *ospf6 = NULL;
-	ospf6_zebra_redistribute(type, vrf_id);
-
-	ospf6 = ospf6_lookup_by_vrf_id(vrf_id);
-
-	if (!ospf6)
-		return;
+	ospf6_zebra_redistribute(type, ospf6->vrf_id);
 
 	ospf6_asbr_status_update(ospf6, ++ospf6->redist_count);
 }
@@ -1264,7 +1257,6 @@ static void ospf6_asbr_redistribute_unset(struct ospf6 *ospf6,
 	}
 
 	ospf6_asbr_routemap_unset(red);
-	zlog_debug("%s: redist_count %d", __func__, ospf6->redist_count);
 	ospf6_asbr_status_update(ospf6, --ospf6->redist_count);
 }
 
@@ -1591,7 +1583,7 @@ DEFUN (ospf6_redistribute,
 		return CMD_SUCCESS;
 
 	ospf6_asbr_redistribute_unset(ospf6, red, type);
-	ospf6_asbr_redistribute_set(type, ospf6->vrf_id);
+	ospf6_asbr_redistribute_set(ospf6, type);
 
 	return CMD_SUCCESS;
 }
@@ -1622,7 +1614,7 @@ DEFUN (ospf6_redistribute_routemap,
 
 	ospf6_asbr_redistribute_unset(ospf6, red, type);
 	ospf6_asbr_routemap_set(red, argv[idx_word]->arg);
-	ospf6_asbr_redistribute_set(type, ospf6->vrf_id);
+	ospf6_asbr_redistribute_set(ospf6, type);
 
 	return CMD_SUCCESS;
 }
