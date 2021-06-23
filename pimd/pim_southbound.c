@@ -1194,7 +1194,7 @@ static void pimsb_pim_packet_read(int sock)
 			   ifp ? ifp->name : "unknown", encap_result.ifindex);
 
 	ipv4 = (const struct ipv4_header *)packet;
-	if (if_lookup_exact_address(&ipv4->source, AF_INET, ifp->vrf_id)) {
+	if (if_address_is_local(&ipv4->source, AF_INET, ifp->vrf_id)) {
 		if (PIM_DEBUG_PIM_PACKETS)
 			zlog_debug("%s: incoming packet from myself", __func__);
 		return;

@@ -264,7 +264,7 @@ lib_route_map_entry_set_action_rmap_set_action_ipv4_src_address_modify(
 		}
 
 		RB_FOREACH(vrf, vrf_id_head, &vrfs_by_id) {
-			pif = if_lookup_exact_address(&p.u.prefix4, AF_INET,
+			pif = if_lookup_address_local(&p.u.prefix4, AF_INET,
 						      vrf->vrf_id);
 			if (pif != NULL)
 				break;
@@ -342,7 +342,7 @@ lib_route_map_entry_set_action_rmap_set_action_ipv6_src_address_modify(
 		}
 
 		RB_FOREACH(vrf, vrf_id_head, &vrfs_by_id) {
-			pif = if_lookup_exact_address(&p.u.prefix6, AF_INET6,
+			pif = if_lookup_address_local(&p.u.prefix6, AF_INET6,
 						      vrf->vrf_id);
 			if (pif != NULL)
 				break;
