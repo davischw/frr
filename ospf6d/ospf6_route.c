@@ -487,6 +487,7 @@ struct ospf6_route *ospf6_route_copy(struct ospf6_route *route)
 	new = ospf6_route_create(route->ospf6);
 	new->type = route->type;
 	memcpy(&new->prefix, &route->prefix, sizeof(struct prefix));
+	new->prefix_options = route->prefix_options;
 	new->installed = route->installed;
 	new->changed = route->changed;
 	new->flag = route->flag;
