@@ -51,6 +51,7 @@
 #include "ospf6_intra.h"
 #include "ospf6_spf.h"
 #include "ospf6d.h"
+#include "ospf6_gr_helper.h"
 #include "lib/json.h"
 #include "ospf6_nssa.h"
 
@@ -508,6 +509,7 @@ static struct ospf6 *ospf6_create(const char *name)
 
 	o->max_multipath = MULTIPATH_NUM;
 
+	ospf6_gr_helper_init(o);
 	QOBJ_REG(o, ospf6);
 
 	/* Make ospf protocol socket. */
@@ -553,6 +555,7 @@ void ospf6_delete(struct ospf6 *o)
 
 	QOBJ_UNREG(o);
 
+	ospf6_gr_helper_deinit(o);
 	ospf6_flush_self_originated_lsas_now(o);
 	ospf6_disable(o);
 	ospf6_del(o);
@@ -2352,7 +2355,6 @@ static int config_write_ospf6(struct vty *vty)
 		ospf6_distance_config_write(vty, ospf6);
 		ospf6_distribute_config_write(vty, ospf6);
 		ospf6_asbr_summary_config_write(vty, ospf6);
-
 		vty_out(vty, "!\n");
 	}
 	return 0;
