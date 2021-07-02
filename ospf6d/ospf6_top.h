@@ -68,6 +68,15 @@ struct ospf6_vif_ctx {
 };
 SLIST_HEAD(ospf6_vif_ctx_list, ospf6_vif_ctx);
 
+struct ospf6_gr_info {
+	bool restart_support;
+	bool restart_in_progress;
+	bool prepare_in_progress;
+	bool finishing_restart;
+	uint32_t grace_period;
+	struct thread *t_grace_period;
+};
+
 struct ospf6_gr_helper {
 	/* Gracefull restart Helper supported configs*/
 	/* Supported grace interval*/
@@ -201,6 +210,9 @@ struct ospf6 {
 	 * to support ECMP.
 	 */
 	uint16_t max_multipath;
+
+	/* OSPF Graceful Restart info (restarting mode) */
+	struct ospf6_gr_info gr_info;
 
 	/*ospf6 Graceful restart helper info */
 	struct ospf6_gr_helper ospf6_helper_cfg;

@@ -23,6 +23,9 @@
 
 #include "hook.h"
 
+/* Forward declaration(s). */
+struct ospf6_area;
+
 /* Debug option */
 extern unsigned char conf_debug_ospf6_neighbor;
 #define OSPF6_DEBUG_NEIGHBOR_STATE   0x01
@@ -179,11 +182,13 @@ extern const char *const ospf6_neighbor_state_str[];
 int ospf6_neighbor_cmp(void *va, void *vb);
 void ospf6_neighbor_dbex_init(struct ospf6_neighbor *on);
 
-struct ospf6_neighbor *ospf6_neighbor_lookup(uint32_t,
-					     struct ospf6_interface *);
-struct ospf6_neighbor *ospf6_neighbor_create(uint32_t,
-					     struct ospf6_interface *);
-void ospf6_neighbor_delete(struct ospf6_neighbor *);
+struct ospf6_neighbor *ospf6_neighbor_lookup(uint32_t router_id,
+					     struct ospf6_interface *oi);
+struct ospf6_neighbor *ospf6_area_neighbor_lookup(struct ospf6_area *area,
+						  uint32_t router_id);
+struct ospf6_neighbor *ospf6_neighbor_create(uint32_t router_id,
+					     struct ospf6_interface *oi);
+void ospf6_neighbor_delete(struct ospf6_neighbor *on);
 
 /* Neighbor event */
 extern int hello_received(struct thread *);
