@@ -1238,7 +1238,7 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 	if (uj)
 		json_array_brouters = json_object_new_array();
 
-	if (brouter || detail) {
+	if (brouter_str || detail) {
 		if (brouter_str) {
 			ospf6_linkstate_prefix(brouter->s_addr, 0, &prefix);
 			ro = ospf6_route_lookup(&prefix, ospf6->brouter_table);

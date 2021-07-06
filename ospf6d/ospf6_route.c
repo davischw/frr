@@ -1133,7 +1133,7 @@ void ospf6_route_show(struct vty *vty, struct ospf6_route *route,
 }
 
 void ospf6_route_show_detail(struct vty *vty, struct ospf6_route *route,
-			     json_object *json_routes, bool use_json)
+			     json_object *json_array_routes, bool use_json)
 {
 	char destination[PREFIX2STR_BUFFER], nexthop[64];
 	char area_id[16], id[16], adv_router[16], capa[16], options[16];
@@ -1321,7 +1321,8 @@ void ospf6_route_show_detail(struct vty *vty, struct ospf6_route *route,
 	if (use_json) {
 		json_object_object_add(json_route, "nextHops",
 				       json_array_next_hops);
-		json_object_object_add(json_routes, destination, json_route);
+		json_object_array_add(json_array_routes, destination,
+				      json_route);
 	} else
 		vty_out(vty, "\n");
 }
