@@ -1321,10 +1321,11 @@ void ospf6_route_show_detail(struct vty *vty, struct ospf6_route *route,
 	if (use_json) {
 		json_object_object_add(json_route, "nextHops",
 				       json_array_next_hops);
-
-		/* TODO: Wtf ?
-		json_object_array_add(json_array_routes, destination,
-				      json_route);
+		
+		/* TODO: check for usage of ospf6_route_show_detail() and see if
+		 * this should add a "destination" object to the provided
+		 * json_object or an element to an array:
+		json_object_object_add(json, destination, json_route);
 		*/
 		json_object_array_add(json_array_routes, json_route);
 	} else
