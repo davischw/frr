@@ -1321,8 +1321,12 @@ void ospf6_route_show_detail(struct vty *vty, struct ospf6_route *route,
 	if (use_json) {
 		json_object_object_add(json_route, "nextHops",
 				       json_array_next_hops);
+
+		/* TODO: Wtf ?
 		json_object_array_add(json_array_routes, destination,
 				      json_route);
+		*/
+		json_object_array_add(json_array_routes, json_route);
 	} else
 		vty_out(vty, "\n");
 }
