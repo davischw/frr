@@ -1227,14 +1227,6 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 	json_object *json_vty = NULL;
 	json_object *json_array_brouters = NULL;
 
-	/* TODO: remove after debuging */
-	vty_out(vty, "DEBUG_1337\n");
-	vty_out(vty, "DEBUG ospf6       = %p\n", ospf6);
-	vty_out(vty, "DEBUG brouter     = %p\n", brouter);
-	vty_out(vty, "DEBUG brouter_str = %p\n", brouter_str);
-	vty_out(vty, "DEBUG detail      = %s\n", detail ? "true" : "false");
-	vty_out(vty, "DEBUG uj          = %s\n", uj ? "true" : "false");
-
 	if (uj)
 		json_array_brouters = json_object_new_array();
 
@@ -1279,8 +1271,6 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 		json_object_free(json_vty);
 	}
 
-	/* TODO: remove after debuging */
-	vty_out(vty, "DEBUG_1437\n");
 }
 
 DEFPY (show_ipv6_ospf6_border_routers,
@@ -1289,8 +1279,7 @@ DEFPY (show_ipv6_ospf6_border_routers,
        SHOW_STR
        IP6_STR
        OSPF6_STR
-       VRF_CMD_HELP_STR
-       "All VRFs\n"
+       VRF_FULL_CMD_HELP_STR
        "Display routing table for ABR and ASBR\n"
        "Router ID\n"
        "Show detailed output\n"
@@ -1305,41 +1294,22 @@ DEFPY (show_ipv6_ospf6_border_routers,
 	dt = detail ? true : false;
 	uj = json ? true : false;
 
-	/* TODO: remove after debuging */
-	vty_out(vty, "DEBUG_1237\n");
-
 	for (ALL_LIST_ELEMENTS_RO(om6->ospf6, node, ospf6)) {
-		vty_out(vty, "DEBUG_1238\n");
-		if (vrf_all) {
-			vty_out(vty, "DEBUG_1239\n");
+		if (vrf_all)
 			show_ospf6_border_routers_common(vty, ospf6, &brouter,
 							 brouter_str, dt, uj);
-			vty_out(vty, "DEBUG_1240\n");
-		} else if (vrf_name) {
-			vty_out(vty, "DEBUG_1241\n");
+		else if (vrf_name)
 			if (strcmp(ospf6->name, vrf_name) == 0) {
-				vty_out(vty, "DEBUG_1242\n");
 				show_ospf6_border_routers_common(vty, ospf6,
 								 &brouter,
 								 brouter_str,
 								 dt, uj);
-				vty_out(vty, "DEBUG_1243\n");
 				break;
 			}
-			vty_out(vty, "DEBUG_1244\n");
-		} else {
-			vty_out(vty, "DEBUG_1245\n");
+		else
 			show_ospf6_border_routers_common(vty, ospf6, &brouter,
 							 brouter_str, dt, uj);
-			vty_out(vty, "DEBUG_1246\n");
-		}
-		vty_out(vty, "DEBUG_1247\n");
 	}
-
-	/* TODO: remove after debuging */
-	vty_out(vty, "DEBUG_1537\n");
-
-	return CMD_SUCCESS;
 }
 
 
