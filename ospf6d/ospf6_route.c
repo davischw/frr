@@ -1133,7 +1133,7 @@ void ospf6_route_show(struct vty *vty, struct ospf6_route *route,
 }
 
 void ospf6_route_show_detail(struct vty *vty, struct ospf6_route *route,
-			     json_object *json_array_routes, bool use_json)
+			     json_object *json_routes, bool use_json)
 {
 	char destination[PREFIX2STR_BUFFER], nexthop[64];
 	char area_id[16], id[16], adv_router[16], capa[16], options[16];
@@ -1321,13 +1321,7 @@ void ospf6_route_show_detail(struct vty *vty, struct ospf6_route *route,
 	if (use_json) {
 		json_object_object_add(json_route, "nextHops",
 				       json_array_next_hops);
-		
-		/* TODO: check for usage of ospf6_route_show_detail() and see if
-		 * this should add a "destination" object to the provided
-		 * json_object or an element to an array:
-		json_object_object_add(json, destination, json_route);
-		*/
-		json_object_array_add(json_array_routes, json_route);
+		json_object_object_add(json_routes, destination, json_route);
 	} else
 		vty_out(vty, "\n");
 }
@@ -1768,7 +1762,7 @@ void ospf6_brouter_show_header(struct vty *vty)
 }
 
 void ospf6_brouter_show(struct vty *vty, struct ospf6_route *route,
-			json_object *json_array_brouters, bool use_json)
+			json_object *json_brouters, bool use_json)
 {
 	uint32_t adv_router;
 	char adv[16], rbits[16], options[16], area[16];
@@ -1791,7 +1785,7 @@ void ospf6_brouter_show(struct vty *vty, struct ospf6_route *route,
 		json_object_string_add(json_brouter, "pathType",
 				       OSPF6_PATH_TYPE_NAME(route->path.type));
 		json_object_string_add(json_brouter, "areaId", area);
-		json_object_array_add(json_array_brouters, json_brouter);
+		json_object_object_add(json_brouters, json_brouter);
 	} else {
 		vty_out(vty, "%-15s %-8s %-14s %-10s %-15s\n", adv, rbits,
 			options, OSPF6_PATH_TYPE_NAME(route->path.type), area);

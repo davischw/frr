@@ -333,8 +333,7 @@ extern void ospf6_route_dump(struct ospf6_route_table *table);
 extern void ospf6_route_show(struct vty *vty, struct ospf6_route *route,
 			     json_object *json, bool use_json);
 extern void ospf6_route_show_detail(struct vty *vty, struct ospf6_route *route,
-				    json_object *json_array_routes,
-				    bool use_json);
+				    json_object *json, bool use_json);
 
 
 extern int ospf6_route_table_show(struct vty *, int, int, struct cmd_token **,

@@ -1225,10 +1225,10 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 	struct ospf6_route *ro;
 	struct prefix prefix;
 	json_object *json_vty = NULL;
-	json_object *json_array_brouters = NULL;
+	json_object *json_brouters = NULL;
 
 	if (uj)
-		json_array_brouters = json_object_new_array();
+		json_brouters = json_object_object_new();
 
 	if (brouter_str || detail) {
 		if (brouter_str) {
@@ -1242,13 +1242,13 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 				return;
 			}
 
-			ospf6_route_show_detail(vty, ro, json_array_brouters,
+			ospf6_route_show_detail(vty, ro, json_brouters,
 						uj);
 		} else {
 			for (ro = ospf6_route_head(ospf6->brouter_table); ro;
 			     ro = ospf6_route_next(ro)) {
 				ospf6_route_show_detail(
-					vty, ro, json_array_brouters, uj);
+					vty, ro, json_brouters, uj);
 			}
 		}
 	} else {
@@ -1257,14 +1257,14 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 
 		for (ro = ospf6_route_head(ospf6->brouter_table); ro;
 		     ro = ospf6_route_next(ro)) {
-			ospf6_brouter_show(vty, ro, json_array_brouters, uj);
+			ospf6_brouter_show(vty, ro, json_brouters, uj);
 		}
 	}
 
 	if (uj) {
 		json_vty = json_object_new_object();
 		json_object_object_add(json_vty, "borderRouters",
-				       json_array_brouters);
+				       json_brouters);
 		vty_out(vty, "%s\n",
 			json_object_to_json_string_ext(
 				json_vty, JSON_C_TO_STRING_PRETTY));
