@@ -47,6 +47,10 @@
 #include "ospf6_zebra.h"
 #include "lib/json.h"
 
+#ifndef VTYSH_EXTRACT_PL
+#include "ospf6d/ospf6d_clippy.c"
+#endif /* VTYSH_EXTRACT_PL */
+
 DEFINE_MTYPE(OSPF6D, OSPF6_NEIGHBOR, "OSPF6 neighbor");
 
 DEFINE_HOOK(ospf6_neighbor_change,
