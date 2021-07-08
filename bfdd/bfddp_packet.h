@@ -44,7 +44,7 @@
 #define BFD_PROTOCOL_VERSION 1
 
 /** Default data plane port. */
-#define BFD_DATA_PLANE_DEFAULT_PORT 50700
+#define BFD_DATA_PLANE_DEFAULT_PORT 2640
 
 /** BFD single hop UDP port, as defined in RFC 5881 Section 4. Encapsulation. */
 #define BFD_SINGLE_HOP_PORT 3784
