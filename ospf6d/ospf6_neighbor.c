@@ -47,10 +47,6 @@
 #include "ospf6_zebra.h"
 #include "lib/json.h"
 
-#ifndef VTYSH_EXTRACT_PL
-#include "ospf6d/ospf6d_clippy.c"
-#endif /* VTYSH_EXTRACT_PL */
-
 DEFINE_MTYPE(OSPF6D, OSPF6_NEIGHBOR, "OSPF6 neighbor");
 
 DEFINE_HOOK(ospf6_neighbor_change,
@@ -1058,7 +1054,8 @@ static void ospf6_neighbor_show_detail_common(struct vty *vty,
 	}
 }
 
-DEFPY(show_ipv6_ospf6_neighbor, show_ipv6_ospf6_neighbor_cmd,
+DEFUN(show_ipv6_ospf6_neighbor,
+      show_ipv6_ospf6_neighbor_cmd,
       "show ipv6 ospf6 [vrf <NAME|all>] neighbor [<detail|drchoice>] [json]",
       SHOW_STR
       IP6_STR
