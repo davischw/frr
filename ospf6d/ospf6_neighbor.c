@@ -1054,13 +1054,16 @@ static void ospf6_neighbor_show_detail_common(struct vty *vty,
 	}
 }
 
-DEFUN(show_ipv6_ospf6_neighbor, show_ipv6_ospf6_neighbor_cmd,
+DEFPY(show_ipv6_ospf6_neighbor, show_ipv6_ospf6_neighbor_cmd,
       "show ipv6 ospf6 [vrf <NAME|all>] neighbor [<detail|drchoice>] [json]",
-      SHOW_STR IP6_STR OSPF6_STR VRF_CMD_HELP_STR
-      "All VRFs\n"
+      SHOW_STR
+      IP6_STR
+      OSPF6_STR
+      VRF_FULL_CMD_HELP_STR
       "Neighbor list\n"
       "Display details\n"
-      "Display DR choices\n" JSON_STR)
+      "Display DR choices\n"
+      JSON_STR)
 {
 	struct ospf6 *ospf6;
 	struct listnode *node;

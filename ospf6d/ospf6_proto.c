@@ -86,7 +86,7 @@ void ospf6_capability_json(char capability, json_object *json)
 
 	/* For some reason, the "x"-bit (RFC 5430, Appendix A.4.3) is called
 	 * "W"-bit in FRR. It is a reserved bit and should always be set to
-	 * zero. There is no need to displayed it (unless updated RFC specifies
+	 * zero. There is no need to display it (unless updated RFC specifies
 	 * different usage).
 	 */
 
