@@ -1777,7 +1777,6 @@ void ospf6_brouter_show(struct vty *vty, struct ospf6_route *route,
 
 	if (use_json) {
 		json_brouter = json_object_new_object();
-		json_object_string_add(json_brouter, "advertisingRouter", adv);
 		json_object_string_add(json_brouter, "routerBits", rbits);
 		ospf6_capability_json(route->path.router_bits, json_brouter);
 		json_object_string_add(json_brouter, "options", options);
@@ -1785,7 +1784,7 @@ void ospf6_brouter_show(struct vty *vty, struct ospf6_route *route,
 		json_object_string_add(json_brouter, "pathType",
 				       OSPF6_PATH_TYPE_NAME(route->path.type));
 		json_object_string_add(json_brouter, "areaId", area);
-		json_object_object_add(json_brouters, json_brouter);
+		json_object_object_add(json_brouters, adv, json_brouter);
 	} else {
 		vty_out(vty, "%-15s %-8s %-14s %-10s %-15s\n", adv, rbits,
 			options, OSPF6_PATH_TYPE_NAME(route->path.type), area);
