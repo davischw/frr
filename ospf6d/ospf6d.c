@@ -1228,7 +1228,7 @@ static void show_ospf6_border_routers_common(struct vty *vty,
 	json_object *json_brouters = NULL;
 
 	if (uj)
-		json_brouters = json_object_object_new();
+		json_brouters = json_object_new_object();
 
 	if (brouter_str || detail) {
 		if (brouter_str) {
