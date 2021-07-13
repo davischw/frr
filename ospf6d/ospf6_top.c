@@ -54,6 +54,10 @@
 #include "lib/json.h"
 #include "ospf6_nssa.h"
 
+#ifndef VTYSH_EXTRACT_PL
+#include "ospf6d/ospf6_top_clippy.c"
+#endif
+
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_TOP, "OSPF6 top");
 
 DEFINE_QOBJ_TYPE(ospf6);
@@ -581,6 +585,27 @@ void ospf6_router_id_update(struct ospf6 *ospf6)
 		ospf6->router_id = ospf6->router_id_static;
 	else
 		ospf6->router_id = ospf6->router_id_zebra;
+}
+
+static void ospf6_shutdown(struct ospf6 *o, bool shutdown)
+{
+	struct listnode *node;
+	struct ospf6_area *oa;
+
+	/* If already shutdown, then just quit */
+	if ((shutdown && (o->flag & OSPF6_FLAG_SHUTDOWN))
+	    || (!shutdown && !(o->flag & OSPF6_FLAG_SHUTDOWN)))
+		return;
+
+	if (shutdown) {
+		SET_FLAG(o->flag, OSPF6_FLAG_SHUTDOWN);
+		for (ALL_LIST_ELEMENTS_RO(o->area_list, node, oa))
+			ospf6_area_disable(oa);
+	} else {
+		UNSET_FLAG(o->flag, OSPF6_FLAG_SHUTDOWN);
+		for (ALL_LIST_ELEMENTS_RO(o->area_list, node, oa))
+			ospf6_area_enable(oa);
+	}
 }
 
 /* start ospf6 */
@@ -1147,6 +1172,18 @@ DEFUN(no_ospf6_max_multipath,
 	return CMD_SUCCESS;
 }
 
+DEFPY(ospf6_instance_shutdown, ospf6_instance_shutdown_cmd,
+      "[no] shutdown",
+      NO_STR
+      "Administrative shutdown\n")
+{
+	VTY_DECLVAR_CONTEXT(ospf6, ospf6);
+
+	ospf6_shutdown(ospf6, !no);
+
+	return CMD_SUCCESS;
+}
+
 static void ospf6_show(struct vty *vty, struct ospf6 *o, json_object *json,
 		       bool use_json)
 {
@@ -1637,6 +1674,9 @@ static int config_write_ospf6(struct vty *vty)
 			vty_out(vty, " ospf6 router-id %pI4\n",
 				&ospf6->router_id_static);
 
+		if (ospf6->flag & OSPF6_FLAG_SHUTDOWN)
+			vty_out(vty, " shutdown\n");
+
 		/* log-adjacency-changes flag print. */
 		if (CHECK_FLAG(ospf6->config_flags,
 			       OSPF6_LOG_ADJACENCY_CHANGES)) {
@@ -1726,4 +1766,7 @@ void ospf6_top_init(void)
 	install_element(OSPF6_NODE, &no_ospf6_distance_cmd);
 	install_element(OSPF6_NODE, &ospf6_distance_ospf6_cmd);
 	install_element(OSPF6_NODE, &no_ospf6_distance_ospf6_cmd);
+
+	/* shutdown command */
+	install_element(OSPF6_NODE, &ospf6_instance_shutdown_cmd);
 }
