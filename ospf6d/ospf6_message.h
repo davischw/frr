@@ -62,8 +62,9 @@ extern unsigned char conf_debug_ospf6_message[];
 #define OSPF6_MESSAGE_TYPE_LSREQ    0x3  /* Database download request */
 #define OSPF6_MESSAGE_TYPE_LSUPDATE 0x4  /* Database update */
 #define OSPF6_MESSAGE_TYPE_LSACK    0x5  /* Flooding acknowledgment */
-#define OSPF6_MESSAGE_TYPE_ALL      0x6  /* For debug option */
-#define OSPF6_MESSAGE_TYPE_MAX 0x6       /* same as OSPF6_MESSAGE_TYPE_ALL */
+#define OSPF6_MESSAGE_TYPE_SB       0x6  /* Southbound */
+#define OSPF6_MESSAGE_TYPE_ALL      0x7  /* For debug option */
+#define OSPF6_MESSAGE_TYPE_MAX      OSPF6_MESSAGE_TYPE_ALL
 
 struct ospf6_packet {
 	struct ospf6_packet *next;
