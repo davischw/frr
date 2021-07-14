@@ -304,7 +304,7 @@ ssize_t ospf6_sendmsg(struct ospf6 *ospf6, struct in6_addr *src,
 			__func__, ifp->ifindex, ifp->vif_index,
 			safe_strerror(errno), errno);
 
-	if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_UNKNOWN, SEND))
+	if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_SB, SEND))
 		zlog_debug("%s: sent=%zd src=%pI6 dst=%pI6 flow-info=%d",
 			   __func__, rv, &ipi6->ipi6_addr, dst, ifp->vif_index);
 
@@ -332,6 +332,9 @@ ssize_t ospf6_recvmsg(struct in6_addr *src, struct in6_addr *dst,
 
 	rv = recvmsg(ospf6_sock, &msg, 0);
 	if (rv == -1) {
+		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+			return -1;
+
 		zlog_warn("recvmsg failed: %s", safe_strerror(errno));
 		return -1;
 	} else if (rv == iov_totallen(message))
@@ -359,13 +362,10 @@ ssize_t ospf6_recvmsg(struct in6_addr *src, struct in6_addr *dst,
 	/* source address */
 	memcpy(src, &src_sin6.sin6_addr, sizeof(*src));
 
-	if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_UNKNOWN, RECV))
-		zlog_debug(
-			"%s: rv=%zd src=%pI6 dst=%pI6 ifindex=%d flow-info=0x%#08x",
-			__func__, rv, src, dst, *ifindex, flowinfo);
+	if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_SB, RECV))
+		zlog_debug("%s: src=%pI6 dst=%pI6 ifindex=%d flowinfo=0x%08x",
+			   __func__, src, dst, *ifindex, flowinfo);
 
-	/* When using encapsulation (e.g. protocol != 89) flow ID is ifindex. */
-	zlog_debug("%s:   overwriting ifindex with flow-info", __func__);
 	*ifindex = flowinfo;
 
 	return rv;
