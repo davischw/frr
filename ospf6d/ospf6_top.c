@@ -504,8 +504,6 @@ static void ospf6_disable(struct ospf6 *o)
 		THREAD_OFF(o->t_spf_calc);
 		THREAD_OFF(o->t_ase_calc);
 		THREAD_OFF(o->t_distribute_update);
-		THREAD_OFF(o->t_spf_sock);
-		THREAD_OFF(o->t_dr_sock);
 		THREAD_OFF(o->t_sock);
 	}
 }

@@ -27,6 +27,10 @@ extern struct in6_addr alldrouters6;
 /* forward declaration. */
 struct ospf6;
 
+void ospf6_sb_init(void);
+void ospf6_sb_finish(void);
+void ospf6_sb_schedule(int fd);
+
 extern int ospf6_serv_sock(struct ospf6 *ospf6);
 extern void ospf6_serv_close(int *ospf6_sock);
 extern int ospf6_sso(ifindex_t ifindex, struct in6_addr *group, int option,

@@ -35,14 +35,19 @@
 #include "ospf6_network.h"
 #include "ospf6d.h"
 
-#define IP6_OSPF6_ENCAP
-#ifdef IP6_OSPF6_ENCAP
 #define IP6_OSPF6_SPF_PROTO 248
 #define IP6_OSPF6_DR_PROTO 250
-#endif /* IP6_OSPF6_ENCAP */
 
 struct in6_addr allspfrouters6;
 struct in6_addr alldrouters6;
+
+static struct ospf6_sb_ctx {
+	int routing_sock;
+	int spf_sock;
+	struct thread *spf_ev;
+	int dr_sock;
+	struct thread *dr_ev;
+} sb_ctx;
 
 /* setsockopt MulticastLoop to off */
 static void ospf6_reset_mcastloop(int ospf6_sock)
@@ -111,53 +116,75 @@ int ospf6_serv_sock(struct ospf6 *ospf6)
 	if (ospf6->vrf_id == VRF_UNKNOWN)
 		return -1;
 
-	frr_with_privs(&ospf6d_privs) {
-
-		ospf6->fd = vrf_socket(AF_INET6, SOCK_RAW, IPPROTO_OSPFIGP,
-					ospf6->vrf_id, ospf6->name);
+	frr_with_privs (&ospf6d_privs) {
+		ospf6->fd =
+			vrf_socket(AF_INET6, SOCK_RAW | SOCK_NONBLOCK,
+				   IPPROTO_OSPFIGP, ospf6->vrf_id, ospf6->name);
 		if (ospf6->fd < 0) {
 			zlog_warn("Network: can't create OSPF6 socket.");
 			return -1;
 		}
-
-		/* Sockets to receive OSPFv3 packets. */
-		ospf6->dr_sock = socket(AF_INET6, SOCK_RAW, IP6_OSPF6_SPF_PROTO);
-		ospf6->spf_sock = socket(AF_INET6, SOCK_RAW, IP6_OSPF6_DR_PROTO);
 	}
-
-/* set socket options */
-#if 1
 	sockopt_reuseaddr(ospf6->fd);
-#else
-	ospf6_set_reuseaddr();
-#endif /*1*/
 	ospf6_reset_mcastloop(ospf6->fd);
 	ospf6_set_pktinfo(ospf6->fd);
 	ospf6_set_transport_class(ospf6->fd);
 	ospf6_set_checksum(ospf6->fd);
 	ospf6_set_flowid(ospf6->fd);
 
-	setsockopt_so_sendbuf(ospf6->spf_sock, (8 * 1024 * 1024));
-	setsockopt_so_recvbuf(ospf6->spf_sock, (8 * 1024 * 1024));
-	ospf6_reset_mcastloop(ospf6->spf_sock);
-	ospf6_set_pktinfo(ospf6->spf_sock);
-	ospf6_set_flowid(ospf6->spf_sock);
-	ospf6_set_checksum(ospf6->spf_sock);
-	thread_add_read(master, ospf6_receive, ospf6, ospf6->spf_sock, NULL);
+	return 0;
+}
 
-	setsockopt_so_sendbuf(ospf6->dr_sock, (8 * 1024 * 1024));
-	setsockopt_so_recvbuf(ospf6->dr_sock, (8 * 1024 * 1024));
-	ospf6_reset_mcastloop(ospf6->dr_sock);
-	ospf6_set_pktinfo(ospf6->dr_sock);
-	ospf6_set_flowid(ospf6->dr_sock);
-	ospf6_set_checksum(ospf6->dr_sock);
-	thread_add_read(master, ospf6_receive, ospf6, ospf6->dr_sock, NULL);
-
+void ospf6_sb_init(void)
+{
 	/* setup global in6_addr, allspf6 and alldr6 for later use */
 	inet_pton(AF_INET6, ALLSPFROUTERS6, &allspfrouters6);
 	inet_pton(AF_INET6, ALLDROUTERS6, &alldrouters6);
 
-	return 0;
+	frr_with_privs(&ospf6d_privs) {
+		/* Sockets to receive OSPFv3 packets. */
+		sb_ctx.dr_sock = socket(AF_INET6, SOCK_RAW | SOCK_NONBLOCK,
+					IP6_OSPF6_DR_PROTO);
+		sb_ctx.spf_sock = socket(AF_INET6, SOCK_RAW | SOCK_NONBLOCK,
+					 IP6_OSPF6_SPF_PROTO);
+	}
+
+	setsockopt_so_sendbuf(sb_ctx.dr_sock, (8 * 1024 * 1024));
+	setsockopt_so_recvbuf(sb_ctx.dr_sock, (8 * 1024 * 1024));
+	ospf6_set_pktinfo(sb_ctx.dr_sock);
+	ospf6_set_flowid(sb_ctx.dr_sock);
+	ospf6_set_checksum(sb_ctx.dr_sock);
+	thread_add_read(master, ospf6_receive, NULL, sb_ctx.dr_sock,
+			&sb_ctx.dr_ev);
+
+	setsockopt_so_sendbuf(sb_ctx.spf_sock, (8 * 1024 * 1024));
+	setsockopt_so_recvbuf(sb_ctx.spf_sock, (8 * 1024 * 1024));
+	ospf6_set_pktinfo(sb_ctx.spf_sock);
+	ospf6_set_flowid(sb_ctx.spf_sock);
+	ospf6_set_checksum(sb_ctx.spf_sock);
+	thread_add_read(master, ospf6_receive, NULL, sb_ctx.spf_sock,
+			&sb_ctx.spf_ev);
+}
+
+void ospf6_sb_finish(void)
+{
+	THREAD_OFF(sb_ctx.dr_ev);
+	close(sb_ctx.dr_sock);
+	sb_ctx.dr_sock = -1;
+
+	THREAD_OFF(sb_ctx.spf_ev);
+	close(sb_ctx.spf_sock);
+	sb_ctx.spf_sock = -1;
+}
+
+void ospf6_sb_schedule(int fd)
+{
+	if (fd == sb_ctx.dr_sock)
+		thread_add_read(master, ospf6_receive, NULL, sb_ctx.dr_sock,
+				&sb_ctx.dr_ev);
+	else if (fd == sb_ctx.spf_sock)
+		thread_add_read(master, ospf6_receive, NULL, sb_ctx.spf_sock,
+				&sb_ctx.spf_ev);
 }
 
 /* ospf6 set socket option */
@@ -230,9 +257,9 @@ ssize_t ospf6_sendmsg(struct ospf6 *ospf6, struct in6_addr *src,
 
 	/* Use the proper ouput socket. */
 	if (dst == &alldrouters6)
-		sock = ospf6->dr_sock;
+		sock = sb_ctx.dr_sock;
 	else if (dst == &allspfrouters6)
-		sock = ospf6->spf_sock;
+		sock = sb_ctx.spf_sock;
 	else
 		sock = ospf6->fd;
 

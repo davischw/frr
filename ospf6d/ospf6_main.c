@@ -99,6 +99,8 @@ static void __attribute__((noreturn)) ospf6_exit(int status)
 				ospf6_interface_delete(ifp->info);
 	}
 
+	ospf6_sb_finish();
+
 	ospf6_message_terminate();
 	ospf6_asbr_terminate();
 	ospf6_lsa_terminate();
@@ -232,6 +234,9 @@ int main(int argc, char *argv[], char *envp[])
 
 	/* initialize ospf6 */
 	ospf6_init(master);
+
+	/* initialize southbound. */
+	ospf6_sb_init();
 
 	frr_config_fork();
 	frr_run(master);

@@ -1585,16 +1585,7 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 	struct iovec iovector[2];
 	struct ospf6_interface *oi;
 	struct ospf6_header *oh;
-
-	if (sockfd == ospf6->dr_sock)
-		thread_add_read(master, ospf6_receive, ospf6, sockfd,
-				&ospf6->t_dr_sock);
-	else if (sockfd == ospf6->spf_sock)
-		thread_add_read(master, ospf6_receive, ospf6, sockfd,
-				&ospf6->t_spf_sock);
-	else
-		thread_add_read(master, ospf6_receive, ospf6, sockfd,
-				&ospf6->t_sock);
+	struct interface *ifp;
 
 	/* initialize */
 	memset(&src, 0, sizeof(src));
@@ -1616,7 +1607,16 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 		return OSPF6_READ_ERROR;
 	}
 
-	oi = ospf6_interface_lookup_by_ifindex(ifindex, ospf6->vrf_id);
+	ifp = if_lookup_by_index_all_vrf(ifindex);
+	if (ifp == NULL) {
+		if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_UNKNOWN,
+					   RECV_HDR))
+			zlog_debug("%s: interface %d not found",
+				   __func__, ifindex);
+		return OSPF6_READ_CONTINUE;
+	}
+
+	oi = (struct ospf6_interface *)ifp->info;
 	if (oi == NULL || oi->area == NULL
 	    || CHECK_FLAG(oi->flag, OSPF6_INTERFACE_DISABLE)) {
 		if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_UNKNOWN,
@@ -1631,6 +1631,9 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 				   __func__, oi->interface->name);
 		return OSPF6_READ_CONTINUE;
 	}
+
+	if (ospf6 == NULL)
+		ospf6 = oi->area->ospf6;
 
 	/*
 	 * Drop packet destined to another VRF.
@@ -1715,8 +1718,11 @@ int ospf6_receive(struct thread *thread)
 	ospf6 = THREAD_ARG(thread);
 	sockfd = THREAD_FD(thread);
 
-	thread_add_read(master, ospf6_receive, ospf6, ospf6->fd,
-			&ospf6->t_ospf6_receive);
+	if (ospf6)
+		thread_add_read(master, ospf6_receive, ospf6, sockfd,
+				&ospf6->t_sock);
+	else
+		ospf6_sb_schedule(sockfd);
 
 	while (count < 20) {
 		count++;
