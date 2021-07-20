@@ -190,6 +190,9 @@ struct ospf6_neighbor *ospf6_neighbor_create(uint32_t router_id,
 					     struct ospf6_interface *oi);
 void ospf6_neighbor_delete(struct ospf6_neighbor *on);
 
+void ospf6_neighbor_lladdr_set(struct ospf6_neighbor *on,
+			       const struct in6_addr *addr);
+
 /* Neighbor event */
 extern int hello_received(struct thread *);
 extern int twoway_received(struct thread *);
