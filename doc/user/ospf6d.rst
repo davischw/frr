@@ -70,6 +70,20 @@ OSPF6 router
    Use this command to control the maximum number of parallel routes that
    OSPFv3 can support. The default is 64.
 
+.. clicmd:: area A.B.C.D range X:X::X:X/M [<advertise|not-advertise|cost (0-16777215)>]
+
+.. clicmd:: area (0-4294967295) range X:X::X:X/M [<advertise|not-advertise|cost (0-16777215)>]
+
+    Summarize a group of internal subnets into a single Inter-Area-Prefix LSA.
+    This command can only be used at the area boundary (ABR router).
+
+    By default, the metric of the summary route is calculated as the highest
+    metric among the summarized routes. The `cost` option, however, can be used
+    to set an explicit metric.
+
+    The `not-advertise` option, when present, prevents the summary route from
+    being advertised, effectively filtering the summarized routes.
+
 .. clicmd:: clear ipv6 ospf6 process [vrf NAME]
 
    This command clears up the database and routing tables and resets the
