@@ -1020,22 +1020,6 @@ void netlink_buf_del(struct nlbuf *nb)
 	XFREE(MTYPE_ZEBRA_NETLINK, nb);
 }
 
-void stream_pulldown(struct stream *s)
-{
-	size_t rlen = STREAM_READABLE(s);
-
-	/* No more data, so just move the pointers. */
-	if (rlen == 0) {
-		s->endp = s->getp = 0;
-		return;
-	}
-
-	/* Move the available data to the beginning. */
-	memmove(s->data, &s->data[s->getp], rlen);
-	s->getp = 0;
-	s->endp -= rlen;
-}
-
 /*
  * Mark all RIB routes as unselected so we can remove after data plane
  * refresh.
