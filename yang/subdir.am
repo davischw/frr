@@ -74,6 +74,7 @@ if PIMD
 dist_yangmodels_DATA += yang/frr-igmp.yang
 dist_yangmodels_DATA += yang/frr-pim.yang
 dist_yangmodels_DATA += yang/frr-pim-rp.yang
+dist_yangmodels_DATA += yang/frr-pim-candidate.yang
 endif
 
 if BGPD

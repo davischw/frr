@@ -174,6 +174,7 @@ static int pim_zebra_if_address_add(ZAPI_CALLBACK_ARGS)
 		}
 	}
 
+	pim_cand_addrs_changed();
 	return 0;
 }
 
@@ -221,6 +222,8 @@ static int pim_zebra_if_address_del(ZAPI_CALLBACK_ARGS)
 	}
 
 	connected_free(&c);
+
+	pim_cand_addrs_changed();
 	return 0;
 }
 

@@ -69,6 +69,7 @@ pimd_libpim_a_SOURCES = \
 	pimd/pimd.c \
 	yang/frr-pim.yang.c \
 	yang/frr-pim-rp.yang.c \
+	yang/frr-pim-candidate.yang.c \
 	yang/frr-igmp.yang.c \
 	# end
 
@@ -137,6 +138,7 @@ nodist_pimd_pimd_SOURCES = \
 	yang/frr-igmp.yang.c \
 	yang/frr-pim.yang.c \
 	yang/frr-pim-rp.yang.c \
+	yang/frr-pim-candidate.yang.c \
 	# end
 
 pimd_pimd_LDADD = pimd/libpim.a lib/libfrr.la $(LIBCAP)

@@ -1708,6 +1708,8 @@ int pim_ifp_up(struct interface *ifp)
 			}
 		}
 	}
+
+	pim_cand_addrs_changed();
 	return 0;
 }
 
@@ -1742,6 +1744,7 @@ int pim_ifp_down(struct interface *ifp)
 	if (ifp->info)
 		pim_if_del_vif(ifp);
 
+	pim_cand_addrs_changed();
 	return 0;
 }
 
