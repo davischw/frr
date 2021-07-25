@@ -23,6 +23,7 @@
 extern const struct frr_yang_module_info frr_pim_info;
 extern const struct frr_yang_module_info frr_pim_rp_info;
 extern const struct frr_yang_module_info frr_gmp_info;
+extern const struct frr_yang_module_info frr_pim_candidate_info;
 
 /* frr-pim prototypes*/
 int routing_control_plane_protocols_control_plane_protocol_pim_address_family_ecmp_modify(
@@ -193,6 +194,26 @@ int lib_interface_gmp_address_family_static_group_create(
 int lib_interface_gmp_address_family_static_group_destroy(
 		struct nb_cb_destroy_args *args);
 
+/* frr-candidate */
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_create(
+	struct nb_cb_create_args *args);
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_destroy(
+	struct nb_cb_destroy_args *args);
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_priority_modify(
+	struct nb_cb_modify_args *args);
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_adv_interval_modify(
+	struct nb_cb_modify_args *args);
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_group_list_create(
+	struct nb_cb_create_args *args);
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_group_list_destroy(
+	struct nb_cb_destroy_args *args);
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_addrsel_create(
+	struct nb_cb_create_args *args);
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_addrsel_modify(
+	struct nb_cb_modify_args *args);
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_addrsel_destroy(
+	struct nb_cb_destroy_args *args);
+
 /*
  * Callback registered with routing_nb lib to validate only
  * one instance of staticd is allowed
@@ -231,6 +252,11 @@ int routing_control_plane_protocols_name_validate(
 #define FRR_GMP_JOIN_XPATH                                              \
 	"./frr-gmp:gmp/address-family[address-family='%s']/"            \
 	"static-group[group-addr='%s'][source-addr='%s']"
+#define FRR_PIM_CAND_RP_XPATH                                                  \
+	"/frr-routing:routing/control-plane-protocols/"                        \
+	"control-plane-protocol[type='%s'][name='%s'][vrf='%s']/"              \
+	"frr-pim:pim/address-family[address-family='%s']/"                     \
+	"frr-pim-candidate:candidate-rp"
 #define FRR_PIM_MSDP_XPATH FRR_PIM_VRF_XPATH "/msdp"
 
 #endif /* _FRR_PIM_NB_H_ */
