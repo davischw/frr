@@ -1919,6 +1919,10 @@ int ospf6_hello_send(struct thread *thread)
 	thread_add_timer(master, ospf6_hello_send, oi, oi->hello_interval,
 			 &oi->thread_send_hello);
 
+	if (oi->state == OSPF6_INTERFACE_POINTTOPOINT
+	    && oi->p2xp_no_multicast_hello)
+		return 0;
+
 	memset(sendbuf, 0, iobuflen);
 	oh = (struct ospf6_header *)sendbuf;
 	hello = (struct ospf6_hello *)((caddr_t)oh
