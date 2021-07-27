@@ -1893,11 +1893,6 @@ static uint32_t ospf6_packet_max(struct ospf6_interface *oi)
 int ospf6_hello_send(struct thread *thread)
 {
 	struct ospf6_interface *oi;
-	struct ospf6_header *oh;
-	struct ospf6_hello *hello;
-	uint8_t *p;
-	struct listnode *node, *nnode;
-	struct ospf6_neighbor *on;
 
 	oi = (struct ospf6_interface *)THREAD_ARG(thread);
 	oi->thread_send_hello = (struct thread *)NULL;
@@ -1919,9 +1914,18 @@ int ospf6_hello_send(struct thread *thread)
 	thread_add_timer(master, ospf6_hello_send, oi, oi->hello_interval,
 			 &oi->thread_send_hello);
 
-	if (oi->state == OSPF6_INTERFACE_POINTTOPOINT
-	    && oi->p2xp_no_multicast_hello)
-		return 0;
+	ospf6_hello_send_addr(oi, NULL);
+	return 0;
+}
+
+/* used to send polls for PtP/PtMP too */
+void ospf6_hello_send_addr(struct ospf6_interface *oi, struct in6_addr *addr)
+{
+	struct ospf6_header *oh;
+	struct ospf6_hello *hello;
+	uint8_t *p;
+	struct listnode *node, *nnode;
+	struct ospf6_neighbor *on;
 
 	memset(sendbuf, 0, iobuflen);
 	oh = (struct ospf6_header *)sendbuf;
@@ -1959,10 +1963,21 @@ int ospf6_hello_send(struct thread *thread)
 	oh->type = OSPF6_MESSAGE_TYPE_HELLO;
 	oh->length = htons(p - sendbuf);
 
-	oi->hello_out++;
+	if (!addr && oi->state == OSPF6_INTERFACE_POINTTOPOINT
+	    && oi->p2xp_no_multicast_hello) {
+		for (ALL_LIST_ELEMENTS_RO(oi->neighbor_list, node, on)) {
+			if (on->state < OSPF6_NEIGHBOR_INIT)
+				/* poll-interval for these */
+				continue;
 
-	ospf6_send(oi->linklocal_addr, &allspfrouters6, oi, oh);
-	return 0;
+			oi->hello_out++;
+			ospf6_send(oi->linklocal_addr, &on->linklocal_addr, oi,
+				   oh);
+		}
+	} else {
+		oi->hello_out++;
+		ospf6_send(oi->linklocal_addr, addr ?: &allspfrouters6, oi, oh);
+	}
 }
 
 int ospf6_dbdesc_send(struct thread *thread)

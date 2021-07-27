@@ -64,6 +64,8 @@ extern unsigned char conf_debug_ospf6_message[];
 #define OSPF6_MESSAGE_TYPE_SB       0x6  /* Southbound */
 #define OSPF6_MESSAGE_TYPE_ALL      0x7  /* For debug option */
 
+struct ospf6_interface;
+
 /* OSPFv3 packet header */
 #define OSPF6_HEADER_SIZE                     16U
 struct ospf6_header {
@@ -149,6 +151,9 @@ extern int ospf6_lsupdate_send_interface(struct thread *thread);
 extern int ospf6_lsupdate_send_neighbor(struct thread *thread);
 extern int ospf6_lsack_send_interface(struct thread *thread);
 extern int ospf6_lsack_send_neighbor(struct thread *thread);
+
+extern void ospf6_hello_send_addr(struct ospf6_interface *oi,
+				  struct in6_addr *addr);
 
 extern int config_write_ospf6_debug_message(struct vty *);
 extern void install_element_ospf6_debug_message(void);
