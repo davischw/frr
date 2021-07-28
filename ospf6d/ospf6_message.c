@@ -292,29 +292,26 @@ static void ospf6_hello_recv(struct in6_addr *src, struct in6_addr *dst,
 	/* HelloInterval check */
 	if (ntohs(hello->hello_interval) != oi->hello_interval) {
 		zlog_warn(
-			"VRF %s: I/F %s HelloInterval mismatch: (my %d, rcvd %d)",
-			vrf_id_to_name(oi->interface->vrf_id),
-			oi->interface->name, oi->hello_interval,
-			ntohs(hello->hello_interval));
+			"VRF %s: I/F %pOI HelloInterval mismatch: (my %d, rcvd %d)",
+			vrf_id_to_name(oi->interface->vrf_id), oi,
+			oi->hello_interval, ntohs(hello->hello_interval));
 		return;
 	}
 
 	/* RouterDeadInterval check */
 	if (ntohs(hello->dead_interval) != oi->dead_interval) {
 		zlog_warn(
-			"VRF %s: I/F %s DeadInterval mismatch: (my %d, rcvd %d)",
-			vrf_id_to_name(oi->interface->vrf_id),
-			oi->interface->name, oi->dead_interval,
-			ntohs(hello->dead_interval));
+			"VRF %s: I/F %pOI DeadInterval mismatch: (my %d, rcvd %d)",
+			vrf_id_to_name(oi->interface->vrf_id), oi,
+			oi->dead_interval, ntohs(hello->dead_interval));
 		return;
 	}
 
 	/* E-bit check */
 	if (OSPF6_OPT_ISSET(hello->options, OSPF6_OPT_E)
 	    != OSPF6_OPT_ISSET(oi->area->options, OSPF6_OPT_E)) {
-		zlog_warn("VRF %s: IF %s E-bit mismatch",
-			  vrf_id_to_name(oi->interface->vrf_id),
-			  oi->interface->name);
+		zlog_warn("VRF %s: IF %pOI E-bit mismatch",
+			  vrf_id_to_name(oi->interface->vrf_id), oi);
 		return;
 	}
 
@@ -881,9 +878,9 @@ static void ospf6_dbdesc_recv(struct in6_addr *src, struct in6_addr *dst,
 
 	/* Interface MTU check */
 	if (!oi->mtu_ignore && ntohs(dbdesc->ifmtu) != oi->ifmtu) {
-		zlog_warn("VRF %s: I/F %s MTU mismatch (my %d rcvd %d)",
-			  vrf_id_to_name(oi->interface->vrf_id),
-			  oi->interface->name, oi->ifmtu, ntohs(dbdesc->ifmtu));
+		zlog_warn("VRF %s: I/F %pOI MTU mismatch (my %d rcvd %d)",
+			  vrf_id_to_name(oi->interface->vrf_id), oi, oi->ifmtu,
+			  ntohs(dbdesc->ifmtu));
 		return;
 	}
 
@@ -1451,32 +1448,30 @@ static int ospf6_rxpacket_examin(struct ospf6_interface *oi,
 	if (oh->area_id != oi->area->area_id) {
 		if (oh->area_id == OSPF_AREA_BACKBONE)
 			zlog_warn(
-				"VRF %s: I/F %s Message may be via Virtual Link: not supported",
-				vrf_id_to_name(oi->interface->vrf_id),
-				oi->interface->name);
+				"VRF %s: I/F %pOI Message may be via Virtual Link: not supported",
+				vrf_id_to_name(oi->interface->vrf_id), oi);
 		else
 			zlog_warn(
-				"VRF %s: I/F %s Area-ID mismatch (my %pI4, rcvd %pI4)",
-				vrf_id_to_name(oi->interface->vrf_id),
-				oi->interface->name, &oi->area->area_id,
-				&oh->area_id);
+				"VRF %s: I/F %pOI Area-ID mismatch (my %pI4, rcvd %pI4)",
+				vrf_id_to_name(oi->interface->vrf_id), oi,
+				&oi->area->area_id, &oh->area_id);
 		return MSG_NG;
 	}
 
 	/* Instance-ID check */
 	if (oh->instance_id != oi->instance_id) {
 		zlog_warn(
-			"VRF %s: I/F %s Instance-ID mismatch (my %u, rcvd %u)",
-			vrf_id_to_name(oi->interface->vrf_id),
-			oi->interface->name, oi->instance_id, oh->instance_id);
+			"VRF %s: I/F %pOI Instance-ID mismatch (my %u, rcvd %u)",
+			vrf_id_to_name(oi->interface->vrf_id), oi,
+			oi->instance_id, oh->instance_id);
 		return MSG_NG;
 	}
 
 	/* Router-ID check */
 	if (oh->router_id == oi->area->ospf6->router_id) {
-		zlog_warn("VRF %s: I/F %s Duplicate Router-ID (%pI4)",
-			  vrf_id_to_name(oi->interface->vrf_id),
-			  oi->interface->name, &oh->router_id);
+		zlog_warn("VRF %s: I/F %pOI Duplicate Router-ID (%pI4)",
+			  vrf_id_to_name(oi->interface->vrf_id), oi,
+			  &oh->router_id);
 		return MSG_NG;
 	}
 	return MSG_OK;
@@ -1707,8 +1702,8 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 	if (CHECK_FLAG(oi->flag, OSPF6_INTERFACE_PASSIVE)) {
 		if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_UNKNOWN,
 					   RECV_HDR))
-			zlog_debug("%s: Ignore message on passive interface %s",
-				   __func__, oi->interface->name);
+			zlog_debug("%s: Ignore message on passive interface %pOI",
+				   __func__, oi);
 		return OSPF6_READ_CONTINUE;
 	}
 
@@ -1733,9 +1728,9 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 
 	/* Log */
 	if (IS_OSPF6_DEBUG_MESSAGE(oh->type, RECV_HDR)) {
-		zlog_debug("%s received on %s",
+		zlog_debug("%s received on %pOI",
 			   lookup_msg(ospf6_message_type_str, oh->type, NULL),
-			   oi->interface->name);
+			   oi);
 		zlog_debug("    src: %pI6", &src);
 		zlog_debug("    dst: %pI6", &dst);
 
@@ -1846,9 +1841,9 @@ static void ospf6_send(struct in6_addr *src, struct in6_addr *dst,
 			inet_ntop(AF_INET6, src, srcname, sizeof(srcname));
 		else
 			memset(srcname, 0, sizeof(srcname));
-		zlog_debug("%s send on %s",
+		zlog_debug("%s send on %pOI",
 			   lookup_msg(ospf6_message_type_str, oh->type, NULL),
-			   oi->interface->name);
+			   oi);
 		zlog_debug("    src: %s", srcname);
 		zlog_debug("    dst: %pI6", dst);
 
@@ -1900,14 +1895,14 @@ int ospf6_hello_send(struct thread *thread)
 
 	if (oi->state <= OSPF6_INTERFACE_DOWN) {
 		if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_HELLO, SEND_HDR))
-			zlog_debug("Unable to send Hello on down interface %s",
-				   oi->interface->name);
+			zlog_debug("Unable to send Hello on down interface %pOI",
+				   oi);
 		return 0;
 	}
 
 	if (iobuflen == 0) {
-		zlog_debug("Unable to send Hello on interface %s iobuflen is 0",
-			   oi->interface->name);
+		zlog_debug("Unable to send Hello on interface %pOI iobuflen is 0",
+			   oi);
 		return 0;
 	}
 
@@ -2422,9 +2417,8 @@ int ospf6_lsupdate_send_interface(struct thread *thread)
 		if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_LSUPDATE,
 					   SEND_HDR))
 			zlog_debug(
-				"Quit to send LSUpdate to interface %s state %s",
-				oi->interface->name,
-				ospf6_interface_state_str[oi->state]);
+				"Quit to send LSUpdate to interface %pOI state %s",
+				oi, ospf6_interface_state_str[oi->state]);
 		return 0;
 	}
 
@@ -2587,9 +2581,8 @@ int ospf6_lsack_send_interface(struct thread *thread)
 	if (oi->state <= OSPF6_INTERFACE_WAITING) {
 		if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_LSACK, SEND_HDR))
 			zlog_debug(
-				"Quit to send LSAck to interface %s state %s",
-				oi->interface->name,
-				ospf6_interface_state_str[oi->state]);
+				"Quit to send LSAck to interface %pOI state %s",
+				oi, ospf6_interface_state_str[oi->state]);
 		return 0;
 	}
 

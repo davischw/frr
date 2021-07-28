@@ -570,8 +570,7 @@ int ospf6_network_lsa_originate(struct thread *thread)
 	}
 
 	if (IS_OSPF6_DEBUG_ORIGINATE(NETWORK))
-		zlog_debug("Originate Network-LSA for Interface %s",
-			   oi->interface->name);
+		zlog_debug("Originate Network-LSA for Interface %pOI", oi);
 
 	/* If none of neighbor is adjacent to us */
 	count = 0;
@@ -810,15 +809,14 @@ int ospf6_link_lsa_originate(struct thread *thread)
 	}
 
 	if (IS_OSPF6_DEBUG_ORIGINATE(LINK))
-		zlog_debug("Originate Link-LSA for Interface %s",
-			   oi->interface->name);
+		zlog_debug("Originate Link-LSA for Interface %pOI", oi);
 
 	/* can't make Link-LSA if linklocal address not set */
 	if (oi->linklocal_addr == NULL) {
 		if (IS_OSPF6_DEBUG_ORIGINATE(LINK))
 			zlog_debug(
-				"No Linklocal address on %s, defer originating",
-				oi->interface->name);
+				"No Linklocal address on %pOI, defer originating",
+				oi);
 		if (old)
 			ospf6_lsa_purge(old);
 		return 0;
@@ -1086,8 +1084,8 @@ int ospf6_intra_prefix_lsa_originate_stub(struct thread *thread)
 	for (ALL_LIST_ELEMENTS_RO(oa->if_list, i, oi)) {
 		if (oi->state == OSPF6_INTERFACE_DOWN) {
 			if (IS_OSPF6_DEBUG_ORIGINATE(INTRA_PREFIX))
-				zlog_debug("  Interface %s is down, ignore",
-					   oi->interface->name);
+				zlog_debug("  Interface %pOI is down, ignore",
+					   oi);
 			continue;
 		}
 
@@ -1102,13 +1100,13 @@ int ospf6_intra_prefix_lsa_originate_stub(struct thread *thread)
 		    && oi->state != OSPF6_INTERFACE_POINTTOMULTIPOINT
 		    && full_count != 0) {
 			if (IS_OSPF6_DEBUG_ORIGINATE(INTRA_PREFIX))
-				zlog_debug("  Interface %s is not stub, ignore",
-					   oi->interface->name);
+				zlog_debug("  Interface %pOI is not stub, ignore",
+					   oi);
 			continue;
 		}
 
 		if (IS_OSPF6_DEBUG_ORIGINATE(INTRA_PREFIX))
-			zlog_debug("  Interface %s:", oi->interface->name);
+			zlog_debug("  Interface %pOI:", oi);
 
 		/* connected prefix to advertise */
 		for (route = ospf6_route_head(oi->route_connected); route;
@@ -1296,8 +1294,8 @@ int ospf6_intra_prefix_lsa_originate_transit(struct thread *thread)
 
 	if (IS_OSPF6_DEBUG_ORIGINATE(INTRA_PREFIX))
 		zlog_debug(
-			"Originate Intra-Area-Prefix-LSA for interface %s's prefix",
-			oi->interface->name);
+			"Originate Intra-Area-Prefix-LSA for interface %pOI's prefix",
+			oi);
 
 	/* prepare buffer */
 	memset(buffer, 0, sizeof(buffer));

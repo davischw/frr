@@ -25,6 +25,7 @@
 #include "hook.h"
 #include "if.h"
 
+#include "lib/libospf.h"
 #include "ospf6_neighbor.h"
 
 /* Debug option */
@@ -234,8 +235,18 @@ extern void install_element_ospf6_debug_interface(void);
 extern int ospf6_interface_neighbor_count(struct ospf6_interface *oi);
 extern uint8_t dr_election(struct ospf6_interface *oi);
 
+static inline const char *ospf6_ifname(const struct ospf6_interface *oi)
+{
+	return oi->type == OSPF_IFTYPE_VIRTUALLINK ? "vlink"
+		: oi->interface->name;
+}
+
 DECLARE_HOOK(ospf6_interface_change,
 	     (struct ospf6_interface * oi, int state, int old_state),
 	     (oi, state, old_state));
+
+#ifdef _FRR_ATTRIBUTE_PRINTFRR
+#pragma FRR printfrr_ext "%pOI"  (struct ospf6_interface *)
+#endif
 
 #endif /* OSPF6_INTERFACE_H */
