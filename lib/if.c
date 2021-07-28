@@ -309,7 +309,8 @@ void if_delete(struct interface **ifp)
 	vrf = vrf_lookup_by_id(ptr->vrf_id);
 	assert(vrf);
 
-	IFNAME_RB_REMOVE(vrf, ptr);
+	if ((*ifp)->name[0] != '\0')
+		IFNAME_RB_REMOVE(vrf, ptr);
 	if (ptr->ifindex != IFINDEX_INTERNAL)
 		IFINDEX_RB_REMOVE(vrf, ptr);
 
