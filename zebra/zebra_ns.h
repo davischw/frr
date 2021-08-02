@@ -63,9 +63,9 @@ struct zebra_ns {
 #endif /* NETLINK_PROXY */
 	struct nlsock netlink;     /* kernel messages */
 	struct nlsock netlink_cmd; /* command channel */
+	struct nlsock netlink_dplane; /* dataplane channel */
 #ifdef NETLINK_PROXY
 	};
-	struct nlsock netlink_dplane; /* dataplane channel */
 #endif /* NETLINK_PROXY */
 	struct thread *t_netlink;
 	struct thread *t_netlinkout;

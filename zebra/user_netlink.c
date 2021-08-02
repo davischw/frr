@@ -244,6 +244,9 @@ void dpd_parse_address(const char *address)
 
 void dpd_socket_data(struct zebra_ns *zns, struct nlsock *ns)
 {
+	/* Back-point to zebra_ns. */
+	ns->zns = zns;
+
 	/* Allocate buffers. */
 	ns->nsbuf = stream_new(32 * 1024);
 
@@ -260,9 +263,9 @@ void dpd_socket_data(struct zebra_ns *zns, struct nlsock *ns)
 
 void dpd_socket_data_reset(const struct nlsock *nsc)
 {
+	static const char dplane_name[] = "netlink-dp";
+	static const size_t dplane_name_len = sizeof(dplane_name) - 1;
 	struct nlsock *ns = (struct nlsock *)nsc;
-	struct zebra_ns *zns = ns->zns;
-	bool is_main = (ns == &zns->netlink);
 	struct nlbuf *nb;
 
 	/* Create new socket. */
@@ -281,9 +284,9 @@ void dpd_socket_data_reset(const struct nlsock *nsc)
 	 * On zebra reconnect process route synchronization. Data plane
 	 * should not trigger any event.
 	 */
-	if (is_main)
-		thread_execute(zrouter.master, user_netlink_event_cb,
-			       (void *)(size_t)nsc, UNE_SYNC_INTERFACES);
+	if (memcmp(nsc->name, dplane_name, dplane_name_len) != 0)
+		thread_execute(zrouter.master, user_netlink_event_cb, ns,
+			       UNE_SYNC_INTERFACES);
 }
 
 int dpd_socket(void)
@@ -363,25 +366,21 @@ int dpd_socket(void)
 
 void kernel_init(struct zebra_ns *zns)
 {
+	/* Initialize data structure. */
+	snprintf(zns->netlink_cmd.name, sizeof(zns->netlink_cmd.name),
+		 "netlink-user (NS %u)", zns->ns_id);
+
 	/* Start listening/using it. */
 	dpd_socket_data(zns, &zns->netlink);
-	dpd_socket_data(zns, &zns->netlink_dplane);
-
 	zns->netlink.sock = dpd_socket();
-	zns->netlink_dplane.sock = dpd_socket();
 	zns->t_netlink = NULL;
 	zns->t_netlinkout = NULL;
 	netlink_poll_read(zns, 1);
 
 	/* Data plane netlink-connection. */
 	snprintf(zns->netlink.name, sizeof(zns->netlink.name),
-		 "netlink (NS %u)", zns->ns_id);
-	snprintf(zns->netlink_dplane.name, sizeof(zns->netlink_dplane.name),
 		 "netlink-dp (NS %u)", zns->ns_id);
-
-	/* Back pointer to zebra_ns. */
-	zns->netlink.zns = zns;
-	zns->netlink_dplane.zns = zns;
+	dpd_socket_data(zns, &zns->netlink);
 
 	rt_netlink_init();
 }
@@ -668,8 +667,6 @@ int netlink_talk(int (*filter)(struct nlmsghdr *, ns_id_t, int startup),
 
 	/* Capture info in intermediate info struct. */
 	zebra_dplane_info_from_zns(&dp_info, zns, (nl == &(zns->netlink_cmd)));
-	if (nl == &zns->netlink_dplane)
-		dp_info.nls = zns->netlink_dplane;
 
 	return netlink_talk_info(filter, n, &dp_info, startup);
 }
@@ -717,11 +714,6 @@ nl_next:
 	/* Advance buffer pointer. */
 	stream_forward_getp(ns->nsbuf, mlen);
 	rtotal += mlen;
-
-	/* Skip notifications on data plane. */
-	if (ns == &ns->zns->netlink_dplane
-	    && nlmsg->nlmsg_seq == 0)
-		goto nl_next;
 
 	/* Validate incoming data. */
 	if (IS_ZEBRA_DEBUG_KERNEL_MSGDUMP_RECV) {
