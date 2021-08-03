@@ -59,6 +59,7 @@
 #endif
 
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_TOP, "OSPF6 top");
+DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_VIF_CTX, "OSPF6 vif context");
 
 DEFINE_QOBJ_TYPE(ospf6);
 
@@ -70,6 +71,76 @@ FRR_CFG_DEFAULT_BOOL(OSPF6_LOG_ADJACENCY_CHANGES,
 /* global ospf6d variable */
 static struct ospf6_master ospf6_master;
 struct ospf6_master *om6;
+
+static struct ospf6_vif_ctx *ospf6_vif_find(struct ospf6 *o, ifindex_t vif,
+					    const struct in6_addr *group)
+{
+	struct ospf6_vif_ctx *vifc;
+
+	SLIST_FOREACH (vifc, &o->vif_ctx_list, entry) {
+		if (vifc->vif != vif)
+			continue;
+		if (memcmp(&vifc->group, group, sizeof(vifc->group)))
+			continue;
+		return vifc;
+	}
+	return NULL;
+}
+
+uint32_t ospf6_vif_ref(struct ospf6 *o, ifindex_t vif,
+		       const struct in6_addr *group)
+{
+	struct ospf6_vif_ctx *vifc;
+
+	vifc = ospf6_vif_find(o, vif, group);
+	if (vifc != NULL) {
+		vifc->refcount++;
+		return vifc->refcount;
+	}
+
+	vifc = XCALLOC(MTYPE_OSPF6_VIF_CTX, sizeof(*vifc));
+	vifc->vif = vif;
+	vifc->refcount = 1;
+	memcpy(&vifc->group, group, sizeof(vifc->group));
+	SLIST_INSERT_HEAD(&o->vif_ctx_list, vifc, entry);
+	return vifc->refcount;
+}
+
+static void ospf6_vif_free(struct ospf6 *o, struct ospf6_vif_ctx **vifc)
+{
+	if (*vifc == NULL)
+		return;
+
+	SLIST_REMOVE(&o->vif_ctx_list, (*vifc), ospf6_vif_ctx, entry);
+	XFREE(MTYPE_OSPF6_VIF_CTX, (*vifc));
+}
+
+static void ospf6_vif_free_all(struct ospf6 *o)
+{
+	struct ospf6_vif_ctx *vifc;
+
+	while (!SLIST_EMPTY(&o->vif_ctx_list)) {
+		vifc = SLIST_FIRST(&o->vif_ctx_list);
+		ospf6_vif_free(o, &vifc);
+	}
+}
+
+uint32_t ospf6_vif_unref(struct ospf6 *o, ifindex_t vif,
+			 const struct in6_addr *group)
+{
+	struct ospf6_vif_ctx *vifc;
+
+	vifc = ospf6_vif_find(o, vif, group);
+	if (vifc == NULL)
+		return 0;
+
+	vifc->refcount--;
+	if (vifc->refcount > 0)
+		return vifc->refcount;
+
+	ospf6_vif_free(o, &vifc);
+	return 0;
+}
 
 static void ospf6_disable(struct ospf6 *o);
 
@@ -518,6 +589,8 @@ void ospf6_delete(struct ospf6 *o)
 		if (rn->info)
 			ospf6_external_aggregator_free(rn->info);
 	route_table_finish(o->rt_aggr_tbl);
+
+	ospf6_vif_free_all(o);
 
 	XFREE(MTYPE_OSPF6_TOP, o->name);
 	XFREE(MTYPE_OSPF6_TOP, o);

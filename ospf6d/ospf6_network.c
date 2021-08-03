@@ -127,6 +127,8 @@ int ospf6_serv_sock(struct ospf6 *ospf6)
 	}
 	sockopt_reuseaddr(ospf6->fd);
 	ospf6_reset_mcastloop(ospf6->fd);
+	setsockopt_so_sendbuf(ospf6->fd, 8 * 1024 * 1024);
+	setsockopt_so_recvbuf(ospf6->fd, 8 * 1024 * 1024);
 	ospf6_set_pktinfo(ospf6->fd);
 	ospf6_set_transport_class(ospf6->fd);
 	ospf6_set_checksum(ospf6->fd);
@@ -188,20 +190,39 @@ void ospf6_sb_schedule(int fd)
 }
 
 /* ospf6 set socket option */
-int ospf6_sso(ifindex_t ifindex, struct in6_addr *group, int option, int sockfd)
+int ospf6_sso(struct ospf6 *o, ifindex_t ifindex, struct in6_addr *group,
+	      int option)
 {
 	struct ipv6_mreq mreq6;
+	uint32_t refcount;
 	int ret;
-	int bufsize = (8 * 1024 * 1024);
 
-	if (sockfd == -1)
+	if (o->fd == -1)
 		return -1;
 
-	assert(ifindex);
 	mreq6.ipv6mr_interface = ifindex;
 	memcpy(&mreq6.ipv6mr_multiaddr, group, sizeof(struct in6_addr));
 
-	ret = setsockopt(sockfd, IPPROTO_IPV6, option, &mreq6, sizeof(mreq6));
+	if (option == IPV6_JOIN_GROUP)
+		refcount = ospf6_vif_ref(o, ifindex, group);
+	else if (option == IPV6_LEAVE_GROUP)
+		refcount = ospf6_vif_unref(o, ifindex, group);
+	else
+		refcount = 0;
+
+	if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_SB, SEND))
+		zlog_debug("%s: socket %d if %d (refcount %u) %s %pI6",
+			   __func__, o->fd, ifindex, refcount,
+			   option == IPV6_JOIN_GROUP	? "JOIN"
+			   : option == IPV6_LEAVE_GROUP ? "LEAVE"
+							: "unknown",
+			   &mreq6.ipv6mr_multiaddr);
+
+	/* There are still other data plane interfaces using this. */
+	if (refcount >= 1)
+		return 0;
+
+	ret = setsockopt(o->fd, IPPROTO_IPV6, option, &mreq6, sizeof(mreq6));
 	if (ret < 0) {
 		flog_err_sys(
 			EC_LIB_SOCKET,
@@ -209,9 +230,6 @@ int ospf6_sso(ifindex_t ifindex, struct in6_addr *group, int option, int sockfd)
 			option, ifindex, safe_strerror(errno));
 		return ret;
 	}
-
-	setsockopt_so_sendbuf(sockfd, bufsize);
-	setsockopt_so_recvbuf(sockfd, bufsize);
 
 	return 0;
 }

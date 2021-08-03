@@ -33,8 +33,8 @@ void ospf6_sb_schedule(int fd);
 
 extern int ospf6_serv_sock(struct ospf6 *ospf6);
 extern void ospf6_serv_close(int *ospf6_sock);
-extern int ospf6_sso(ifindex_t ifindex, struct in6_addr *group, int option,
-		     int sockfd);
+extern int ospf6_sso(struct ospf6 *o, ifindex_t ifindex, struct in6_addr *group,
+		     int option);
 
 extern ssize_t ospf6_sendmsg(struct ospf6 *, struct in6_addr *,
 			     struct in6_addr *, struct interface *,

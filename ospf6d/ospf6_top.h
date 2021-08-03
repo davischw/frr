@@ -60,6 +60,14 @@ struct ospf6_redist {
 #define ROUTEMAP(R) (R->route_map.map)
 };
 
+struct ospf6_vif_ctx {
+	ifindex_t vif;
+	uint32_t refcount;
+	struct in6_addr group;
+	SLIST_ENTRY(ospf6_vif_ctx) entry;
+};
+SLIST_HEAD(ospf6_vif_ctx_list, ospf6_vif_ctx);
+
 /* OSPFv3 top level data structure */
 struct ospf6 {
 	/* The relevant vrf_id */
@@ -126,6 +134,8 @@ struct ospf6 {
 	unsigned int last_spf_reason;   /* Last SPF reason */
 
 	int fd;
+	struct ospf6_vif_ctx_list vif_ctx_list;
+
 	/* Threads */
 	struct thread *t_spf_calc; /* SPF calculation timer. */
 	struct thread *t_ase_calc; /* ASE calculation timer. */
@@ -200,4 +210,10 @@ struct ospf6 *ospf6_lookup_by_vrf_name(const char *name);
 const char *ospf6_vrf_id_to_name(vrf_id_t vrf_id);
 void ospf6_vrf_init(void);
 bool ospf6_is_valid_summary_addr(struct vty *vty, struct prefix *p);
+
+uint32_t ospf6_vif_ref(struct ospf6 *o, ifindex_t vif,
+		       const struct in6_addr *group);
+uint32_t ospf6_vif_unref(struct ospf6 *o, ifindex_t vif,
+			 const struct in6_addr *group);
+
 #endif /* OSPF6_TOP_H */

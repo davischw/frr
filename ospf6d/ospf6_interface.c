@@ -493,15 +493,15 @@ static int ospf6_interface_state_change(uint8_t next_state,
 	     || prev_state == OSPF6_INTERFACE_BDR)
 	    && (next_state != OSPF6_INTERFACE_DR
 		&& next_state != OSPF6_INTERFACE_BDR))
-		ospf6_sso(oi->interface->vif_index, &alldrouters6,
-			  IPV6_LEAVE_GROUP, ospf6->fd);
+		ospf6_sso(ospf6, oi->interface->vif_index, &alldrouters6,
+			  IPV6_LEAVE_GROUP);
 
 	if ((prev_state != OSPF6_INTERFACE_DR
 	     && prev_state != OSPF6_INTERFACE_BDR)
 	    && (next_state == OSPF6_INTERFACE_DR
 		|| next_state == OSPF6_INTERFACE_BDR))
-		ospf6_sso(oi->interface->vif_index, &alldrouters6,
-			  IPV6_JOIN_GROUP, ospf6->fd);
+		ospf6_sso(ospf6, oi->interface->vif_index, &alldrouters6,
+			  IPV6_JOIN_GROUP);
 
 	OSPF6_ROUTER_LSA_SCHEDULE(oi->area);
 	OSPF6_LINK_LSA_SCHEDULE(oi);
@@ -793,8 +793,8 @@ int interface_up(struct thread *thread)
 	ospf6 = oi->area->ospf6;
 
 	/* Join AllSPFRouters */
-	if (ospf6_sso(oi->interface->vif_index, &allspfrouters6,
-		      IPV6_JOIN_GROUP, ospf6->fd)
+	if (ospf6_sso(ospf6, oi->interface->vif_index, &allspfrouters6,
+		      IPV6_JOIN_GROUP)
 	    < 0) {
 		if (oi->sso_try_cnt++ < OSPF6_INTERFACE_SSO_RETRY_MAX) {
 			zlog_info(
@@ -921,9 +921,8 @@ int interface_down(struct thread *thread)
 
 	ospf6 = oi->area->ospf6;
 	/* Leave AllSPFRouters */
-	if (oi->state > OSPF6_INTERFACE_DOWN)
-		ospf6_sso(oi->interface->vif_index, &allspfrouters6,
-			  IPV6_LEAVE_GROUP, ospf6->fd);
+	ospf6_sso(ospf6, oi->interface->vif_index, &allspfrouters6,
+		  IPV6_LEAVE_GROUP);
 
 	ospf6_interface_state_change(OSPF6_INTERFACE_DOWN, oi);
 
