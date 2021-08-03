@@ -64,6 +64,8 @@ enum user_netlink_event {
 	UNE_SYNC_INTERFACES,
 };
 
+pthread_mutex_t user_netlink_mtx;
+
 /* Monitor memory usage. */
 DEFINE_MTYPE_STATIC(ZEBRA, ZEBRA_NETLINK, "Netlink buffers");
 
@@ -367,8 +369,7 @@ int dpd_socket(void)
 void kernel_init(struct zebra_ns *zns)
 {
 	/* Initialize data structure. */
-	snprintf(zns->netlink_cmd.name, sizeof(zns->netlink_cmd.name),
-		 "netlink-user (NS %u)", zns->ns_id);
+	pthread_mutex_init(&user_netlink_mtx, NULL);
 
 	/* Start listening/using it. */
 	dpd_socket_data(zns, &zns->netlink);
@@ -380,7 +381,6 @@ void kernel_init(struct zebra_ns *zns)
 	/* Data plane netlink-connection. */
 	snprintf(zns->netlink.name, sizeof(zns->netlink.name),
 		 "netlink-dp (NS %u)", zns->ns_id);
-	dpd_socket_data(zns, &zns->netlink);
 
 	rt_netlink_init();
 }
@@ -406,10 +406,22 @@ void kernel_terminate(struct zebra_ns *zns, bool complete)
 	}
 }
 
+void user_netlink_lock(void)
+{
+	pthread_mutex_lock(&user_netlink_mtx);
+}
+
+void user_netlink_unlock(void)
+{
+	pthread_mutex_unlock(&user_netlink_mtx);
+}
+
 int kernel_read(struct thread *thread)
 {
 	struct zebra_ns *zns = (struct zebra_ns *)THREAD_ARG(thread);
 	struct zebra_dplane_info dp_info;
+
+	USER_NETLINK_LOCK_AUTOUNLOCK();
 
 	/* Capture key info from ns struct */
 	zebra_dplane_info_from_zns(&dp_info, zns, false);
@@ -425,6 +437,8 @@ int kernel_write(struct thread *thread)
 {
 	struct zebra_ns *zns = (struct zebra_ns *)THREAD_ARG(thread);
 	struct zebra_dplane_info dp_info;
+
+	USER_NETLINK_LOCK_AUTOUNLOCK();
 
 	/* Capture key info from ns struct */
 	zebra_dplane_info_from_zns(&dp_info, zns, false);
@@ -664,6 +678,8 @@ int netlink_talk(int (*filter)(struct nlmsghdr *, ns_id_t, int startup),
 		 int startup)
 {
 	struct zebra_dplane_info dp_info;
+
+	USER_NETLINK_LOCK_AUTOUNLOCK();
 
 	/* Capture info in intermediate info struct. */
 	zebra_dplane_info_from_zns(&dp_info, zns, (nl == &(zns->netlink_cmd)));

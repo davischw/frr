@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 
+#include "lib/frr_pthread.h"
 #include "zebra/zebra_nhg.h"
 
 /** Default netlink proxy port. */
@@ -41,6 +42,13 @@ struct nlbuf {
 };
 
 extern void dpd_parse_address(const char *address);
+
+extern pthread_mutex_t user_netlink_mtx;
+#define USER_NETLINK_LOCK_AUTOUNLOCK() \
+	frr_mutex_lock_autounlock(&user_netlink_mtx)
+
+void user_netlink_lock(void);
+void user_netlink_unlock(void);
 
 extern int netlink_talk_info(int (*filter)(struct nlmsghdr *, ns_id_t,
 					   int startup),

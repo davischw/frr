@@ -70,6 +70,7 @@
 #include "zebra/kernel_netlink.h"
 #include "zebra/rt_netlink.h"
 #include "zebra/if_netlink.h"
+#include "zebra/user_netlink.h"
 #include "zebra/zebra_errors.h"
 #include "zebra/zebra_vxlan.h"
 #include "zebra/zebra_evpn_mh.h"
@@ -1085,6 +1086,10 @@ int interface_lookup_netlink(struct zebra_ns *zns)
 	struct zebra_dplane_info dp_info;
 	struct nlsock *netlink_cmd = &zns->netlink_cmd;
 
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
+
 	/* Capture key info from ns struct */
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);
 
@@ -1133,6 +1138,10 @@ static int interface_addr_lookup_netlink(struct zebra_ns *zns)
 	int ret;
 	struct zebra_dplane_info dp_info;
 	struct nlsock *netlink_cmd = &zns->netlink_cmd;
+
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
 
 	/* Capture key info from ns struct */
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);

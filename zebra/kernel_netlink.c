@@ -47,6 +47,7 @@
 #include "zebra/rt_netlink.h"
 #include "zebra/if_netlink.h"
 #include "zebra/rule_netlink.h"
+#include "zebra/user_netlink.h"
 #include "zebra/zebra_errors.h"
 
 #ifndef SO_RCVBUFFORCE
@@ -1222,6 +1223,10 @@ static void nl_batch_send(struct nl_batch *bth)
 	struct zebra_dplane_ctx *ctx;
 	bool err = false;
 
+#ifdef NETLINK_PROXY
+	user_netlink_lock();
+#endif /* NETLINK_PROXY */
+
 	if (bth->curlen != 0 && bth->zns != NULL) {
 		if (IS_ZEBRA_DEBUG_KERNEL)
 			zlog_debug("%s: %s, batch size=%zu, msg cnt=%zu",
@@ -1252,6 +1257,10 @@ static void nl_batch_send(struct nl_batch *bth)
 #endif
 		}
 	}
+
+#ifdef NETLINK_PROXY
+	user_netlink_unlock();
+#endif /* NETLINK_PROXY */
 
 	/* Move remaining contexts to the outbound queue. */
 	while (true) {

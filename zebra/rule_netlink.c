@@ -39,6 +39,7 @@
 #include "zebra/rtadv.h"
 #include "zebra/kernel_netlink.h"
 #include "zebra/rule_netlink.h"
+#include "zebra/user_netlink.h"
 #include "zebra/zebra_pbr.h"
 #include "zebra/zebra_errors.h"
 #include "zebra/zebra_dplane.h"
@@ -385,6 +386,10 @@ int netlink_rules_read(struct zebra_ns *zns)
 {
 	int ret;
 	struct zebra_dplane_info dp_info;
+
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
 
 	zebra_dplane_info_from_zns(&dp_info, zns, true);
 

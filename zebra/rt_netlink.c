@@ -63,6 +63,7 @@
 #include "zebra/zebra_mpls.h"
 #include "zebra/kernel_netlink.h"
 #include "zebra/rt_netlink.h"
+#include "zebra/user_netlink.h"
 #include "zebra/zebra_nhg.h"
 #include "zebra/zebra_mroute.h"
 #include "zebra/zebra_vxlan.h"
@@ -1071,6 +1072,10 @@ int netlink_route_read(struct zebra_ns *zns)
 {
 	int ret;
 	struct zebra_dplane_info dp_info;
+
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
 
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);
 
@@ -2765,6 +2770,10 @@ int netlink_nexthop_read(struct zebra_ns *zns)
 	int ret;
 	struct zebra_dplane_info dp_info;
 
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
+
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);
 
 	/* Get nexthop objects */
@@ -3171,6 +3180,10 @@ int netlink_macfdb_read(struct zebra_ns *zns)
 	int ret;
 	struct zebra_dplane_info dp_info;
 
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
+
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);
 
 	/* Get bridge FDB table. */
@@ -3198,6 +3211,10 @@ int netlink_macfdb_read_for_bridge(struct zebra_ns *zns, struct interface *ifp,
 	struct zebra_l2info_vxlan *vxl;
 	struct zebra_dplane_info dp_info;
 	int ret = 0;
+
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
 
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);
 
@@ -3269,6 +3286,10 @@ int netlink_macfdb_read_specific_mac(struct zebra_ns *zns,
 {
 	int ret = 0;
 	struct zebra_dplane_info dp_info;
+
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
 
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);
 
@@ -3666,6 +3687,10 @@ int netlink_neigh_read(struct zebra_ns *zns)
 	int ret;
 	struct zebra_dplane_info dp_info;
 
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
+
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);
 
 	/* Get IP neighbor table. */
@@ -3687,6 +3712,10 @@ int netlink_neigh_read_for_vlan(struct zebra_ns *zns, struct interface *vlan_if)
 {
 	int ret = 0;
 	struct zebra_dplane_info dp_info;
+
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
 
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);
 
@@ -3751,6 +3780,10 @@ int netlink_neigh_read_specific_ip(struct ipaddr *ip,
 	struct zebra_dplane_info dp_info;
 
 	zns = zvrf->zns;
+
+#ifdef NETLINK_PROXY
+	USER_NETLINK_LOCK_AUTOUNLOCK();
+#endif /* NETLINK_PROXY */
 
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);
 
