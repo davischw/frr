@@ -111,6 +111,8 @@ struct ospf6_gr_helper {
 	uint32_t last_exit_reason;
 };
 
+PREDECL_RBTREE_UNIQ(ospf6_virtual_links);
+
 /* OSPFv3 top level data structure */
 struct ospf6 {
 	/* The relevant vrf_id */
@@ -246,6 +248,16 @@ struct ospf6 {
 #ifdef VENDOR_SOUTHBOUND
 	struct ospf6_vif_ctx_list vif_ctx_list;
 #endif /* VENDOR_SOUTHBOUND */
+
+	/* if any vlink is added on an area, a virtual interface gets created
+	 * to use with all vlinks.  This interface is NOT added to the vrf's
+	 * interface list, but it IS added to if_list on area 0.0.0.0 (since
+	 * virtual links are always a member of the backbone area.)
+	 */
+	struct ospf6_interface *vlink_oi;
+	struct ospf6_virtual_links_head vlinks[1];
+
+	uint32_t last_vlink_ifindex;
 
 	QOBJ_FIELDS;
 };

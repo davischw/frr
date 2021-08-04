@@ -177,14 +177,14 @@ def test_ecmp_inter_area():
                "'{}' wrong number of route nexthops".format(router)
 
     # Check nexthops pre link-down
-    expect_num_nexthops("r1", [1, 1, 1, 3, 3, 3, 3, 3], 4)
+    expect_num_nexthops("r1", [1, 1, 1, 3, 3, 3, 3, 3, 3, 3], 4)
 
     logger.info("triggering R2-R4 link down")
     tgen.gears["r2"].run("ip link set r2-eth1 down")
 
     #tgen.mininet_cli()
     # Check nexthops post link-down
-    expect_num_nexthops("r1", [1, 1, 1, 2, 2, 2, 2, 2], 8)
+    expect_num_nexthops("r1", [1, 1, 1, 2, 2, 2, 2, 2, 2, 2], 8)
 
 
 def teardown_module(_mod):
