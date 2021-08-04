@@ -71,6 +71,7 @@ struct ospf6_helper_info {
 };
 
 struct ospf6_if_p2xp_neighcfg;
+struct ospf6_virtual_link;
 
 /* Neighbor structure */
 struct ospf6_neighbor {
@@ -79,6 +80,9 @@ struct ospf6_neighbor {
 
 	/* OSPFv3 Interface this neighbor belongs to */
 	struct ospf6_interface *ospf6_if;
+
+	/* set if this is a virtual link neighbor */
+	struct ospf6_virtual_link *vlink;
 
 	/* P2P/P2MP config for this neighbor.
 	 * can be NULL if not explicitly configured!
@@ -191,7 +195,9 @@ struct ospf6_if_p2xp_neighcfg {
 #define OSPF6_NEIGHBOR_EVENT_BAD_LSREQ            8
 #define OSPF6_NEIGHBOR_EVENT_ONEWAY_RCVD          9
 #define OSPF6_NEIGHBOR_EVENT_INACTIVITY_TIMER    10
-#define OSPF6_NEIGHBOR_EVENT_MAX_EVENT           11
+#define OSPF6_NEIGHBOR_EVENT_VLINK_UNREACHABLE   11
+#define OSPF6_NEIGHBOR_EVENT_VLINK_REACHABLE     12
+#define OSPF6_NEIGHBOR_EVENT_MAX_EVENT           13
 
 extern const char *const ospf6_neighbor_event_str[];
 
@@ -239,6 +245,7 @@ extern int bad_lsreq(struct thread *);
 extern int oneway_received(struct thread *);
 extern int inactivity_timer(struct thread *);
 extern void ospf6_check_nbr_loading(struct ospf6_neighbor *);
+extern void ospf6_neighbor_vlink_change(struct ospf6_neighbor *nbr, bool up);
 
 extern void ospf6_neighbor_init(void);
 extern int config_write_ospf6_debug_neighbor(struct vty *vty);

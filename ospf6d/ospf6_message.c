@@ -38,6 +38,7 @@
 #include "ospf6_area.h"
 #include "ospf6_neighbor.h"
 #include "ospf6_interface.h"
+#include "ospf6_vlink.h"
 
 /* for structures and macros ospf6_lsa_examin() needs */
 #include "ospf6_abr.h"
@@ -86,6 +87,12 @@ const uint16_t ospf6_lsa_minlen[OSPF6_LSTYPE_SIZE] = {
 	/* 0x2009 */ OSPF6_INTRA_PREFIX_LSA_MIN_SIZE,
 	/* 0x200a */ 0,
 	/* 0x000b */ OSPF6_GRACE_LSA_MIN_SIZE};
+
+/* quick helpers */
+static inline uint32_t on_transdelay(struct ospf6_neighbor *on)
+{
+	return on->vlink ? on->vlink->transmit_delay : on->ospf6_if->transdelay;
+}
 
 /* print functions */
 
@@ -261,11 +268,13 @@ static void ospf6_hello_recv(struct in6_addr *src, struct in6_addr *dst,
 {
 	struct ospf6_hello *hello;
 	struct ospf6_neighbor *on;
+	struct ospf6_virtual_link *vlink = NULL;
 	char *p;
 	int twoway = 0;
 	int neighborchange = 0;
 	int neighbor_ifindex_change = 0;
 	int backupseen = 0;
+	uint32_t expect_hello, expect_dead;
 
 	hello = (struct ospf6_hello *)((caddr_t)oh
 				       + sizeof(struct ospf6_header));
@@ -289,21 +298,39 @@ static void ospf6_hello_recv(struct in6_addr *src, struct in6_addr *dst,
 		}
 	}
 
+	/* Find neighbor, create if not exist */
+	on = ospf6_neighbor_lookup(oh->router_id, oi);
+	if (oi->type == OSPF_IFTYPE_VIRTUALLINK) {
+		if (!on) {
+			zlog_warn(
+				"VRF %s: virtual link hello from %pI6 (%pI4): not configured",
+				vrf_id_to_name(oi->interface->vrf_id), src,
+				&oh->router_id);
+			return;
+		}
+		vlink = on->vlink;
+		expect_hello = vlink->hello_interval;
+		expect_dead = vlink->dead_interval;
+	} else {
+		expect_hello = oi->hello_interval;
+		expect_dead = oi->dead_interval;
+	}
+
 	/* HelloInterval check */
-	if (ntohs(hello->hello_interval) != oi->hello_interval) {
+	if (ntohs(hello->hello_interval) != expect_hello) {
 		zlog_warn(
 			"VRF %s: I/F %pOI HelloInterval mismatch: (my %d, rcvd %d)",
 			vrf_id_to_name(oi->interface->vrf_id), oi,
-			oi->hello_interval, ntohs(hello->hello_interval));
+			expect_hello, ntohs(hello->hello_interval));
 		return;
 	}
 
 	/* RouterDeadInterval check */
-	if (ntohs(hello->dead_interval) != oi->dead_interval) {
+	if (ntohs(hello->dead_interval) != expect_dead) {
 		zlog_warn(
 			"VRF %s: I/F %pOI DeadInterval mismatch: (my %d, rcvd %d)",
 			vrf_id_to_name(oi->interface->vrf_id), oi,
-			oi->dead_interval, ntohs(hello->dead_interval));
+			expect_dead, ntohs(hello->dead_interval));
 		return;
 	}
 
@@ -315,8 +342,6 @@ static void ospf6_hello_recv(struct in6_addr *src, struct in6_addr *dst,
 		return;
 	}
 
-	/* Find neighbor, create if not exist */
-	on = ospf6_neighbor_lookup(oh->router_id, oi);
 	if (on == NULL) {
 		on = ospf6_neighbor_create(oh->router_id, oi);
 		on->prev_drouter = on->drouter = hello->drouter;
@@ -583,6 +608,12 @@ static void ospf6_dbdesc_recv_master(struct ospf6_header *oh,
 
 		switch (OSPF6_LSA_SCOPE(his->header->type)) {
 		case OSPF6_SCOPE_LINKLOCAL:
+			if (on->ospf6_if->type == OSPF_IFTYPE_VIRTUALLINK) {
+				if (IS_OSPF6_DEBUG_MESSAGE(oh->type, RECV))
+					zlog_debug("Link-scoped LSA on Virtual link");
+				ospf6_lsa_delete(his);
+				continue;
+			}
 			lsdb = on->ospf6_if->lsdb;
 			break;
 		case OSPF6_SCOPE_AREA:
@@ -804,6 +835,12 @@ static void ospf6_dbdesc_recv_slave(struct ospf6_header *oh,
 
 		switch (OSPF6_LSA_SCOPE(his->header->type)) {
 		case OSPF6_SCOPE_LINKLOCAL:
+			if (on->ospf6_if->type == OSPF_IFTYPE_VIRTUALLINK) {
+				if (IS_OSPF6_DEBUG_MESSAGE(oh->type, RECV))
+					zlog_debug("Link-scoped LSA on Virtual link");
+				ospf6_lsa_delete(his);
+				continue;
+			}
 			lsdb = on->ospf6_if->lsdb;
 			break;
 		case OSPF6_SCOPE_AREA:
@@ -940,6 +977,11 @@ static void ospf6_lsreq_recv(struct in6_addr *src, struct in6_addr *dst,
 
 		switch (OSPF6_LSA_SCOPE(e->type)) {
 		case OSPF6_SCOPE_LINKLOCAL:
+			if (on->ospf6_if->type == OSPF_IFTYPE_VIRTUALLINK) {
+				if (IS_OSPF6_DEBUG_MESSAGE(oh->type, RECV))
+					zlog_debug("Link-scoped LSA on Virtual link");
+				continue;
+			}
 			lsdb = on->ospf6_if->lsdb;
 			break;
 		case OSPF6_SCOPE_AREA:
@@ -1551,6 +1593,12 @@ static void ospf6_lsack_recv(struct in6_addr *src, struct in6_addr *dst,
 
 		switch (OSPF6_LSA_SCOPE(his->header->type)) {
 		case OSPF6_SCOPE_LINKLOCAL:
+			if (on->ospf6_if->type == OSPF_IFTYPE_VIRTUALLINK) {
+				if (IS_OSPF6_DEBUG_MESSAGE(oh->type, RECV))
+					zlog_debug("Link-scoped LSA on Virtual link");
+				ospf6_lsa_delete(his);
+				continue;
+			}
 			lsdb = on->ospf6_if->lsdb;
 			break;
 		case OSPF6_SCOPE_AREA:
@@ -1657,6 +1705,53 @@ static int ospf6_rxpacket_process(struct in6_addr *src, struct in6_addr *dst,
 				  struct ospf6_interface *oi,
 				  struct ospf6_header *oh);
 
+static int ospf6_rxpacket_vlink(struct in6_addr *src, struct in6_addr *dst,
+				struct ospf6 *ospf6, int ifindex, int len)
+{
+	struct ospf6_interface *oi = ospf6->vlink_oi;
+	struct ospf6_header *oh;
+	struct interface *ifp;
+
+	/*
+	 * Drop packet destined to another VRF.
+	 * This happens when raw_l3mdev_accept is set to 1.
+	 */
+	ifp = if_lookup_by_index(ifindex, ospf6->vrf_id);
+	if (!ifp || ospf6->vrf_id != ifp->vrf_id)
+		return OSPF6_READ_CONTINUE;
+
+	oh = (struct ospf6_header *)recvbuf;
+	if (MSG_OK != ospf6_packet_examin(oh, len))
+		return OSPF6_READ_ERROR;
+
+	/* Area-ID check */
+	if (oh->area_id != INADDR_ANY || !oi) {
+		zlog_warn(
+			"VRF %s: OSPFv3 packet to invalid destination %pI6",
+			vrf_id_to_name(ospf6->vrf_id), dst);
+		return OSPF6_READ_ERROR;
+	}
+
+	/* Instance-ID check */
+	if (oh->instance_id != oi->instance_id) {
+		zlog_warn(
+			"VRF %s: %pI6%%%s Instance-ID mismatch (my %u, rcvd %u)",
+			vrf_id_to_name(ospf6->vrf_id), src, ifp->name,
+			oi->instance_id, oh->instance_id);
+		return MSG_NG;
+	}
+
+	/* Router-ID check */
+	if (oh->router_id == ospf6->router_id) {
+		zlog_warn("VRF %s: %pI6%%%s Duplicate Router-ID (%pI4)",
+			  vrf_id_to_name(ospf6->vrf_id), src, ifp->name,
+			  &oh->router_id);
+		return MSG_NG;
+	}
+
+	return ospf6_rxpacket_process(src, dst, oi, oh);
+}
+
 static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 {
 	int len;
@@ -1686,6 +1781,9 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 		flog_err(EC_LIB_DEVELOPMENT, "Excess message read");
 		return OSPF6_READ_ERROR;
 	}
+
+	if (!IN6_IS_ADDR_LINKLOCAL(&dst) && !IN6_IS_ADDR_MULTICAST(&dst))
+		return ospf6_rxpacket_vlink(&src, &dst, ospf6, ifindex, len);
 
 	ifp = if_lookup_by_index_all_vrf(ifindex);
 	if (ifp == NULL) {
@@ -1920,12 +2018,14 @@ int ospf6_hello_send(struct thread *thread)
 	thread_add_timer(master, ospf6_hello_send, oi, oi->hello_interval,
 			 &oi->thread_send_hello);
 
-	ospf6_hello_send_addr(oi, NULL);
+	ospf6_hello_send_addr(oi, NULL, NULL);
 	return 0;
 }
 
 /* used to send polls for PtP/PtMP too */
-void ospf6_hello_send_addr(struct ospf6_interface *oi, struct in6_addr *addr)
+void ospf6_hello_send_addr(struct ospf6_interface *oi,
+			   struct ospf6_virtual_link *vlink,
+			   struct in6_addr *addr)
 {
 	struct ospf6_header *oh;
 	struct ospf6_hello *hello;
@@ -1938,19 +2038,28 @@ void ospf6_hello_send_addr(struct ospf6_interface *oi, struct in6_addr *addr)
 	hello = (struct ospf6_hello *)((caddr_t)oh
 				       + sizeof(struct ospf6_header));
 
-	hello->interface_id = htonl(oi->interface->ifindex);
+	hello->interface_id = htonl(vlink ? vlink->v_ifindex
+				    : oi->interface->ifindex);
 	hello->priority = oi->priority;
 	hello->options[0] = oi->area->options[0];
 	hello->options[1] = oi->area->options[1];
 	hello->options[2] = oi->area->options[2];
-	hello->hello_interval = htons(oi->hello_interval);
-	hello->dead_interval = htons(oi->dead_interval);
+	hello->hello_interval = htons(vlink ? vlink->hello_interval
+				      : oi->hello_interval);
+	hello->dead_interval = htons(vlink ? vlink->dead_interval
+				     : oi->dead_interval);
 	hello->drouter = oi->drouter;
 	hello->bdrouter = oi->bdrouter;
 
 	p = (uint8_t *)((caddr_t)hello + sizeof(struct ospf6_hello));
 
-	for (ALL_LIST_ELEMENTS(oi->neighbor_list, node, nnode, on)) {
+	if (vlink) {
+		on = vlink->nbr;
+		if (on->state >= OSPF6_NEIGHBOR_INIT) {
+			memcpy(p, &on->router_id, sizeof(uint32_t));
+			p += sizeof(uint32_t);
+		}
+	} else for (ALL_LIST_ELEMENTS(oi->neighbor_list, node, nnode, on)) {
 		if (on->state < OSPF6_NEIGHBOR_INIT)
 			continue;
 
@@ -2010,7 +2119,8 @@ int ospf6_dbdesc_send(struct thread *thread)
 	/* set next thread if master */
 	if (CHECK_FLAG(on->dbdesc_bits, OSPF6_DBDESC_MSBIT))
 		thread_add_timer(master, ospf6_dbdesc_send, on,
-				 on->ospf6_if->rxmt_interval,
+				 on->vlink ? on->vlink->retransmit_interval
+					   : on->ospf6_if->rxmt_interval,
 				 &on->thread_send_dbdesc);
 
 	memset(sendbuf, 0, iobuflen);
@@ -2027,7 +2137,7 @@ int ospf6_dbdesc_send(struct thread *thread)
 	dbdesc->options[0] = on->ospf6_if->area->options[0];
 	dbdesc->options[1] = on->ospf6_if->area->options[1];
 	dbdesc->options[2] = on->ospf6_if->area->options[2];
-	dbdesc->ifmtu = htons(on->ospf6_if->ifmtu);
+	dbdesc->ifmtu = htons(on->vlink ? 0 : on->ospf6_if->ifmtu);
 	dbdesc->bits = on->dbdesc_bits;
 	dbdesc->seqnum = htonl(on->dbdesc_seqnum);
 
@@ -2035,8 +2145,7 @@ int ospf6_dbdesc_send(struct thread *thread)
 	p = (uint8_t *)((caddr_t)dbdesc + sizeof(struct ospf6_dbdesc));
 	if (!CHECK_FLAG(on->dbdesc_bits, OSPF6_DBDESC_IBIT)) {
 		for (ALL_LSDB(on->dbdesc_list, lsa, lsanext)) {
-			ospf6_lsa_age_update_to_send(lsa,
-						     on->ospf6_if->transdelay);
+			ospf6_lsa_age_update_to_send(lsa, on_transdelay(on));
 
 			/* MTU check */
 			if (p - sendbuf + sizeof(struct ospf6_lsa_header)
@@ -2190,7 +2299,8 @@ int ospf6_lsreq_send(struct thread *thread)
 	if (on->request_list->count != 0) {
 		on->thread_send_lsreq = NULL;
 		thread_add_timer(master, ospf6_lsreq_send, on,
-				 on->ospf6_if->rxmt_interval,
+				 on->vlink ? on->vlink->retransmit_interval
+					   : on->ospf6_if->rxmt_interval,
 				 &on->thread_send_lsreq);
 	}
 
@@ -2286,7 +2396,7 @@ int ospf6_lsupdate_send_neighbor(struct thread *thread)
 			}
 		}
 
-		ospf6_lsa_age_update_to_send(lsa, on->ospf6_if->transdelay);
+		ospf6_lsa_age_update_to_send(lsa, on_transdelay(on));
 		memcpy(p, lsa->header, OSPF6_LSA_SIZE(lsa->header));
 		p += OSPF6_LSA_SIZE(lsa->header);
 		lsa_cnt++;
@@ -2346,7 +2456,7 @@ int ospf6_lsupdate_send_neighbor(struct thread *thread)
 			}
 		}
 
-		ospf6_lsa_age_update_to_send(lsa, on->ospf6_if->transdelay);
+		ospf6_lsa_age_update_to_send(lsa, on_transdelay(on));
 		memcpy(p, lsa->header, OSPF6_LSA_SIZE(lsa->header));
 		p += OSPF6_LSA_SIZE(lsa->header);
 		lsa_cnt++;
@@ -2372,7 +2482,8 @@ int ospf6_lsupdate_send_neighbor(struct thread *thread)
 	} else if (on->retrans_list->count != 0) {
 		on->thread_send_lsupdate = NULL;
 		thread_add_timer(master, ospf6_lsupdate_send_neighbor, on,
-				 on->ospf6_if->rxmt_interval,
+				 on->vlink ? on->vlink->retransmit_interval
+					   : on->ospf6_if->rxmt_interval,
 				 &on->thread_send_lsupdate);
 	}
 	return 0;
@@ -2392,7 +2503,7 @@ int ospf6_lsupdate_send_neighbor_now(struct ospf6_neighbor *on,
 					     + sizeof(struct ospf6_header));
 
 	p = (uint8_t *)((caddr_t)lsupdate + sizeof(struct ospf6_lsupdate));
-	ospf6_lsa_age_update_to_send(lsa, on->ospf6_if->transdelay);
+	ospf6_lsa_age_update_to_send(lsa, on_transdelay(on));
 	memcpy(p, lsa->header, OSPF6_LSA_SIZE(lsa->header));
 	p += OSPF6_LSA_SIZE(lsa->header);
 	lsa_cnt++;
@@ -2551,7 +2662,7 @@ int ospf6_lsack_send_neighbor(struct thread *thread)
 			}
 		}
 
-		ospf6_lsa_age_update_to_send(lsa, on->ospf6_if->transdelay);
+		ospf6_lsa_age_update_to_send(lsa, on_transdelay(on));
 		memcpy(p, lsa->header, sizeof(struct ospf6_lsa_header));
 		p += sizeof(struct ospf6_lsa_header);
 

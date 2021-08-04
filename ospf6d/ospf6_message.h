@@ -152,7 +152,10 @@ extern int ospf6_lsupdate_send_neighbor(struct thread *thread);
 extern int ospf6_lsack_send_interface(struct thread *thread);
 extern int ospf6_lsack_send_neighbor(struct thread *thread);
 
+struct ospf6_virtual_link;
+
 extern void ospf6_hello_send_addr(struct ospf6_interface *oi,
+				  struct ospf6_virtual_link *vlink,
 				  struct in6_addr *addr);
 
 extern int config_write_ospf6_debug_message(struct vty *);

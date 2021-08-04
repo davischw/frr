@@ -47,6 +47,7 @@
 #include "ospf6_spf.h"
 #include "ospf6_zebra.h"
 #include "ospf6_gr.h"
+#include "ospf6_vlink.h"
 #include "lib/json.h"
 
 DEFINE_MTYPE(OSPF6D, OSPF6_NEIGHBOR, "OSPF6 neighbor");
@@ -74,7 +75,8 @@ const char *const ospf6_neighbor_state_str[] = {
 const char *const ospf6_neighbor_event_str[] = {
 	"NoEvent",      "HelloReceived", "2-WayReceived",   "NegotiationDone",
 	"ExchangeDone", "LoadingDone",   "AdjOK?",	  "SeqNumberMismatch",
-	"BadLSReq",     "1-WayReceived", "InactivityTimer",
+	"BadLSReq",     "1-WayReceived", "InactivityTimer", "VLinkUnreachable",
+	"VLinkReachable",
 };
 
 int ospf6_neighbor_cmp(void *va, void *vb)
@@ -150,6 +152,11 @@ struct ospf6_neighbor *ospf6_neighbor_create(uint32_t router_id,
 void ospf6_neighbor_delete(struct ospf6_neighbor *on)
 {
 	struct ospf6_lsa *lsa, *lsanext;
+
+	assertf(!on->vlink, "on->name=%pSQ on->router_id=%pI4", on->name,
+		&on->router_id);
+
+	listnode_delete(on->ospf6_if->neighbor_list, on);
 
 	if (on->p2xp_cfg)
 		on->p2xp_cfg->active = NULL;
@@ -254,15 +261,33 @@ static void ospf6_neighbor_state_change(uint8_t next_state,
 			OSPF6_INTRA_PREFIX_LSA_SCHEDULE_STUB(
 				on->ospf6_if->area);
 
-		if ((prev_state == OSPF6_NEIGHBOR_LOADING
-		     || prev_state == OSPF6_NEIGHBOR_EXCHANGE)
-		    && next_state == OSPF6_NEIGHBOR_FULL) {
+		/* note for virtual links:
+		 *   on->ospf6_if->area != on->vlink->area
+		 *   (backbone)            (non-backbone)
+		 */
+
+		if ((prev_state == OSPF6_NEIGHBOR_LOADING ||
+		     prev_state == OSPF6_NEIGHBOR_EXCHANGE) &&
+		    next_state == OSPF6_NEIGHBOR_FULL) {
 			OSPF6_AS_EXTERN_LSA_SCHEDULE(on->ospf6_if);
 			on->ospf6_if->area->full_nbrs++;
+			if (on->vlink) {
+				on->vlink->area->virtual_link_full++;
+				if (on->vlink->area->virtual_link_full == 1)
+					OSPF6_ROUTER_LSA_SCHEDULE(
+							on->vlink->area);
+			}
 		}
 
-		if (prev_state == OSPF6_NEIGHBOR_FULL)
+		if (prev_state == OSPF6_NEIGHBOR_FULL) {
 			on->ospf6_if->area->full_nbrs--;
+			if (on->vlink) {
+				on->vlink->area->virtual_link_full--;
+				if (!on->vlink->area->virtual_link_full)
+					OSPF6_ROUTER_LSA_SCHEDULE(
+							on->vlink->area);
+			}
+		}
 	}
 
 	if ((prev_state == OSPF6_NEIGHBOR_EXCHANGE
@@ -275,13 +300,24 @@ static void ospf6_neighbor_state_change(uint8_t next_state,
 	ospf6_bfd_trigger_event(on, prev_state, next_state);
 }
 
+void ospf6_neighbor_vlink_change(struct ospf6_neighbor *nbr, bool up)
+{
+	if (nbr->state <= OSPF6_NEIGHBOR_DOWN && up)
+		ospf6_neighbor_state_change(OSPF6_NEIGHBOR_ATTEMPT, nbr,
+					    OSPF6_NEIGHBOR_EVENT_VLINK_REACHABLE);
+	if (nbr->state > OSPF6_NEIGHBOR_DOWN && !up)
+		ospf6_neighbor_state_change(OSPF6_NEIGHBOR_DOWN, nbr,
+					    OSPF6_NEIGHBOR_EVENT_VLINK_UNREACHABLE);
+}
+
 /* RFC2328 section 10.4 */
 static int need_adjacency(struct ospf6_neighbor *on)
 {
 	if (on->ospf6_if->state == OSPF6_INTERFACE_POINTTOPOINT
 	    || on->ospf6_if->state == OSPF6_INTERFACE_POINTTOMULTIPOINT
 	    || on->ospf6_if->state == OSPF6_INTERFACE_DR
-	    || on->ospf6_if->state == OSPF6_INTERFACE_BDR)
+	    || on->ospf6_if->state == OSPF6_INTERFACE_BDR
+	    || on->ospf6_if->state == OSPF6_INTERFACE_VIRTUALLINK)
 		return 1;
 
 	if (on->ospf6_if->drouter == on->router_id
@@ -305,9 +341,11 @@ int hello_received(struct thread *thread)
 	THREAD_OFF(on->inactivity_timer);
 	on->inactivity_timer = NULL;
 	thread_add_timer(master, inactivity_timer, on,
-			 on->ospf6_if->dead_interval, &on->inactivity_timer);
+			 on->vlink ? on->vlink->dead_interval
+				   : on->ospf6_if->dead_interval,
+			 &on->inactivity_timer);
 
-	if (on->state <= OSPF6_NEIGHBOR_DOWN)
+	if (on->state <= OSPF6_NEIGHBOR_ATTEMPT)
 		ospf6_neighbor_state_change(OSPF6_NEIGHBOR_INIT, on,
 					    OSPF6_NEIGHBOR_EVENT_HELLO_RCVD);
 
@@ -372,13 +410,16 @@ int negotiation_done(struct thread *thread)
 	}
 
 	/* Interface scoped LSAs */
-	for (ALL_LSDB(on->ospf6_if->lsdb, lsa, lsanext)) {
-		if (OSPF6_LSA_IS_MAXAGE(lsa)) {
-			ospf6_increment_retrans_count(lsa);
-			ospf6_lsdb_add(ospf6_lsa_copy(lsa), on->retrans_list);
-		} else
-			ospf6_lsdb_add(ospf6_lsa_copy(lsa), on->summary_list);
-	}
+	if (on->ospf6_if->lsdb)
+		for (ALL_LSDB(on->ospf6_if->lsdb, lsa, lsanext)) {
+			if (OSPF6_LSA_IS_MAXAGE(lsa)) {
+				ospf6_increment_retrans_count(lsa);
+				ospf6_lsdb_add(ospf6_lsa_copy(lsa),
+					       on->retrans_list);
+			} else
+				ospf6_lsdb_add(ospf6_lsa_copy(lsa),
+					       on->summary_list);
+		}
 
 	/* Area scoped LSAs */
 	for (ALL_LSDB(on->ospf6_if->area->lsdb, lsa, lsanext)) {
@@ -435,7 +476,8 @@ int exchange_done(struct thread *thread)
 	if (!CHECK_FLAG(on->dbdesc_bits, OSPF6_DBDESC_MSBIT)) {
 		THREAD_OFF(on->last_dbdesc_release_timer);
 		thread_add_timer(master, ospf6_neighbor_last_dbdesc_release, on,
-				 on->ospf6_if->dead_interval,
+				 on->vlink ? on->vlink->dead_interval
+					   : on->ospf6_if->dead_interval,
 				 &on->last_dbdesc_release_timer);
 	}
 
@@ -658,15 +700,19 @@ int inactivity_timer(struct thread *thread)
 		on->drouter = on->prev_drouter = 0;
 		on->bdrouter = on->prev_bdrouter = 0;
 
+
 		ospf6_neighbor_state_change(
 			OSPF6_NEIGHBOR_DOWN, on,
 			OSPF6_NEIGHBOR_EVENT_INACTIVITY_TIMER);
+		if (on->vlink)
+			return 0;
+
 		thread_add_event(master, neighbor_change, on->ospf6_if, 0,
 				 NULL);
 
 		listnode_delete(on->ospf6_if->neighbor_list, on);
 		ospf6_neighbor_delete(on);
-
+		return 0;
 	} else {
 		if (IS_DEBUG_OSPF6_GR)
 			zlog_debug(
@@ -687,6 +733,8 @@ uint32_t ospf6_neighbor_cost(struct ospf6_neighbor *on)
 {
 	if (on->p2xp_cfg && on->p2xp_cfg->cfg_cost)
 		return on->p2xp_cfg->cost;
+	if (on->vlink)
+		return on->vlink->spf_cost;
 	return on->ospf6_if->cost;
 }
 
@@ -877,7 +925,7 @@ static int p2xp_unicast_hello_send(struct thread *thread)
 	if (p2xp_cfg->active && p2xp_cfg->active->state >= OSPF6_NEIGHBOR_INIT)
 		return 0;
 
-	ospf6_hello_send_addr(oi, &p2xp_cfg->addr);
+	ospf6_hello_send_addr(oi, NULL, &p2xp_cfg->addr);
 	return 0;
 }
 
@@ -947,6 +995,8 @@ static void ospf6_neighbor_show(struct vty *vty, struct ospf6_neighbor *on,
 		snprintf(nstate, sizeof(nstate), "PointToPoint");
 	else if (on->ospf6_if->type == OSPF_IFTYPE_POINTOMULTIPOINT)
 		snprintf(nstate, sizeof(nstate), "PtMultipoint");
+	else if (on->ospf6_if->type == OSPF_IFTYPE_VIRTUALLINK)
+		snprintf(nstate, sizeof(nstate), "VirtualLink");
 	else {
 		if (on->router_id == on->drouter)
 			snprintf(nstate, sizeof(nstate), "DR");
