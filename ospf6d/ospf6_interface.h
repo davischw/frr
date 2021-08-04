@@ -217,6 +217,8 @@ extern void ospf6_interface_state_update(struct interface *);
 extern void ospf6_interface_connected_route_update(struct interface *);
 extern struct in6_addr *
 ospf6_interface_get_global_address(struct interface *ifp);
+extern bool ospf6_interface_addr_valid(struct ospf6_interface *oi,
+				       struct connected *c, bool debug);
 
 /* interface event */
 extern int interface_up(struct thread *);
