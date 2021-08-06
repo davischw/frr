@@ -853,7 +853,7 @@ static void pimsb_client_data_stop(const struct mroute_event *me)
 	up = pim_upstream_find(pim_ifp->pim, &sg);
 	if (up == NULL) {
 		if (PIM_DEBUG_MROUTE)
-			zlog_debug("%s:   upstream %pSG not found", __func__,
+			zlog_debug("%s:   upstream %pSG4 not found", __func__,
 				   &sg);
 		return;
 	}
