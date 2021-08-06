@@ -880,7 +880,7 @@ next_rta:
 
 	plen = RTA_PAYLOAD(rta);
 	rta_type = rta->rta_type & ~NLA_F_NESTED;
-	zlog_debug("%srta [len=%d (payload=%lu) type=(%d) %s]",
+	zlog_debug("%srta [len=%d (payload=%zu) type=(%d) %s]",
 		   get_spaces(space_count), rta->rta_len, plen, rta->rta_type,
 		   rtm_rta2str(rta_type));
 	switch (rta_type) {
@@ -900,11 +900,11 @@ next_rta:
 		switch (plen) {
 		case sizeof(struct in_addr):
 			zlog_debug("%s%pI4", get_spaces(space_count + 2),
-				   RTA_DATA(rta));
+				   (struct in_addr *)RTA_DATA(rta));
 			break;
 		case sizeof(struct in6_addr):
 			zlog_debug("%s%pI6", get_spaces(space_count + 2),
-				   RTA_DATA(rta));
+				   (struct in6_addr *)RTA_DATA(rta));
 			break;
 		default:
 			break;
