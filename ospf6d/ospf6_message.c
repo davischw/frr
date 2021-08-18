@@ -1708,16 +1708,16 @@ static int ospf6_rxpacket_process(struct in6_addr *src, struct in6_addr *dst,
 static int ospf6_rxpacket_vlink(struct in6_addr *src, struct in6_addr *dst,
 				struct ospf6 *ospf6, int ifindex, int len)
 {
-	struct ospf6_interface *oi = ospf6->vlink_oi;
+	struct ospf6_interface *oi;
 	struct ospf6_header *oh;
 	struct interface *ifp;
 
-	/*
-	 * Drop packet destined to another VRF.
-	 * This happens when raw_l3mdev_accept is set to 1.
-	 */
-	ifp = if_lookup_by_index(ifindex, ospf6->vrf_id);
-	if (!ifp || ospf6->vrf_id != ifp->vrf_id)
+	ifp = if_lookup_by_index_all_vrf(ifindex);
+	if (ifp == NULL)
+		return OSPF6_READ_CONTINUE;
+
+	ospf6 = ospf6_lookup_by_vrf_id(ifp->vrf_id);
+	if (ospf6 == NULL)
 		return OSPF6_READ_CONTINUE;
 
 	oh = (struct ospf6_header *)recvbuf;
@@ -1725,6 +1725,7 @@ static int ospf6_rxpacket_vlink(struct in6_addr *src, struct in6_addr *dst,
 		return OSPF6_READ_ERROR;
 
 	/* Area-ID check */
+	oi = ospf6->vlink_oi;
 	if (oh->area_id != INADDR_ANY || !oi) {
 		zlog_warn(
 			"VRF %s: OSPFv3 packet to invalid destination %pI6",
@@ -1750,6 +1751,21 @@ static int ospf6_rxpacket_vlink(struct in6_addr *src, struct in6_addr *dst,
 	}
 
 	return ospf6_rxpacket_process(src, dst, oi, oh);
+}
+
+/** Matches the data plane local address (::127.254.X.Y). */
+static bool ospf6_is_dataplane_address(const struct in6_addr *i6a)
+{
+	int idx = 0;
+
+	for (idx = 0; idx < 12; idx++)
+		if (i6a->s6_addr[idx] != 0)
+			return false;
+
+	if (i6a->s6_addr[12] == 0x7F && i6a->s6_addr[13] == 0xFE)
+		return true;
+
+	return false;
 }
 
 static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
@@ -1782,7 +1798,8 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 		return OSPF6_READ_ERROR;
 	}
 
-	if (!IN6_IS_ADDR_LINKLOCAL(&dst) && !IN6_IS_ADDR_MULTICAST(&dst))
+	if (!ospf6_is_dataplane_address(&dst) && !IN6_IS_ADDR_LINKLOCAL(&dst)
+	    && !IN6_IS_ADDR_MULTICAST(&dst))
 		return ospf6_rxpacket_vlink(&src, &dst, ospf6, ifindex, len);
 
 	ifp = if_lookup_by_index_all_vrf(ifindex);
