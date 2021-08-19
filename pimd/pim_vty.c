@@ -308,6 +308,13 @@ int pim_interface_config_write(struct vty *vty)
 					++writes;
 				}
 
+				if (pim_ifp->nbr_plist) {
+					vty_out(vty,
+						" ip pim allowed-neighbors prefix-list %s\n",
+						pim_ifp->nbr_plist);
+					++writes;
+				}
+
 				/* IF ip pim drpriority */
 				if (pim_ifp->pim_dr_priority
 				    != PIM_DEFAULT_DR_PRIORITY) {

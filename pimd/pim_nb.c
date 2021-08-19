@@ -253,6 +253,13 @@ const struct frr_yang_module_info frr_pim_info = {
 			}
 		},
 		{
+			.xpath = "/frr-interface:lib/interface/frr-pim:pim/neighbor-filter-prefix-list",
+			.cbs = {
+				.modify = lib_interface_pim_nbr_plist_modify,
+				.destroy = lib_interface_pim_nbr_plist_destroy,
+			}
+		},
+		{
 			.xpath = "/frr-interface:lib/interface/frr-pim:pim/bfd",
 			.cbs = {
 				.create = lib_interface_pim_bfd_create,

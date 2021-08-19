@@ -162,6 +162,9 @@ int pim_pim_packet(struct interface *ifp, uint8_t *buf, size_t len)
 	int pim_msg_len;
 	uint16_t pim_checksum; /* received checksum */
 	uint16_t checksum;     /* computed checksum */
+	struct pim_interface *pim_ifp = ifp->info;
+	struct prefix_ipv4 src_prefix;
+	struct prefix_list *nbr_plist = NULL;
 	struct pim_neighbor *neigh;
 	struct pim_msg_header *header;
 	bool   no_fwd;
@@ -194,6 +197,31 @@ int pim_pim_packet(struct interface *ifp, uint8_t *buf, size_t len)
 			zlog_debug(
 				"Ignoring PIM pkt from %s with unsupported version: %d",
 				ifp->name, header->ver);
+		return -1;
+	}
+
+	switch (header->type) {
+	case PIM_MSG_TYPE_HELLO:
+	case PIM_MSG_TYPE_JOIN_PRUNE:
+	case PIM_MSG_TYPE_ASSERT:
+		if (!pim_ifp->nbr_plist)
+			break;
+
+		nbr_plist = prefix_list_lookup(AFI_IP, pim_ifp->nbr_plist);
+
+		src_prefix.family = AF_INET;
+		src_prefix.prefix = ip_hdr->ip_src;
+		src_prefix.prefixlen = 32;
+
+		if (nbr_plist && prefix_list_apply_ext(nbr_plist, NULL,
+						       &src_prefix, true)
+		    == PREFIX_PERMIT)
+			break;
+
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug(
+				"neighbor filter rejects packet %pI4 -> %pI4 on %s",
+				&ip_hdr->ip_src, &ip_hdr->ip_dst, ifp->name);
 		return -1;
 	}
 
