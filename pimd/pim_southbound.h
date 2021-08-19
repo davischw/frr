@@ -22,6 +22,10 @@
 #ifndef _PIM_SOUTHBOUND_
 #define _PIM_SOUTHBOUND_
 
+struct zclient;
+struct igmp_source;
+struct igmp_group;
+
 #include <netinet/in.h>
 
 #include <stdint.h>
