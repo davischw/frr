@@ -4538,6 +4538,31 @@ DEFUN (interface_no_ip_pim_hello,
 	return pim_process_no_ip_pim_hello_cmd(vty);
 }
 
+DEFPY(interface_ip_pim_joinprune_time, interface_ip_pim_joinprune_time_cmd,
+      "[no] ip pim join-prune-interval (5-600)$jpt",
+      NO_STR
+      IP_STR
+      "pim multicast routing\n"
+      "Join Prune Send Interval\n"
+      "Seconds\n")
+{
+	if (no)
+		nb_cli_enqueue_change(vty, "./join-prune-interval",
+				      NB_OP_DESTROY, NULL);
+	else
+		nb_cli_enqueue_change(vty, "./join-prune-interval",
+				      NB_OP_MODIFY, jpt_str);
+
+	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+}
+
+ALIAS(interface_ip_pim_joinprune_time, interface_no_ip_pim_joinprune_time_cmd,
+      "no ip pim join-prune-interval",
+      NO_STR
+      IP_STR
+      "pim multicast routing\n"
+      "Join Prune Send Interval\n")
+
 DEFUN (debug_igmp,
        debug_igmp_cmd,
        "debug igmp",
@@ -6861,6 +6886,9 @@ void pim_cmd_init(void)
 	install_element(INTERFACE_NODE, &interface_no_ip_pim_drprio_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_pim_hello_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ip_pim_hello_cmd);
+	install_element(INTERFACE_NODE, &interface_ip_pim_joinprune_time_cmd);
+	install_element(INTERFACE_NODE,
+			&interface_no_ip_pim_joinprune_time_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_pim_boundary_oil_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ip_pim_boundary_oil_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_igmp_query_generate_cmd);
