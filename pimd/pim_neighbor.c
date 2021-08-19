@@ -287,7 +287,7 @@ static int on_neighbor_jp_timer(struct thread *t)
 	pim_joinprune_send(&rpf, neigh->upstream_jp_agg);
 
 	thread_add_timer(router->master, on_neighbor_jp_timer, neigh,
-			 router->t_periodic, &neigh->jp_timer);
+			 pim_neigh_jp_period(neigh), &neigh->jp_timer);
 
 	return 0;
 }
@@ -296,7 +296,7 @@ static void pim_neighbor_start_jp_timer(struct pim_neighbor *neigh)
 {
 	THREAD_OFF(neigh->jp_timer);
 	thread_add_timer(router->master, on_neighbor_jp_timer, neigh,
-			 router->t_periodic, &neigh->jp_timer);
+			 pim_neigh_jp_period(neigh), &neigh->jp_timer);
 }
 
 static struct pim_neighbor *

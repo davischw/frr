@@ -328,6 +328,13 @@ int pim_interface_config_write(struct vty *vty)
 					++writes;
 				}
 
+				if (pim_ifp->periodic_jp_sec != -1) {
+					vty_out(vty,
+						" ip pim join-prune-interval %d\n",
+						pim_ifp->periodic_jp_sec);
+					++writes;
+				}
+
 				/* update source */
 				if (PIM_INADDR_ISNOT_ANY(
 					    pim_ifp->update_source)) {

@@ -5796,7 +5796,8 @@ static void pim_cmd_show_ip_multicast_helper(struct pim_instance *pim,
 
 	vty_out(vty, "\n");
 	vty_out(vty, "Upstream Join Timer: %d secs\n", router->t_periodic);
-	vty_out(vty, "Join/Prune Holdtime: %d secs\n", PIM_JP_HOLDTIME);
+	vty_out(vty, "Join/Prune Holdtime: %d secs\n",
+		router->t_periodic * 7 / 2);
 	vty_out(vty, "PIM ECMP: %s\n", pim->ecmp_enable ? "Enable" : "Disable");
 	vty_out(vty, "PIM ECMP Rebalance: %s\n",
 		pim->ecmp_rebalance_enable ? "Enable" : "Disable");
@@ -8767,6 +8768,33 @@ DEFUN (interface_no_ip_pim_hello,
 	return nb_cli_apply_changes(vty, "./frr-pim:pim");
 }
 
+DEFPY (interface_ip_pim_joinprune_time,
+       interface_ip_pim_joinprune_time_cmd,
+       "[no] ip pim join-prune-interval (5-600)$jpt",
+       NO_STR
+       IP_STR
+       "pim multicast routing\n"
+       "Join Prune Send Interval\n"
+       "Seconds\n")
+{
+	if (no)
+		nb_cli_enqueue_change(vty, "./join-prune-interval",
+				      NB_OP_DESTROY, NULL);
+	else
+		nb_cli_enqueue_change(vty, "./join-prune-interval",
+				      NB_OP_MODIFY, jpt_str);
+
+	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+}
+
+ALIAS (interface_ip_pim_joinprune_time,
+       interface_no_ip_pim_joinprune_time_cmd,
+       "no ip pim join-prune-interval",
+       NO_STR
+       IP_STR
+       "pim multicast routing\n"
+       "Join Prune Send Interval\n")
+
 DEFUN (debug_igmp,
        debug_igmp_cmd,
        "debug igmp",
@@ -11192,6 +11220,8 @@ void pim_cmd_init(void)
 	install_element(INTERFACE_NODE, &interface_ip_pim_boundary_oil_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ip_pim_boundary_oil_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_igmp_query_generate_cmd);
+	install_element(INTERFACE_NODE, &interface_ip_pim_joinprune_time_cmd);
+	install_element(INTERFACE_NODE, &interface_no_ip_pim_joinprune_time_cmd);
 
 	// Static mroutes NEB
 	install_element(INTERFACE_NODE, &interface_ip_mroute_cmd);

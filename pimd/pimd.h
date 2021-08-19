@@ -143,8 +143,6 @@ extern uint8_t qpim_ecmp_rebalance_enable;
 
 #define PIM_DEFAULT_PACKET_PROCESS 3
 
-#define PIM_JP_HOLDTIME (router->t_periodic * 7 / 2)
-
 /*
  * Register-Stop Timer (RST(S,G))
  * Default values

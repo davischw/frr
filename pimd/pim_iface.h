@@ -121,6 +121,8 @@ struct pim_interface {
 	struct list *upstream_switch_list;
 	struct pim_ifchannel_rb ifchannel_rb;
 
+	int periodic_jp_sec; /* config, -1 => pim->t_periodic (s) */
+
 	/* neighbors without lan_delay */
 	int pim_number_of_nonlandelay_neighbors;
 	uint16_t pim_neighbors_highest_propagation_delay_msec;
@@ -181,6 +183,18 @@ struct pim_interface {
 	(((pim_ifp)->pim_default_holdtime < 0)                                 \
 		 ? ((pim_ifp)->pim_hello_period * 7 / 2)                       \
 		 : ((pim_ifp)->pim_default_holdtime))
+
+static inline int pim_if_jp_period(struct pim_interface *pifp)
+{
+	if (pifp->periodic_jp_sec != -1)
+		return pifp->periodic_jp_sec;
+	return router->t_periodic;
+}
+
+static inline int pim_if_jp_hold(struct pim_interface *pifp)
+{
+	return pim_if_jp_period(pifp) * 7 / 2;
+}
 
 void pim_if_init(struct pim_instance *pim);
 void pim_if_terminate(struct pim_instance *pim);

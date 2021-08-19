@@ -169,6 +169,8 @@ struct pim_interface *pim_if_new(struct interface *ifp, bool igmp, bool pim,
 	pim_ifp->igmp_last_member_query_count =
 		IGMP_DEFAULT_ROBUSTNESS_VARIABLE;
 
+	pim_ifp->periodic_jp_sec = -1;
+
 	/* BSM config on interface: true by default */
 	pim_ifp->bsm_enable = true;
 	pim_ifp->ucast_bsm_accept = true;
@@ -1214,7 +1216,7 @@ long pim_if_t_suppressed_msec(struct interface *ifp)
 
 	/* t_suppressed = t_periodic * rand(1.1, 1.4) */
 	ramount = 1100 + (frr_weak_random() % (1400 - 1100 + 1));
-	t_suppressed_msec = router->t_periodic * ramount;
+	t_suppressed_msec = pim_if_jp_period(pim_ifp) * ramount;
 
 	return t_suppressed_msec;
 }

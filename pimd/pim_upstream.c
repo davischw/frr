@@ -358,25 +358,39 @@ static void join_timer_stop(struct pim_upstream *up)
 
 void join_timer_start(struct pim_upstream *up)
 {
+	struct pim_interface *pim_ifp = NULL;
 	struct pim_neighbor *nbr = NULL;
 
 	if (up->rpf.source_nexthop.interface) {
+		pim_ifp = up->rpf.source_nexthop.interface->info;
 		nbr = pim_neighbor_find(up->rpf.source_nexthop.interface,
 					up->rpf.rpf_addr.u.prefix4);
+	}
+
+	if (nbr) {
+		if (PIM_DEBUG_PIM_EVENTS) {
+			zlog_debug(
+				"%s: starting %d sec timer for upstream (S,G)=%s neighbor %pI4",
+				__func__, pim_neigh_jp_period(nbr), up->sg_str,
+				&nbr->source_addr);
+		}
+
+		pim_jp_agg_add_group(nbr->upstream_jp_agg, up, 1, nbr);
+	} else {
+		int t_periodic = router->t_periodic;
+
+		if (pim_ifp)
+			t_periodic = pim_if_jp_period(pim_ifp);
 
 		if (PIM_DEBUG_PIM_EVENTS) {
 			zlog_debug(
 				"%s: starting %d sec timer for upstream (S,G)=%s",
-				__func__, router->t_periodic, up->sg_str);
+				__func__, t_periodic, up->sg_str);
 		}
-	}
 
-	if (nbr)
-		pim_jp_agg_add_group(nbr->upstream_jp_agg, up, 1, nbr);
-	else {
 		THREAD_OFF(up->t_join_timer);
-		thread_add_timer(router->master, on_join_timer, up,
-				 router->t_periodic, &up->t_join_timer);
+		thread_add_timer(router->master, on_join_timer, up, t_periodic,
+				 &up->t_join_timer);
 	}
 	pim_jp_agg_upstream_verification(up, true);
 }

@@ -115,6 +115,8 @@ int lib_interface_pim_pim_enable_modify(struct nb_cb_modify_args *args);
 int lib_interface_pim_hello_interval_modify(struct nb_cb_modify_args *args);
 int lib_interface_pim_hello_holdtime_modify(struct nb_cb_modify_args *args);
 int lib_interface_pim_hello_holdtime_destroy(struct nb_cb_destroy_args *args);
+int lib_interface_pim_join_prune_interval_modify(struct nb_cb_modify_args *args);
+int lib_interface_pim_join_prune_interval_destroy(struct nb_cb_destroy_args *args);
 int lib_interface_pim_bfd_create(struct nb_cb_create_args *args);
 int lib_interface_pim_bfd_destroy(struct nb_cb_destroy_args *args);
 void lib_interface_pim_bfd_apply_finish(struct nb_cb_apply_finish_args *args);
