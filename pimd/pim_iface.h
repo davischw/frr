@@ -121,7 +121,9 @@ struct pim_interface {
 	struct list *upstream_switch_list;
 	struct pim_ifchannel_rb ifchannel_rb;
 
-	int periodic_jp_sec; /* config, -1 => pim->t_periodic (s) */
+	int periodic_jp_sec;		/* config, -1 => pim->t_periodic (s) */
+	int assert_msec;		/* config */
+	int assert_override_msec;	/* config, -1 => calc assert_msec */
 
 	/* neighbors without lan_delay */
 	int pim_number_of_nonlandelay_neighbors;

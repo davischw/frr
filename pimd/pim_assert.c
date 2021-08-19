@@ -555,18 +555,24 @@ static void pim_assert_timer_set(struct pim_ifchannel *ch, int interval)
 	assert_timer_off(ch);
 
 	if (PIM_DEBUG_PIM_TRACE) {
-		zlog_debug("%s: (S,G)=%s starting %u sec timer on interface %s",
+		zlog_debug("%s: (S,G)=%s starting %ums timer on interface %s",
 			   __func__, ch->sg_str, interval, ch->interface->name);
 	}
 
-	thread_add_timer(router->master, on_assert_timer, ch, interval,
-			 &ch->t_ifassert_timer);
+	thread_add_timer_msec(router->master, on_assert_timer, ch, interval,
+			      &ch->t_ifassert_timer);
 }
 
 static void pim_assert_timer_reset(struct pim_ifchannel *ch)
 {
-	pim_assert_timer_set(ch,
-			     PIM_ASSERT_TIME - PIM_ASSERT_OVERRIDE_INTERVAL);
+	struct pim_interface *pim_ifp = ch->interface->info;
+	int override = pim_ifp->assert_override_msec;
+
+	if (override == -1)
+		override = pim_ifp->assert_msec / 75 + 600;
+
+	/* limit to at least 0.1s to avoid excessive CPU usage */
+	pim_assert_timer_set(ch, MAX(pim_ifp->assert_msec - override, 100));
 }
 
 /*
@@ -626,10 +632,12 @@ int assert_action_a1(struct pim_ifchannel *ch)
 static void assert_action_a2(struct pim_ifchannel *ch,
 			     struct pim_assert_metric winner_metric)
 {
+	struct pim_interface *pim_ifp = ch->interface->info;
+
 	pim_ifassert_winner_set(ch, PIM_IFASSERT_I_AM_LOSER,
 				winner_metric.ip_address, winner_metric);
 
-	pim_assert_timer_set(ch, PIM_ASSERT_TIME);
+	pim_assert_timer_set(ch, pim_ifp->assert_msec);
 
 	if (ch->ifassert_state != PIM_IFASSERT_I_AM_LOSER) {
 		if (PIM_DEBUG_PIM_EVENTS)

@@ -335,6 +335,20 @@ int pim_interface_config_write(struct vty *vty)
 					++writes;
 				}
 
+				if (pim_ifp->assert_msec != PIM_ASSERT_TIME) {
+					vty_out(vty,
+						" ip pim assert-interval %d\n",
+						pim_ifp->assert_msec);
+					++writes;
+				}
+
+				if (pim_ifp->assert_override_msec != -1) {
+					vty_out(vty,
+						" ip pim assert-override-interval %d\n",
+						pim_ifp->assert_override_msec);
+					++writes;
+				}
+
 				/* update source */
 				if (PIM_INADDR_ISNOT_ANY(
 					    pim_ifp->update_source)) {

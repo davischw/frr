@@ -240,6 +240,19 @@ const struct frr_yang_module_info frr_pim_info = {
 			}
 		},
 		{
+			.xpath = "/frr-interface:lib/interface/frr-pim:pim/assert-interval",
+			.cbs = {
+				.modify = lib_interface_pim_assert_interval_modify,
+			}
+		},
+		{
+			.xpath = "/frr-interface:lib/interface/frr-pim:pim/assert-override-interval",
+			.cbs = {
+				.modify = lib_interface_pim_assert_override_interval_modify,
+				.destroy = lib_interface_pim_assert_override_interval_destroy,
+			}
+		},
+		{
 			.xpath = "/frr-interface:lib/interface/frr-pim:pim/bfd",
 			.cbs = {
 				.create = lib_interface_pim_bfd_create,
