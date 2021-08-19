@@ -108,6 +108,10 @@ int lib_interface_pim_assert_override_interval_modify(
 	struct nb_cb_modify_args *args);
 int lib_interface_pim_assert_override_interval_destroy(
 	struct nb_cb_destroy_args *args);
+int lib_interface_pim_address_family_nbr_plist_modify(
+	struct nb_cb_modify_args *args);
+int lib_interface_pim_address_family_nbr_plist_destroy(
+	struct nb_cb_destroy_args *args);
 int lib_interface_pim_address_family_create(struct nb_cb_create_args *args);
 int lib_interface_pim_address_family_destroy(struct nb_cb_destroy_args *args);
 int lib_interface_pim_address_family_pim_enable_modify(

@@ -229,6 +229,7 @@ void pim_if_delete(struct interface *ifp)
 		XFREE(MTYPE_TMP, pim_ifp->bfd_config.profile);
 
 	XFREE(MTYPE_PIM_INTERFACE, pim_ifp->boundary_oil_plist);
+	XFREE(MTYPE_PIM_PLIST_NAME, pim_ifp->nbr_plist);
 	XFREE(MTYPE_PIM_INTERFACE, pim_ifp);
 
 	ifp->info = NULL;
