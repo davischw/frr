@@ -96,8 +96,10 @@ Certain signals have special meanings to *pimd*.
 .. clicmd:: ip pim join-prune-interval (60-600)
 
    Modify the join/prune interval that pim uses to the new value. Time is
-   specified in seconds. This command is vrf aware, to configure for a vrf,
-   enter the vrf submode.
+   specified in seconds. This command is NOT vrf aware but can also be set on
+   a per-interface level. The default time is 60 seconds.  If you enter
+   a value smaller than 60 seconds be aware that this can and will affect
+   convergence at scale.
 
 .. clicmd:: ip pim keep-alive-timer (31-60000)
 
@@ -202,6 +204,13 @@ is in a vrf, enter the interface command with the vrf keyword at the end.
 .. clicmd:: ip pim hello (1-180) (1-180)
 
    Set the pim hello and hold interval for a interface.
+
+.. clicmd:: ip pim join-prune-interval (5-600)
+
+   Modify the join/prune interval that pim uses on this interface.  Defaults
+   to the globally configured value (which in turn defaults to 60 seconds.)
+   If you enter a value smaller than 60 seconds be aware that this can and
+   will affect convergence at scale.
 
 .. clicmd:: ip pim
 
