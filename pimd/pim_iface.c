@@ -139,6 +139,8 @@ struct pim_interface *pim_if_new(struct interface *ifp, bool gm, bool pim,
 		GM_SPECIFIC_QUERY_MAX_RESPONSE_TIME_DSEC;
 	pim_ifp->gm_last_member_query_count = GM_DEFAULT_ROBUSTNESS_VARIABLE;
 	pim_ifp->periodic_jp_sec = -1;
+	pim_ifp->assert_msec = PIM_ASSERT_TIME;
+	pim_ifp->assert_override_msec = -1;
 
 	/* BSM config on interface: true by default */
 	pim_ifp->bsm_enable = true;
