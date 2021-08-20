@@ -47,7 +47,7 @@ int pim_socket_join(int fd, pim_addr group, pim_addr ifaddr, ifindex_t ifindex,
 int pim_socket_recvfromto(int fd, uint8_t *buf, size_t len,
 			  struct sockaddr_storage *from, socklen_t *fromlen,
 			  struct sockaddr_storage *to, socklen_t *tolen,
-			  ifindex_t *ifindex);
+			  ifindex_t *ifindex, bool *router_alert);
 
 int pim_socket_getsockname(int fd, struct sockaddr *name, socklen_t *namelen);
 

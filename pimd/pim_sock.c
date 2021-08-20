@@ -154,6 +154,13 @@ static inline int pim_setsockopt(int protocol, int fd, struct interface *ifp)
 		return PIM_SOCK_ERR_IFACE;
 	}
 
+	if (setsockopt(fd, IPPROTO_IP, IP_RECVOPTS, &one, sizeof(one))) {
+		zlog_warn("Could not enable IP receive options on fd=%d: %m",
+			  fd);
+		close(fd);
+		return PIM_SOCK_ERR_RA;
+	}
+
 	return 0;
 }
 #else /* PIM_IPV != 4 */
@@ -311,10 +318,13 @@ int pim_socket_join(int fd, pim_addr group, pim_addr ifaddr, ifindex_t ifindex,
 
 #if PIM_IPV == 4
 static void cmsg_getdstaddr(struct msghdr *mh, struct sockaddr_storage *dst,
-			    ifindex_t *ifindex)
+			    ifindex_t *ifindex, bool *router_alert)
 {
 	struct cmsghdr *cmsg;
 	struct sockaddr_in *dst4 = (struct sockaddr_in *)dst;
+
+	if (router_alert)
+		*router_alert = false;
 
 	for (cmsg = CMSG_FIRSTHDR(mh); cmsg != NULL;
 	     cmsg = CMSG_NXTHDR(mh, cmsg)) {
@@ -350,6 +360,36 @@ static void cmsg_getdstaddr(struct msghdr *mh, struct sockaddr_storage *dst,
 			if (ifindex)
 				*ifindex = CMSG_IFINDEX(cmsg);
 #endif
+
+		if (cmsg->cmsg_level == IPPROTO_IP &&
+		    cmsg->cmsg_type == IP_RECVOPTS) {
+			const uint8_t *end = (uint8_t *)cmsg + cmsg->cmsg_len;
+			const uint8_t *data = CMSG_DATA(cmsg);
+
+			while (data < end && data[0]) {
+				const size_t remain = end - data;
+				uint8_t optlen;
+
+				if (remain < 2)
+					break;
+				if (data[0] == 1) {
+					data++;
+					continue;
+				}
+
+				optlen = data[1];
+				if (remain < optlen)
+					break;
+
+				if (data[0] == 148 && optlen == 4) {
+					if (router_alert)
+						*router_alert = true;
+					break;
+				}
+
+				data += optlen;
+			}
+		}
 	}
 }
 #else  /* PIM_IPV != 4 */
@@ -380,7 +420,7 @@ static void cmsg_getdstaddr(struct msghdr *mh, struct sockaddr_storage *dst,
 int pim_socket_recvfromto(int fd, uint8_t *buf, size_t len,
 			  struct sockaddr_storage *from, socklen_t *fromlen,
 			  struct sockaddr_storage *to, socklen_t *tolen,
-			  ifindex_t *ifindex)
+			  ifindex_t *ifindex, bool *router_alert)
 {
 	struct msghdr msgh;
 	struct iovec iov;
@@ -418,7 +458,11 @@ int pim_socket_recvfromto(int fd, uint8_t *buf, size_t len,
 	if (fromlen)
 		*fromlen = msgh.msg_namelen;
 
+#if PIM_IPV == 4
+	cmsg_getdstaddr(&msgh, to, ifindex, router_alert);
+#else
 	cmsg_getdstaddr(&msgh, to, ifindex);
+#endif
 
 	return err; /* len */
 }

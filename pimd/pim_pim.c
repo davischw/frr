@@ -417,7 +417,8 @@ static void pim_sock_read(struct thread *t)
 		pim_sgaddr sg;
 
 		len = pim_socket_recvfromto(fd, buf, sizeof(buf), &from,
-					    &fromlen, &to, &tolen, &ifindex);
+					    &fromlen, &to, &tolen, &ifindex,
+					    NULL);
 		if (len < 0) {
 			if (errno == EINTR)
 				continue;

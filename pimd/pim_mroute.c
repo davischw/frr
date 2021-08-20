@@ -758,13 +758,14 @@ static void mroute_read(struct thread *t)
 	char buf[10000];
 	int cont = 1;
 	int rd;
+	bool router_alert;
 	ifindex_t ifindex;
 	pim = THREAD_ARG(t);
 
 	while (cont) {
 		rd = pim_socket_recvfromto(pim->mroute_socket, (uint8_t *)buf,
 					   sizeof(buf), NULL, NULL, NULL, NULL,
-					   &ifindex);
+					   &ifindex, &router_alert);
 		if (rd <= 0) {
 			if (errno == EINTR)
 				continue;
