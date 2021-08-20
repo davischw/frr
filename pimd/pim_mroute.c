@@ -617,7 +617,8 @@ int pim_mroute_msg_wrvifwhole(int fd, struct interface *ifp, const char *buf,
 
 #if PIM_IPV == 4
 static int process_igmp_packet(struct pim_instance *pim, const char *buf,
-			       size_t buf_size, ifindex_t ifindex)
+			       size_t buf_size, ifindex_t ifindex,
+			       bool router_alert)
 {
 	struct interface *ifp;
 	struct pim_interface *pim_ifp;
@@ -659,7 +660,7 @@ static int process_igmp_packet(struct pim_instance *pim, const char *buf,
 			&ip_hdr->ip_src, &ip_hdr->ip_dst);
 	}
 	if (igmp)
-		pim_igmp_packet(igmp, (char *)buf, buf_size);
+		pim_igmp_packet(igmp, (char *)buf, buf_size, router_alert);
 	else if (PIM_DEBUG_GM_PACKETS) {
 		zlog_debug(
 			"No IGMP socket on interface: %s with connected source: %pFX",
@@ -670,7 +671,7 @@ static int process_igmp_packet(struct pim_instance *pim, const char *buf,
 #endif
 
 int pim_mroute_msg(struct pim_instance *pim, const char *buf, size_t buf_size,
-		   ifindex_t ifindex)
+		   ifindex_t ifindex, bool router_alert)
 {
 	struct interface *ifp;
 	const ipv_hdr *ip_hdr;
@@ -683,7 +684,7 @@ int pim_mroute_msg(struct pim_instance *pim, const char *buf, size_t buf_size,
 
 #if PIM_IPV == 4
 	if (ip_hdr->ip_p == IPPROTO_IGMP) {
-		process_igmp_packet(pim, buf, buf_size, ifindex);
+		process_igmp_packet(pim, buf, buf_size, ifindex, router_alert);
 	} else if (ip_hdr->ip_p) {
 		if (PIM_DEBUG_MROUTE_DETAIL) {
 			zlog_debug(
@@ -779,7 +780,7 @@ static void mroute_read(struct thread *t)
 			goto done;
 		}
 
-		pim_mroute_msg(pim, buf, rd, ifindex);
+		pim_mroute_msg(pim, buf, rd, ifindex, router_alert);
 
 		count++;
 		if (count % router->packet_process == 0)

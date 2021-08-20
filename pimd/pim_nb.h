@@ -206,6 +206,10 @@ int lib_interface_gmp_address_family_static_group_create(
 		struct nb_cb_create_args *args);
 int lib_interface_gmp_address_family_static_group_destroy(
 		struct nb_cb_destroy_args *args);
+int lib_interface_igmp_require_router_alert_modify(
+	struct nb_cb_modify_args *args);
+int lib_interface_igmp_require_router_alert_destroy(
+	struct nb_cb_destroy_args *args);
 
 /* frr-candidate */
 int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_create(

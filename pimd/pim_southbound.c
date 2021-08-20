@@ -644,8 +644,7 @@ static void pimsb_igmp_add_read(void)
 			&igmp_read_ev);
 }
 
-static __attribute__((unused)) bool ipv4_has_router_alert(const uint8_t *packet,
-							  size_t packet_length)
+static bool ipv4_has_router_alert(const uint8_t *packet, size_t packet_length)
 {
 	const struct ipv4_header *ipv4 = (const struct ipv4_header *)packet;
 	size_t header_length = ipv4_header_length(ipv4);
@@ -724,8 +723,10 @@ void pimsb_packet_read(int sock)
 	/* Packet assembled, get VRF information and call PIM code. */
 	pim_ifp = ifp->info;
 	if (pim_ifp)
-		(void)pim_mroute_msg(pim_ifp->pim, (char *)packet,
-				     packet_length, encap_result.ifindex);
+		(void)pim_mroute_msg(
+			pim_ifp->pim, (char *)packet, packet_length,
+			encap_result.ifindex,
+			ipv4_has_router_alert(packet, packet_length));
 	else if (PIM_DEBUG_GM_PACKETS)
 		zlog_debug("%s: received packet on disabled interface (%d) %s",
 			   __func__, ifp->ifindex, ifp->name);
@@ -1633,8 +1634,8 @@ static void pimsb_igmp_join_cb(struct thread *thread)
 		return;
 
 	SLIST_FOREACH (packet, packets, entry)
-		pim_igmp_packet(igmp_socket, (char *)packet->data,
-				packet->size);
+		pim_igmp_packet(igmp_socket, (char *)packet->data, packet->size,
+				true);
 
 	igmp_packet_list_free(packets);
 }
@@ -1676,8 +1677,8 @@ void pimsb_igmp_leave(const struct pim_interface *pim_interface,
 		return;
 
 	SLIST_FOREACH (packet, packets, entry)
-		pim_igmp_packet(igmp_socket, (char *)packet->data,
-				packet->size);
+		pim_igmp_packet(igmp_socket, (char *)packet->data, packet->size,
+				true);
 
 	igmp_packet_list_free(packets);
 }

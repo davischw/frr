@@ -146,6 +146,14 @@ module frr-gmp {
          expected packet loss on a network.";
     }
 
+    leaf require-router-alert {
+      when "../frr-gmp:address-family = 'frr-rt:ipv4'";
+      type boolean;
+      default "false";
+      description
+        "Only process IGMP packets with IP Router Alert option set.";
+    }
+
     list static-group {
       key "group-addr source-addr";
       description
