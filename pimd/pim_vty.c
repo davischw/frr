@@ -419,6 +419,13 @@ int pim_interface_config_write(struct vty *vty)
 					  ++writes;
 				}
 
+				/* IF ip igmp require-router-alert */
+				if (pim_ifp->igmp_require_ra) {
+					vty_out(vty,
+						" ip igmp require-router-alert\n");
+					++writes;
+				}
+
 				/* IF ip igmp join */
 				if (pim_ifp->igmp_join_list) {
 					struct listnode *node;

@@ -124,6 +124,13 @@ module frr-igmp {
         "Querier's Robustness Variable allows tuning for the
          expected packet loss on a network.";
     }
+
+    leaf require-router-alert {
+      type boolean;
+      default "false";
+      description
+        "Only process IGMP packets with IP Router Alert option set.";
+    }
   }
 
   grouping per-af-interface-config-attributes {

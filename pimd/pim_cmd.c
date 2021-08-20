@@ -8365,6 +8365,20 @@ DEFUN (interface_no_ip_igmp_last_member_query_interval,
 	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
 }
 
+DEFPY (interface_ip_igmp_require_ra,
+       interface_ip_igmp_require_ra_cmd,
+       "[no] ip igmp require-router-alert",
+       NO_STR
+       IP_STR
+       IFACE_IGMP_STR
+       "Require IP Router Alert option for IGMP packets\n")
+{
+	nb_cli_enqueue_change(vty, "./require-router-alert", NB_OP_MODIFY,
+			      no ? "false" : "true");
+
+	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+}
+
 DEFUN (interface_ip_pim_drprio,
        interface_ip_pim_drprio_cmd,
        "ip pim drpriority (1-4294967295)",
@@ -11307,6 +11321,7 @@ void pim_cmd_init(void)
 			&interface_ip_igmp_last_member_query_interval_cmd);
 	install_element(INTERFACE_NODE,
 			&interface_no_ip_igmp_last_member_query_interval_cmd);
+	install_element(INTERFACE_NODE, &interface_ip_igmp_require_ra_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_pim_activeactive_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_pim_ssm_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ip_pim_ssm_cmd);

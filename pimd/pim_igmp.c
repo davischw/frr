@@ -476,8 +476,10 @@ static int igmp_v1_recv_report(struct igmp_sock *igmp, struct in_addr from,
 	return 0;
 }
 
-int pim_igmp_packet(struct igmp_sock *igmp, char *buf, size_t len)
+int pim_igmp_packet(struct igmp_sock *igmp, char *buf, size_t len,
+		    bool router_alert)
 {
+	struct pim_interface *pim_ifp = igmp->interface->info;
 	struct ip *ip_hdr;
 	size_t ip_hlen; /* ip header length in bytes */
 	char *igmp_msg;
@@ -512,6 +514,16 @@ int pim_igmp_packet(struct igmp_sock *igmp, char *buf, size_t len)
 	if (igmp_msg_len < PIM_IGMP_MIN_LEN) {
 		zlog_warn("IGMP message size=%d shorter than minimum=%d",
 			  igmp_msg_len, PIM_IGMP_MIN_LEN);
+		return -1;
+	}
+
+	if (!pim_ifp)
+		return -1;
+	if (pim_ifp->igmp_require_ra && !router_alert) {
+		if (PIM_DEBUG_IGMP_PACKETS)
+			zlog_debug(
+				"discarding IGMP packet from %pI4 on %s due to Router Alert option missing",
+				&ip_hdr->ip_src, igmp->interface->name);
 		return -1;
 	}
 
