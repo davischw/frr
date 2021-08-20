@@ -230,26 +230,16 @@ static void pim_vxlan_orig_mr_up_del(struct pim_vxlan_sg *vxlan_sg)
 		/* clear out all the vxlan properties */
 		up->flags &= ~(PIM_UPSTREAM_FLAG_MASK_SRC_VXLAN_ORIG |
 			PIM_UPSTREAM_FLAG_MASK_STATIC_IIF |
-			PIM_UPSTREAM_FLAG_MASK_DISABLE_KAT_EXPIRY |
 			PIM_UPSTREAM_FLAG_MASK_FORCE_PIMREG |
 			PIM_UPSTREAM_FLAG_MASK_NO_PIMREG_DATA |
 			PIM_UPSTREAM_FLAG_MASK_ALLOW_IIF_IN_OIL);
 
-		/* We bring things to a grinding halt by force expirying
-		 * the kat. Doing this will also remove the reference we
-		 * created as a "vxlan" source and delete the upstream entry
-		 * if there are no other references.
+		/* this drops the reference we held */
+		pim_upstream_kat_resume(up, PIM_KAT_HOLD_VXLAN);
+		/* if the SRC_STREAM flag is set, kat_resume will have
+		 * restarted the KAT and it'll get cleared after that expires.
 		 */
-		if (PIM_UPSTREAM_FLAG_TEST_SRC_STREAM(up->flags)) {
-			THREAD_OFF(up->t_ka_timer);
-			up = pim_upstream_keep_alive_timer_proc(up);
-		} else {
-			/* this is really unexpected as we force vxlan
-			 * origination mroutes active sources but just in
-			 * case
-			 */
-			up = pim_upstream_del(vxlan_sg->pim, up, __func__);
-		}
+
 		/* if there are other references register the source
 		 * for nht
 		 */
@@ -331,10 +321,7 @@ static void pim_vxlan_orig_mr_up_add(struct pim_vxlan_sg *vxlan_sg)
 	 * VxLAN AA
 	 */
 	PIM_UPSTREAM_FLAG_SET_FORCE_PIMREG(flags);
-	/* prevent KAT expiry. we want the MDT setup even if there is no BUM
-	 * traffic
-	 */
-	PIM_UPSTREAM_FLAG_SET_DISABLE_KAT_EXPIRY(flags);
+
 	/* SPT for vxlan BUM groups is primed and maintained via NULL
 	 * registers so there is no need to reg-encapsulate
 	 * vxlan-encapsulated overlay data traffic
@@ -386,6 +373,14 @@ static void pim_vxlan_orig_mr_up_add(struct pim_vxlan_sg *vxlan_sg)
 					vxlan_sg->sg_str);
 		return;
 	}
+
+	/* prevent KAT expiry. we want the MDT setup even if there is no BUM
+	 * traffic
+	 */
+	pim_upstream_kat_hold(up, PIM_KAT_HOLD_VXLAN);
+	/* kat_hold is a +1 to refcount, so drop the ref we had till here */
+	up = pim_upstream_del(pim, up, __func__);
+	assertf(up, "SG %s", vxlan_sg->sg_str);
 
 	pim_upstream_keep_alive_timer_start(up, vxlan_sg->pim->keep_alive_time);
 

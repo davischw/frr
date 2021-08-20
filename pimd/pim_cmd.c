@@ -2385,8 +2385,22 @@ static void json_object_pim_upstream_add(json_object *json,
 	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SRC_LHR)
 		json_object_boolean_true_add(json, "lastHopRouter");
 
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_DISABLE_KAT_EXPIRY)
+	/* compatibility - badly named json item */
+	if (up->t_ka_holders & PIM_KAT_HOLD_VXLAN)
 		json_object_boolean_true_add(json, "disableKATExpiry");
+
+	if (up->t_ka_holders) {
+		json_object *js_holders = json_object_new_array();
+
+		if (up->t_ka_holders & PIM_KAT_HOLD_DATAPLANE)
+			json_object_array_add(js_holders,
+					      json_object_new_string(
+								"dataplane"));
+		if (up->t_ka_holders & PIM_KAT_HOLD_VXLAN)
+			json_object_array_add(js_holders,
+					      json_object_new_string("vxlan"));
+		json_object_object_add(json, "katHolders", js_holders);
+	}
 
 	if (up->flags & PIM_UPSTREAM_FLAG_MASK_STATIC_IIF)
 		json_object_boolean_true_add(json, "staticIncomingInterface");
@@ -2511,8 +2525,12 @@ static void pim_show_upstream(struct pim_instance *pim, struct vty *vty,
 
 		pim_time_timer_to_hhmmss(rs_timer, sizeof(rs_timer),
 					 up->t_rs_timer);
-		pim_time_timer_to_hhmmss(ka_timer, sizeof(ka_timer),
-					 up->t_ka_timer);
+		if (up->t_ka_slipping)
+			pim_time_uptime(ka_timer, sizeof(ka_timer),
+					pim->keep_alive_time);
+		else
+			pim_time_timer_to_hhmmss(ka_timer, sizeof(ka_timer),
+						 up->t_ka_timer);
 		pim_time_timer_to_hhmmss(msdp_reg_timer, sizeof(msdp_reg_timer),
 					 up->t_msdp_reg_timer);
 

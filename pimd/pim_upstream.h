@@ -37,12 +37,7 @@
 #define PIM_UPSTREAM_FLAG_MASK_SRC_MSDP                (1 << 6)
 #define PIM_UPSTREAM_FLAG_MASK_SEND_SG_RPT_PRUNE       (1 << 7)
 #define PIM_UPSTREAM_FLAG_MASK_SRC_LHR                 (1 << 8)
-/* In the case of pim vxlan we prime the pump by registering the
- * vxlan source and keeping the SPT (FHR-RP) alive by sending periodic
- * NULL registers. So we need to prevent KAT expiry because of the
- * lack of BUM traffic.
- */
-#define PIM_UPSTREAM_FLAG_MASK_DISABLE_KAT_EXPIRY      (1 << 9)
+/* (1 << 9) was DISABLE_KAT_EXPIRY, can be reused */
 /* for pim vxlan we need to pin the IIF to lo or MLAG-ISL on the
  * originating VTEP. This flag allows that by setting IIF to the
  * value specified and preventing next-hop-tracking on the entry
@@ -115,7 +110,6 @@
 #define PIM_UPSTREAM_FLAG_TEST_SRC_MSDP(flags) ((flags) & PIM_UPSTREAM_FLAG_MASK_SRC_MSDP)
 #define PIM_UPSTREAM_FLAG_TEST_SEND_SG_RPT_PRUNE(flags) ((flags) & PIM_UPSTREAM_FLAG_MASK_SEND_SG_RPT_PRUNE)
 #define PIM_UPSTREAM_FLAG_TEST_SRC_LHR(flags) ((flags) & PIM_UPSTREAM_FLAG_MASK_SRC_LHR)
-#define PIM_UPSTREAM_FLAG_TEST_DISABLE_KAT_EXPIRY(flags) ((flags) & PIM_UPSTREAM_FLAG_MASK_DISABLE_KAT_EXPIRY)
 #define PIM_UPSTREAM_FLAG_TEST_STATIC_IIF(flags) ((flags) & PIM_UPSTREAM_FLAG_MASK_STATIC_IIF)
 #define PIM_UPSTREAM_FLAG_TEST_ALLOW_IIF_IN_OIL(flags) ((flags) & PIM_UPSTREAM_FLAG_MASK_ALLOW_IIF_IN_OIL)
 #define PIM_UPSTREAM_FLAG_TEST_NO_PIMREG_DATA(flags) ((flags) & PIM_UPSTREAM_FLAG_MASK_NO_PIMREG_DATA)
@@ -140,7 +134,6 @@
 #define PIM_UPSTREAM_FLAG_SET_SRC_MSDP(flags) ((flags) |= PIM_UPSTREAM_FLAG_MASK_SRC_MSDP)
 #define PIM_UPSTREAM_FLAG_SET_SEND_SG_RPT_PRUNE(flags) ((flags) |= PIM_UPSTREAM_FLAG_MASK_SEND_SG_RPT_PRUNE)
 #define PIM_UPSTREAM_FLAG_SET_SRC_LHR(flags) ((flags) |= PIM_UPSTREAM_FLAG_MASK_SRC_LHR)
-#define PIM_UPSTREAM_FLAG_SET_DISABLE_KAT_EXPIRY(flags) ((flags) |= PIM_UPSTREAM_FLAG_MASK_DISABLE_KAT_EXPIRY)
 #define PIM_UPSTREAM_FLAG_SET_STATIC_IIF(flags) ((flags) |= PIM_UPSTREAM_FLAG_MASK_STATIC_IIF)
 #define PIM_UPSTREAM_FLAG_SET_ALLOW_IIF_IN_OIL(flags) ((flags) |= PIM_UPSTREAM_FLAG_MASK_ALLOW_IIF_IN_OIL)
 #define PIM_UPSTREAM_FLAG_SET_NO_PIMREG_DATA(flags) ((flags) |= PIM_UPSTREAM_FLAG_MASK_NO_PIMREG_DATA)
@@ -162,7 +155,6 @@
 #define PIM_UPSTREAM_FLAG_UNSET_SRC_MSDP(flags) ((flags) &= ~PIM_UPSTREAM_FLAG_MASK_SRC_MSDP)
 #define PIM_UPSTREAM_FLAG_UNSET_SEND_SG_RPT_PRUNE(flags) ((flags) &= ~PIM_UPSTREAM_FLAG_MASK_SEND_SG_RPT_PRUNE)
 #define PIM_UPSTREAM_FLAG_UNSET_SRC_LHR(flags) ((flags) &= ~PIM_UPSTREAM_FLAG_MASK_SRC_LHR)
-#define PIM_UPSTREAM_FLAG_UNSET_DISABLE_KAT_EXPIRY(flags) ((flags) &= ~PIM_UPSTREAM_FLAG_MASK_DISABLE_KAT_EXPIRY)
 #define PIM_UPSTREAM_FLAG_UNSET_STATIC_IIF(flags) ((flags) &= ~PIM_UPSTREAM_FLAG_MASK_STATIC_IIF)
 #define PIM_UPSTREAM_FLAG_UNSET_ALLOW_IIF_IN_OIL(flags) ((flags) &= ~PIM_UPSTREAM_FLAG_MASK_ALLOW_IIF_IN_OIL)
 #define PIM_UPSTREAM_FLAG_UNSET_NO_PIMREG_DATA(flags) ((flags) &= ~PIM_UPSTREAM_FLAG_MASK_NO_PIMREG_DATA)
@@ -276,6 +268,34 @@ struct pim_upstream {
 #define PIM_RP_KEEPALIVE_PERIOD                                                \
 	(3 * router->register_suppress_time + router->register_probe_time)
 
+	/* the next two fields work in conjunction to support alternate schemes
+	 * of data traffic notification.  t_ka_holders signals that we should
+	 * assume that data is flowing and t_ka_slipping (which can only be set
+	 * if t_ka_holders is set too) indicates that the KAT would be running
+	 * otherwise.
+	 *
+	 * This is used for both VXLAN where we prime the pump by registering
+	 * the vxlan source and keeping the SPT (FHR-RP) alive by sending
+	 * periodic NULL registers, as well as dataplanes that handle data
+	 * notifications in a stateful on/off manner rather than timed-expiry
+	 * "data still flowing" messages.
+	 *
+	 * If t_ka_holders is set, t_ka_slipping replaces t_ka_timer.
+	 * When t_ka_timer would be started, t_ka_slipping is set instead.
+	 * When t_ka_holders is cleared and t_ka_slipping was set, t_ka_timer
+	 * is started back up.
+	 *
+	 * t_ka_holders is a bitfield so we can have multiple reasons holding
+	 * the KA timer, i.e. VXLAN running on a stateful dataplane.  Otherwise
+	 * it could get cleared when one of the reasons goes away but the other
+	 * is still there.
+	 */
+#define PIM_KAT_HOLD_DATAPLANE	(1 << 0)
+#define PIM_KAT_HOLD_VXLAN	(1 << 1)
+
+	uint32_t t_ka_holders;
+	bool t_ka_slipping;
+
 	/* on the RP we restart a timer to indicate if registers are being rxed
 	 * for
 	 * SG. This is needed by MSDP to determine its local SA cache */
@@ -287,7 +307,7 @@ struct pim_upstream {
 
 static inline bool pim_upstream_is_kat_running(struct pim_upstream *up)
 {
-	return (up->t_ka_timer != NULL);
+	return (up->t_ka_timer != NULL) || up->t_ka_slipping;
 }
 
 static inline bool pim_up_mlag_is_local(struct pim_upstream *up)
@@ -345,6 +365,10 @@ void pim_upstream_update_my_assert_metric(struct pim_upstream *up);
 
 void pim_upstream_keep_alive_timer_start(struct pim_upstream *up,
 					 uint32_t time);
+
+/* these do +/-1 on refcount */
+void pim_upstream_kat_hold(struct pim_upstream *up, uint32_t flag);
+void pim_upstream_kat_resume(struct pim_upstream *up, uint32_t flag);
 
 int pim_upstream_switch_to_spt_desired_on_rp(struct pim_instance *pim,
 				       struct prefix_sg *sg);

@@ -1469,14 +1469,6 @@ struct pim_upstream *pim_upstream_keep_alive_timer_proc(
 
 	pim = up->channel_oil->pim;
 
-	if (PIM_UPSTREAM_FLAG_TEST_DISABLE_KAT_EXPIRY(up->flags)) {
-		/* if the router is a PIM vxlan encapsulator we prevent expiry
-		 * of KAT as the mroute is pre-setup without any traffic
-		 */
-		pim_upstream_keep_alive_timer_start(up, pim->keep_alive_time);
-		return up;
-	}
-
 	if (I_am_RP(pim, up->sg.grp)) {
 		pim_br_clear_pmbr(&up->sg);
 		/*
@@ -1529,11 +1521,15 @@ struct pim_upstream *pim_upstream_keep_alive_timer_proc(
 
 	return up;
 }
+
 static int pim_upstream_keep_alive_timer(struct thread *t)
 {
 	struct pim_upstream *up;
 
 	up = THREAD_ARG(t);
+
+	assertf(!up->t_ka_holders, "%s flags %x hold %x refcount %d",
+		up->sg_str, up->flags, up->t_ka_holders, up->ref_count);
 
 	/* pull the stats and re-check */
 	if (pim_upstream_sg_running_proc(up))
@@ -1551,15 +1547,72 @@ void pim_upstream_keep_alive_timer_start(struct pim_upstream *up, uint32_t time)
 			zlog_debug("kat start on %s with no stream reference",
 				   up->sg_str);
 	}
-	THREAD_OFF(up->t_ka_timer);
-	thread_add_timer(router->master, pim_upstream_keep_alive_timer, up,
-			 time, &up->t_ka_timer);
+	if (up->t_ka_holders) {
+		assertf(!up->t_ka_timer, "%s flags %u holders %u", up->sg_str,
+			up->flags, up->t_ka_holders);
+		up->t_ka_slipping = true;
+	} else {
+		THREAD_OFF(up->t_ka_timer);
+		thread_add_timer(router->master, pim_upstream_keep_alive_timer,
+				 up, time, &up->t_ka_timer);
+	}
 
 	/* any time keepalive is started against a SG we will have to
 	 * re-evaluate our active source database */
 	pim_msdp_sa_local_update(up);
 	/* JoinDesired can change when KAT is started or stopped */
 	pim_upstream_update_join_desired(up->pim, up);
+}
+
+void pim_upstream_kat_hold(struct pim_upstream *up, uint32_t flag)
+{
+	if (up->t_ka_holders & flag) {
+		zlog_warn("%s: KAT hold flag %u already set", up->sg_str, flag);
+		return;
+	}
+
+	if (up->t_ka_timer) {
+		THREAD_OFF(up->t_ka_timer);
+		up->t_ka_slipping = true;
+
+		if (PIM_DEBUG_PIM_TRACE)
+			zlog_debug("%s: KAT frozen slipping", up->sg_str);
+	} else {
+		if (PIM_DEBUG_PIM_TRACE)
+			zlog_debug("%s: KAT frozen idle", up->sg_str);
+	}
+
+	up->t_ka_holders |= flag;
+	pim_upstream_ref(up, 0, __func__);
+}
+
+void pim_upstream_kat_resume(struct pim_upstream *up, uint32_t flag)
+{
+	if (!(up->t_ka_holders & flag)) {
+		zlog_warn("%s: KAT hold flag %u already clear", up->sg_str,
+			  flag);
+		return;
+	}
+
+	up->t_ka_holders &= ~flag;
+	up = pim_upstream_del(up->pim, up, __func__);
+
+	if (!up)
+		return;
+	if (up->t_ka_holders)
+		return;
+
+	if (up->t_ka_slipping) {
+		up->t_ka_slipping = false;
+		pim_upstream_keep_alive_timer_start(up,
+						    up->pim->keep_alive_time);
+
+		if (PIM_DEBUG_PIM_TRACE)
+			zlog_debug("%s: KAT thawed and started", up->sg_str);
+	} else {
+		if (PIM_DEBUG_PIM_TRACE)
+			zlog_debug("%s: KAT thawed inactive", up->sg_str);
+	}
 }
 
 /* MSDP on RP needs to know if a source is registerable to this RP */
