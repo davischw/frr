@@ -186,7 +186,7 @@ int pim_mroute_del(struct channel_oil *c_oil, const char *name);
 
 int mroute_read(struct thread *t);
 int pim_mroute_msg(struct pim_instance *pim, const char *buf, int buf_size,
-		   ifindex_t ifindex);
+		   ifindex_t ifindex, bool router_alert);
 int pim_mroute_msg_wholepkt(int fd, struct interface *ifp, const char *buf);
 int pim_mroute_msg_nocache(int fd, struct interface *ifp,
 			   const struct igmpmsg *msg);

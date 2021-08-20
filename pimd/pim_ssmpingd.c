@@ -255,7 +255,7 @@ static int ssmpingd_read_msg(struct ssmpingd_sock *ss)
 	++ss->requests;
 
 	len = pim_socket_recvfromto(ss->sock_fd, buf, sizeof(buf), &from,
-				    &fromlen, &to, &tolen, &ifindex);
+				    &fromlen, &to, &tolen, &ifindex, NULL);
 	if (len < 0) {
 		char source_str[INET_ADDRSTRLEN];
 		pim_inet4_dump("<src?>", ss->source_addr, source_str,

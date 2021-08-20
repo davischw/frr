@@ -590,7 +590,8 @@ void pimsb_packet_read(int sock)
 	pim_ifp = ifp->info;
 	if (pim_ifp)
 		(void)pim_mroute_msg(pim_ifp->pim, (char *)packet,
-				     packet_length, encap_result.ifindex);
+				     packet_length, encap_result.ifindex,
+				     false);
 	else if (PIM_DEBUG_IGMP_PACKETS)
 		zlog_debug("%s: received packet on disabled interface (%d) %s",
 			   __func__, ifp->ifindex, ifp->name);

@@ -998,7 +998,8 @@ static int pim_igmp_read(struct thread *t)
 
 	while (1) {
 		len = pim_socket_recvfromto(igmp->fd, buf, sizeof(buf), &from,
-					    &fromlen, &to, &tolen, &ifindex);
+					    &fromlen, &to, &tolen, &ifindex,
+					    NULL);
 		if (len < 0) {
 			if (errno == EINTR)
 				continue;

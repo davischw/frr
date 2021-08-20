@@ -589,7 +589,7 @@ static int pim_mroute_msg_wrvifwhole(int fd, struct interface *ifp,
 }
 
 int pim_mroute_msg(struct pim_instance *pim, const char *buf, int buf_size,
-		   ifindex_t ifindex)
+		   ifindex_t ifindex, bool router_alert)
 {
 	struct interface *ifp;
 	struct pim_interface *pim_ifp;
@@ -702,12 +702,13 @@ int mroute_read(struct thread *t)
 	int cont = 1;
 	int rd;
 	ifindex_t ifindex;
+	bool router_alert;
 	pim = THREAD_ARG(t);
 
 	while (cont) {
 		rd = pim_socket_recvfromto(pim->mroute_socket, (uint8_t *)buf,
 					   sizeof(buf), NULL, NULL, NULL, NULL,
-					   &ifindex);
+					   &ifindex, &router_alert);
 		if (rd <= 0) {
 			if (errno == EINTR)
 				continue;
@@ -721,7 +722,7 @@ int mroute_read(struct thread *t)
 			goto done;
 		}
 
-		result = pim_mroute_msg(pim, buf, rd, ifindex);
+		result = pim_mroute_msg(pim, buf, rd, ifindex, router_alert);
 
 		count++;
 		if (count % router->packet_process == 0)
@@ -748,6 +749,7 @@ static void mroute_read_off(struct pim_instance *pim)
 int pim_mroute_socket_enable(struct pim_instance *pim)
 {
 	int fd;
+	int en = 1;
 
 	frr_with_privs(&pimd_privs) {
 
@@ -771,6 +773,11 @@ int pim_mroute_socket_enable(struct pim_instance *pim)
 		}
 #endif
 
+		/* for IGMP packets... */
+		if (setsockopt(fd, IPPROTO_IP, IP_RECVOPTS, &en, sizeof(en)))
+			zlog_warn(
+				"Could not set Receive IP Options on socket fd=%d: %m",
+				fd);
 	}
 
 	pim->mroute_socket = fd;

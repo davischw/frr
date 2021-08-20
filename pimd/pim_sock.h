@@ -46,7 +46,7 @@ int pim_socket_join(int fd, struct in_addr group, struct in_addr ifaddr,
 int pim_socket_recvfromto(int fd, uint8_t *buf, size_t len,
 			  struct sockaddr_in *from, socklen_t *fromlen,
 			  struct sockaddr_in *to, socklen_t *tolen,
-			  ifindex_t *ifindex);
+			  ifindex_t *ifindex, bool *router_alert);
 
 int pim_socket_mcastloop_get(int fd);
 

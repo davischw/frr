@@ -323,7 +323,7 @@ int pim_socket_join(int fd, struct in_addr group, struct in_addr ifaddr,
 int pim_socket_recvfromto(int fd, uint8_t *buf, size_t len,
 			  struct sockaddr_in *from, socklen_t *fromlen,
 			  struct sockaddr_in *to, socklen_t *tolen,
-			  ifindex_t *ifindex)
+			  ifindex_t *ifindex, bool *router_alert)
 {
 	struct msghdr msgh;
 	struct cmsghdr *cmsg;
@@ -369,6 +369,9 @@ int pim_socket_recvfromto(int fd, uint8_t *buf, size_t len,
 	if (fromlen)
 		*fromlen = msgh.msg_namelen;
 
+	if (router_alert)
+		*router_alert = false;
+
 	for (cmsg = CMSG_FIRSTHDR(&msgh); cmsg != NULL;
 	     cmsg = CMSG_NXTHDR(&msgh, cmsg)) {
 
@@ -377,14 +380,13 @@ int pim_socket_recvfromto(int fd, uint8_t *buf, size_t len,
 		    && (cmsg->cmsg_type == IP_PKTINFO)) {
 			struct in_pktinfo *i =
 				(struct in_pktinfo *)CMSG_DATA(cmsg);
+
 			if (to)
 				to->sin_addr = i->ipi_addr;
 			if (tolen)
 				*tolen = sizeof(struct sockaddr_in);
 			if (ifindex)
 				*ifindex = i->ipi_ifindex;
-
-			break;
 		}
 #endif
 
@@ -392,12 +394,11 @@ int pim_socket_recvfromto(int fd, uint8_t *buf, size_t len,
 		if ((cmsg->cmsg_level == IPPROTO_IP)
 		    && (cmsg->cmsg_type == IP_RECVDSTADDR)) {
 			struct in_addr *i = (struct in_addr *)CMSG_DATA(cmsg);
+
 			if (to)
 				to->sin_addr = *i;
 			if (tolen)
 				*tolen = sizeof(struct sockaddr_in);
-
-			break;
 		}
 #endif
 
@@ -407,6 +408,34 @@ int pim_socket_recvfromto(int fd, uint8_t *buf, size_t len,
 				*ifindex = CMSG_IFINDEX(cmsg);
 #endif
 
+		if (cmsg->cmsg_level == IPPROTO_IP
+		    && cmsg->cmsg_type == IP_RECVOPTS) {
+			uint8_t *end = (uint8_t *)cmsg + cmsg->cmsg_len;
+			uint8_t *data = CMSG_DATA(cmsg);
+
+			while (data < end && data[0]) {
+				size_t remain = end - data;
+				uint8_t optlen;
+
+				if (remain < 2)
+					break;
+				if (data[0] == 1) {
+					data++;
+					continue;
+				}
+
+				optlen = data[1];
+				if (remain < optlen)
+					break;
+
+				if (data[0] == 148 && optlen == 4) {
+					if (router_alert)
+						*router_alert = true;
+					break;
+				}
+				data += optlen;
+			}
+		}
 	} /* for (cmsg) */
 
 	return err; /* len */
