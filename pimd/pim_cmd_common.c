@@ -790,8 +790,7 @@ void json_object_pim_upstream_add(json_object *json, struct pim_upstream *up)
 		CHECK_FLAG(up->flags, PIM_UPSTREAM_FLAG_MASK_SRC_LHR));
 	json_object_boolean_add(
 		json, "disableKATExpiry",
-		CHECK_FLAG(up->flags,
-			   PIM_UPSTREAM_FLAG_MASK_DISABLE_KAT_EXPIRY));
+		!!(up->t_ka_holders & PIM_KAT_HOLD_VXLAN));
 	json_object_boolean_add(
 		json, "staticIncomingInterface",
 		CHECK_FLAG(up->flags, PIM_UPSTREAM_FLAG_MASK_STATIC_IIF));
