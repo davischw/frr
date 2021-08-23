@@ -1716,17 +1716,12 @@ static void rip_read(struct thread *t)
 {
 	struct rip *rip = THREAD_ARG(t);
 	int sock;
-	int ret;
-	int rtenum;
 	union rip_buf rip_buf;
-	struct rip_packet *packet;
 	struct sockaddr_in from;
 	int len;
-	int vrecv;
 	socklen_t fromlen;
 	struct interface *ifp = NULL;
 	struct connected *ifc;
-	struct rip_interface *ri;
 	struct prefix p;
 
 	/* Fetch socket then register myself. */
@@ -1790,6 +1785,18 @@ static void rip_read(struct thread *t)
 		return;
 	}
 
+	rip_read_process(rip, ifp, ifc, &rip_buf.rip_packet, len, from);
+}
+
+void rip_read_process(struct rip *rip, struct interface *ifp,
+		      struct connected *ifc, struct rip_packet *packet, int len,
+		      struct sockaddr_in from)
+{
+	struct rip_interface *ri;
+	int rtenum;
+	int vrecv;
+	int ret;
+
 	/* Packet length check. */
 	if (len < RIP_PACKET_MINSIZ) {
 		zlog_warn("packet size %d is smaller than minimum size %d", len,
@@ -1814,9 +1821,6 @@ static void rip_read(struct thread *t)
 
 	/* Set RTE number. */
 	rtenum = ((len - RIP_PACKET_MINSIZ) / 20);
-
-	/* For easy to handle. */
-	packet = &rip_buf.rip_packet;
 
 	/* RIP version check. */
 	if (packet->version == 0) {
