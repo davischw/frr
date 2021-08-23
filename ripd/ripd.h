@@ -532,4 +532,8 @@ extern struct thread_master *master;
 DECLARE_HOOK(rip_ifaddr_add, (struct connected * ifc), (ifc));
 DECLARE_HOOK(rip_ifaddr_del, (struct connected * ifc), (ifc));
 
+extern int rip_read_process(struct rip *rip, struct interface *ifp,
+			    struct connected *ifc, struct rip_packet *packet,
+			    int len, struct sockaddr_in from);
+
 #endif /* _ZEBRA_RIP_H */
