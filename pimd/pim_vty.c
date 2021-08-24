@@ -419,6 +419,22 @@ int pim_interface_config_write(struct vty *vty)
 					  ++writes;
 				}
 
+				/* IF ip igmp max-sources */
+				if (pim_ifp->igmp_source_limit != UINT32_MAX) {
+					vty_out(vty,
+						" ip igmp max-sources %u\n",
+						pim_ifp->igmp_source_limit);
+					++writes;
+				}
+
+				/* IF ip igmp max-groups */
+				if (pim_ifp->igmp_group_limit != UINT32_MAX) {
+					vty_out(vty,
+						" ip igmp max-groups %u\n",
+						pim_ifp->igmp_group_limit);
+					++writes;
+				}
+
 				/* IF ip igmp require-router-alert */
 				if (pim_ifp->igmp_require_ra) {
 					vty_out(vty,

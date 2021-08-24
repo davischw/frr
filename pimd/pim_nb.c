@@ -495,6 +495,18 @@ const struct frr_yang_module_info frr_igmp_info = {
 			}
 		},
 		{
+			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/max-sources",
+			.cbs = {
+				.modify = lib_interface_igmp_max_sources_modify,
+			}
+		},
+		{
+			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/max-groups",
+			.cbs = {
+				.modify = lib_interface_igmp_max_groups_modify,
+			}
+		},
+		{
 			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/require-router-alert",
 			.cbs = {
 				.modify = lib_interface_igmp_require_router_alert_modify,

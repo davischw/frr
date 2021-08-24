@@ -201,6 +201,8 @@ int lib_interface_igmp_last_member_query_interval_modify(
 	struct nb_cb_modify_args *args);
 int lib_interface_igmp_robustness_variable_modify(
 	struct nb_cb_modify_args *args);
+int lib_interface_igmp_max_sources_modify(struct nb_cb_modify_args *args);
+int lib_interface_igmp_max_groups_modify(struct nb_cb_modify_args *args);
 int lib_interface_igmp_require_router_alert_modify(struct nb_cb_modify_args *args);
 int lib_interface_igmp_address_family_create(struct nb_cb_create_args *args);
 int lib_interface_igmp_address_family_destroy(struct nb_cb_destroy_args *args);

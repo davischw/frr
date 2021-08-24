@@ -339,6 +339,10 @@ static void group_exclude_fwd_anysrc_ifempty(struct igmp_group *group)
 
 void igmp_source_free(struct igmp_source *source)
 {
+	struct pim_interface *pim_ifp = source->source_group->interface->info;
+
+	pim_ifp->igmp_source_count--;
+
 	/* make sure there is no source timer running */
 	assert(!source->t_source_timer);
 
@@ -464,6 +468,21 @@ struct igmp_source *igmp_get_source_by_addr(struct igmp_group *group,
 	src = igmp_find_source_by_addr(group, src_addr);
 	if (src)
 		return src;
+
+	if (pim_ifp->igmp_source_count >= pim_ifp->igmp_source_limit) {
+		if (PIM_DEBUG_IGMP_TRACE)
+			zlog_debug(
+				"interface %s has reached source limit (%u), refusing to add source %pI4 (group %pI4)",
+				group->interface->name,
+				pim_ifp->igmp_source_limit, &src_addr,
+				&group->group_addr);
+		return NULL;
+	}
+
+	if (new)
+		*new = true;
+
+	pim_ifp->igmp_source_count++;
 
 	if (PIM_DEBUG_IGMP_TRACE) {
 		char group_str[INET_ADDRSTRLEN];

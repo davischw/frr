@@ -125,6 +125,20 @@ module frr-igmp {
          expected packet loss on a network.";
     }
 
+    leaf max-groups {
+      type uint32;
+      default "4294967295";
+      description
+        "Limit number of tracked IGMP group memberships on this interface.";
+    }
+
+    leaf max-sources {
+      type uint32;
+      default "4294967295";
+      description
+        "Limit number of tracked IGMPv3 sources on this interface.";
+    }
+
     leaf require-router-alert {
       type boolean;
       default "false";
