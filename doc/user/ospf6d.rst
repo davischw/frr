@@ -229,8 +229,8 @@ The following debug commands are supported:
 OSPF6 area
 ==========
 
-.. index:: [no] area A.B.C.D nssa
-.. clicmd:: [no] area A.B.C.D nssa
+.. index:: [no] area A.B.C.D nssa [no-summary]
+.. clicmd:: [no] area A.B.C.D nssa [no-summary]
 
 NSSA Support in OSPFv3
 =======================
@@ -248,6 +248,10 @@ The following functionalities are implemented as per RFC 3101:
    is enabled by default.
 4. Support for NSSA Translator functionality when there are multiple NSSA ABR
    in an area
+
+   An NSSA ABR can be configured with the `no-summary` option to prevent the
+   advertisement of summaries into the area. In that case, a single Type-3 LSA
+   containing a default route is originated into the NSSA.
 
 .. _ospf6-interface:
 
