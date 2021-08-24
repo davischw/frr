@@ -1423,7 +1423,7 @@ void pimsb_igmp_leave(struct interface *ifp, struct in_addr *source,
 bool pimsb_igmp_sg_is_static(const struct igmp_source *source,
 			     const struct igmp_group *group)
 {
-	struct interface *ifp = group->group_igmp_sock->interface;
+	struct interface *ifp = group->interface;
 	struct pim_interface *pim_ifp = ifp->info;
 	struct listnode *node;
 	struct igmp_join *ij;
