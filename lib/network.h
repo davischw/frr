@@ -311,6 +311,47 @@ struct ipv4_encap_params {
 void ipv4_encap_output(const struct ipv4_encap_params *params, void *data,
 		       size_t datalen);
 
+/** Parameters for function `ipv4_output`. */
+struct ipv4_output_params {
+	/** Socket descriptor to use. */
+	int socket;
+
+	/** Interface MTU. */
+	uint16_t mtu;
+
+	/** IPv4 protocol. */
+	uint8_t protocol;
+	/** IPv4 TTL. */
+	uint8_t ttl;
+	/** IPv4 ToS. */
+	uint8_t tos;
+	/** IPv4 source address. */
+	uint32_t source;
+	/** IPv4 destination address. */
+	uint32_t destination;
+
+	/** UDP source port (if protocol == IPPROTO_UDP). */
+	uint16_t udp_source;
+	/** UDP destination port (if protocol == IPPROTO_UDP). */
+	uint16_t udp_destination;
+
+	/** Use special encapsulation. */
+	bool encapsulation;
+	/** Encapsulation parameters. */
+	struct ipv4_encap_params encap;
+};
+
+/**
+ * Sends packet using parameters for generating the encapsulation.
+ * This function will fragment the packet if necessary.
+ *
+ * \param params the packets parameters.
+ * \param data the packet data payload.
+ * \param datalen the packet data payload length.
+ */
+ssize_t ipv4_output(const struct ipv4_output_params *params, const void *data,
+		    size_t datalen);
+
 /**
  * Regular IPv4 header (simplified) from RFC 791 Section 3.1..
  */
@@ -380,6 +421,27 @@ struct ipv4_encap_header {
 	uint32_t magic;
 };
 
+/** UDP header as described in RFC 768. */
+struct udp_header {
+	/** UDP source port. */
+	uint16_t source;
+	/** UDP destination port. */
+	uint16_t destination;
+	/** UDP packet length. */
+	uint16_t length;
+	/** UDP checksum. */
+	uint16_t checksum;
+};
+
+/* Encapsulation data (without IP part). */
+struct encap_header {
+	/** Encapsulation version. */
+	uint16_t version;
+	/** Interface index. */
+	uint16_t ifindex;
+	/** Magic version. */
+	uint32_t magic;
+};
 
 /** Encapsulation data length. */
 #define IP_ENCAP_DATA_SIZE                                                     \

@@ -788,7 +788,7 @@ void ipv4_encap_output(const struct ipv4_encap_params *params, void *data,
 	ipv4_set_header_length(&ipv4e->ipv4, sizeof(ipv4e->ipv4));
 	ipv4e->ipv4.tos = IPV4_ENCAP_TOS;
 	ipv4e->ipv4.id = htons(((uint16_t)frr_weak_random()));
-	ipv4e->ipv4.total_length = htons(sizeof(ipv4e) + datalen);
+	ipv4e->ipv4.total_length = htons(sizeof(*ipv4e) + datalen);
 	ipv4e->ipv4.ttl = 1;
 	ipv4e->ipv4.protocol = IP_ENCAP_ROUTING;
 	ipv4e->ipv4.source = params->source;
@@ -800,4 +800,128 @@ void ipv4_encap_output(const struct ipv4_encap_params *params, void *data,
 	ipv4e->version = 0;
 	ipv4e->ifindex = htons((uint16_t)params->ifindex);
 	ipv4e->magic = htonl(IP_ENCAP_MAGIC_VALUE);
+}
+
+ssize_t ipv4_output(const struct ipv4_output_params *params, const void *data,
+		    size_t datalen)
+{
+	const uint8_t *packet_p = data;
+	struct ipv4_header *ipv4e;
+	struct ipv4_header *ipv4;
+	struct udp_header *uh;
+	size_t remaining = datalen;
+	size_t data_size;
+	size_t payload_size;
+	size_t fragment_offset = 0;
+	size_t headers_size;
+	ssize_t bytes_sent;
+	uint16_t more_fragments;
+	bool first_fragment = true;
+	struct sockaddr_in sin = {};
+	struct msghdr msg = {};
+	struct iovec iov[6] = {};
+	uint8_t headers[128];
+
+	/* Encapsulation header. */
+	ipv4_encap_output(&params->encap, headers, datalen);
+	ipv4e = (struct ipv4_header *)&headers[0];
+	headers_size = ipv4_header_length(ipv4e) + sizeof(struct encap_header);
+
+	/* Encapsulated header. */
+	ipv4 = (struct ipv4_header *)&headers[headers_size];
+	ipv4_set_version(ipv4);
+	ipv4_set_header_length(ipv4, sizeof(struct ipv4_header));
+	ipv4->tos = params->tos;
+	ipv4->id = htons(((uint16_t)frr_weak_random()));
+	ipv4->ttl = params->ttl;
+	ipv4->protocol = params->protocol;
+	ipv4->source = params->source;
+	ipv4->destination = params->destination;
+	ipv4->checksum = 0;
+
+	headers_size += ipv4_header_length(ipv4);
+
+	/* Encapsulated UDP. */
+	if (params->protocol == IPPROTO_UDP) {
+		uh = (struct udp_header *)&headers[headers_size];
+		uh->source = params->udp_source;
+		uh->destination = params->udp_destination;
+
+		headers_size += sizeof(struct udp_header);
+	}
+
+	/* Destination: loopback. */
+	sin.sin_family = AF_INET;
+	sin.sin_addr.s_addr = htonl(IPV4_ENCAP_DST);
+
+	payload_size = params->mtu - headers_size;
+	payload_size = payload_size - (payload_size % 8);
+
+	while (remaining) {
+		if (remaining > payload_size) {
+			data_size = payload_size;
+			more_fragments = IPV4_MORE_FRAGMENTS;
+		} else {
+			data_size = remaining;
+			more_fragments = 0;
+		}
+
+		ipv4e->total_length =
+			htons((uint16_t)(headers_size + (uint16_t)data_size));
+
+		ipv4->fragmentation = htons(more_fragments
+					    | (uint16_t)(fragment_offset >> 3));
+		if (params->protocol == IPPROTO_UDP && first_fragment) {
+			ipv4->total_length =
+				htons(ipv4_header_length(ipv4)
+				      + sizeof(struct udp_header) + data_size);
+			uh->length =
+				htons(sizeof(struct udp_header) + datalen);
+		} else
+			ipv4->total_length =
+				htons((uint16_t)(ipv4_header_length(ipv4)
+						 + data_size));
+
+		ipv4e->checksum = 0;
+		ipv4e->checksum = in_cksum(ipv4e, ipv4_header_length(ipv4e));
+		ipv4->checksum = 0;
+		ipv4->checksum = in_cksum(ipv4, ipv4_header_length(ipv4));
+
+		iov[0].iov_base = headers;
+		iov[0].iov_len = headers_size;
+		iov[1].iov_base = (void *)(size_t)(packet_p + fragment_offset);
+		iov[1].iov_len = data_size;
+
+		msg.msg_iov = iov;
+		msg.msg_iovlen = 2;
+		msg.msg_name = &sin;
+		msg.msg_namelen = sizeof(struct sockaddr_in);
+
+		bytes_sent = sendmsg(params->socket, &msg, 0);
+		if (bytes_sent == -1) {
+			if (errno == EINTR || errno == EAGAIN
+			    || errno == EWOULDBLOCK)
+				continue;
+
+			zlog_debug("%s: sendmsg: %s", __func__,
+				   strerror(errno));
+			return -1;
+		}
+		if (bytes_sent == 0) {
+			zlog_debug("%s: sendmsg: connection closed", __func__);
+			return 0;
+		}
+
+		remaining -= data_size;
+		fragment_offset += data_size;
+
+		if (first_fragment) {
+			first_fragment = false;
+			/* Only the first fragment has UDP header. */
+			headers_size -= sizeof(struct udp_header);
+			payload_size += sizeof(struct udp_header);
+		}
+	}
+
+	return datalen;
 }
