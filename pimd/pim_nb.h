@@ -21,6 +21,7 @@
 #define _FRR_PIM_NB_H_
 
 extern const struct frr_yang_module_info frr_pim_info;
+extern const struct frr_yang_module_info frr_pim_rmap_info;
 extern const struct frr_yang_module_info frr_pim_rp_info;
 extern const struct frr_yang_module_info frr_gmp_info;
 extern const struct frr_yang_module_info frr_pim_candidate_info;
@@ -233,6 +234,12 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_ca
 	struct nb_cb_modify_args *args);
 int routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_addrsel_destroy(
 	struct nb_cb_destroy_args *args);
+
+/* frr-pim-route-map */
+int pim_nb_rmap_match_source_modify(struct nb_cb_modify_args *args);
+int pim_nb_rmap_match_group_modify(struct nb_cb_modify_args *args);
+int pim_nb_rmap_match_plist_modify(struct nb_cb_modify_args *args);
+int pim_nb_rmap_match_iif_modify(struct nb_cb_modify_args *args);
 
 /*
  * Callback registered with routing_nb lib to validate only
