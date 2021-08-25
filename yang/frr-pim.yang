@@ -20,6 +20,14 @@ module frr-pim {
     prefix "inet";
   }
 
+  import frr-route-map {
+    prefix frr-route-map;
+  }
+
+  import frr-filter {
+    prefix filter;
+  }
+
   organization
     "FRRouting";
 
@@ -279,6 +287,12 @@ module frr-pim {
       default "false";
       description
         "Enable PIM flag on the interface.";
+    }
+
+    leaf upcall-route-map {
+      type frr-route-map:route-map-ref;
+      description
+        "Pass kernel/forwarding plane upcalls through specified route-map.";
     }
 
     leaf hello-interval {

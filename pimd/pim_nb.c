@@ -22,6 +22,7 @@
 #include "northbound.h"
 #include "libfrr.h"
 #include "vrf.h"
+#include "routemap.h"
 #include "pimd/pim_nb.h"
 
 /* clang-format off */
@@ -524,6 +525,44 @@ const struct frr_yang_module_info frr_igmp_info = {
 			.cbs = {
 				.create = lib_interface_igmp_address_family_static_group_create,
 				.destroy = lib_interface_igmp_address_family_static_group_destroy,
+			}
+		},
+		{
+			.xpath = NULL,
+		},
+	}
+};
+
+/* clang-format off */
+const struct frr_yang_module_info frr_pim_rmap_info = {
+	.name = "frr-pim-route-map",
+	.nodes = {
+		{
+			.xpath = "/frr-route-map:lib/route-map/entry/match-condition/rmap-match-condition/frr-pim-route-map:ipv4-multicast-group-address",
+			.cbs = {
+				.modify = pim_nb_rmap_match_group_modify,
+				.destroy = lib_route_map_entry_match_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-route-map:lib/route-map/entry/match-condition/rmap-match-condition/frr-pim-route-map:ipv4-multicast-source-address",
+			.cbs = {
+				.modify = pim_nb_rmap_match_source_modify,
+				.destroy = lib_route_map_entry_match_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-route-map:lib/route-map/entry/match-condition/rmap-match-condition/frr-pim-route-map:list-name",
+			.cbs = {
+				.modify = pim_nb_rmap_match_plist_modify,
+				.destroy = lib_route_map_entry_match_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-route-map:lib/route-map/entry/match-condition/rmap-match-condition/frr-pim-route-map:multicast-iif",
+			.cbs = {
+				.modify = pim_nb_rmap_match_iif_modify,
+				.destroy = lib_route_map_entry_match_destroy,
 			}
 		},
 		{

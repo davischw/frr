@@ -68,6 +68,7 @@
 #include "pim_errors.h"
 #include "pim_nb.h"
 #include "pim_southbound.h"
+#include "pim_routemap.h"
 
 #ifndef VTYSH_EXTRACT_PL
 #include "pimd/pim_cmd_clippy.c"
@@ -11254,6 +11255,68 @@ DEFUN_HIDDEN (ip_pim_mlag,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+DEFPY (debug_rmap_apply,
+       debug_rmap_apply_cmd,
+       "debug route-map apply RMAP_NAME ["
+		"{group A.B.C.D"
+		"|source A.B.C.D"
+		"|iif IFNAME$iif"
+		"|interface IFNAME$iface"
+	"}]",
+       DEBUG_STR
+       "Debug option set for route-maps\n"
+       "Test apply route-map\n"
+       "Name of route-map to test\n"
+       "Multicast group to match\n"
+       "Multicast group to match\n"
+       "Multicast source to match\n"
+       "Multicast source to match\n"
+       "Input interface to match\n"
+       "Input interface to match\n"
+       "Interface (unqualified) to match\n"
+       "Interface (unqualified) to match\n")
+{
+	struct interface *iifp = NULL, *gen_ifp = NULL;
+	struct prefix_sg sg;
+	bool res;
+
+	if (iface) {
+		gen_ifp = if_lookup_by_name_all_vrf(iface);
+		if (!gen_ifp) {
+			vty_out(vty, "%% invalid interface %s\n", iface);
+			return CMD_WARNING;
+		}
+	}
+	if (iif) {
+		iifp = if_lookup_by_name_all_vrf(iif);
+		if (!iifp) {
+			vty_out(vty, "%% invalid iif %s\n", iif);
+			return CMD_WARNING;
+		}
+	}
+
+	if (group.s_addr && !pim_is_group_224_4(group)) {
+		vty_out(vty, "%% group (%pI4) must be multicast\n", &group);
+		return CMD_WARNING;
+	}
+	if (source.s_addr && IPV4_CLASS_DE(ntohl(source.s_addr))) {
+		vty_out(vty, "%% source (%pI4) must be unicast\n", &source);
+		return CMD_WARNING;
+	}
+
+	sg.family = AF_INET;
+	sg.prefixlen = 32;
+	sg.src = source;
+	sg.grp = group;
+
+	res = pim_routemap_match(&sg, gen_ifp, iifp, rmap_name);
+	vty_out(vty, "route-map %s for %pSG4, iface:%s, iif:%s: %s\n",
+		rmap_name, &sg, gen_ifp ? gen_ifp->name : "*",
+		iifp ? iifp->name : "*", res ? "permitted" : "denied");
+
+	return res ? CMD_SUCCESS : CMD_WARNING;
+}
+
 void pim_cmd_init(void)
 {
 	install_node(&interface_node); /* INTERFACE_NODE */
@@ -11447,6 +11510,8 @@ void pim_cmd_init(void)
 	install_element(VIEW_NODE, &show_ip_pim_bsm_db_cmd);
 	install_element(VIEW_NODE, &show_ip_pim_cand_rp_cmd);
 	install_element(VIEW_NODE, &show_ip_pim_statistics_cmd);
+
+	install_element(VIEW_NODE, &debug_rmap_apply_cmd);
 
 	install_element(ENABLE_NODE, &clear_ip_mroute_count_cmd);
 	install_element(ENABLE_NODE, &clear_ip_interfaces_cmd);
