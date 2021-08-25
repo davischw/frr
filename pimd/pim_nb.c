@@ -519,13 +519,13 @@ const struct frr_yang_module_info frr_gmp_info = {
 			}
 		},
 		{
-			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/max-sources",
+			.xpath = "/frr-interface:lib/interface/frr-gmp:gmp/address-family/max-sources",
 			.cbs = {
 				.modify = lib_interface_gm_max_sources_modify,
 			}
 		},
 		{
-			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/max-groups",
+			.xpath = "/frr-interface:lib/interface/frr-gmp:gmp/address-family/max-groups",
 			.cbs = {
 				.modify = lib_interface_gm_max_groups_modify,
 			}
@@ -535,6 +535,13 @@ const struct frr_yang_module_info frr_gmp_info = {
 			.cbs = {
 				.modify = lib_interface_igmp_require_router_alert_modify,
 				.destroy = lib_interface_igmp_require_router_alert_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-interface:lib/interface/frr-gmp:gmp/address-family/route-map",
+			.cbs = {
+				.modify = lib_interface_gm_rmap_modify,
+				.destroy = lib_interface_gm_rmap_destroy,
 			}
 		},
 		{

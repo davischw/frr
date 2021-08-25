@@ -422,6 +422,13 @@ int pim_config_write(struct vty *vty, int writes, struct interface *ifp,
 		++writes;
 	}
 
+	/* IF ip igmp sources  */
+	if (pim_ifp->multicast_rmap) {
+		vty_out(vty, " ip igmp sources route-map %s\n",
+			pim_ifp->multicast_rmap);
+		++writes;
+	}
+
 	/* IF ip igmp require-router-alert */
 	if (pim_ifp->igmp_require_ra) {
 		vty_out(vty, " ip igmp require-router-alert\n");

@@ -59,6 +59,8 @@ static int igmp_join_sock(const char *ifname, ifindex_t ifindex,
 			  struct pim_interface *pim_ifp);
 #endif
 
+DEFINE_MTYPE(PIMD, PIM_RMAP_NAME, "PIM route-map name");
+
 void pim_if_init(struct pim_instance *pim)
 {
 	int i;
@@ -229,6 +231,8 @@ void pim_if_delete(struct interface *ifp)
 		XFREE(MTYPE_TMP, pim_ifp->bfd_config.profile);
 
 	XFREE(MTYPE_PIM_INTERFACE, pim_ifp->boundary_oil_plist);
+
+	XFREE(MTYPE_PIM_RMAP_NAME, pim_ifp->multicast_rmap);
 	XFREE(MTYPE_PIM_PLIST_NAME, pim_ifp->nbr_plist);
 	XFREE(MTYPE_PIM_INTERFACE, pim_ifp);
 
