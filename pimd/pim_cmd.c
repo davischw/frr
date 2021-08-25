@@ -8417,6 +8417,35 @@ DEFPY (interface_ip_igmp_require_ra,
 	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
 }
 
+DEFPY (interface_ip_igmp_sources_rmap,
+       interface_ip_igmp_sources_rmap_cmd,
+       "[no] ip igmp sources route-map RMAP_NAME",
+       NO_STR
+       IP_STR
+       IFACE_IGMP_STR
+       "Control multicast sources to join (IGMPv3)\n"
+       "Filter joins through route-map\n"
+       "Route-map name\n")
+{
+	if (no)
+		nb_cli_enqueue_change(vty, "./igmpv3-sources-route-map",
+				      NB_OP_DESTROY, NULL);
+	else
+		nb_cli_enqueue_change(vty, "./igmpv3-sources-route-map",
+				      NB_OP_MODIFY, rmap_name);
+
+	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+}
+
+ALIAS (interface_ip_igmp_sources_rmap,
+       no_interface_ip_igmp_sources_rmap_cmd,
+       "no ip igmp sources route-map",
+       NO_STR
+       IP_STR
+       IFACE_IGMP_STR
+       "Control multicast sources to join (IGMPv3)\n"
+       "Filter joins through route-map\n")
+
 DEFUN (interface_ip_pim_drprio,
        interface_ip_pim_drprio_cmd,
        "ip pim drpriority (1-4294967295)",
@@ -11424,6 +11453,8 @@ void pim_cmd_init(void)
 	install_element(INTERFACE_NODE, &interface_ip_igmp_limits_cmd);
 	install_element(INTERFACE_NODE, &no_interface_ip_igmp_limits_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_igmp_require_ra_cmd);
+	install_element(INTERFACE_NODE, &interface_ip_igmp_sources_rmap_cmd);
+	install_element(INTERFACE_NODE, &no_interface_ip_igmp_sources_rmap_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_pim_activeactive_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_pim_ssm_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ip_pim_ssm_cmd);

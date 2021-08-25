@@ -3438,6 +3438,52 @@ int lib_interface_igmp_require_router_alert_modify(
 	return NB_OK;
 }
 
+int lib_interface_igmp_sources_rmap_modify(struct nb_cb_modify_args *args)
+{
+	struct interface *ifp;
+	struct pim_interface *pim_ifp;
+	const char *rmap;
+
+	rmap = yang_dnode_get_string(args->dnode, NULL);
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		ifp = nb_running_get_entry(args->dnode, NULL, true);
+		pim_ifp = ifp->info;
+
+		XFREE(MTYPE_PIM_RMAP_NAME, pim_ifp->igmp_source_rmap);
+		pim_ifp->igmp_source_rmap = XSTRDUP(MTYPE_PIM_RMAP_NAME,
+						    rmap);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int lib_interface_igmp_sources_rmap_destroy(struct nb_cb_destroy_args *args)
+{
+	struct interface *ifp;
+	struct pim_interface *pim_ifp;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		ifp = nb_running_get_entry(args->dnode, NULL, true);
+		pim_ifp = ifp->info;
+		XFREE(MTYPE_PIM_RMAP_NAME, pim_ifp->igmp_source_rmap);
+		break;
+	}
+
+	return NB_OK;
+}
+
 /*
  * XPath: /frr-interface:lib/interface/frr-igmp:igmp/address-family
  */

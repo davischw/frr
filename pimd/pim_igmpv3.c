@@ -33,6 +33,7 @@
 #include "pim_zebra.h"
 #include "pim_oil.h"
 #include "pim_southbound.h"
+#include "pim_routemap.h"
 
 static void group_retransmit_timer_on(struct igmp_group *group);
 static long igmp_group_timer_remain_msec(struct igmp_group *group);
@@ -460,10 +461,22 @@ struct igmp_source *igmp_find_source_by_addr(struct igmp_group *group,
 struct igmp_source *igmp_get_source_by_addr(struct igmp_group *group,
 					    struct in_addr src_addr, bool *new)
 {
+	struct pim_interface *pim_ifp = group->interface->info;
 	struct igmp_source *src;
+	struct prefix_sg sg = {
+		.family = AF_INET,
+		.prefixlen = 32,
+		.src = src_addr,
+		.grp = group->group_addr,
+	};
 
 	if (new)
 		*new = false;
+
+	if (pim_ifp->igmp_source_rmap
+	    && !pim_routemap_match(&sg, group->interface, NULL,
+				   pim_ifp->igmp_source_rmap))
+		return NULL;
 
 	src = igmp_find_source_by_addr(group, src_addr);
 	if (src)

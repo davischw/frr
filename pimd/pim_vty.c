@@ -442,6 +442,14 @@ int pim_interface_config_write(struct vty *vty)
 					++writes;
 				}
 
+				/* IF ip igmp sources  */
+				if (pim_ifp->igmp_source_rmap) {
+					vty_out(vty,
+						" ip igmp sources route-map %s\n",
+						pim_ifp->igmp_source_rmap);
+					++writes;
+				}
+
 				/* IF ip igmp join */
 				if (pim_ifp->igmp_join_list) {
 					struct listnode *node;

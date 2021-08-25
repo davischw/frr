@@ -514,6 +514,13 @@ const struct frr_yang_module_info frr_igmp_info = {
 			}
 		},
 		{
+			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/igmpv3-sources-route-map",
+			.cbs = {
+				.modify = lib_interface_igmp_sources_rmap_modify,
+				.destroy = lib_interface_igmp_sources_rmap_destroy,
+			}
+		},
+		{
 			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/address-family",
 			.cbs = {
 				.create = lib_interface_igmp_address_family_create,
