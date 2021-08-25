@@ -52,6 +52,7 @@
 #include "ripd/rip_debug.h"
 #include "ripd/rip_errors.h"
 #include "ripd/rip_interface.h"
+#include "ripd/rip_southbound.h"
 
 /* UDP receive buffer size */
 #define RIP_UDP_RCV_BUF 41600
@@ -1368,6 +1369,11 @@ int rip_create_socket(struct vrf *vrf)
 	struct sockaddr_in addr;
 	const char *vrf_dev = NULL;
 
+#ifdef VENDOR_SOUTHBOUND
+	if (rip_southbound_enabled)
+		return ripsb_create_socket(vrf);
+#endif /* VENDOR_SOUTHBOUND */
+
 	memset(&addr, 0, sizeof(struct sockaddr_in));
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
@@ -1434,6 +1440,11 @@ static int rip_send_packet(uint8_t *buf, int size, struct sockaddr_in *to,
 	char adata[256] = {};
 	struct in_pktinfo *pkt;
 #endif /* GNU_LINUX */
+
+#ifdef VENDOR_SOUTHBOUND
+	if (rip_southbound_enabled)
+		return ripsb_send_packet(buf, size, to, ifc);
+#endif /* VENDOR_SOUTHBOUND */
 
 	assert(ifc != NULL);
 	ri = ifc->ifp->info;
@@ -1723,6 +1734,13 @@ static void rip_read(struct thread *t)
 	struct interface *ifp = NULL;
 	struct connected *ifc;
 	struct prefix p;
+
+#ifdef VENDOR_SOUTHBOUND
+	if (rip_southbound_enabled) {
+		ripsb_read(t);
+		return;
+	}
+#endif /* VENDOR_SOUTHBOUND */
 
 	/* Fetch socket then register myself. */
 	sock = THREAD_FD(t);

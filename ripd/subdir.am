@@ -56,3 +56,13 @@ ripd_ripd_snmp_la_SOURCES = ripd/rip_snmp.c
 ripd_ripd_snmp_la_CFLAGS = $(AM_CFLAGS) $(SNMP_CFLAGS) -std=gnu11
 ripd_ripd_snmp_la_LDFLAGS = $(MODULE_LDFLAGS)
 ripd_ripd_snmp_la_LIBADD = lib/libfrrsnmp.la
+
+if VENDOR_SOUTHBOUND
+ripd_ripd_SOURCES += \
+	ripd/rip_southbound.c \
+	# end
+
+noinst_HEADERS += \
+	ripd/rip_southbound.h \
+	# end
+endif

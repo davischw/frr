@@ -41,9 +41,14 @@
 #include "ripd/ripd.h"
 #include "ripd/rip_nb.h"
 #include "ripd/rip_errors.h"
+#include "ripd/rip_southbound.h"
 
 /* ripd options. */
-static struct option longopts[] = {{0}};
+static const struct option longopts[] = {
+#ifdef VENDOR_SOUTHBOUND
+	{"dplane", no_argument, NULL, 'y'},
+#endif /* VENDOR_SOUTHBOUND */
+	{NULL}};
 
 /* ripd privileges */
 zebra_capabilities_t _caps_p[] = {ZCAP_NET_RAW, ZCAP_BIND, ZCAP_SYS_ADMIN};
@@ -140,7 +145,17 @@ int main(int argc, char **argv)
 {
 	frr_preinit(&ripd_di, argc, argv);
 
-	frr_opt_add("" DEPRECATED_OPTIONS, longopts, "");
+	frr_opt_add(DEPRECATED_OPTIONS
+#ifdef VENDOR_SOUTHBOUND
+		    "y"
+#endif /* VENDOR_SOUTHBOUND */
+		    ,
+		    longopts,
+		    ""
+#ifdef VENDOR_SOUTHBOUND
+		    "  -y, --dplane       Netlink vendor server\n"
+#endif /* VENDOR_SOUTHBOUND */
+	);
 
 	/* Command line option parse. */
 	while (1) {
@@ -161,6 +176,11 @@ int main(int argc, char **argv)
 		switch (opt) {
 		case 0:
 			break;
+#ifdef VENDOR_SOUTHBOUND
+		case 'y':
+			rip_southbound_enabled = true;
+			break;
+#endif /* VENDOR_SOUTHBOUND */
 		default:
 			frr_help_exit(1);
 		}
@@ -179,6 +199,11 @@ int main(int argc, char **argv)
 	rip_if_init();
 	rip_cli_init();
 	rip_zclient_init(master);
+
+#ifdef VENDOR_SOUTHBOUND
+	if (rip_southbound_enabled)
+		ripsb_init();
+#endif /* VENDOR_SOUTHBOUND */
 
 	frr_config_fork();
 	frr_run(master);
