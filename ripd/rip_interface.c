@@ -42,6 +42,7 @@
 #include "ripd/ripd.h"
 #include "ripd/rip_debug.h"
 #include "ripd/rip_interface.h"
+#include "ripd/rip_southbound.h"
 
 DEFINE_MTYPE_STATIC(RIPD, RIP_INTERFACE, "RIP interface");
 DEFINE_MTYPE(RIPD, RIP_INTERFACE_STRING, "RIP Interface String");
@@ -66,6 +67,9 @@ const struct message ri_version_msg[] = {{RI_RIP_VERSION_1, "1"},
 static int ipv4_multicast_join(int sock, struct in_addr group,
 			       struct in_addr ifa, ifindex_t ifindex)
 {
+#ifdef RIP_SOUTHBOUND
+	return 0;
+#else
 	int ret;
 
 	ret = setsockopt_ipv4_multicast(sock, IP_ADD_MEMBERSHIP, ifa,
@@ -76,12 +80,16 @@ static int ipv4_multicast_join(int sock, struct in_addr group,
 			  safe_strerror(errno));
 
 	return ret;
+#endif /* !RIP_SOUTHBOUND */
 }
 
 /* Leave from the RIP version 2 multicast group. */
 static int ipv4_multicast_leave(int sock, struct in_addr group,
 				struct in_addr ifa, ifindex_t ifindex)
 {
+#ifdef RIP_SOUTHBOUND
+	return 0;
+#else
 	int ret;
 
 	ret = setsockopt_ipv4_multicast(sock, IP_DROP_MEMBERSHIP, ifa,
@@ -91,6 +99,7 @@ static int ipv4_multicast_leave(int sock, struct in_addr group,
 		zlog_info("can't setsockopt IP_DROP_MEMBERSHIP");
 
 	return ret;
+#endif /* !RIP_SOUTHBOUND */
 }
 
 static void rip_interface_reset(struct rip_interface *);
@@ -109,6 +118,7 @@ static struct rip_interface *rip_interface_new(void)
 
 void rip_interface_multicast_set(int sock, struct connected *connected)
 {
+#ifndef RIP_SOUTHBOUND
 	struct in_addr addr;
 
 	assert(connected != NULL);
@@ -121,6 +131,7 @@ void rip_interface_multicast_set(int sock, struct connected *connected)
 			"Can't setsockopt IP_MULTICAST_IF on fd %d to ifindex %d for interface %s",
 			sock, connected->ifp->ifindex, connected->ifp->name);
 	}
+#endif /* !RIP_SOUTHBOUND */
 
 	return;
 }

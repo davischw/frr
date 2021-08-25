@@ -31,6 +31,7 @@ ripd_librip_a_SOURCES = \
 	ripd/rip_nb_state.c \
 	ripd/rip_peer.c \
 	ripd/rip_routemap.c \
+	ripd/rip_southbound.c \
 	ripd/rip_zebra.c \
 	ripd/ripd.c \
 	# end
@@ -44,6 +45,7 @@ noinst_HEADERS += \
 	ripd/rip_errors.h \
 	ripd/rip_interface.h \
 	ripd/rip_nb.h \
+	ripd/rip_southbound.h \
 	ripd/ripd.h \
 	# end
 

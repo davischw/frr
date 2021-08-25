@@ -52,6 +52,7 @@
 #include "ripd/rip_debug.h"
 #include "ripd/rip_errors.h"
 #include "ripd/rip_interface.h"
+#include "ripd/rip_southbound.h"
 
 /* UDP receive buffer size */
 #define RIP_UDP_RCV_BUF 41600
@@ -1380,8 +1381,12 @@ int rip_create_socket(struct vrf *vrf)
 #ifdef HAVE_STRUCT_SOCKADDR_IN_SIN_LEN
 	addr.sin_len = sizeof(struct sockaddr_in);
 #endif /* HAVE_STRUCT_SOCKADDR_IN_SIN_LEN */
+#ifdef RIP_SOUTHBOUND
+	addr.sin_port = htons(RIPSB_PORT_DEFAULT);
+#else
 	/* sending port must always be the RIP port */
 	addr.sin_port = htons(RIP_PORT_DEFAULT);
+#endif /* RIP_SOUTHBOUND */
 
 	/* Make datagram socket. */
 	if (vrf->vrf_id != VRF_DEFAULT)
@@ -1400,7 +1405,9 @@ int rip_create_socket(struct vrf *vrf)
 	sockopt_broadcast(sock);
 	sockopt_reuseaddr(sock);
 	sockopt_reuseport(sock);
+#ifndef RIP_SOUTHBOUND
 	setsockopt_ipv4_multicast_loop(sock, 0);
+#endif /* RIP_SOUTHBOUND */
 #ifdef IPTOS_PREC_INTERNETCONTROL
 	setsockopt_ipv4_tos(sock, IPTOS_PREC_INTERNETCONTROL);
 #endif
@@ -1426,8 +1433,8 @@ int rip_create_socket(struct vrf *vrf)
  * by connected argument. NULL to argument denotes destination should be
  * should be RIP multicast group
  */
-static int rip_send_packet(uint8_t *buf, int size, struct sockaddr_in *to,
-			   struct connected *ifc)
+static int _rip_send_packet(uint8_t *buf, int size, struct sockaddr_in *to,
+			    struct connected *ifc)
 {
 	struct rip_interface *ri;
 	struct rip *rip;
@@ -1531,6 +1538,16 @@ static int rip_send_packet(uint8_t *buf, int size, struct sockaddr_in *to,
 		zlog_warn("can't send packet : %s", safe_strerror(errno));
 
 	return ret;
+}
+
+static inline int rip_send_packet(uint8_t *buf, int size,
+				  struct sockaddr_in *to, struct connected *ifc)
+{
+#ifdef RIP_SOUTHBOUND
+	return ripsb_send_packet(buf, size, to, ifc);
+#else
+	return _rip_send_packet(buf, size, to, ifc);
+#endif
 }
 
 /* Add redistributed route to RIP table. */
@@ -1721,7 +1738,7 @@ static void rip_request_process(struct rip_packet *packet, int size,
 }
 
 /* First entry point of RIP packet. */
-static int rip_read(struct thread *t)
+static int _rip_read(struct thread *t)
 {
 	struct rip *rip = THREAD_ARG(t);
 	int sock;
@@ -1796,6 +1813,15 @@ static int rip_read(struct thread *t)
 	}
 
 	return rip_read_process(rip, ifp, ifc, &rip_buf.rip_packet, len, from);
+}
+
+static inline int rip_read(struct thread *t)
+{
+#ifdef RIP_SOUTHBOUND
+	return ripsb_read(t);
+#else
+	return _rip_read(t);
+#endif
 }
 
 int rip_read_process(struct rip *rip, struct interface *ifp,
@@ -3714,6 +3740,8 @@ void rip_init(void)
 	install_element(VIEW_NODE, &show_ip_rip_status_cmd);
 
 	install_default(RIP_NODE);
+
+	ripsb_init();
 
 	/* Debug related init. */
 	rip_debug_init();
