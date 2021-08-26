@@ -118,8 +118,13 @@ struct channel_oil {
 	struct rb_pim_oil_item oil_rb;
 
 	struct mfcctl oil;
-	int installed;
-	int oil_inherited_rescan;
+	bool installed : 1;
+	/* NB: filtered oils are still installed into the kernel, but their
+	 * oifs are empty.  Otherwise the kernel would keep notifying us about
+	 * unexpected traffic from this source.
+	 */
+	bool filtered : 1;
+	bool oil_inherited_rescan : 1;
 	int oil_size;
 	int oil_ref_count;
 	time_t oif_creation[MAXVIFS];

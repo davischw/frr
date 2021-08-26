@@ -143,6 +143,12 @@ module frr-pim {
         "Send v6 secondary addresses.";
     }
 
+    leaf mfib-route-map {
+      type frr-route-map:route-map-ref;
+      description
+        "Pass MFIB entries through specified route-map.";
+    }
+
     container spt-switchover {
       description
         "SPT-Switchover.";
@@ -294,12 +300,6 @@ module frr-pim {
       default "false";
       description
         "Enable PIM flag on the interface.";
-    }
-
-    leaf upcall-route-map {
-      type frr-route-map:route-map-ref;
-      description
-        "Pass kernel/forwarding plane upcalls through specified route-map.";
     }
 
     leaf hello-interval {

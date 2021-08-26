@@ -166,6 +166,10 @@ struct pim_instance {
 	struct rb_pim_upstream_head upstream_head;
 	struct timer_wheel *upstream_sg_wheel;
 
+	/* filter applied on MFC installation => controls data */
+	char *mfib_rmap;
+	struct thread *mfib_rmap_reapply;
+
 	/*
 	 * RP information
 	 */
@@ -219,5 +223,6 @@ extern struct pim_router *router;
 
 struct pim_instance *pim_get_pim_instance(vrf_id_t vrf_id);
 void pim_vrf_shutdown(struct pim_instance *pim, bool shutdown);
+void pim_vrf_resched_mfib_rmap(struct pim_instance *pim);
 
 #endif

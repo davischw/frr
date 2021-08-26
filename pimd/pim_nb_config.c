@@ -952,6 +952,57 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_se
 }
 
 /*
+ * XPath: /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/mfib-route-map
+ */
+int pim_af_mfib_rmap_modify(struct nb_cb_modify_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	const char *rmap;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		rmap = yang_dnode_get_string(args->dnode, NULL);
+
+		XFREE(MTYPE_PIM_RMAP_NAME, pim->mfib_rmap);
+		pim->mfib_rmap = XSTRDUP(MTYPE_PIM_RMAP_NAME, rmap);
+		pim_vrf_resched_mfib_rmap(pim);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int pim_af_mfib_rmap_destroy(struct nb_cb_destroy_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		XFREE(MTYPE_PIM_RMAP_NAME, pim->mfib_rmap);
+		pim_vrf_resched_mfib_rmap(pim);
+		break;
+	}
+
+	return NB_OK;
+}
+
+/*
  * XPath:
  * /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/spt-switchover
  */

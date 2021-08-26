@@ -231,6 +231,13 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 			pim->register_plist);
 		++writes;
 	}
+
+	if (pim->mfib_rmap) {
+		vty_out(vty, "%sip mfib route-map %s\n", spaces,
+			pim->mfib_rmap);
+		++writes;
+	}
+
 	if (pim->spt.switchover == PIM_SPT_INFINITY) {
 		if (pim->spt.plist)
 			vty_out(vty,

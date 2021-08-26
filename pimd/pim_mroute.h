@@ -196,4 +196,7 @@ int pim_mroute_msg_wrongvif(int fd, struct interface *ifp,
 void pim_mroute_update_counters(struct channel_oil *c_oil);
 bool pim_mroute_allow_iif_in_oil(struct channel_oil *c_oil,
 		int oif_index);
+
+void pim_mroute_filter_refresh(struct pim_instance *pim);
+
 #endif /* PIM_MROUTE_H */

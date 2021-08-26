@@ -417,7 +417,7 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 	if (i_am_lhr && star_source
 	    && pimsb_want_spt_join(oil->pim, oil->oil.mfcc_mcastgrp))
 		route_flags |= MRT_FLAG_JOIN_SPT_ALLOWED;
-	if (oil->oif_list_count == 0)
+	if (oil->oif_list_count == 0 || oil->filtered)
 		route_flags |= MRT_FLAG_DUMMY | MRT_FLAG_DL_TIMER;
 
 	/*
@@ -458,12 +458,14 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 
 	/* Output interfaces. */
 	oif_count = 0;
-	SLIST_FOREACH (oif, &oil->oif_list, entry) {
-		if (oif->ifindex == PIM_REG_IF_IDX)
-			has_pimreg = true;
+	if (!oil->filtered) {
+		SLIST_FOREACH (oif, &oil->oif_list, entry) {
+			if (oif->ifindex == PIM_REG_IF_IDX)
+				has_pimreg = true;
 
-		stream_putl(s, oif->ifindex);
-		oif_count++;
+			stream_putl(s, oif->ifindex);
+			oif_count++;
+		}
 	}
 
 	stream_putw_at(s, oif_count_pos, oif_count);

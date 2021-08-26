@@ -45,6 +45,7 @@
 #include "pim_sock.h"
 #include "pim_vxlan.h"
 #include "pim_southbound.h"
+#include "pim_routemap.h"
 
 #ifndef PIM_SOUTHBOUND
 static void mroute_read_on(struct pim_instance *pim);
@@ -987,6 +988,11 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 	pim_mroute_copy(&tmp_oil, c_oil);
 
 #ifndef PIM_SOUTHBOUND
+	if (c_oil->filtered) {
+		for (size_t i = 0; i < MAXVIFS; i++)
+			tmp_oil.mfcc_ttls[i] = 0;
+	}
+
 	/* The linux kernel *expects* the incoming
 	 * vif to be part of the outgoing list
 	 * in the case of a (*,G).
@@ -1045,7 +1051,7 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 }
 
 static int pim_upstream_get_mroute_iif(struct channel_oil *c_oil,
-		const char *name)
+		const char *name, struct interface **ifp_out)
 {
 	vifi_t iif = MAXVIFS;
 	struct interface *ifp = NULL;
@@ -1065,6 +1071,7 @@ static int pim_upstream_get_mroute_iif(struct channel_oil *c_oil,
 				iif = pim_ifp->mroute_vif_index;
 		}
 	}
+	*ifp_out = ifp;
 	return iif;
 }
 
@@ -1111,14 +1118,34 @@ static void pim_upstream_all_sources_iif_update(struct pim_upstream *up)
 	}
 }
 
+static bool pim_oil_check_filtered(struct channel_oil *c_oil,
+				   struct interface *iifp)
+{
+	struct prefix_sg sg;
+	struct pim_interface *pim_iif = iifp ? iifp->info : NULL;
+
+	if (!pim_iif || !pim_iif->pim->mfib_rmap)
+		return false;
+
+	sg.src = c_oil->oil.mfcc_origin;
+	sg.grp = c_oil->oil.mfcc_mcastgrp;
+
+	if (!pim_routemap_match(&sg, NULL, iifp, pim_iif->pim->mfib_rmap))
+		return true;
+
+	return false;
+}
+
 /* In the case of "PIM state machine" added mroutes an upstream entry
  * must be present to decide on the SPT-forwarding vs. RPT-forwarding.
  */
 int pim_upstream_mroute_add(struct channel_oil *c_oil, const char *name)
 {
 	vifi_t iif;
+	struct interface *iifp;
 
-	iif = pim_upstream_get_mroute_iif(c_oil, name);
+	iif = pim_upstream_get_mroute_iif(c_oil, name, &iifp);
+	c_oil->filtered = pim_oil_check_filtered(c_oil, iifp);
 
 	if (c_oil->oil.mfcc_parent != iif) {
 		c_oil->oil.mfcc_parent = iif;
@@ -1142,14 +1169,18 @@ int pim_upstream_mroute_add(struct channel_oil *c_oil, const char *name)
 int pim_upstream_mroute_iif_update(struct channel_oil *c_oil, const char *name)
 {
 	vifi_t iif;
+	struct interface *iifp;
+	bool filtered;
 	char buf[1000];
 
-	iif = pim_upstream_get_mroute_iif(c_oil, name);
-	if (c_oil->oil.mfcc_parent == iif) {
+	iif = pim_upstream_get_mroute_iif(c_oil, name, &iifp);
+	filtered = pim_oil_check_filtered(c_oil, iifp);
+	if (c_oil->oil.mfcc_parent == iif && c_oil->filtered == filtered) {
 		/* no change */
 		return 0;
 	}
 	c_oil->oil.mfcc_parent = iif;
+	c_oil->filtered = filtered;
 
 	if (c_oil->oil.mfcc_origin.s_addr == INADDR_ANY &&
 			c_oil->up)
@@ -1168,6 +1199,34 @@ int pim_upstream_mroute_iif_update(struct channel_oil *c_oil, const char *name)
 	/* XXX: is this hack needed? */
 	c_oil->oil_inherited_rescan = 1;
 	return pim_upstream_mroute_update(c_oil, name);
+}
+
+void pim_mroute_filter_refresh(struct pim_instance *pim)
+{
+	struct channel_oil *c_oil;
+	struct interface *iifp;
+	bool filtered;
+
+	frr_each (rb_pim_oil, &pim->channel_oil_head, c_oil) {
+		pim_upstream_get_mroute_iif(c_oil, __func__, &iifp);
+		filtered = pim_oil_check_filtered(c_oil, iifp);
+
+		if (c_oil->filtered != filtered) {
+			if (PIM_DEBUG_MROUTE) {
+				struct prefix_sg sg;
+
+				sg.src = c_oil->oil.mfcc_origin;
+				sg.grp = c_oil->oil.mfcc_mcastgrp;
+				zlog_debug(
+					"route-map changed: now %s %pSG4 on %s",
+					filtered ? "denies" : "permits",
+					&sg, iifp ? iifp->name : "Unknown");
+			}
+
+			c_oil->filtered = filtered;
+			pim_upstream_mroute_update(c_oil, __func__);
+		}
+	}
 }
 
 int pim_static_mroute_add(struct channel_oil *c_oil, const char *name)

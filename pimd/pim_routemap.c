@@ -241,19 +241,34 @@ static const struct route_map_rule_cmd route_match_grp_plist_cmd = {
 };
 
 
+static void trigger_mfib_rmap(const char *rmap_name)
+{
+	struct vrf *vrf;
+
+	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+		struct pim_instance *pim = vrf->info;
+
+		if (pim->mfib_rmap && !strcmp(pim->mfib_rmap, rmap_name))
+			pim_vrf_resched_mfib_rmap(pim);
+	}
+}
+
 static void pim_route_map_add(const char *rmap_name)
 {
 	route_map_notify_dependencies(rmap_name, RMAP_EVENT_MATCH_ADDED);
+	trigger_mfib_rmap(rmap_name);
 }
 
 static void pim_route_map_delete(const char *rmap_name)
 {
 	route_map_notify_dependencies(rmap_name, RMAP_EVENT_MATCH_DELETED);
+	trigger_mfib_rmap(rmap_name);
 }
 
 static void pim_route_map_event(const char *rmap_name)
 {
 	route_map_notify_dependencies(rmap_name, RMAP_EVENT_MATCH_ADDED);
+	trigger_mfib_rmap(rmap_name);
 }
 
 void pim_route_map_init(void)
