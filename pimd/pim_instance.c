@@ -40,6 +40,8 @@
 
 static void pim_instance_terminate(struct pim_instance *pim)
 {
+	THREAD_OFF(pim->mfib_rmap_reapply);
+
 	pim_vxlan_exit(pim);
 
 	if (pim->ssm_info) {
@@ -75,6 +77,7 @@ static void pim_instance_terminate(struct pim_instance *pim)
 
 	pim_mroute_socket_disable(pim);
 
+	XFREE(MTYPE_PIM_RMAP_NAME, pim->mfib_rmap);
 	XFREE(MTYPE_PIM_PLIST_NAME, pim->spt.plist);
 	XFREE(MTYPE_PIM_PLIST_NAME, pim->register_plist);
 
@@ -263,4 +266,20 @@ void pim_vrf_terminate(void)
 	}
 
 	vrf_terminate();
+}
+
+static void pim_vrf_mfib_rmap(struct thread *t)
+{
+	struct pim_instance *pim = THREAD_ARG(t);
+
+	pim_mroute_filter_refresh(pim);
+}
+
+void pim_vrf_resched_mfib_rmap(struct pim_instance *pim)
+{
+	if (pim->mfib_rmap_reapply)
+		return;
+
+	thread_add_timer_msec(router->master, pim_vrf_mfib_rmap, pim, 1,
+			      &pim->mfib_rmap_reapply);
 }

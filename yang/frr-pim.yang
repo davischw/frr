@@ -179,6 +179,12 @@ module frr-pim {
         "Send v6 secondary addresses.";
     }
 
+    leaf mfib-route-map {
+      type frr-route-map:route-map-ref;
+      description
+        "Pass MFIB entries through specified route-map.";
+    }
+
     container spt-switchover {
       description
         "SPT-Switchover.";

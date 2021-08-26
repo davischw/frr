@@ -214,4 +214,7 @@ int pim_mroute_msg_wrongvif(int fd, struct interface *ifp, const kernmsg *msg);
 int pim_mroute_msg_wrvifwhole(int fd, struct interface *ifp, const char *buf,
 			      size_t len);
 int pim_mroute_set(struct pim_instance *pim, int enable);
+
+void pim_mroute_filter_refresh(struct pim_instance *pim);
+
 #endif /* PIM_MROUTE_H */
