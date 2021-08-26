@@ -1062,6 +1062,7 @@ static struct ospf6_route *ospf6_intra_vlink_find_la(struct ospf6_area *oa)
 	route->prefix.family = AF_INET6;
 	route->prefix.prefixlen = 128;
 	route->prefix.u.prefix6 = result;
+	route->prefix_options = OSPF6_PREFIX_OPTION_LA;
 	route->type = OSPF6_DEST_TYPE_NETWORK;
 	route->path.area_id = oa->area_id;
 	route->path.type = OSPF6_PATH_TYPE_INTRA;

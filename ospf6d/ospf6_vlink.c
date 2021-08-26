@@ -389,6 +389,7 @@ static void ospf6_virtual_link_free(struct ospf6_virtual_link **vlink)
 		return;
 
 	oa = (*vlink)->area;
+	THREAD_OFF((*vlink)->t_hello);
 
 	if (ospf6_area_vlinks_count(oa->vlinks) == 0)
 		/* drop LA, maybe */
@@ -457,6 +458,11 @@ DEFPY (debug_ospf6_vlink,
 	return CMD_SUCCESS;
 }
 
+void config_write_ospf6_debug_vlink(struct vty *vty)
+{
+	if (debug_vlink & (1 << 1))
+		vty_out(vty, "debug ospf6 virtual-link\n");
+}
 
 DEFPY(ospf6_vlink_config, ospf6_vlink_config_cmd,
       "[no] area <A.B.C.D$area_dot|(0-4294967295)$area_num> virtual-link A.B.C.D$peer "

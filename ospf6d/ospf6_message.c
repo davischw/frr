@@ -2214,6 +2214,12 @@ int ospf6_dbdesc_send_newone(struct thread *thread)
 			ospf6_lsdb_remove(lsa, on->summary_list);
 			continue;
 		}
+		/* no as-scope entirely for virtual links */
+		if (OSPF6_LSA_SCOPE(lsa->header->type) == OSPF6_SCOPE_AS
+		    && on->vlink) {
+			ospf6_lsdb_remove(lsa, on->summary_list);
+			continue;
+		}
 
 		if (size + sizeof(struct ospf6_lsa_header)
 		    > ospf6_packet_max(on->ospf6_if)) {

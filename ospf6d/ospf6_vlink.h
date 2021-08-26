@@ -108,6 +108,7 @@ void ospf6_vlink_area_fini(struct ospf6_area *oa);
 size_t ospf6_vlink_area_vlcount(struct ospf6_area *oa);
 
 struct vty;
+void config_write_ospf6_debug_vlink(struct vty *vty);
 void ospf6_vlink_area_config(struct ospf6_area *oa, struct vty *vty);
 
 #endif /* OSPF6_VLINK_H */

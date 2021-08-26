@@ -99,6 +99,7 @@ static int config_write_ospf6_debug(struct vty *vty)
 	config_write_ospf6_debug_flood(vty);
 	config_write_ospf6_debug_nssa(vty);
 	config_write_ospf6_debug_gr_helper(vty);
+	config_write_ospf6_debug_vlink(vty);
 
 	return 0;
 }
