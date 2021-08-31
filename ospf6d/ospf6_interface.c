@@ -359,6 +359,9 @@ void ospf6_interface_disable(struct ospf6_interface *oi)
 	THREAD_OFF(oi->thread_intra_prefix_lsa);
 	THREAD_OFF(oi->thread_as_extern_lsa);
 	THREAD_OFF(oi->thread_wait_timer);
+
+	oi->gr.hello_delay.elapsed_seconds = 0;
+	THREAD_OFF(oi->gr.hello_delay.t_grace_send);
 }
 
 static struct in6_addr *
@@ -2178,6 +2181,50 @@ ALIAS (ipv6_ospf6_deadinterval,
        "Interval time after which a neighbor is declared down\n"
        SECONDS_STR)
 
+DEFPY(ipv6_ospf6_gr_hdelay, ipv6_ospf6_gr_hdelay_cmd,
+      "ipv6 ospf6 graceful-restart hello-delay (1-1800)",
+      IP6_STR
+      OSPF6_STR
+      "Graceful Restart parameters\n"
+      "Delay the sending of the first hello packets.\n"
+      "Delay in seconds\n")
+{
+	VTY_DECLVAR_CONTEXT(interface, ifp);
+	struct ospf6_interface *oi;
+
+	oi = ifp->info;
+	if (oi == NULL)
+		oi = ospf6_interface_create(ifp);
+
+	/* Note: new or updated value won't affect ongoing graceful restart. */
+	oi->gr.hello_delay.interval = hello_delay;
+
+	return CMD_SUCCESS;
+}
+
+DEFPY(no_ipv6_ospf6_gr_hdelay, no_ipv6_ospf6_gr_hdelay_cmd,
+      "no ipv6 ospf6 graceful-restart hello-delay [(1-1800)]",
+      NO_STR
+      IP6_STR
+      OSPF6_STR
+      "Graceful Restart parameters\n"
+      "Delay the sending of the first hello packets.\n"
+      "Delay in seconds\n")
+{
+	VTY_DECLVAR_CONTEXT(interface, ifp);
+	struct ospf6_interface *oi;
+
+	oi = ifp->info;
+	if (oi == NULL)
+		oi = ospf6_interface_create(ifp);
+
+	oi->gr.hello_delay.interval = 0;
+	oi->gr.hello_delay.elapsed_seconds = 0;
+	THREAD_OFF(oi->gr.hello_delay.t_grace_send);
+
+	return CMD_SUCCESS;
+}
+
 /* interface variable set command */
 DEFUN (ipv6_ospf6_transmitdelay,
        ipv6_ospf6_transmitdelay_cmd,
@@ -2775,6 +2822,12 @@ static int config_write_ospf6_interface(struct vty *vty, struct vrf *vrf)
 				" ipv6 ospf6 p2p-p2mp connected-prefixes exclude\n");
 
 		config_write_ospf6_p2xp_neighbor(vty, oi);
+
+		if (oi->gr.hello_delay.interval != 0)
+			vty_out(vty,
+				" ipv6 ospf6 graceful-restart hello-delay %u\n",
+				oi->gr.hello_delay.interval);
+
 		ospf6_bfd_write_config(vty, oi);
 
 		vty_endframe(vty, "!\n");
@@ -2882,12 +2935,14 @@ void ospf6_interface_init(void)
 
 	install_element(INTERFACE_NODE, &ipv6_ospf6_deadinterval_cmd);
 	install_element(INTERFACE_NODE, &ipv6_ospf6_hellointerval_cmd);
+	install_element(INTERFACE_NODE, &ipv6_ospf6_gr_hdelay_cmd);
 	install_element(INTERFACE_NODE, &ipv6_ospf6_priority_cmd);
 	install_element(INTERFACE_NODE, &ipv6_ospf6_retransmitinterval_cmd);
 	install_element(INTERFACE_NODE, &ipv6_ospf6_transmitdelay_cmd);
 	install_element(INTERFACE_NODE, &ipv6_ospf6_instance_cmd);
 	install_element(INTERFACE_NODE, &no_ipv6_ospf6_deadinterval_cmd);
 	install_element(INTERFACE_NODE, &no_ipv6_ospf6_hellointerval_cmd);
+	install_element(INTERFACE_NODE, &no_ipv6_ospf6_gr_hdelay_cmd);
 	install_element(INTERFACE_NODE, &no_ipv6_ospf6_priority_cmd);
 	install_element(INTERFACE_NODE, &no_ipv6_ospf6_retransmitinterval_cmd);
 	install_element(INTERFACE_NODE, &no_ipv6_ospf6_transmitdelay_cmd);
