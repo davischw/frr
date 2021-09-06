@@ -229,8 +229,7 @@ The following debug commands are supported:
 OSPF6 area
 ==========
 
-.. index:: [no] area A.B.C.D nssa [no-summary]
-.. clicmd:: [no] area A.B.C.D nssa [no-summary]
+.. clicmd:: area (0-4294967295) nssa [no-summary] [default-information-originate [metric-type (1-2)] [metric (0-16777214)]]
 
 NSSA Support in OSPFv3
 =======================
@@ -252,6 +251,12 @@ The following functionalities are implemented as per RFC 3101:
    An NSSA ABR can be configured with the `no-summary` option to prevent the
    advertisement of summaries into the area. In that case, a single Type-3 LSA
    containing a default route is originated into the NSSA.
+
+   NSSA ABRs and ASBRs can be configured with `default-information-originate`
+   option to originate a Type-7 default route into the NSSA area. In the case
+   of NSSA ASBRs, the origination of the default route is conditioned to the
+   existence of a default route in the RIB that wasn't learned via the OSPF
+   protocol.
 
 .. clicmd:: area A.B.C.D export-list NAME
 
