@@ -204,8 +204,8 @@ def test_ospfv3_expected_route_types():
         {
             "numberOfIntraAreaRoutes": 1,
             "numberOfInterAreaRoutes": 2,
-            "numberOfExternal1Routes": 4,
-            "numberOfExternal2Routes": 0,
+            "numberOfExternal1Routes": 0,
+            "numberOfExternal2Routes": 4,
         },
     )
 
@@ -314,10 +314,8 @@ def test_nssa_lsa_type7():
     ]
     route = {
         "2001:db8:100::/64": {
-            "pathType": "E1",
-            "nextHops": [
-                {"nextHop": "::", "interfaceName": "r4-eth0"}
-            ]
+            "pathType": "E2",
+            "nextHops": [{"nextHop": "::", "interfaceName": "r4-eth0"}],
         }
     }
 
