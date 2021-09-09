@@ -801,7 +801,6 @@ static int ospf_write(struct thread *thread)
 		sa_dst.sin_addr.s_addr = htonl(IPV4_ENCAP_DST);
 		ieparams.source = oi->address->u.prefix4.s_addr;
 		ieparams.ifindex = oi->ifp->ifindex;
-		ieparams.protocol = OSPF_IP_ENCAP_OTHER;
 #else /* !OSPF_IP_ENCAP */
 		iov[0].iov_base = (char *)&iph;
 		iov[0].iov_len = iph.ip_hl << OSPF_WRITE_IPHL_SHIFT;

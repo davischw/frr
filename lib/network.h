@@ -240,8 +240,14 @@ void ip_fragmentation_handler_init(struct thread_master *tm);
 #define OSPF_IP_ENCAP
 
 /* Special IP encapsulation protocols. */
+/** IP encapsulation protocol number for sending packets. */
+#define IP_ENCAP_ROUTING        249
+
+/** IP encapsulation protocol for receiving OSPFv2 SPF packets. */
 #define OSPF_IP_ENCAP_SPF       248
-#define OSPF_IP_ENCAP_OTHER     249
+/** IP encapsulation protocol for receiving other OSPFv2 packets. */
+#define OSPF_IP_ENCAP_OTHER     IP_ENCAP_ROUTING
+/** IP encapsulation protocol for receiving OSPFv2 DR packets. */
 #define OSPF_IP_ENCAP_DR        250
 
 /** Encapsulation parse results.  */
@@ -276,8 +282,6 @@ struct ipv4_encap_params {
 	uint32_t source;
 	/** Interface index. */
 	int32_t ifindex;
-	/** Protocol. */
-	uint8_t protocol;
 };
 
 /**

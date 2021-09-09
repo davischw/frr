@@ -790,7 +790,7 @@ void ipv4_encap_output(const struct ipv4_encap_params *params, void *data,
 	ipv4e->ipv4.id = htons(((uint16_t)frr_weak_random()));
 	ipv4e->ipv4.total_length = htons(sizeof(ipv4e) + datalen);
 	ipv4e->ipv4.ttl = 1;
-	ipv4e->ipv4.protocol = params->protocol;
+	ipv4e->ipv4.protocol = IP_ENCAP_ROUTING;
 	ipv4e->ipv4.source = params->source;
 	ipv4e->ipv4.destination = htonl(IPV4_ENCAP_DST);
 	ipv4e->ipv4.checksum = 0;
