@@ -92,6 +92,25 @@ struct channel_counts {
 */
 PREDECL_RBTREE_UNIQ(rb_pim_oil);
 
+/** Channel interface representation. */
+struct channel_if {
+	/** Interface index. */
+	int32_t ifindex;
+	/** Interface flags. \see `PIM_OIF_FLAG_*`. */
+	uint32_t flags;
+
+	SLIST_ENTRY(channel_if) entry;
+};
+SLIST_HEAD(channel_if_list, channel_if);
+
+extern struct channel_if *channel_oif_find(struct channel_oil *oil,
+					   int32_t ifindex);
+extern void channel_oif_add(struct channel_oil *oil, int32_t ifindex,
+			    uint32_t flag);
+extern void channel_oif_del(struct channel_oil *oil, int32_t ifindex,
+			    uint32_t flag);
+extern void channel_oif_free(struct channel_oil *oil, struct channel_if **oif);
+
 struct channel_oil {
 	struct pim_instance *pim;
 
@@ -107,6 +126,18 @@ struct channel_oil {
 	struct channel_counts cc;
 	struct pim_upstream *up;
 	time_t mroute_creation;
+
+	/** Input interface. */
+	struct channel_if iif;
+	/** Notification interface. */
+	struct channel_if notifif;
+	/** Output interfaces. */
+	struct channel_if_list oif_list;
+	/** Output interfaces amount. */
+	size_t oif_list_count;
+
+	/** Static route indicator. */
+	bool is_static;
 };
 
 extern int pim_channel_oil_compare(const struct channel_oil *c1,

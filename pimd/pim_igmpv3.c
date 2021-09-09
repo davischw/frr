@@ -32,6 +32,7 @@
 #include "pim_time.h"
 #include "pim_zebra.h"
 #include "pim_oil.h"
+#include "pim_southbound.h"
 
 static void group_retransmit_timer_on(struct igmp_group *group);
 static long igmp_group_timer_remain_msec(struct igmp_group *group);
@@ -116,6 +117,17 @@ static int igmp_source_timer(struct thread *t)
 	source = THREAD_ARG(t);
 
 	group = source->source_group;
+
+#ifdef PIM_SOUTHBOUND
+	/*
+	 * Don't let a IGMP source/group expire when it was joined using
+	 * a CLI configuration.
+	 */
+	if (pimsb_igmp_sg_is_static(source, group)) {
+		igmp_source_reset_gmi(group->group_igmp_sock, group, source);
+		return 0;
+	}
+#endif /* PIM_SOUTHBOUND */
 
 	if (PIM_DEBUG_IGMP_TRACE) {
 		char group_str[INET_ADDRSTRLEN];
@@ -1642,8 +1654,13 @@ void igmp_v3_send_query(struct igmp_group *group, int fd, const char *ifname,
 	to.sin_addr = dst_addr;
 	tolen = sizeof(to);
 
+#ifdef PIM_SOUTHBOUND
+	sent = pimsb_igmp_sendto(ifname, query_buf, msg_size,
+				 (struct sockaddr *)&to, tolen);
+#else
 	sent = sendto(fd, query_buf, msg_size, MSG_DONTWAIT,
 		      (struct sockaddr *)&to, tolen);
+#endif /* PIM_SOUTHBOUND */
 	if (sent != (ssize_t)msg_size) {
 		char dst_str[INET_ADDRSTRLEN];
 		char group_str[INET_ADDRSTRLEN];

@@ -67,6 +67,7 @@
 #include "lib/northbound_cli.h"
 #include "pim_errors.h"
 #include "pim_nb.h"
+#include "pim_southbound.h"
 
 #ifndef VTYSH_EXTRACT_PL
 #include "pimd/pim_cmd_clippy.c"
@@ -1995,7 +1996,8 @@ static void pim_show_neighbors_single(struct pim_instance *pim, struct vty *vty,
 }
 
 static void pim_show_state(struct pim_instance *pim, struct vty *vty,
-			   const char *src_or_group, const char *group, bool uj)
+			   const char *src_or_group, const char *group, bool uj,
+			   bool dplane)
 {
 	struct channel_oil *c_oil;
 	json_object *json = NULL;
@@ -2006,6 +2008,11 @@ static void pim_show_state(struct pim_instance *pim, struct vty *vty,
 	time_t now;
 	int first_oif;
 	now = pim_time_monotonic_sec();
+
+	if (dplane) {
+		pimsb_show_state(vty, pim, src_or_group, group, uj);
+		return;
+	}
 
 	if (uj) {
 		json = json_object_new_object();
@@ -5295,9 +5302,9 @@ DEFUN (show_ip_pim_secondary,
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_state,
+DEFPY (show_ip_pim_state,
        show_ip_pim_state_cmd,
-       "show ip pim [vrf NAME] state [A.B.C.D [A.B.C.D]] [json]",
+       "show ip pim [vrf NAME] state [A.B.C.D [A.B.C.D]] [{json$json|dataplane$dplane}]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5305,19 +5312,16 @@ DEFUN (show_ip_pim_state,
        "PIM state information\n"
        "Unicast or Multicast address\n"
        "Multicast address\n"
-       JSON_STR)
+       JSON_STR
+       "Data plane state\n")
 {
 	const char *src_or_group = NULL;
 	const char *group = NULL;
 	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
-	bool uj = use_json(argc, argv);
+	struct vrf *vrfp = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
 
-	if (!vrf)
+	if (!vrfp)
 		return CMD_WARNING;
-
-	if (uj)
-		argc--;
 
 	if (argv_find(argv, argc, "A.B.C.D", &idx)) {
 		src_or_group = argv[idx]->arg;
@@ -5325,14 +5329,14 @@ DEFUN (show_ip_pim_state,
 			group = argv[idx + 1]->arg;
 	}
 
-	pim_show_state(vrf->info, vty, src_or_group, group, uj);
+	pim_show_state(vrfp->info, vty, src_or_group, group, json, dplane);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_pim_state_vrf_all,
+DEFPY (show_ip_pim_state_vrf_all,
        show_ip_pim_state_vrf_all_cmd,
-       "show ip pim vrf all state [A.B.C.D [A.B.C.D]] [json]",
+       "show ip pim vrf all state [A.B.C.D [A.B.C.D]] [{json$json|dataplane$dplane}]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -5340,16 +5344,16 @@ DEFUN (show_ip_pim_state_vrf_all,
        "PIM state information\n"
        "Unicast or Multicast address\n"
        "Multicast address\n"
-       JSON_STR)
+       JSON_STR
+       "Data plane state\n")
 {
 	const char *src_or_group = NULL;
 	const char *group = NULL;
 	int idx = 2;
-	bool uj = use_json(argc, argv);
-	struct vrf *vrf;
+	struct vrf *vrfp;
 	bool first = true;
 
-	if (uj) {
+	if (json) {
 		vty_out(vty, "{ ");
 		argc--;
 	}
@@ -5360,17 +5364,18 @@ DEFUN (show_ip_pim_state_vrf_all,
 			group = argv[idx + 1]->arg;
 	}
 
-	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
+	RB_FOREACH (vrfp, vrf_name_head, &vrfs_by_name) {
+		if (json) {
 			if (!first)
 				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
+			vty_out(vty, " \"%s\": ", vrfp->name);
 			first = false;
 		} else
-			vty_out(vty, "VRF: %s\n", vrf->name);
-		pim_show_state(vrf->info, vty, src_or_group, group, uj);
+			vty_out(vty, "VRF: %s\n", vrfp->name);
+		pim_show_state(vrfp->info, vty, src_or_group, group, json,
+			       dplane);
 	}
-	if (uj)
+	if (json)
 		vty_out(vty, "}\n");
 
 	return CMD_SUCCESS;
@@ -5854,6 +5859,7 @@ static void show_multicast_interfaces(struct pim_instance *pim, struct vty *vty,
 		memset(&vreq, 0, sizeof(vreq));
 		vreq.vifi = pim_ifp->mroute_vif_index;
 
+#ifndef PIM_SOUTHBOUND
 		if (ioctl(pim->mroute_socket, SIOCGETVIFCNT, &vreq)) {
 			zlog_warn(
 				"ioctl(SIOCGETVIFCNT=%lu) failure for interface %s vif_index=%d: errno=%d: %s",
@@ -5861,6 +5867,7 @@ static void show_multicast_interfaces(struct pim_instance *pim, struct vty *vty,
 				pim_ifp->mroute_vif_index, errno,
 				safe_strerror(errno));
 		}
+#endif /* PIM_SOUTHBOUND */
 
 		ifaddr = pim_ifp->primary_address;
 		if (uj) {
@@ -6055,7 +6062,7 @@ DEFUN(show_ip_multicast_count_vrf_all,
 }
 
 static void show_mroute(struct pim_instance *pim, struct vty *vty,
-			struct prefix_sg *sg, bool fill, bool uj)
+			struct prefix_sg *sg, bool fill, bool uj, bool ud)
 {
 	struct listnode *node;
 	struct channel_oil *c_oil;
@@ -6077,6 +6084,11 @@ static void show_mroute(struct pim_instance *pim, struct vty *vty,
 	char proto[100];
 	char state_str[PIM_REG_STATE_STR_LEN];
 	char mroute_uptime[10];
+
+	if (ud) {
+		pimsb_show_mroute(vty, pim, sg, fill, uj);
+		return;
+	}
 
 	if (uj) {
 		json = json_object_new_object();
@@ -6431,7 +6443,7 @@ static void show_mroute(struct pim_instance *pim, struct vty *vty,
 
 DEFPY (show_ip_mroute,
        show_ip_mroute_cmd,
-       "show ip mroute [vrf NAME] [A.B.C.D$s_or_g [A.B.C.D$g]] [fill$fill] [json$json]",
+       "show ip mroute [vrf NAME] [A.B.C.D$s_or_g [A.B.C.D$g]] [{fill$fill|json$json|dataplane$dplane}]",
        SHOW_STR
        IP_STR
        MROUTE_STR
@@ -6439,7 +6451,8 @@ DEFPY (show_ip_mroute,
        "The Source or Group\n"
        "The Group\n"
        "Fill in Assumed data\n"
-       JSON_STR)
+       JSON_STR
+       "Data plane state\n")
 {
 	struct prefix_sg sg = {0};
 	struct pim_instance *pim;
@@ -6465,43 +6478,38 @@ DEFPY (show_ip_mroute,
 		} else
 			sg.grp = s_or_g;
 	}
-	show_mroute(pim, vty, &sg, !!fill, !!json);
+	show_mroute(pim, vty, &sg, fill, json, dplane);
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_mroute_vrf_all,
+DEFPY (show_ip_mroute_vrf_all,
        show_ip_mroute_vrf_all_cmd,
-       "show ip mroute vrf all [fill] [json]",
+       "show ip mroute vrf all [{fill$fill|json$json|dataplane$dplane}]",
        SHOW_STR
        IP_STR
        MROUTE_STR
        VRF_CMD_HELP_STR
        "Fill in Assumed data\n"
-       JSON_STR)
+       JSON_STR
+       "Data plane state\n")
 {
 	struct prefix_sg sg = {0};
-	bool uj = use_json(argc, argv);
-	int idx = 4;
-	struct vrf *vrf;
+	struct vrf *vrfp;
 	bool first = true;
-	bool fill = false;
 
-	if (argv_find(argv, argc, "fill", &idx))
-		fill = true;
-
-	if (uj)
+	if (json)
 		vty_out(vty, "{ ");
-	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		if (uj) {
+	RB_FOREACH (vrfp, vrf_name_head, &vrfs_by_name) {
+		if (json) {
 			if (!first)
 				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
+			vty_out(vty, " \"%s\": ", vrfp->name);
 			first = false;
 		} else
-			vty_out(vty, "VRF: %s\n", vrf->name);
-		show_mroute(vrf->info, vty, &sg, fill, uj);
+			vty_out(vty, "VRF: %s\n", vrfp->name);
+		show_mroute(vrfp->info, vty, &sg, fill, json, dplane);
 	}
-	if (uj)
+	if (json)
 		vty_out(vty, "}\n");
 
 	return CMD_SUCCESS;

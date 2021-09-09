@@ -47,6 +47,7 @@
 #include "pim_ssm.h"
 #include "pim_vxlan.h"
 #include "pim_mlag.h"
+#include "pim_southbound.h"
 
 #undef PIM_DEBUG_IFADDR_DUMP
 #define PIM_DEBUG_IFADDR_DUMP
@@ -463,6 +464,10 @@ void pim_zebra_init(void)
 	}
 
 	zclient_lookup_new();
+
+#ifdef PIM_SOUTHBOUND
+	pimsb_init(zclient);
+#endif /* PIM_SOUTHBOUND */
 }
 
 void igmp_anysource_forward_start(struct pim_instance *pim,

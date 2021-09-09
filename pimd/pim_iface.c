@@ -48,12 +48,46 @@
 #include "pim_nht.h"
 #include "pim_jp_agg.h"
 #include "pim_igmp_join.h"
+#include "pim_southbound.h"
 #include "pim_vxlan.h"
 
 static void pim_if_igmp_join_del_all(struct interface *ifp);
+#ifndef PIM_SOUTHBOUND
 static int igmp_join_sock(const char *ifname, ifindex_t ifindex,
 			  struct in_addr group_addr,
 			  struct in_addr source_addr);
+
+static int pim_igmp_join_source(int fd, ifindex_t ifindex,
+				struct in_addr group_addr,
+				struct in_addr source_addr)
+{
+	struct group_source_req req;
+	struct sockaddr_in group;
+	struct sockaddr_in source;
+
+	memset(&req, 0, sizeof(req));
+	memset(&group, 0, sizeof(group));
+	group.sin_family = AF_INET;
+	group.sin_addr = group_addr;
+	group.sin_port = htons(0);
+	memcpy(&req.gsr_group, &group, sizeof(struct sockaddr_in));
+
+	memset(&source, 0, sizeof(source));
+	source.sin_family = AF_INET;
+	source.sin_addr = source_addr;
+	source.sin_port = htons(0);
+	memcpy(&req.gsr_source, &source, sizeof(struct sockaddr_in));
+
+	req.gsr_interface = ifindex;
+
+	if (source_addr.s_addr == INADDR_ANY)
+		return setsockopt(fd, SOL_IP, MCAST_JOIN_GROUP, &req,
+				  sizeof(req));
+	else
+		return setsockopt(fd, SOL_IP, MCAST_JOIN_SOURCE_GROUP, &req,
+				  sizeof(req));
+}
+#endif /* PIM_SOUTHBOUND */
 
 void pim_if_init(struct pim_instance *pim)
 {
@@ -551,6 +585,7 @@ void pim_if_addr_add(struct connected *ifc)
 
 		/* Replay Static IGMP groups */
 		if (pim_ifp->igmp_join_list) {
+#ifndef PIM_SOUTHBOUND
 			struct listnode *node;
 			struct listnode *nextnode;
 			struct igmp_join *ij;
@@ -581,6 +616,7 @@ void pim_if_addr_add(struct connected *ifc)
 				} else
 					ij->sock_fd = join_fd;
 			}
+#endif /* PIM_SOUTHBOUND */
 		}
 	} /* igmp */
 	else {
@@ -1207,6 +1243,7 @@ static struct igmp_join *igmp_join_find(struct list *join_list,
 	return 0;
 }
 
+#ifndef PIM_SOUTHBOUND
 static int igmp_join_sock(const char *ifname, ifindex_t ifindex,
 			  struct in_addr group_addr, struct in_addr source_addr)
 {
@@ -1235,6 +1272,7 @@ static int igmp_join_sock(const char *ifname, ifindex_t ifindex,
 
 	return join_fd;
 }
+#endif /* PIM_SOUTHBOUND */
 
 static struct igmp_join *igmp_join_new(struct interface *ifp,
 				       struct in_addr group_addr,
@@ -1247,6 +1285,10 @@ static struct igmp_join *igmp_join_new(struct interface *ifp,
 	pim_ifp = ifp->info;
 	assert(pim_ifp);
 
+#ifdef PIM_SOUTHBOUND
+	join_fd = -1;
+	pimsb_igmp_join(ifp, &source_addr, &group_addr);
+#else
 	join_fd = igmp_join_sock(ifp->name, ifp->ifindex, group_addr,
 				 source_addr);
 	if (join_fd < 0) {
@@ -1262,6 +1304,7 @@ static struct igmp_join *igmp_join_new(struct interface *ifp,
 			__func__, group_str, source_str, ifp->name);
 		return 0;
 	}
+#endif /* PIM_SOUTHBOUND */
 
 	ij = XCALLOC(MTYPE_PIM_IGMP_JOIN, sizeof(*ij));
 
@@ -1351,6 +1394,9 @@ int pim_if_igmp_join_del(struct interface *ifp, struct in_addr group_addr,
 		return -3;
 	}
 
+#ifdef PIM_SOUTHBOUND
+	pimsb_igmp_leave(ifp, &source_addr, &group_addr);
+#else
 	if (close(ij->sock_fd)) {
 		char group_str[INET_ADDRSTRLEN];
 		char source_str[INET_ADDRSTRLEN];
@@ -1364,6 +1410,7 @@ int pim_if_igmp_join_del(struct interface *ifp, struct in_addr group_addr,
 			errno, safe_strerror(errno));
 		/* warning only */
 	}
+#endif /* PIM_SOUTHBOUND */
 	listnode_delete(pim_ifp->igmp_join_list, ij);
 	igmp_join_free(ij);
 	if (listcount(pim_ifp->igmp_join_list) < 1) {

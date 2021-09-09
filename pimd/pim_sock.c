@@ -39,6 +39,7 @@
 #include "pim_mroute.h"
 #include "pim_sock.h"
 #include "pim_str.h"
+#include "pim_southbound.h"
 
 /* GLOBAL VARS */
 
@@ -93,6 +94,7 @@ int pim_socket_bind(int fd, struct interface *ifp)
 	return ret;
 }
 
+#ifndef PIM_SOUTHBOUND
 int pim_socket_mcast(int protocol, struct in_addr ifaddr, struct interface *ifp,
 		     uint8_t loop)
 {
@@ -262,6 +264,7 @@ int pim_socket_mcast(int protocol, struct in_addr ifaddr, struct interface *ifp,
 
 	return fd;
 }
+#endif /* !PIM_SOUTHBOUND */
 
 int pim_socket_join(int fd, struct in_addr group, struct in_addr ifaddr,
 		    ifindex_t ifindex)
@@ -409,6 +412,7 @@ int pim_socket_recvfromto(int fd, uint8_t *buf, size_t len,
 	return err; /* len */
 }
 
+#ifndef PIM_SOUTHBOUND
 int pim_socket_mcastloop_get(int fd)
 {
 	int loop;
@@ -425,6 +429,7 @@ int pim_socket_mcastloop_get(int fd)
 
 	return loop;
 }
+#endif /* PIM_SOUTHBOUND */
 
 int pim_socket_getsockname(int fd, struct sockaddr *name, socklen_t *namelen)
 {

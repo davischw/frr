@@ -259,6 +259,9 @@ int pim_static_del(struct pim_instance *pim, struct interface *iif,
 			/* If there are no more outputs then delete the whole
 			 * route, otherwise set the route with the new outputs
 			 */
+			if (s_route->c_oil.oil_ref_count <= 0)
+				s_route->c_oil.is_static = false;
+
 			if (s_route->c_oil.oil_ref_count <= 0
 				    ? pim_mroute_del(&s_route->c_oil, __func__)
 				    : pim_static_mroute_add(&s_route->c_oil,

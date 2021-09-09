@@ -24,6 +24,7 @@
 #include "prefix.h"
 #include "vty.h"
 #include "plist.h"
+#include "network.h"
 #include "sockopt.h"
 #include "lib_errors.h"
 
@@ -43,7 +44,9 @@
 #include "pim_ssm.h"
 #include "pim_sock.h"
 #include "pim_vxlan.h"
+#include "pim_southbound.h"
 
+#ifndef PIM_SOUTHBOUND
 static void mroute_read_on(struct pim_instance *pim);
 
 static int pim_mroute_set(struct pim_instance *pim, int enable)
@@ -144,12 +147,13 @@ static int pim_mroute_set(struct pim_instance *pim, int enable)
 
 	return 0;
 }
+#endif /* PIM_SOUTHBOUND */
 
 static const char *const igmpmsgtype2str[IGMPMSG_WRVIFWHOLE + 1] = {
 	"<unknown_upcall?>", "NOCACHE", "WRONGVIF", "WHOLEPKT", "WRVIFWHOLE"};
 
-static int pim_mroute_msg_nocache(int fd, struct interface *ifp,
-				  const struct igmpmsg *msg)
+int pim_mroute_msg_nocache(int fd, struct interface *ifp,
+			   const struct igmpmsg *msg)
 {
 	struct pim_interface *pim_ifp = ifp->info;
 	struct pim_upstream *up;
@@ -238,8 +242,7 @@ static int pim_mroute_msg_nocache(int fd, struct interface *ifp,
 	return 0;
 }
 
-static int pim_mroute_msg_wholepkt(int fd, struct interface *ifp,
-				   const char *buf)
+int pim_mroute_msg_wholepkt(int fd, struct interface *ifp, const char *buf)
 {
 	struct pim_interface *pim_ifp;
 	struct prefix_sg sg;
@@ -337,8 +340,8 @@ static int pim_mroute_msg_wholepkt(int fd, struct interface *ifp,
 	return 0;
 }
 
-static int pim_mroute_msg_wrongvif(int fd, struct interface *ifp,
-				   const struct igmpmsg *msg)
+int pim_mroute_msg_wrongvif(int fd, struct interface *ifp,
+			    const struct igmpmsg *msg)
 {
 	struct pim_ifchannel *ch;
 	struct pim_interface *pim_ifp;
@@ -585,8 +588,8 @@ static int pim_mroute_msg_wrvifwhole(int fd, struct interface *ifp,
 	return 0;
 }
 
-static int pim_mroute_msg(struct pim_instance *pim, const char *buf,
-			  int buf_size, ifindex_t ifindex)
+int pim_mroute_msg(struct pim_instance *pim, const char *buf, int buf_size,
+		   ifindex_t ifindex)
 {
 	struct interface *ifp;
 	struct pim_interface *pim_ifp;
@@ -689,7 +692,8 @@ static int pim_mroute_msg(struct pim_instance *pim, const char *buf,
 	return 0;
 }
 
-static int mroute_read(struct thread *t)
+#ifndef PIM_SOUTHBOUND
+int mroute_read(struct thread *t)
 {
 	struct pim_instance *pim;
 	static long long count;
@@ -892,6 +896,7 @@ int pim_mroute_del_vif(struct interface *ifp)
 
 	return 0;
 }
+#endif /* PIM_SOUTHBOUND */
 
 /*
  * Prevent creating MFC entry with OIF=IIF.
@@ -963,7 +968,7 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 {
 	struct pim_instance *pim = c_oil->pim;
 	struct mfcctl tmp_oil = { {0} };
-	int err;
+	int err = 0;
 
 	pim->mroute_add_last = pim_time_monotonic_sec();
 	++pim->mroute_add_events;
@@ -973,6 +978,7 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 	 */
 	pim_mroute_copy(&tmp_oil, c_oil);
 
+#ifndef PIM_SOUTHBOUND
 	/* The linux kernel *expects* the incoming
 	 * vif to be part of the outgoing list
 	 * in the case of a (*,G).
@@ -1002,6 +1008,10 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 		err = setsockopt(pim->mroute_socket, IPPROTO_IP, MRT_ADD_MFC,
 				 &tmp_oil, sizeof(tmp_oil));
 	}
+#else
+	pimsb_mroute_do(c_oil, true);
+	err = 0;
+#endif
 
 	if (err) {
 		zlog_warn(
@@ -1111,6 +1121,10 @@ int pim_upstream_mroute_add(struct channel_oil *c_oil, const char *name)
 		c_oil->oil.mfcc_parent = iif;
 	}
 
+#ifdef PIM_SOUTHBOUND
+	pimsb_set_input_interface(c_oil);
+#endif /* PIM_SOUTHBOUND */
+
 	return pim_upstream_mroute_update(c_oil, name);
 }
 
@@ -1138,6 +1152,11 @@ int pim_upstream_mroute_iif_update(struct channel_oil *c_oil, const char *name)
 				__func__, name,
 				pim_channel_oil_dump(c_oil, buf,
 					sizeof(buf)), iif);
+
+#ifdef PIM_SOUTHBOUND
+	pimsb_set_input_interface(c_oil);
+#endif /* PIM_SOUTHBOUND */
+
 	/* XXX: is this hack needed? */
 	c_oil->oil_inherited_rescan = 1;
 	return pim_upstream_mroute_update(c_oil, name);
@@ -1145,6 +1164,7 @@ int pim_upstream_mroute_iif_update(struct channel_oil *c_oil, const char *name)
 
 int pim_static_mroute_add(struct channel_oil *c_oil, const char *name)
 {
+	c_oil->is_static = true;
 	return pim_mroute_add(c_oil, name);
 }
 
@@ -1181,8 +1201,13 @@ int pim_mroute_del(struct channel_oil *c_oil, const char *name)
 		return -2;
 	}
 
+#ifdef PIM_SOUTHBOUND
+	pimsb_mroute_do(c_oil, false);
+	err = 0;
+#else
 	err = setsockopt(pim->mroute_socket, IPPROTO_IP, MRT_DEL_MFC,
 			 &c_oil->oil, sizeof(c_oil->oil));
+#endif
 	if (err) {
 		if (PIM_DEBUG_MROUTE)
 			zlog_warn(
@@ -1233,6 +1258,7 @@ void pim_mroute_update_counters(struct channel_oil *c_oil)
 	sgreq.grp = c_oil->oil.mfcc_mcastgrp;
 
 	pim_zlookup_sg_statistics(c_oil);
+#ifndef PIM_SOUTHBOUND
 	if (ioctl(pim->mroute_socket, SIOCGETSGCNT, &sgreq)) {
 		struct prefix_sg sg;
 
@@ -1244,6 +1270,7 @@ void pim_mroute_update_counters(struct channel_oil *c_oil)
 			  errno, safe_strerror(errno));
 		return;
 	}
+#endif /* PIM_SOUTHBOUND */
 
 	c_oil->cc.pktcnt = sgreq.pktcnt;
 	c_oil->cc.bytecnt = sgreq.bytecnt;

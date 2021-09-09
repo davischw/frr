@@ -250,6 +250,11 @@ void ip_fragmentation_handler_init(struct thread_master *tm);
 /** IP encapsulation protocol for receiving OSPFv2 DR packets. */
 #define OSPF_IP_ENCAP_DR        250
 
+/** IP encapsulation protocol for receiving IGMP packets. */
+#define PIM_IP_ENCAP_IGMP       251
+/** IP encapsulation protocol for receiving PIM packets. */
+#define PIM_IP_ENCAP_PIM        252
+
 /** Encapsulation parse results.  */
 struct ipv4_encap_result {
 	/** Interface index the packet came from. */

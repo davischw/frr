@@ -182,6 +182,15 @@ void pim_static_mroute_iif_update(struct channel_oil *c_oil,
 				const char *name);
 int pim_mroute_del(struct channel_oil *c_oil, const char *name);
 
+int mroute_read(struct thread *t);
+int pim_mroute_msg(struct pim_instance *pim, const char *buf, int buf_size,
+		   ifindex_t ifindex);
+int pim_mroute_msg_wholepkt(int fd, struct interface *ifp, const char *buf);
+int pim_mroute_msg_nocache(int fd, struct interface *ifp,
+			   const struct igmpmsg *msg);
+int pim_mroute_msg_wrongvif(int fd, struct interface *ifp,
+			    const struct igmpmsg *msg);
+
 void pim_mroute_update_counters(struct channel_oil *c_oil);
 bool pim_mroute_allow_iif_in_oil(struct channel_oil *c_oil,
 		int oif_index);

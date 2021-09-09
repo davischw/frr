@@ -41,6 +41,7 @@
 #include "pim_register.h"
 #include "pim_errors.h"
 #include "pim_bsm.h"
+#include "pim_southbound.h"
 
 static int on_pim_hello_send(struct thread *t);
 
@@ -70,6 +71,7 @@ static const char *pim_pim_msgtype2str(enum pim_msg_type type)
 	return "UNKNOWN";
 }
 
+#ifndef PIM_SOUTHBOUND
 static void sock_close(struct interface *ifp)
 {
 	struct pim_interface *pim_ifp = ifp->info;
@@ -136,6 +138,7 @@ void pim_sock_delete(struct interface *ifp, const char *delete_message)
 
 	sock_close(ifp);
 }
+#endif /* PIM_SOUTHBOUND */
 
 /* For now check dst address for hello, assrt and join/prune is all pim rtr */
 static bool pim_pkt_dst_addr_ok(enum pim_msg_type type, in_addr_t addr)
@@ -363,6 +366,18 @@ static int pim_sock_read(struct thread *t)
 			goto done;
 		}
 
+#ifdef PIM_SOUTHBOUND
+		ifp = orig_ifp;
+		if (PIM_DEBUG_PIM_PACKETS) {
+			zlog_debug(
+				"%s: from:%pI4 to:%pI4 fd:%d ifindex:%d ifp:%p[name:%s index:%d vif_index:%d] orig_ifp[name:%s index:%d vif_index:%d]",
+				__func__, &from.sin_addr, &to.sin_addr, fd,
+				ifindex, ifp, ifp ? ifp->name : "none",
+				ifp ? ifp->ifindex : -1,
+				ifp ? ifp->vif_index : -1, orig_ifp->name,
+				orig_ifp->ifindex, orig_ifp->vif_index);
+		}
+#else
 		/*
 		 * What?  So with vrf's the incoming packet is received
 		 * on the vrf interface but recvfromto above returns
@@ -370,6 +385,7 @@ static int pim_sock_read(struct thread *t)
 		 * it's the right interface because we bind to it
 		 */
 		ifp = if_lookup_by_index(ifindex, pim_ifp->pim->vrf->vrf_id);
+#endif
 		if (!ifp || !ifp->info) {
 			if (PIM_DEBUG_PIM_PACKETS)
 				zlog_debug(
@@ -396,7 +412,7 @@ static int pim_sock_read(struct thread *t)
 done:
 	pim_sock_read_on(orig_ifp);
 
-	if (result) {
+	if (result && pim_ifp) {
 		++pim_ifp->pim_ifstat_hello_recvfail;
 	}
 
@@ -431,11 +447,13 @@ static int pim_sock_open(struct interface *ifp)
 	if (fd < 0)
 		return -1;
 
+#ifndef PIM_SOUTHBOUND
 	if (pim_socket_join(fd, qpim_all_pim_routers_addr,
 			    pim_ifp->primary_address, ifp->ifindex)) {
 		close(fd);
 		return -2;
 	}
+#endif /* PIM_SOUTHBOUND */
 
 	return fd;
 }
@@ -629,8 +647,29 @@ int pim_msg_send(int fd, struct in_addr src, struct in_addr dst,
 		pim_pkt_dump(__func__, pim_msg, pim_msg_size);
 	}
 
-	pim_msg_send_frame(fd, (char *)buffer, sendlen, (struct sockaddr *)&to,
-			   tolen);
+#ifdef PIM_SOUTHBOUND
+	if (IN_MULTICAST(ntohl(to.sin_addr.s_addr))) {
+		struct interface *ifp = if_lookup_by_name_all_vrf(ifname);
+		struct pimsb_pim_args args = {};
+
+		if (ifp == NULL) {
+			zlog_err("%s: no interface :%s", __func__, ifname);
+			return 0;
+		}
+
+		/* Fix warning. */
+		tolen = tolen;
+
+		args.source = src.s_addr;
+		args.destination = dst.s_addr;
+		args.data = buffer;
+		args.datalen = sendlen;
+		args.ifindex = ifp->ifindex;
+		pimsb_msg_send_frame(&args);
+	} else
+#endif /* PIM_SOUTHBOUND */
+		pim_msg_send_frame(fd, (char *)buffer, sendlen,
+				   (struct sockaddr *)&to, tolen);
 	return 0;
 }
 

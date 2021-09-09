@@ -27,7 +27,7 @@
 #include "pim_str.h"
 #include "pim_time.h"
 #include "pim_util.h"
-
+#include "pim_southbound.h"
 
 static void on_trace(const char *label, struct interface *ifp,
 		     struct in_addr from)
@@ -80,8 +80,13 @@ void igmp_v2_send_query(struct igmp_group *group, int fd, const char *ifname,
 	to.sin_addr = dst_addr;
 	tolen = sizeof(to);
 
+#ifdef PIM_SOUTHBOUND
+	sent = pimsb_igmp_sendto(ifname, query_buf, msg_size,
+				 (struct sockaddr *)&to, tolen);
+#else
 	sent = sendto(fd, query_buf, msg_size, MSG_DONTWAIT,
 		      (struct sockaddr *)&to, tolen);
+#endif /* PIM_SOUTHBOUND */
 	if (sent != (ssize_t)msg_size) {
 		char dst_str[INET_ADDRSTRLEN];
 		char group_str[INET_ADDRSTRLEN];

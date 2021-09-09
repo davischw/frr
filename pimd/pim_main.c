@@ -37,6 +37,7 @@
 #include "plist.h"
 #include "vrf.h"
 #include "libfrr.h"
+#include "network.h"
 #include "routemap.h"
 #include "routing_nb.h"
 #include "lib/address_list.h"
@@ -51,10 +52,14 @@
 #include "pim_mlag.h"
 #include "pim_errors.h"
 #include "pim_nb.h"
+#include "pim_southbound.h"
 
 extern struct host host;
 
-struct option longopts[] = {{0}};
+#define OPTION_DPLANEADDR 2000
+static struct option longopts[] = {
+	{"dplaneaddr", required_argument, NULL, OPTION_DPLANEADDR},
+	{0}};
 
 /* pimd privileges */
 zebra_capabilities_t _caps_p[] = {
@@ -100,8 +105,12 @@ FRR_DAEMON_INFO(pimd, PIM, .vty_port = PIMD_VTY_PORT,
 
 int main(int argc, char **argv, char **envp)
 {
+	char dplane_addr[512];
+	bool use_dplane = false;
+
 	frr_preinit(&pimd_di, argc, argv);
-	frr_opt_add("", longopts, "");
+	frr_opt_add("", longopts,
+		    "      --dplaneaddr   Specify PIM data plane address\n");
 
 	/* this while just reads the options */
 	while (1) {
@@ -115,6 +124,11 @@ int main(int argc, char **argv, char **envp)
 		switch (opt) {
 		case 0:
 			break;
+		case OPTION_DPLANEADDR:
+			strlcpy(dplane_addr, optarg, sizeof(dplane_addr));
+			use_dplane = true;
+			break;
+
 		default:
 			frr_help_exit(1);
 			break;
@@ -176,6 +190,11 @@ int main(int argc, char **argv, char **envp)
 	zlog_notice(
 		"PIM_UNEXPECTED_KERNEL_UPCALL: report unexpected kernel upcall");
 #endif
+
+	if (use_dplane)
+		pimsb_socket_parse(dplane_addr);
+
+	ip_fragmentation_handler_init(router->master);
 
 	frr_run(router->master);
 

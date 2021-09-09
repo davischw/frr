@@ -38,6 +38,7 @@
 #include "pim_pim.h"
 #include "pim_ssmpingd.h"
 #include "pim_static.h"
+#include "pim_southbound.h"
 #include "pim_rp.h"
 #include "pim_ssm.h"
 #include "pim_vxlan.h"
@@ -139,6 +140,8 @@ void pim_terminate(void)
 	struct zclient *zclient;
 
 	bfd_protocol_integration_set_shutdown(true);
+
+	pimsb_shutdown();
 
 	/* reverse prefix_list_init */
 	prefix_list_add_hook(NULL);

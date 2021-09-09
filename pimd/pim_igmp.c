@@ -37,11 +37,13 @@
 #include "pim_str.h"
 #include "pim_util.h"
 #include "pim_time.h"
+#include "pim_southbound.h"
 #include "pim_zebra.h"
 
 static void group_timer_off(struct igmp_group *group);
 static int pim_igmp_general_query(struct thread *t);
 
+#ifndef PIM_SOUTHBOUND
 /* This socket is used for TXing IGMP packets only, IGMP RX happens
  * in pim_mroute_msg()
  */
@@ -106,6 +108,7 @@ static int igmp_sock_open(struct in_addr ifaddr, struct interface *ifp,
 
 	return fd;
 }
+#endif /* PIM_SOUTHBOUND */
 
 #undef IGMP_SOCK_DUMP
 
@@ -731,6 +734,7 @@ static void sock_close(struct igmp_sock *igmp)
 	}
 	THREAD_OFF(igmp->t_igmp_read);
 
+#ifndef PIM_SOUTHBOUND
 	if (close(igmp->fd)) {
 		flog_err(
 			EC_LIB_SOCKET,
@@ -738,6 +742,7 @@ static void sock_close(struct igmp_sock *igmp)
 			&igmp->ifaddr, igmp->fd,
 			igmp->interface->name, errno, safe_strerror(errno));
 	}
+#endif /* PIM_SOUTHBOUND */
 
 	if (PIM_DEBUG_IGMP_TRACE_DETAIL) {
 		zlog_debug("Deleted IGMP socket %pI4 fd=%d on interface %s",
@@ -912,8 +917,8 @@ static bool igmp_group_hash_equal(const void *arg1, const void *arg2)
 	return false;
 }
 
-static struct igmp_sock *igmp_sock_new(int fd, struct in_addr ifaddr,
-				       struct interface *ifp, int mtrace_only)
+struct igmp_sock *igmp_sock_new(int fd, struct in_addr ifaddr,
+				struct interface *ifp, int mtrace_only)
 {
 	struct pim_interface *pim_ifp;
 	struct igmp_sock *igmp;
@@ -1010,6 +1015,7 @@ static void igmp_read_on(struct igmp_sock *igmp)
 			&igmp->t_igmp_read);
 }
 
+#ifndef PIM_SOUTHBOUND
 struct igmp_sock *pim_igmp_sock_add(struct list *igmp_sock_list,
 				    struct in_addr ifaddr,
 				    struct interface *ifp,
@@ -1052,6 +1058,7 @@ struct igmp_sock *pim_igmp_sock_add(struct list *igmp_sock_list,
 
 	return igmp;
 }
+#endif /* PIM_SOUTHBOUND */
 
 /*
   RFC 3376: 6.5. Switching Router Filter-Modes

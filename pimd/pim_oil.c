@@ -30,6 +30,7 @@
 #include "pim_oil.h"
 #include "pim_str.h"
 #include "pim_iface.h"
+#include "pim_southbound.h"
 #include "pim_time.h"
 #include "pim_vxlan.h"
 
@@ -100,6 +101,11 @@ void pim_oil_terminate(struct pim_instance *pim)
 
 void pim_channel_oil_free(struct channel_oil *c_oil)
 {
+	struct channel_if *oif;
+
+	while ((oif = SLIST_FIRST(&c_oil->oif_list)) != NULL)
+		channel_oif_free(c_oil, &oif);
+
 	XFREE(MTYPE_PIM_CHANNEL_OIL, c_oil);
 }
 
@@ -221,6 +227,8 @@ int pim_channel_del_oif(struct channel_oil *channel_oil, struct interface *oif,
 
 	assert(channel_oil);
 	assert(oif);
+
+	channel_oif_del(channel_oil, (int32_t)oif->ifindex, proto_mask);
 
 	pim_ifp = oif->info;
 
@@ -451,6 +459,8 @@ int pim_channel_add_oif(struct channel_oil *channel_oil, struct interface *oif,
 		return -1;
 	}
 
+	channel_oif_add(channel_oil, oif->ifindex, proto_mask);
+
 	pim_ifp = oif->info;
 
 	/* Prevent single protocol from subscribing same interface to
@@ -626,4 +636,90 @@ int pim_channel_oil_empty(struct channel_oil *c_oil)
 	 * 0 (PIM_OIF_PIM_REGISTER_VIF) so we simply mfcc_ttls[0] */
 	return !memcmp(&c_oil->oil.mfcc_ttls[1], &null_oil.mfcc_ttls[1],
 		sizeof(null_oil.mfcc_ttls) - sizeof(null_oil.mfcc_ttls[0]));
+}
+
+DEFINE_MTYPE_STATIC(PIMD, PIM_CHANNEL_IF, "PIM channel output interface");
+
+struct channel_if *channel_oif_find(struct channel_oil *oil, int32_t ifindex)
+{
+	struct channel_if *oif;
+
+	/* Map 0 to `pimreg` interface index. */
+	if (ifindex == 0)
+		ifindex = PIM_REG_IF_IDX;
+
+	/* Don't add duplicated entries. */
+	SLIST_FOREACH (oif, &oil->oif_list, entry)
+		if (oif->ifindex == ifindex)
+			return oif;
+
+	return NULL;
+}
+
+void channel_oif_add(struct channel_oil *oil, int32_t ifindex, uint32_t flag)
+{
+	struct channel_if *oif;
+
+	/* Map 0 to `pimreg` interface index. */
+	if (ifindex == 0) {
+		/* Don't add `pimreg` to output interfaces on LHR. */
+		if (oil->up && !PIM_UPSTREAM_FLAG_TEST_FHR(oil->up->flags)
+		    && !pim_rp_i_am_rp(oil->pim, oil->oil.mfcc_mcastgrp))
+			return;
+
+		ifindex = PIM_REG_IF_IDX;
+	}
+
+	/* Don't add duplicated entries, just update it. */
+	oif = channel_oif_find(oil, ifindex);
+	if (oif != NULL) {
+		oif->flags |= flag;
+		if (PIM_DEBUG_MROUTE)
+			zlog_debug("%s: adding flag 0x%08x to interface %d",
+				   __func__, flag, ifindex);
+		return;
+	}
+
+	/* Artificial limit: it can be removed when zebra is fixed. */
+	if (oil->oif_list_count >= MAXVIFS)
+		return;
+
+	oif = XCALLOC(MTYPE_PIM_CHANNEL_IF, sizeof(*oif));
+	oif->ifindex = ifindex;
+	oif->flags = flag;
+	SLIST_INSERT_HEAD(&oil->oif_list, oif, entry);
+	oil->oif_list_count++;
+	if (PIM_DEBUG_MROUTE)
+		zlog_debug("%s: adding flag 0x%08x to interface %d", __func__,
+			   flag, ifindex);
+}
+
+void channel_oif_free(struct channel_oil *oil, struct channel_if **oif)
+{
+	if (*oif == NULL)
+		return;
+
+	SLIST_REMOVE(&oil->oif_list, (*oif), channel_if, entry);
+	XFREE(MTYPE_PIM_CHANNEL_IF, (*oif));
+	oil->oif_list_count--;
+}
+
+void channel_oif_del(struct channel_oil *oil, int32_t ifindex, uint32_t flag)
+{
+	struct channel_if *oif = channel_oif_find(oil, ifindex);
+
+	if (oif == NULL)
+		return;
+
+	oif->flags &= ~flag;
+	if (oif->flags) {
+		if (PIM_DEBUG_MROUTE)
+			zlog_debug("%s: removing flag 0x%08x from interface %d",
+				   __func__, flag, ifindex);
+		return;
+	}
+
+	channel_oif_free(oil, &oif);
+	if (PIM_DEBUG_MROUTE)
+		zlog_debug("%s: removing interface %d", __func__, ifindex);
 }

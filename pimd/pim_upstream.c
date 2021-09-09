@@ -1587,7 +1587,15 @@ void pim_upstream_msdp_reg_timer_start(struct pim_upstream *up)
 int pim_upstream_switch_to_spt_desired_on_rp(struct pim_instance *pim,
 				       struct prefix_sg *sg)
 {
+	struct pim_upstream lookup;
+	struct pim_upstream *up = NULL;
+
 	if (I_am_RP(pim, sg->grp))
+		return 1;
+
+	lookup.sg = *sg;
+	up = rb_pim_upstream_find(&pim->upstream_head, &lookup);
+	if (up && (up->flags & PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED))
 		return 1;
 
 	return 0;
