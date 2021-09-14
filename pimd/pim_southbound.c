@@ -209,6 +209,11 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 static bool pimsb_want_spt_join(struct pim_instance *pim, struct in_addr group)
 {
 	struct prefix_list *pl;
+	struct prefix grp = {
+		.family = AF_INET,
+		.prefixlen = IPV4_MAX_PREFIXLEN,
+		.u.prefix4 = group,
+	};
 
 	if (pim->spt.switchover == PIM_SPT_IMMEDIATE)
 		return true;
@@ -221,7 +226,7 @@ static bool pimsb_want_spt_join(struct pim_instance *pim, struct in_addr group)
 	pl = prefix_list_lookup(AFI_IP, pim->spt.plist);
 	if (pl == NULL)
 		return true;
-	if (prefix_list_apply(pl, &group) == PREFIX_DENY)
+	if (prefix_list_apply(pl, &grp) == PREFIX_DENY)
 		return true;
 
 	return false;
