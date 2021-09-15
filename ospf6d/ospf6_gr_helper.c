@@ -1162,7 +1162,6 @@ DEFPY(show_ipv6_ospf6_gr_helper,
 	bool detail = false;
 
 	ospf6 = ospf6_lookup_by_vrf_name(VRF_DEFAULT_NAME);
-	OSPF6_CMD_CHECK_RUNNING();
 
 	if (argv_find(argv, argc, "detail", &idx))
 		detail = true;
