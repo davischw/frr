@@ -48,6 +48,7 @@
 #include "pim_rp.h"
 #include "pim_br.h"
 #include "pim_register.h"
+#include "pim_southbound.h"
 #include "pim_msdp.h"
 #include "pim_jp_agg.h"
 #include "pim_nht.h"
@@ -740,6 +741,16 @@ void pim_upstream_switch(struct pim_instance *pim, struct pim_upstream *up,
 	up->join_state = new_state;
 	if (old_state != new_state)
 		up->state_transition = pim_time_monotonic_sec();
+
+#ifdef PIM_SOUTHBOUND
+	/*
+	 * When JOIN state changes the RP needs to know about this to
+	 * calculate the correct input interface.
+	 *
+	 * Issue: 105.
+	 */
+	pimsb_set_input_interface(up->channel_oil);
+#endif /* PIM_SOUTHBOUND */
 
 	pim_upstream_update_assert_tracking_desired(up);
 

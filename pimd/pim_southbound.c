@@ -144,15 +144,13 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 	 *    use `pimreg` (also see item (2)).
 	 * 5. Otherwise use what PIM decided.
 	 */
-	if (i_am_rp && star_source)
-		oil->iif.ifindex = 0;
-	else if (oil->oil.mfcc_parent == 0)
+	if ((i_am_rp && star_source) || oil->oil.mfcc_parent == 0)
 		oil->iif.ifindex = PIM_REG_IF_IDX;
 	else if (oil->oil.mfcc_parent == MAXVIFS)
 		oil->iif.ifindex = 0;
 	else {
 		ifp = pim_if_find_by_vif_index(oil->pim, oil->oil.mfcc_parent);
-		oil->iif.ifindex = ifp ? ifp->ifindex : 0;
+		oil->iif.ifindex = ifp ? ifp->ifindex : PIM_REG_IF_IDX;
 		if (i_am_rp && has_rp_if && rp_if == oil->iif.ifindex)
 			oil->iif.ifindex = PIM_REG_IF_IDX;
 	}
@@ -178,7 +176,8 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 		 * If no traffic has been seen yet, then set notification
 		 * interface instead of input interface.
 		 */
-		if (!(upstream->flags & PIM_UPSTREAM_FLAG_MASK_DATA_START)) {
+		if (!(upstream->flags & PIM_UPSTREAM_FLAG_MASK_DATA_START)
+		    && oil->iif.ifindex != PIM_REG_IF_IDX) {
 			oil->notifif.ifindex = oil->iif.ifindex;
 			oil->iif.ifindex = 0;
 		}
