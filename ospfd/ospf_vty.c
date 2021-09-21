@@ -2266,6 +2266,24 @@ ALIAS(no_ospf_compatible_rfc1583, no_ospf_rfc1583_flag_cmd,
       "OSPF specific commands\n"
       "Disable the RFC1583Compatibility flag\n")
 
+DEFPY (ospf_send_extra_data,
+       ospf_send_extra_data_cmd,
+       "[no] ospf send-extra-data zebra",
+       NO_STR
+       OSPF_STR
+       "Extra data to Zebra for display/use\n"
+       "To zebra\n")
+{
+	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
+
+        if (no)
+		UNSET_FLAG(ospf->config, OSPF_SEND_EXTRA_DATA_TO_ZEBRA);
+        else
+		SET_FLAG(ospf->config, OSPF_SEND_EXTRA_DATA_TO_ZEBRA);
+
+        return CMD_SUCCESS;
+}
+
 static int ospf_timers_spf_set(struct vty *vty, unsigned int delay,
 			       unsigned int hold, unsigned int max)
 {
@@ -12399,6 +12417,10 @@ static int ospf_config_write_one(struct vty *vty, struct ospf *ospf)
 	if (CHECK_FLAG(ospf->config, OSPF_SHUTDOWN))
 		vty_out(vty, " shutdown\n");
 
+	/* zebra opaque attributes configuration. */
+	if (!CHECK_FLAG(ospf->config, OSPF_SEND_EXTRA_DATA_TO_ZEBRA))
+		vty_out(vty, " no ospf send-extra-data zebra\n");
+
 	/* ABR type print. */
 	if (ospf->abr_type != OSPF_ABR_DEFAULT)
 		vty_out(vty, " ospf abr-type %s\n",
@@ -12855,6 +12877,9 @@ void ospf_vty_init(void)
 	install_element(OSPF_NODE, &no_ospf_compatible_rfc1583_cmd);
 	install_element(OSPF_NODE, &ospf_rfc1583_flag_cmd);
 	install_element(OSPF_NODE, &no_ospf_rfc1583_flag_cmd);
+
+	/* "ospf send-extra-data zebra" commands. */
+	install_element(OSPF_NODE, &ospf_send_extra_data_cmd);
 
 	/* "network area" commands. */
 	install_element(OSPF_NODE, &ospf_network_area_cmd);

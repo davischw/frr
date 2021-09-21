@@ -393,6 +393,8 @@ struct ospf *ospf_new_alloc(unsigned short instance, const char *name)
 
 	SET_FLAG(new->config, OSPF_OPAQUE_CAPABLE);
 
+	SET_FLAG(new->config, OSPF_SEND_EXTRA_DATA_TO_ZEBRA);
+
 	QOBJ_REG(new, ospf);
 
 	new->fd = -1;

@@ -35,4 +35,10 @@ struct bgp_zebra_opaque {
 	char lcommunity[LCOMMUNITY_SIZE * 30];
 };
 
+struct ospf_zebra_opaque {
+	char path_type[32];
+	char area_id[INET_ADDRSTRLEN];
+	char tag[16];
+};
+
 #endif /* FRR_ROUTE_OPAQUE_H */

@@ -585,6 +585,7 @@ static struct ospf6 *ospf6_create(const char *name)
 	o->fd = -1;
 
 	o->max_multipath = MULTIPATH_NUM;
+	SET_FLAG(o->config_flags, OSPF6_SEND_EXTRA_DATA_TO_ZEBRA);
 
 	ospf6_gr_helper_init(o);
 	QOBJ_REG(o, ospf6);
@@ -1054,6 +1055,24 @@ DEFUN (no_ospf6_log_adjacency_changes_detail,
 
 	UNSET_FLAG(ospf6->config_flags, OSPF6_LOG_ADJACENCY_DETAIL);
 	return CMD_SUCCESS;
+}
+
+DEFPY (ospf6_send_extra_data,
+       ospf6_send_extra_data_cmd,
+       "[no] ospf6 send-extra-data zebra",
+       NO_STR
+      OSPF6_STR
+       "Extra data to Zebra for display/use\n"
+       "To zebra\n")
+{
+	VTY_DECLVAR_CONTEXT(ospf6, ospf6);
+
+        if (no)
+		UNSET_FLAG(ospf6->config_flags, OSPF6_SEND_EXTRA_DATA_TO_ZEBRA);
+        else
+		SET_FLAG(ospf6->config_flags, OSPF6_SEND_EXTRA_DATA_TO_ZEBRA);
+
+        return CMD_SUCCESS;
 }
 
 DEFUN (ospf6_timers_lsa,
@@ -2451,6 +2470,10 @@ static int config_write_ospf6(struct vty *vty)
 		if (ospf6->flag & OSPF6_FLAG_SHUTDOWN)
 			vty_out(vty, " shutdown\n");
 
+		if (!CHECK_FLAG(ospf6->config_flags,
+				OSPF6_SEND_EXTRA_DATA_TO_ZEBRA))
+			vty_out(vty, " no ospf6 send-extra-data zebra\n");
+
 		/* log-adjacency-changes flag print. */
 		if (CHECK_FLAG(ospf6->config_flags,
 			       OSPF6_LOG_ADJACENCY_CHANGES)) {
@@ -2529,6 +2552,7 @@ void ospf6_top_init(void)
 	install_element(OSPF6_NODE, &ospf6_log_adjacency_changes_detail_cmd);
 	install_element(OSPF6_NODE, &no_ospf6_log_adjacency_changes_cmd);
 	install_element(OSPF6_NODE, &no_ospf6_log_adjacency_changes_detail_cmd);
+	install_element(OSPF6_NODE, &ospf6_send_extra_data_cmd);
 
 	/* LSA timers commands */
 	install_element(OSPF6_NODE, &ospf6_timers_lsa_cmd);
