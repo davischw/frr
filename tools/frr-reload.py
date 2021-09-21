@@ -1837,6 +1837,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Used by topotest to not delete debug or log file commands",
     )
+    parser.add_argument(
+        "--clear-bgp-soft",
+        action="store_true",
+        help="Execute 'clear bgp * soft' after changing the configuration",
+    )
 
     args = parser.parse_args()
 
@@ -2200,6 +2205,13 @@ if __name__ == "__main__":
         target = str(args.confdir + "/frr.conf")
         if args.overwrite or (not args.daemon and args.filename != target):
             vtysh("write")
+
+        if args.clear_bgp_soft:
+            try:
+                bgp_clear_soft_cmd = "clear bgp * soft"
+                vtysh(bgp_clear_soft_cmd)
+            except:
+                pass
 
     if not reload_ok:
         sys.exit(1)
