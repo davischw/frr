@@ -21,12 +21,16 @@
 #ifndef FRR_ROUTE_OPAQUE_H
 #define FRR_ROUTE_OPAQUE_H
 
-#include "bgpd/bgp_aspath.h"
-#include "bgpd/bgp_community.h"
-#include "bgpd/bgp_lcommunity.h"
+#include "assert.h"
+#include "zclient.h"
+
+/* copied from bgpd/bgp_community.h */
+#define COMMUNITY_SIZE 4
+/* copied from bgpd/bgp_lcommunity.h */
+#define LCOMMUNITY_SIZE 12
 
 struct bgp_zebra_opaque {
-	char aspath[ASPATH_STR_DEFAULT_LEN];
+	char aspath[256];
 
 	/* Show at least 10 communities AA:BB */
 	char community[COMMUNITY_SIZE * 20];
