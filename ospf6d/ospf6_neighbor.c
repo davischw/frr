@@ -50,7 +50,7 @@
 #include "ospf6_vlink.h"
 #include "lib/json.h"
 
-DEFINE_MTYPE(OSPF6D, OSPF6_NEIGHBOR, "OSPF6 neighbor");
+DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_NEIGHBOR, "OSPF6 neighbor");
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_NEIGHBOR_P2XP_CFG,
 		    "OSPF6 PtP/PtMP neighbor config");
 
