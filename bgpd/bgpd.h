@@ -32,6 +32,7 @@
 #include "iana_afi.h"
 
 /* For union sockunion.  */
+#include "address_list.h"
 #include "queue.h"
 #include "sockunion.h"
 #include "routemap.h"
@@ -321,6 +322,19 @@ struct bgp_snmp_stats {
 	uint32_t routes_added;
 	uint32_t routes_deleted;
 };
+
+/** BGP address list */
+struct bgp_named_peer {
+	/** Address list entry name. */
+	char name[ADDRESS_LIST_NAME_LONGEST];
+	/** BGP instance pointer. */
+	struct bgp *bgp;
+	/** Dynamically created peer data structure. */
+	struct peer *peer;
+
+	LIST_ENTRY(bgp_named_peer) entry;
+};
+LIST_HEAD(bgp_named_peer_list, bgp_named_peer);
 
 /* BGP instance structure.  */
 struct bgp {
@@ -720,6 +734,9 @@ struct bgp {
 	/* BGP route flap dampening configuration */
 	struct bgp_damp_config damp[AFI_MAX][SAFI_MAX];
 
+	/* BGP named peers. */
+	struct bgp_named_peer_list named_peer_list;
+
 	QOBJ_FIELDS;
 };
 DECLARE_QOBJ_TYPE(bgp);
@@ -767,10 +784,8 @@ struct peer_group {
 	/* Peer-group config */
 	struct peer *conf;
 
-	/* Configured address list name (if any). */
-	char *pg_al_name;
-	/* Pointer to dynamically created peer. */
-	struct peer *pg_peer;
+	/** Back pointer to named peer. */
+	struct bgp_named_peer *named_peer;
 };
 
 /* BGP Notify message format. */
@@ -1252,9 +1267,6 @@ struct peer {
 #define PEER_FLAG_TIMER_DELAYOPEN (1U << 27) /* delayopen timer */
 #define PEER_FLAG_TCP_MSS (1U << 28)	 /* tcp-mss */
 
-	/** Used by address list generated peers. */
-#define PEER_FLAG_ADDRESS_LIST_USER         (1 << 31)
-
 	/*
 	 *GR-Disabled mode means unset PEER_FLAG_GRACEFUL_RESTART
 	 *& PEER_FLAG_GRACEFUL_RESTART_HELPER
@@ -1619,6 +1631,9 @@ struct peer {
 
 	/* set TCP max segment size */
 	uint32_t tcp_mss;
+
+	/** Address list back pointer. */
+	struct bgp_named_peer *np;
 
 	QOBJ_FIELDS;
 };
@@ -2332,8 +2347,7 @@ static inline int peer_dynamic_neighbor(struct peer *peer)
 
 static inline bool peer_address_list_neighbor(const struct peer *peer)
 {
-	return CHECK_FLAG(peer->flags, PEER_FLAG_ADDRESS_LIST_USER) ? true
-								    : false;
+	return peer->np ? true : false;
 }
 
 static inline int peer_cap_enhe(struct peer *peer, afi_t afi, safi_t safi)
@@ -2434,5 +2448,14 @@ bool peer_address_self_check(struct bgp *bgp, union sockunion *su);
 void peer_group2peer_config_copy(struct peer_group *group, struct peer *peer);
 void peer_group2peer_config_copy_af(struct peer_group *group, struct peer *peer,
 				    afi_t afi, safi_t safi);
+
+/* bgp_address_list.c */
+struct peer *peer_lookup_by_address_list(struct bgp *bgp, const char *name);
+struct bgp_named_peer *address_list_lookup_by_name(struct bgp *bgp,
+						   const char *name);
+void peer_address_list_remote_as(struct bgp *bgp, const char *name, as_t as,
+				 int as_type);
+void address_list_peer_free(struct bgp_named_peer **np);
+void bgp_address_list_peers_free(struct bgp *bgp);
 
 #endif /* _QUAGGA_BGPD_H */

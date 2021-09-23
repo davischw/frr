@@ -29,7 +29,9 @@
 #include "bgpd/bgp_debug.h"
 #include "bgpd/bgp_fsm.h"
 #include "bgpd/bgp_memory.h"
+#include "bgpd/bgp_network.h"
 #include "bgpd/bgp_vty.h"
+#include "bgpd/bgp_zebra.h"
 
 #ifndef VTYSH_EXTRACT_PL
 #include "bgpd/bgp_address_list_clippy.c"
@@ -38,87 +40,65 @@
 /*
  * Prototypes.
  */
-DEFINE_MTYPE_STATIC(BGPD, ADDRESS_LIST_NAME, "Address list name");
-
-static void peer_group_toggle_address(struct peer_group *pg,
-				      const struct address_list *al,
-				      const struct address_entry *ae);
-
-/*
- * Commands
- */
-DEFPY(neighbor_named, neighbor_named_cmd,
-      "[no] neighbor named WORD$al_name peer-group PGNAME$pg_name",
-      NO_STR
-      NEIGHBOR_STR
-      "Use address list named\n"
-      "Address list name\n"
-      "Member of the peer-group\n"
-      "Peer-group name\n")
-{
-	VTY_DECLVAR_CONTEXT(bgp, bgp);
-	struct peer_group *pg;
-	struct address_list *al;
-
-	/* Look up for existing peer group. */
-	pg = peer_group_lookup(bgp, pg_name);
-	if (pg == NULL) {
-		vty_out(vty, "%% Configure the peer-group first\n");
-		return CMD_WARNING_CONFIG_FAILED;
-	}
-
-	/* No group specified. */
-	if (pg->conf->as_type == AS_UNSPECIFIED
-	    || (pg->conf->as_type == AS_SPECIFIED && !pg->conf->as))
-		return bgp_vty_return(vty, BGP_ERR_PEER_GROUP_NO_REMOTE_AS);
-
-	/* Remove entry if any. */
-	if (no) {
-		XFREE(MTYPE_ADDRESS_LIST_NAME, pg->pg_al_name);
-		return CMD_SUCCESS;
-	}
-
-	/* Remove previously configured name (if any). */
-	if (pg->pg_al_name) {
-		XFREE(MTYPE_ADDRESS_LIST_NAME, pg->pg_al_name);
-		peer_delete(pg->pg_peer);
-		pg->pg_peer = NULL;
-	}
-
-	/* Keep the new address list name even if not using it yet. */
-	pg->pg_al_name = XSTRDUP(MTYPE_ADDRESS_LIST_NAME, al_name);
-
-	/* Find the address list entry (if it exists). */
-	al = address_list_lookup(pg->pg_al_name);
-	if (al == NULL)
-		return CMD_SUCCESS;
-
-	/* Add the selected entry. */
-	peer_group_toggle_address(pg, al, al->al_selected);
-
-	return CMD_SUCCESS;
-}
+DEFINE_MTYPE_STATIC(BGPD, BGP_NAMED_PEER, "BGP peer address list name");
 
 /*
  * Functions.
  */
-static void peer_group_toggle_address(struct peer_group *pg,
-				      const struct address_list *al,
-				      const struct address_entry *ae)
+/** Clone of `bgp_peer_conf_if_to_su_update` with modifications */
+static void bgp_peer_su_update(struct peer *peer, const union sockunion *su)
 {
-	struct peer *p;
-	safi_t safi;
-	afi_t afi;
+	int prev_family;
+
+	/*
+	 * Our peer structure is stored in the bgp->peerhash
+	 * release it before we modify anything.
+	 */
+	hash_release(peer->bgp->peerhash, peer);
+
+	prev_family = peer->su.sa.sa_family;
+	peer->su = *su;
+
+	if (CHECK_FLAG(peer->flags, PEER_FLAG_PASSWORD)
+	    && prev_family == AF_UNSPEC)
+		bgp_md5_set(peer);
+
+	/*
+	 * Since our su changed we need to del/add peer to the peerhash
+	 */
+	hash_get(peer->bgp->peerhash, peer, hash_alloc_intern);
+}
+
+static void address_list_peer_toggle(struct bgp_named_peer *np,
+				     const struct address_entry *ae)
+{
 	union sockunion su;
 
-	/* Remove previously created peer. */
-	if (pg->pg_peer) {
-		if (BGP_DEBUG(neighbor_events, NEIGHBOR_EVENTS))
-			zlog_debug("%s: removing previously configured peer",
-				   __func__);
+	if (BGP_DEBUG(neighbor_events, NEIGHBOR_EVENTS))
+		zlog_debug("%s: removing previously configured peer", __func__);
 
-		peer_delete(pg->pg_peer);
-		pg->pg_peer = NULL;
+	/* Only disable peer if address was configured. */
+	if (np->peer->su.sa.sa_family != AF_UNSPEC) {
+		peer_notify_unconfig(np->peer);
+		BGP_EVENT_ADD(np->peer, BGP_Stop);
+
+		/* Reset address. */
+		np->peer->su.sa.sa_family = AF_UNSPEC;
+		memset(&np->peer->su.sin6.sin6_addr, 0,
+		       sizeof(struct in6_addr));
+
+		/*
+		 * Scrub some information that might be left over from a
+		 * previous, session
+		 */
+		if (np->peer->su_local) {
+			sockunion_free(np->peer->su_local);
+			np->peer->su_local = NULL;
+		}
+		if (np->peer->su_remote) {
+			sockunion_free(np->peer->su_remote);
+			np->peer->su_remote = NULL;
+		}
 	}
 
 	/* No more entries in the list. */
@@ -150,14 +130,13 @@ static void peer_group_toggle_address(struct peer_group *pg,
 	}
 
 	/* Don't attempt to connect to ourselves. */
-	if (peer_address_self_check(pg->bgp, &su)) {
+	if (peer_address_self_check(np->bgp, &su)) {
 		zlog_err("%s: connecting to self is not allowed", __func__);
 		return;
 	}
 
 	/* Check for duplicated addresses. */
-	p = peer_lookup(pg->bgp, &su);
-	if (p != NULL) {
+	if (peer_lookup(np->bgp, &su) != NULL) {
 		if (ae->ae_ip.ipa_type == IPADDR_V4)
 			zlog_info("%s: peer with address '%pI4' already exists",
 				  __func__, &su.sin.sin_addr);
@@ -167,38 +146,176 @@ static void peer_group_toggle_address(struct peer_group *pg,
 		return;
 	}
 
-	/* Create dynamic peer. */
-	p = peer_create(&su, NULL, pg->bgp, pg->bgp->as, pg->conf->as,
-			pg->conf->as_type, pg);
-	p = peer_lock(p);
-	listnode_add(pg->peer, p);
-	peer_group2peer_config_copy(pg, p);
+	/* Update peer address. */
+	bgp_peer_su_update(np->peer, &su);
+	if (peer_active(np->peer))
+		bgp_timer_set(np->peer);
+}
 
-	/*
-	 * If the peer-group is active for this afi/safi then activate
-	 * for this peer
-	 */
-	FOREACH_AFI_SAFI (afi, safi) {
-		if (pg->conf->afc[afi][safi]) {
-			p->afc[afi][safi] = 1;
-			peer_af_create(p, afi, safi);
-			peer_group2peer_config_copy_af(pg, p, afi, safi);
-		} else if (p->afc[afi][safi])
-			peer_deactivate(p, afi, safi);
+struct bgp_named_peer *address_list_lookup_by_name(struct bgp *bgp,
+						   const char *name)
+{
+	struct bgp_named_peer *np;
+
+	LIST_FOREACH (np, &bgp->named_peer_list, entry) {
+		if (strcmp(np->name, name))
+			continue;
+
+		return np;
 	}
 
-	/*
-	 * Mark as dynamic, but also as a "config node" for other things to
-	 * work.
+	return NULL;
+}
+
+struct peer *peer_lookup_by_address_list(struct bgp *bgp, const char *name)
+{
+	struct bgp_named_peer *np = address_list_lookup_by_name(bgp, name);
+	return np ? np->peer : NULL;
+}
+
+/** Modified copy of function `peer_create`. */
+static struct peer *_address_list_peer_new(struct bgp *bgp, const char *name)
+{
+	struct peer *peer = peer_new(bgp);
+	safi_t safi;
+	int active;
+	afi_t afi;
+
+	XFREE(MTYPE_BGP_PEER_HOST, peer->host);
+	peer->host = XSTRDUP(MTYPE_BGP_PEER_HOST, name);
+
+	peer->local_id = bgp->router_id;
+	peer->v_holdtime = bgp->default_holdtime;
+	peer->v_keepalive = bgp->default_keepalive;
+	peer->v_routeadv = (peer_sort(peer) == BGP_PEER_IBGP)
+				   ? BGP_DEFAULT_IBGP_ROUTEADV
+				   : BGP_DEFAULT_EBGP_ROUTEADV;
+
+	peer = peer_lock(peer); /* bgp peer list reference */
+	peer->group = NULL;
+	listnode_add_sort(bgp->peer, peer);
+	hash_get(bgp->peerhash, peer, hash_alloc_intern);
+
+	/* Adjust update-group coalesce timer heuristics for # peers. */
+	if (bgp->heuristic_coalesce) {
+		long ct = BGP_DEFAULT_SUBGROUP_COALESCE_TIME
+			  + (bgp->peer->count
+			     * BGP_PEER_ADJUST_SUBGROUP_COALESCE_TIME);
+		bgp->coalesce_time = MIN(BGP_MAX_SUBGROUP_COALESCE_TIME, ct);
+	}
+
+	active = peer_active(peer);
+	if (!active) {
+		if (peer->su.sa.sa_family == AF_UNSPEC)
+			peer->last_reset = PEER_DOWN_NBR_ADDR;
+		else
+			peer->last_reset = PEER_DOWN_NOAFI_ACTIVATED;
+	}
+
+	/* Last read and reset time set */
+	peer->readtime = peer->resettime = bgp_clock();
+
+	/* Default TTL set. */
+	peer->ttl = (peer->sort == BGP_PEER_IBGP) ? MAXTTL : BGP_DEFAULT_TTL;
+
+	/* Default configured keepalives count for shutdown rtt command */
+	peer->rtt_keepalive_conf = 1;
+
+	SET_FLAG(peer->flags, PEER_FLAG_CONFIG_NODE);
+
+	/* If address family is IPv4 and `bgp default ipv4-unicast` (default),
+	 * then activate the neighbor for this AF.
+	 * If address family is IPv6 and `bgp default ipv6-unicast`
+	 * (non-default), then activate the neighbor for this AF.
 	 */
-	SET_FLAG(p->flags, PEER_FLAG_ADDRESS_LIST_USER);
-	SET_FLAG(p->flags, PEER_FLAG_CONFIG_NODE);
+	FOREACH_AFI_SAFI (afi, safi) {
+		if ((afi == AFI_IP || afi == AFI_IP6) && safi == SAFI_UNICAST) {
+			if ((afi == AFI_IP
+			     && !CHECK_FLAG(bgp->flags,
+					    BGP_FLAG_NO_DEFAULT_IPV4))
+			    || (afi == AFI_IP6
+				&& CHECK_FLAG(bgp->flags,
+					      BGP_FLAG_DEFAULT_IPV6))) {
+				peer->afc[afi][safi] = 1;
+				peer_af_create(peer, afi, safi);
+			}
+		}
+	}
 
-	/* Set up peer's events and timers. */
-	if (peer_active(p))
-		bgp_timer_set(p);
+	bgp_peer_gr_flags_update(peer);
+	BGP_GR_ROUTER_DETECT_AND_SEND_CAPABILITY_TO_ZEBRA(bgp, bgp->peer);
 
-	pg->pg_peer = p;
+	bgp_stop(peer);
+
+	return peer;
+}
+
+static struct bgp_named_peer *address_list_peer_new(struct bgp *bgp,
+						    const char *name)
+{
+	struct bgp_named_peer *np;
+
+	np = XCALLOC(MTYPE_BGP_NAMED_PEER, sizeof(*np));
+	np->bgp = bgp;
+
+	/* Create peer and point back. */
+	np->peer = _address_list_peer_new(bgp, name);
+	np->peer->np = np;
+
+	strlcpy(np->name, name, sizeof(np->name));
+	LIST_INSERT_HEAD(&bgp->named_peer_list, np, entry);
+	return np;
+}
+
+void address_list_peer_free(struct bgp_named_peer **npp)
+{
+	struct peer *peer;
+	struct bgp_named_peer *np = *npp;
+
+	if (np == NULL)
+		return;
+
+	peer = np->peer;
+	if (peer) {
+		*npp = NULL;
+		peer->np = NULL;
+		if (CHECK_FLAG(peer->flags, PEER_FLAG_CAPABILITY_ENHE))
+			bgp_zebra_terminate_radv(peer->bgp, peer);
+
+		peer_notify_unconfig(peer);
+		peer_delete(peer);
+	}
+
+	LIST_REMOVE(np, entry);
+	XFREE(MTYPE_BGP_NAMED_PEER, np);
+}
+
+void bgp_address_list_peers_free(struct bgp *bgp)
+{
+	struct bgp_named_peer *np;
+
+	while ((np = LIST_FIRST(&bgp->named_peer_list)) != NULL)
+		address_list_peer_free(&np);
+}
+
+void peer_address_list_remote_as(struct bgp *bgp, const char *name, as_t as,
+				 int as_type)
+{
+	struct bgp_named_peer *np;
+	struct address_list *al;
+
+	/* Find or create new named peer. */
+	np = address_list_lookup_by_name(bgp, name);
+	if (np == NULL)
+		np = address_list_peer_new(bgp, name);
+
+	/* Save configuration. */
+	peer_remote_as(bgp, NULL, name, &as, as_type);
+
+	/* Attempt to create dynamic peer if address exists. */
+	al = address_list_lookup(np->name);
+	if (al)
+		address_list_peer_toggle(np, al->al_selected);
 }
 
 /**
@@ -207,13 +324,9 @@ static void peer_group_toggle_address(struct peer_group *pg,
 static int peer_group_next_address(const struct address_list *al,
 				   const struct address_entry *ae)
 {
-	struct bgp *bgp = bgp_get_default();
-	struct peer_group *pg;
-	struct listnode *ln;
-
-	/* No bgp instances yet. */
-	if (bgp == NULL)
-		return 0;
+	struct bgp_named_peer *np;
+	struct listnode *node;
+	struct bgp *bgp;
 
 	if (BGP_DEBUG(neighbor_events, NEIGHBOR_EVENTS)) {
 		if (ae != NULL) {
@@ -239,18 +352,18 @@ static int peer_group_next_address(const struct address_list *al,
 		}
 	}
 
-	for (ALL_LIST_ELEMENTS_RO(bgp->group, ln, pg)) {
-		/* Skip peer groups without address list. */
-		if (pg->pg_al_name == NULL)
-			continue;
-		/* Match address list names. */
-		if (strcmp(al->al_name, pg->pg_al_name))
-			continue;
+	/* Update all BGP instances. */
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		LIST_FOREACH (np, &bgp->named_peer_list, entry) {
+			/* Skip unmatched names. */
+			if (strcmp(np->name, al->al_name))
+				continue;
 
-		if (BGP_DEBUG(neighbor_events, NEIGHBOR_EVENTS))
-			zlog_debug("  peer group %s matched", pg->name);
+			if (BGP_DEBUG(neighbor_events, NEIGHBOR_EVENTS))
+				zlog_debug("  peer %s matched", np->name);
 
-		peer_group_toggle_address(pg, al, ae);
+			address_list_peer_toggle(np, ae);
+		}
 	}
 
 	return 0;
@@ -259,6 +372,4 @@ static int peer_group_next_address(const struct address_list *al,
 void bgp_address_list_init(void)
 {
 	hook_register(address_entry_next, peer_group_next_address);
-
-	install_element(BGP_NODE, &neighbor_named_cmd);
 }

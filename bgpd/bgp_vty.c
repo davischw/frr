@@ -602,6 +602,8 @@ static struct peer *peer_lookup_vty(struct vty *vty, const char *ip_str)
 	ret = str2sockunion(ip_str, &su);
 	if (ret < 0) {
 		peer = peer_lookup_by_conf_if(bgp, ip_str);
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp, ip_str);
 		if (!peer) {
 			if ((peer = peer_lookup_by_hostname(bgp, ip_str))
 			    == NULL) {
@@ -651,13 +653,14 @@ struct peer *peer_and_group_lookup_vty(struct vty *vty, const char *peer_str)
 		/* Not IP, could match either peer configured on interface or a
 		 * group. */
 		peer = peer_lookup_by_conf_if(bgp, peer_str);
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp, peer_str);
 		if (!peer)
 			group = peer_group_lookup(bgp, peer_str);
 	}
 
 	if (peer) {
-		if (peer_dynamic_neighbor(peer)
-		    || peer_address_list_neighbor(peer)) {
+		if (peer_dynamic_neighbor(peer)) {
 			vty_out(vty,
 				"%% Operation not allowed on a dynamic neighbor\n");
 			return NULL;
@@ -904,6 +907,8 @@ static int bgp_clear(struct vty *vty, struct bgp *bgp, afi_t afi, safi_t safi,
 		ret = str2sockunion(arg, &su);
 		if (ret < 0) {
 			peer = peer_lookup_by_conf_if(bgp, arg);
+			if (peer == NULL)
+				peer = peer_lookup_by_address_list(bgp, arg);
 			if (!peer) {
 				peer = peer_lookup_by_hostname(bgp, arg);
 				if (!peer) {
@@ -4133,11 +4138,10 @@ static int peer_remote_as_vty(struct vty *vty, const char *peer_str,
 		/* if not interface peer, check peer-group settings */
 		if (ret < 0 && !peer) {
 			ret = peer_group_remote_as(bgp, peer_str, &as, as_type);
-			if (ret < 0) {
-				vty_out(vty,
-					"%% Create the peer-group or interface first\n");
-				return CMD_WARNING_CONFIG_FAILED;
-			}
+			if (ret < 0)
+				peer_address_list_remote_as(bgp, peer_str, as,
+							    as_type);
+
 			return CMD_SUCCESS;
 		}
 	} else {
@@ -4453,6 +4457,7 @@ DEFUN (no_neighbor,
 	struct peer_group *group;
 	struct peer *peer;
 	struct peer *other;
+	struct bgp_named_peer *np;
 
 	ret = str2sockunion(argv[idx_peer]->arg, &su);
 	if (ret < 0) {
@@ -4465,6 +4470,13 @@ DEFUN (no_neighbor,
 				bgp_zebra_terminate_radv(peer->bgp, peer);
 			peer_notify_unconfig(peer);
 			peer_delete(peer);
+			return CMD_SUCCESS;
+		}
+
+		/* Handle address list case. */
+		np = address_list_lookup_by_name(bgp, argv[idx_peer]->arg);
+		if (np != NULL) {
+			address_list_peer_free(&np);
 			return CMD_SUCCESS;
 		}
 
@@ -4839,6 +4851,10 @@ DEFUN (neighbor_set_peer_group,
 	ret = str2sockunion(argv[idx_peer]->arg, &su);
 	if (ret < 0) {
 		peer = peer_lookup_by_conf_if(bgp, argv[idx_peer]->arg);
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp,
+							   argv[idx_peer]->arg);
+
 		if (!peer) {
 			vty_out(vty, "%% Malformed address or name: %s\n",
 				argv[idx_peer]->arg);
@@ -4853,9 +4869,7 @@ DEFUN (neighbor_set_peer_group,
 
 		/* Disallow for dynamic neighbor. */
 		peer = peer_lookup(bgp, &su);
-		if (peer
-		    && (peer_dynamic_neighbor(peer)
-			|| peer_address_list_neighbor(peer))) {
+		if (peer && peer_dynamic_neighbor(peer)) {
 			vty_out(vty,
 				"%% Operation not allowed on a dynamic neighbor\n");
 			return CMD_WARNING_CONFIG_FAILED;
@@ -14911,8 +14925,7 @@ static int bgp_show_one_peer_group(struct vty *vty, struct peer_group *group,
 				peer_status = lookup_msg(bgp_status_msg,
 							 peer->status, NULL);
 
-			dynamic = peer_dynamic_neighbor(peer)
-				  || peer_address_list_neighbor(peer);
+			dynamic = peer_dynamic_neighbor(peer);
 
 			if (json) {
 				json_object *json_peer_group_member =
@@ -16040,7 +16053,7 @@ static void bgp_config_write_peer_global(struct vty *vty, struct bgp *bgp,
 	int if_ras_printed = false;
 
 	/* Skip dynamic neighbors. */
-	if (peer_dynamic_neighbor(peer) || peer_address_list_neighbor(peer))
+	if (peer_dynamic_neighbor(peer))
 		return;
 
 	if (peer->conf_if)
@@ -16122,12 +16135,6 @@ static void bgp_config_write_peer_global(struct vty *vty, struct bgp *bgp,
 					addr);
 			}
 		}
-
-		/* Address list feature implemented in `bgp_address_list.c`. */
-		if (CHECK_FLAG(peer->sflags, PEER_STATUS_GROUP)
-		    && peer->group->pg_al_name)
-			vty_out(vty, " neighbor named %s peer-group %s\n",
-				peer->group->pg_al_name, peer->group->name);
 	}
 
 	/* local-as */

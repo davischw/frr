@@ -1131,8 +1131,7 @@ static void peer_free(struct peer *peer)
 
 	/* Free connected nexthop, if present */
 	if (CHECK_FLAG(peer->flags, PEER_FLAG_CONFIG_NODE)
-	    && (!peer_dynamic_neighbor(peer)
-		|| !peer_address_list_neighbor(peer)))
+	    && !peer_dynamic_neighbor(peer))
 		bgp_delete_connected_nexthop(family2afi(peer->su.sa.sa_family),
 					     peer);
 
@@ -1915,15 +1914,16 @@ int peer_remote_as(struct bgp *bgp, union sockunion *su, const char *conf_if,
 	struct peer *peer;
 	as_t local_as;
 
-	if (conf_if)
+	if (conf_if) {
 		peer = peer_lookup_by_conf_if(bgp, conf_if);
-	else
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp, conf_if);
+	} else
 		peer = peer_lookup(bgp, su);
 
 	if (peer) {
 		/* Not allowed for a dynamic peer. */
-		if (peer_dynamic_neighbor(peer)
-		    || peer_address_list_neighbor(peer)) {
+		if (peer_dynamic_neighbor(peer)) {
 			*as = peer->as;
 			return BGP_ERR_INVALID_FOR_DYNAMIC_PEER;
 		}
@@ -2385,6 +2385,12 @@ int peer_delete(struct peer *peer)
 	struct listnode *pn;
 	int accept_peer;
 
+	/* Use special address list delete function. */
+	if (peer_address_list_neighbor(peer)) {
+		address_list_peer_free(&peer->np);
+		return 0;
+	}
+
 	assert(peer->status != Deleted);
 
 	bgp = peer->bgp;
@@ -2417,8 +2423,7 @@ int peer_delete(struct peer *peer)
 	/* If this peer belongs to peer group, clear up the
 	   relationship.  */
 	if (peer->group) {
-		if (peer_dynamic_neighbor(peer)
-		    || peer_address_list_neighbor(peer))
+		if (peer_dynamic_neighbor(peer))
 			peer_drop_dynamic_neighbor(peer);
 
 		if ((pn = listnode_lookup(peer->group->peer, peer))) {
@@ -2876,8 +2881,7 @@ int peer_group_listen_range_del(struct peer_group *group, struct prefix *range)
 	/* Dispose off any dynamic neighbors that exist due to this listen range
 	 */
 	for (ALL_LIST_ELEMENTS(group->peer, node, nnode, peer)) {
-		if (!peer_dynamic_neighbor(peer)
-		    || !peer_address_list_neighbor(peer))
+		if (!peer_dynamic_neighbor(peer))
 			continue;
 
 		if (sockunion2hostprefix(&peer->su, &prefix2)
@@ -3719,6 +3723,9 @@ void bgp_free(struct bgp *bgp)
 	struct bgp_rmap *rmap;
 
 	QOBJ_UNREG(bgp);
+
+	/* Must be called before `list_delete` peers. */
+	bgp_address_list_peers_free(bgp);
 
 	list_delete(&bgp->group);
 	list_delete(&bgp->peer);
