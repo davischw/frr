@@ -1145,7 +1145,7 @@ static void zread_rnh_register(ZAPI_HANDLER_ARGS)
 	struct stream *s;
 	struct prefix p;
 	unsigned short l = 0;
-	uint8_t flags = 0;
+	uint8_t connected = 0;
 	uint8_t resolve_via_default;
 	bool exist;
 	bool flag_changed = false;
@@ -1163,7 +1163,7 @@ static void zread_rnh_register(ZAPI_HANDLER_ARGS)
 		client->nh_reg_time = monotime(NULL);
 
 	while (l < hdr->length) {
-		STREAM_GETC(s, flags);
+		STREAM_GETC(s, connected);
 		STREAM_GETC(s, resolve_via_default);
 		STREAM_GETW(s, p.family);
 		STREAM_GETC(s, p.prefixlen);
@@ -1200,9 +1200,10 @@ static void zread_rnh_register(ZAPI_HANDLER_ARGS)
 			return;
 
 		orig_flags = rnh->flags;
-		if (flags && !CHECK_FLAG(rnh->flags, ZEBRA_NHT_CONNECTED))
+		if (connected && !CHECK_FLAG(rnh->flags, ZEBRA_NHT_CONNECTED))
 			SET_FLAG(rnh->flags, ZEBRA_NHT_CONNECTED);
-		else if (!flags && CHECK_FLAG(rnh->flags, ZEBRA_NHT_CONNECTED))
+		else if (!connected
+			 && CHECK_FLAG(rnh->flags, ZEBRA_NHT_CONNECTED))
 			UNSET_FLAG(rnh->flags, ZEBRA_NHT_CONNECTED);
 
 		if (resolve_via_default)
@@ -1239,13 +1240,13 @@ static void zread_rnh_unregister(ZAPI_HANDLER_ARGS)
 	s = msg;
 
 	while (l < hdr->length) {
-		uint8_t flags;
+		uint8_t ignore;
 
-		STREAM_GETC(s, flags);
-		if (flags != 0)
+		STREAM_GETC(s, ignore);
+		if (ignore != 0)
 			goto stream_failure;
-		STREAM_GETC(s, flags);
-		if (flags != 0)
+		STREAM_GETC(s, ignore);
+		if (ignore != 0)
 			goto stream_failure;
 
 		STREAM_GETW(s, p.family);
