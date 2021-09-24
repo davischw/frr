@@ -850,11 +850,9 @@ static void sendmsg_zebra_rnh(struct bgp_nexthop_cache *bnc, int command)
 		flog_warn(EC_BGP_ZEBRA_SEND,
 			  "sendmsg_nexthop: zclient_send_message() failed");
 
-	if ((command == ZEBRA_NEXTHOP_REGISTER)
-	    || (command == ZEBRA_IMPORT_ROUTE_REGISTER))
+	if (command == ZEBRA_NEXTHOP_REGISTER)
 		SET_FLAG(bnc->flags, BGP_NEXTHOP_REGISTERED);
-	else if ((command == ZEBRA_NEXTHOP_UNREGISTER)
-		 || (command == ZEBRA_IMPORT_ROUTE_UNREGISTER))
+	else if (command == ZEBRA_NEXTHOP_UNREGISTER)
 		UNSET_FLAG(bnc->flags, BGP_NEXTHOP_REGISTERED);
 	return;
 }
@@ -879,10 +877,7 @@ static void register_zebra_rnh(struct bgp_nexthop_cache *bnc,
 		return;
 	}
 
-	if (is_bgp_import_route)
-		sendmsg_zebra_rnh(bnc, ZEBRA_IMPORT_ROUTE_REGISTER);
-	else
-		sendmsg_zebra_rnh(bnc, ZEBRA_NEXTHOP_REGISTER);
+	sendmsg_zebra_rnh(bnc, ZEBRA_NEXTHOP_REGISTER);
 }
 
 /**
@@ -904,10 +899,7 @@ static void unregister_zebra_rnh(struct bgp_nexthop_cache *bnc,
 		return;
 	}
 
-	if (is_bgp_import_route)
-		sendmsg_zebra_rnh(bnc, ZEBRA_IMPORT_ROUTE_UNREGISTER);
-	else
-		sendmsg_zebra_rnh(bnc, ZEBRA_NEXTHOP_UNREGISTER);
+	sendmsg_zebra_rnh(bnc, ZEBRA_NEXTHOP_UNREGISTER);
 }
 
 /**

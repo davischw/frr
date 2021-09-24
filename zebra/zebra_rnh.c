@@ -1286,8 +1286,6 @@ int zebra_send_rnh_update(struct rnh *rnh, struct zserv *client,
 	struct route_node *rn;
 	int ret;
 	uint32_t message = 0;
-	int cmd = (type == RNH_IMPORT_CHECK_TYPE) ? ZEBRA_IMPORT_CHECK_UPDATE
-						  : ZEBRA_NEXTHOP_UPDATE;
 
 	rn = rnh->node;
 	re = rnh->state;
@@ -1295,7 +1293,7 @@ int zebra_send_rnh_update(struct rnh *rnh, struct zserv *client,
 	/* Get output stream. */
 	s = stream_new(ZEBRA_MAX_PACKET_SIZ);
 
-	zclient_create_header(s, cmd, vrf_id);
+	zclient_create_header(s, ZEBRA_NEXTHOP_UPDATE, vrf_id);
 
 	/* Message flags. */
 	if (srte_color)
@@ -1370,7 +1368,7 @@ int zebra_send_rnh_update(struct rnh *rnh, struct zserv *client,
 	stream_putw_at(s, 0, stream_get_endp(s));
 
 	client->nh_last_upd_time = monotime(NULL);
-	client->last_write_cmd = cmd;
+	client->last_write_cmd = ZEBRA_NEXTHOP_UPDATE;
 	return zserv_send_message(client, s);
 
 failure:
