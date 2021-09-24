@@ -1153,6 +1153,7 @@ static void zread_rnh_register(ZAPI_HANDLER_ARGS)
 	struct prefix p;
 	unsigned short l = 0;
 	uint8_t flags = 0;
+	uint8_t resolve_via_default;
 	uint16_t type = cmd2type[hdr->command];
 	bool exist;
 	bool flag_changed = false;
@@ -1172,9 +1173,10 @@ static void zread_rnh_register(ZAPI_HANDLER_ARGS)
 
 	while (l < hdr->length) {
 		STREAM_GETC(s, flags);
+		STREAM_GETC(s, resolve_via_default);
 		STREAM_GETW(s, p.family);
 		STREAM_GETC(s, p.prefixlen);
-		l += 4;
+		l += 5;
 		if (p.family == AF_INET) {
 			client->v4_nh_watch_add_cnt++;
 			if (p.prefixlen > IPV4_MAX_BITLEN) {
@@ -1224,6 +1226,9 @@ static void zread_rnh_register(ZAPI_HANDLER_ARGS)
 				UNSET_FLAG(rnh->flags, ZEBRA_NHT_EXACT_MATCH);
 		}
 
+		if (resolve_via_default)
+			SET_FLAG(rnh->flags, ZEBRA_NHT_RESOLVE_VIA_DEFAULT);
+
 		if (orig_flags != rnh->flags)
 			flag_changed = true;
 
@@ -1262,10 +1267,13 @@ static void zread_rnh_unregister(ZAPI_HANDLER_ARGS)
 		STREAM_GETC(s, flags);
 		if (flags != 0)
 			goto stream_failure;
+		STREAM_GETC(s, flags);
+		if (flags != 0)
+			goto stream_failure;
 
 		STREAM_GETW(s, p.family);
 		STREAM_GETC(s, p.prefixlen);
-		l += 4;
+		l += 5;
 		if (p.family == AF_INET) {
 			client->v4_nh_watch_rem_cnt++;
 			if (p.prefixlen > IPV4_MAX_BITLEN) {
