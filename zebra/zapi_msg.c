@@ -1150,6 +1150,7 @@ static void zread_rnh_register(ZAPI_HANDLER_ARGS)
 	bool exist;
 	bool flag_changed = false;
 	uint8_t orig_flags;
+	safi_t safi;
 
 	if (IS_ZEBRA_DEBUG_NHT)
 		zlog_debug(
@@ -1165,9 +1166,10 @@ static void zread_rnh_register(ZAPI_HANDLER_ARGS)
 	while (l < hdr->length) {
 		STREAM_GETC(s, connected);
 		STREAM_GETC(s, resolve_via_default);
+		STREAM_GETW(s, safi);
 		STREAM_GETW(s, p.family);
 		STREAM_GETC(s, p.prefixlen);
-		l += 5;
+		l += 7;
 		if (p.family == AF_INET) {
 			client->v4_nh_watch_add_cnt++;
 			if (p.prefixlen > IPV4_MAX_BITLEN) {
@@ -1215,7 +1217,7 @@ static void zread_rnh_register(ZAPI_HANDLER_ARGS)
 		/* Anything not AF_INET/INET6 has been filtered out above */
 		if (!exist || flag_changed)
 			zebra_evaluate_rnh(zvrf, family2afi(p.family), 1, &p,
-					   SAFI_UNICAST);
+					   safi);
 
 		zebra_add_rnh_client(rnh, client, zvrf_id(zvrf));
 	}
@@ -1231,6 +1233,7 @@ static void zread_rnh_unregister(ZAPI_HANDLER_ARGS)
 	struct stream *s;
 	struct prefix p;
 	unsigned short l = 0;
+	safi_t safi;
 
 	if (IS_ZEBRA_DEBUG_NHT)
 		zlog_debug(
@@ -1250,9 +1253,10 @@ static void zread_rnh_unregister(ZAPI_HANDLER_ARGS)
 		if (ignore != 0)
 			goto stream_failure;
 
+		STREAM_GETW(s, safi);
 		STREAM_GETW(s, p.family);
 		STREAM_GETC(s, p.prefixlen);
-		l += 5;
+		l += 7;
 		if (p.family == AF_INET) {
 			client->v4_nh_watch_rem_cnt++;
 			if (p.prefixlen > IPV4_MAX_BITLEN) {
@@ -1280,7 +1284,7 @@ static void zread_rnh_unregister(ZAPI_HANDLER_ARGS)
 				p.family);
 			return;
 		}
-		rnh = zebra_lookup_rnh(&p, zvrf_id(zvrf), SAFI_UNICAST);
+		rnh = zebra_lookup_rnh(&p, zvrf_id(zvrf), safi);
 		if (rnh) {
 			client->nh_dereg_time = monotime(NULL);
 			zebra_remove_rnh_client(rnh, client);
