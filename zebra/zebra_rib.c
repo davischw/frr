@@ -760,12 +760,11 @@ void zebra_rib_evaluate_rn_nexthops(struct route_node *rn, uint32_t seq)
 				char buf1[PREFIX_STRLEN];
 
 				zlog_debug(
-					"%s(%u):%s has Nexthop(%pFX) Type: %s depending on it, evaluating %u:%u",
+					"%s(%u):%s has Nexthop(%pFX) depending on it, evaluating %u:%u",
 					zvrf_name(zvrf), zvrf_id(zvrf),
 					srcdest_rnode2str(rn, buf1,
 							  sizeof(buf1)),
-					p, rnh_type2str(rnh->type), seq,
-					rnh->seqno);
+					p, seq, rnh->seqno);
 			}
 
 			/*
@@ -788,8 +787,7 @@ void zebra_rib_evaluate_rn_nexthops(struct route_node *rn, uint32_t seq)
 			}
 
 			rnh->seqno = seq;
-			zebra_evaluate_rnh(zvrf, family2afi(p->family), 0,
-					   rnh->type, p);
+			zebra_evaluate_rnh(zvrf, family2afi(p->family), 0, p);
 		}
 
 		rn = rn->parent;
