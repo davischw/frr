@@ -161,6 +161,13 @@ module frr-pim {
         "RP keep alive Timer in seconds.";
     }
 
+    leaf shutdown {
+      type boolean;
+      default "false";
+      description
+        "Disable PIM operation";
+    }
+
     leaf send-v6-secondary {
       when "../frr-pim:address-family = 'frr-rt:ipv4'" {
         description
