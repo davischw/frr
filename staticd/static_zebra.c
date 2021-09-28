@@ -278,6 +278,9 @@ void static_zebra_nht_register(struct route_node *rn, struct static_nexthop *nh,
 	if (!nh->nh_registered && !reg)
 		return;
 
+	if (nh->snr && !static_named_route_active(nh->snr))
+		return;
+
 	memset(&p, 0, sizeof(p));
 	switch (nh->type) {
 	case STATIC_IFNAME:
@@ -427,6 +430,8 @@ extern void static_zebra_route_add(struct route_node *rn,
 			continue;
 		/* Skip next hop which peer is down. */
 		if (nh->path_down)
+			continue;
+		if (nh->snr && !static_named_route_active(nh->snr))
 			continue;
 
 		api_nh->vrf_id = nh->nh_vrf_id;

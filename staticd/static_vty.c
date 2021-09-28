@@ -52,7 +52,8 @@ static int static_route_leak(struct vty *vty, const char *svrf,
 			     const char *distance_str, const char *label_str,
 			     const char *table_str, bool onlink,
 			     const char *color_str, bool bfd, bool bfd_mhop,
-			     const char *bfd_profile, const char *route_group)
+			     const char *bfd_profile, const char *route_group,
+			     const char *address_list_name)
 {
 	int ret;
 	struct prefix p, src;
@@ -116,15 +117,23 @@ static int static_route_leak(struct vty *vty, const char *svrf,
 
 	prefix2str(&p, buf_prefix, sizeof(buf_prefix));
 
+	if (gate_str && address_list_name) {
+		vty_out(vty,
+			"%% Gateway and address list are mutually exclusive\n");
+		return CMD_WARNING_CONFIG_FAILED;
+	}
+
 	if (src_str)
 		prefix2str(&src, buf_src_prefix, sizeof(buf_src_prefix));
 	if (gate_str)
 		buf_gate_str = gate_str;
+	else if (address_list_name)
+		buf_gate_str = address_list_name;
 	else
 		buf_gate_str = "";
 
 	/* BFD integration check: */
-	if (gate_str == NULL && bfd) {
+	if ((gate_str == NULL && address_list_name == NULL) && bfd) {
 		vty_out(vty,
 			"%% Route monitoring BFD integration requires a gateway\n");
 		return CMD_WARNING_CONFIG_FAILED;
@@ -135,9 +144,9 @@ static int static_route_leak(struct vty *vty, const char *svrf,
 		return CMD_WARNING_CONFIG_FAILED;
 	}
 
-	if (gate_str == NULL && ifname == NULL)
+	if (gate_str == NULL && address_list_name == NULL && ifname == NULL)
 		type = STATIC_BLACKHOLE;
-	else if (gate_str && ifname) {
+	else if ((gate_str || address_list_name) && ifname) {
 		if (afi == AFI_IP)
 			type = STATIC_IPV4_GATEWAY_IFNAME;
 		else
@@ -417,7 +426,7 @@ static int static_route(struct vty *vty, afi_t afi, safi_t safi,
 			const char *distance_str, const char *vrf_name,
 			const char *label_str, const char *table_str, bool bfd,
 			bool bfd_mhop, const char *bfd_profile,
-			const char *route_group)
+			const char *route_group, const char *address_list_name)
 {
 	if (!vrf_name)
 		vrf_name = VRF_DEFAULT_NAME;
@@ -426,7 +435,7 @@ static int static_route(struct vty *vty, afi_t afi, safi_t safi,
 				 dest_str, mask_str, src_str, gate_str, ifname,
 				 flag_str, tag_str, distance_str, label_str,
 				 table_str, false, NULL, bfd, bfd_mhop,
-				 bfd_profile, route_group);
+				 bfd_profile, route_group, address_list_name);
 }
 
 /* Write static route configuration. */
@@ -464,13 +473,22 @@ int static_config(struct vty *vty, struct static_vrf *svrf, afi_t afi,
 
 				switch (nh->type) {
 				case STATIC_IPV4_GATEWAY:
-					vty_out(vty, " %pI4", &nh->addr.ipv4);
+					if (nh->snr)
+						vty_out(vty,
+							" address-list %s",
+							nh->snr->name);
+					else
+						vty_out(vty, " %pI4",
+							&nh->addr.ipv4);
 					break;
 				case STATIC_IPV6_GATEWAY:
-					vty_out(vty, " %s",
-						inet_ntop(AF_INET6,
-							  &nh->addr.ipv6, buf,
-							  sizeof(buf)));
+					if (nh->snr)
+						vty_out(vty,
+							" address-list %s",
+							nh->snr->name);
+					else
+						vty_out(vty, " %pI6",
+							&nh->addr.ipv6);
 					break;
 				case STATIC_IFNAME:
 					vty_out(vty, " %s", nh->ifname);
@@ -489,18 +507,26 @@ int static_config(struct vty *vty, struct static_vrf *svrf, afi_t afi,
 					}
 					break;
 				case STATIC_IPV4_GATEWAY_IFNAME:
-					vty_out(vty, " %s %s",
-						inet_ntop(AF_INET,
-							  &nh->addr.ipv4, buf,
-							  sizeof(buf)),
-						nh->ifname);
+					if (nh->snr)
+						vty_out(vty,
+							" address-list %s %s",
+							nh->snr->name,
+							nh->ifname);
+					else
+						vty_out(vty, " %pI4 %s",
+							&nh->addr.ipv4,
+							nh->ifname);
 					break;
 				case STATIC_IPV6_GATEWAY_IFNAME:
-					vty_out(vty, " %s %s",
-						inet_ntop(AF_INET6,
-							  &nh->addr.ipv6, buf,
-							  sizeof(buf)),
-						nh->ifname);
+					if (nh->snr)
+						vty_out(vty,
+							" address-list %s %s",
+							nh->snr->name,
+							nh->ifname);
+					else
+						vty_out(vty, " %pI6 %s",
+							&nh->addr.ipv6,
+							nh->ifname);
 					break;
 				}
 
@@ -595,7 +621,7 @@ DEFPY_YANG (ip_mroute_dist,
 	return static_route(vty, AFI_IP, SAFI_MULTICAST, no, prefix_str, NULL,
 			    NULL, gate_str, ifname, NULL, NULL, distance_str,
 			    NULL, NULL, NULL, !!bfd, !!bfd_mhop, bfd_profile,
-			    route_group);
+			    route_group, NULL);
 }
 
 /* Static route configuration.  */
@@ -631,7 +657,8 @@ DEFPY_YANG(ip_route_blackhole,
 {
 	return static_route(vty, AFI_IP, SAFI_UNICAST, no, prefix, mask_str,
 			    NULL, NULL, NULL, flag, tag_str, distance_str, vrf,
-			    label, table_str, false, false, NULL, route_group);
+			    label, table_str, false, false, NULL, route_group,
+			    NULL);
 }
 
 DEFPY_YANG(ip_route_blackhole_vrf,
@@ -681,13 +708,13 @@ DEFPY_YANG(ip_route_blackhole_vrf,
 	return static_route_leak(vty, vrfname, vrfname, AFI_IP, SAFI_UNICAST,
 				 no, prefix, mask_str, NULL, NULL, NULL, flag,
 				 tag_str, distance_str, label, table_str, false,
-				 NULL, false, false, NULL, route_group);
+				 NULL, false, false, NULL, route_group, NULL);
 }
 
 DEFPY_YANG(ip_route_address_interface, ip_route_address_interface_cmd,
 	   "[no] ip route\
 	<A.B.C.D/M$prefix|A.B.C.D$prefix A.B.C.D$mask> \
-	A.B.C.D$gate                                   \
+	<A.B.C.D$gate|address-list WORD$address_list>  \
 	<INTERFACE|Null0>$ifname                       \
 	[{                                             \
 	  tag (1-4294967295)                           \
@@ -707,6 +734,8 @@ DEFPY_YANG(ip_route_address_interface, ip_route_address_interface_cmd,
       "IP destination prefix\n"
       "IP destination prefix mask\n"
       "IP gateway address\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "IP gateway interface name\n"
       "Null interface\n"
       "Set tag for this route\n"
@@ -746,14 +775,14 @@ DEFPY_YANG(ip_route_address_interface, ip_route_address_interface_cmd,
 				 prefix, mask_str, NULL, gate_str, ifname, flag,
 				 tag_str, distance_str, label, table_str,
 				 !!onlink, color_str, !!bfd, !!bfd_mhop,
-				 bfd_profile, route_group);
+				 bfd_profile, route_group, address_list);
 }
 
 DEFPY_YANG(ip_route_address_interface_vrf,
       ip_route_address_interface_vrf_cmd,
       "[no] ip route\
 	<A.B.C.D/M$prefix|A.B.C.D$prefix A.B.C.D$mask> \
-	A.B.C.D$gate                                   \
+	<A.B.C.D$gate|address-list WORD$address_list>  \
 	<INTERFACE|Null0>$ifname                       \
 	[{                                             \
 	  tag (1-4294967295)                           \
@@ -772,6 +801,8 @@ DEFPY_YANG(ip_route_address_interface_vrf,
       "IP destination prefix\n"
       "IP destination prefix mask\n"
       "IP gateway address\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "IP gateway interface name\n"
       "Null interface\n"
       "Set tag for this route\n"
@@ -817,14 +848,14 @@ DEFPY_YANG(ip_route_address_interface_vrf,
 				 prefix, mask_str, NULL, gate_str, ifname, flag,
 				 tag_str, distance_str, label, table_str,
 				 !!onlink, color_str, !!bfd, !!bfd_mhop,
-				 bfd_profile, route_group);
+				 bfd_profile, route_group, address_list);
 }
 
 DEFPY_YANG(ip_route,
       ip_route_cmd,
       "[no] ip route\
 	<A.B.C.D/M$prefix|A.B.C.D$prefix A.B.C.D$mask> \
-	<A.B.C.D$gate|<INTERFACE|Null0>$ifname>        \
+	<A.B.C.D$gate|<INTERFACE|Null0>$ifname|address-list WORD$address_list> \
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
@@ -844,6 +875,8 @@ DEFPY_YANG(ip_route,
       "IP gateway address\n"
       "IP gateway interface name\n"
       "Null interface\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
@@ -881,14 +914,14 @@ DEFPY_YANG(ip_route,
 				 prefix, mask_str, NULL, gate_str, ifname, flag,
 				 tag_str, distance_str, label, table_str, false,
 				 color_str, !!bfd, !!bfd_mhop, bfd_profile,
-				 route_group);
+				 route_group, address_list);
 }
 
 DEFPY_YANG(ip_route_vrf,
       ip_route_vrf_cmd,
       "[no] ip route\
 	<A.B.C.D/M$prefix|A.B.C.D$prefix A.B.C.D$mask> \
-	<A.B.C.D$gate|<INTERFACE|Null0>$ifname>        \
+	<A.B.C.D$gate|<INTERFACE|Null0>$ifname|address-list WORD$address-list> \
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
@@ -907,6 +940,8 @@ DEFPY_YANG(ip_route_vrf,
       "IP gateway address\n"
       "IP gateway interface name\n"
       "Null interface\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
@@ -950,7 +985,7 @@ DEFPY_YANG(ip_route_vrf,
 				 prefix, mask_str, NULL, gate_str, ifname, flag,
 				 tag_str, distance_str, label, table_str, false,
 				 color_str, !!bfd, !!bfd_mhop, bfd_profile,
-				 route_group);
+				 route_group, address_list);
 }
 
 DEFPY_YANG(ipv6_route_blackhole,
@@ -986,7 +1021,7 @@ DEFPY_YANG(ipv6_route_blackhole,
 	return static_route(vty, AFI_IP6, SAFI_UNICAST, no, prefix_str, NULL,
 			    from_str, NULL, NULL, flag, tag_str, distance_str,
 			    vrf, label, table_str, false, false, NULL,
-			    route_group);
+			    route_group, NULL);
 }
 
 DEFPY_YANG(ipv6_route_blackhole_vrf,
@@ -1038,13 +1073,14 @@ DEFPY_YANG(ipv6_route_blackhole_vrf,
 	return static_route_leak(vty, vrfname, vrfname, AFI_IP6, SAFI_UNICAST,
 				 no, prefix_str, NULL, from_str, NULL, NULL,
 				 flag, tag_str, distance_str, label, table_str,
-				 false, NULL, false, false, NULL, route_group);
+				 false, NULL, false, false, NULL, route_group,
+				 NULL);
 }
 
 DEFPY_YANG(ipv6_route_address_interface,
       ipv6_route_address_interface_cmd,
       "[no] ipv6 route X:X::X:X/M$prefix [from X:X::X:X/M] \
-          X:X::X:X$gate                                    \
+          <X:X::X:X$gate|address-list WORD$address_list>   \
           <INTERFACE|Null0>$ifname                         \
           [{                                               \
             tag (1-4294967295)                             \
@@ -1065,6 +1101,8 @@ DEFPY_YANG(ipv6_route_address_interface,
       "IPv6 source-dest route\n"
       "IPv6 source prefix\n"
       "IPv6 gateway address\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "IPv6 gateway interface name\n"
       "Null interface\n"
       "Set tag for this route\n"
@@ -1105,13 +1143,13 @@ DEFPY_YANG(ipv6_route_address_interface,
 				 prefix_str, NULL, from_str, gate_str, ifname,
 				 flag, tag_str, distance_str, label, table_str,
 				 !!onlink, color_str, !!bfd, !!bfd_mhop,
-				 bfd_profile, route_group);
+				 bfd_profile, route_group, address_list);
 }
 
 DEFPY_YANG(ipv6_route_address_interface_vrf,
       ipv6_route_address_interface_vrf_cmd,
       "[no] ipv6 route X:X::X:X/M$prefix [from X:X::X:X/M] \
-          X:X::X:X$gate                                    \
+          <X:X::X:X$gate|address-list WORD$address_list>   \
           <INTERFACE|Null0>$ifname                         \
           [{                                               \
             tag (1-4294967295)                             \
@@ -1131,6 +1169,8 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
       "IPv6 source-dest route\n"
       "IPv6 source prefix\n"
       "IPv6 gateway address\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "IPv6 gateway interface name\n"
       "Null interface\n"
       "Set tag for this route\n"
@@ -1176,13 +1216,14 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
 				 no, prefix_str, NULL, from_str, gate_str,
 				 ifname, flag, tag_str, distance_str, label,
 				 table_str, !!onlink, color_str, !!bfd,
-				 !!bfd_mhop, bfd_profile, route_group);
+				 !!bfd_mhop, bfd_profile, route_group,
+				 address_list);
 }
 
 DEFPY_YANG(ipv6_route,
       ipv6_route_cmd,
       "[no] ipv6 route X:X::X:X/M$prefix [from X:X::X:X/M] \
-          <X:X::X:X$gate|<INTERFACE|Null0>$ifname>         \
+          <X:X::X:X$gate|<INTERFACE|Null0>$ifname|address-list WORD$address-list> \
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
@@ -1203,6 +1244,8 @@ DEFPY_YANG(ipv6_route,
       "IPv6 gateway address\n"
       "IPv6 gateway interface name\n"
       "Null interface\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
@@ -1239,13 +1282,13 @@ DEFPY_YANG(ipv6_route,
 				 prefix_str, NULL, from_str, gate_str, ifname,
 				 flag, tag_str, distance_str, label, table_str,
 				 false, color_str, !!bfd, !!bfd_mhop,
-				 bfd_profile, route_group);
+				 bfd_profile, route_group, address_list);
 }
 
 DEFPY_YANG(ipv6_route_vrf,
       ipv6_route_vrf_cmd,
       "[no] ipv6 route X:X::X:X/M$prefix [from X:X::X:X/M] \
-          <X:X::X:X$gate|<INTERFACE|Null0>$ifname>                 \
+          <X:X::X:X$gate|<INTERFACE|Null0>$ifname|address-list WORD$address_list> \
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
@@ -1265,6 +1308,8 @@ DEFPY_YANG(ipv6_route_vrf,
       "IPv6 gateway address\n"
       "IPv6 gateway interface name\n"
       "Null interface\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
@@ -1307,7 +1352,7 @@ DEFPY_YANG(ipv6_route_vrf,
 				 no, prefix_str, NULL, from_str, gate_str,
 				 ifname, flag, tag_str, distance_str, label,
 				 table_str, false, color_str, !!bfd, !!bfd_mhop,
-				 bfd_profile, route_group);
+				 bfd_profile, route_group, address_list);
 }
 
 DEFPY_YANG(staticd_route_group_bfd, staticd_route_group_bfd_cmd,

@@ -3,6 +3,10 @@ module frr-nexthop {
   namespace "http://frrouting.org/yang/nexthop";
   prefix frr-nexthop;
 
+  import frr-address-list {
+    prefix frr-address-list;
+  }
+
   import ietf-inet-types {
     prefix inet;
   }
@@ -60,6 +64,7 @@ module frr-nexthop {
   typedef optional-ip-address {
     type union {
       type inet:ip-address;
+      type frr-address-list:address-list-ref;
       type string {
         pattern "";
       }

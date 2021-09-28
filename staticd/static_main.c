@@ -172,6 +172,8 @@ int main(int argc, char **argv, char **envp)
 		 "%s/zebra.conf", frr_sysconfdir);
 	staticd_di.backup_config_file = backup_config_file;
 
+	static_address_list_init();
+
 	frr_config_fork();
 	frr_run(master);
 

@@ -146,6 +146,9 @@ struct static_nexthop {
 	/* SR-TE color */
 	uint32_t color;
 
+	/** Address list pointer. */
+	struct static_named_route *snr;
+
 	/** BFD integration data. */
 	struct bfd_session_params *bsp;
 	/** Back pointer for route node. */
@@ -179,7 +182,8 @@ extern struct static_nexthop *
 static_add_nexthop(struct route_node *rn, struct static_path *pn, safi_t safi,
 		   struct static_vrf *svrf, static_types type,
 		   struct ipaddr *ipaddr, const char *ifname,
-		   const char *nh_vrf, uint32_t color);
+		   const char *nh_vrf, uint32_t color,
+		   const char *address_list_name);
 extern void static_install_nexthop(struct route_node *rn,
 				   struct static_path *pn,
 				   struct static_nexthop *nh, safi_t safi,

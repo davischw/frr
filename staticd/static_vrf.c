@@ -24,6 +24,7 @@
 #include "table.h"
 #include "srcdest_table.h"
 
+#include "static_address_list.h"
 #include "static_vrf.h"
 #include "static_routes.h"
 #include "static_zebra.h"
@@ -59,6 +60,9 @@ static struct static_vrf *static_vrf_alloc(void)
 			svrf->stable[afi][safi] = table;
 		}
 	}
+
+	LIST_INIT(&svrf->named_route_list);
+
 	return svrf;
 }
 

@@ -138,6 +138,7 @@ static bool static_nexthop_create(struct nb_cb_create_args *args,
 	int nh_type;
 	const char *ifname;
 	const char *nh_vrf;
+	const char *address_list_name;
 
 	switch (args->event) {
 	case NB_EV_VALIDATE:
@@ -171,6 +172,8 @@ static bool static_nexthop_create(struct nb_cb_create_args *args,
 	case NB_EV_ABORT:
 		break;
 	case NB_EV_APPLY:
+		address_list_name =
+			yang_dnode_get_string(args->dnode, "./gateway");
 		yang_dnode_get_ip(&ipaddr, args->dnode, "./gateway");
 		nh_type = yang_dnode_get_enum(args->dnode, "./nh-type");
 		ifname = yang_dnode_get_string(args->dnode, "./interface");
@@ -185,7 +188,8 @@ static bool static_nexthop_create(struct nb_cb_create_args *args,
 				yang_dnode_get_string(args->dnode,
 						      "./gateway"));
 		nh = static_add_nexthop(rn, pn, info->safi, info->svrf, nh_type,
-					&ipaddr, ifname, nh_vrf, 0);
+					&ipaddr, ifname, nh_vrf, 0,
+					address_list_name);
 		nb_running_set_entry(args->dnode, nh);
 		break;
 	}
