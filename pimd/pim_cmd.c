@@ -7249,6 +7249,30 @@ DEFPY (no_igmp_group_watermark,
 	return CMD_SUCCESS;
 }
 
+DEFPY (ip_pim_shutdown,
+       ip_pim_shutdown_cmd,
+       "[no] ip pim shutdown",
+       NO_STR
+       IP_STR
+       "pim multicast routing\n"
+       "Disable PIM operation\n")
+{
+	const char *vrfname;
+	char shutdown_xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(shutdown_xpath, sizeof(shutdown_xpath),
+		 FRR_PIM_AF_XPATH "/shutdown",
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
+
+	nb_cli_enqueue_change(vty, shutdown_xpath, NB_OP_MODIFY,
+			      no ? "false" : "true");
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 DEFUN (ip_pim_v6_secondary,
        ip_pim_v6_secondary_cmd,
        "ip pim send-v6-secondary",
@@ -11394,6 +11418,8 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &no_ip_pim_rp_keep_alive_cmd);
 	install_element(CONFIG_NODE, &ip_pim_packets_cmd);
 	install_element(CONFIG_NODE, &no_ip_pim_packets_cmd);
+	install_element(CONFIG_NODE, &ip_pim_shutdown_cmd);
+	install_element(VRF_NODE, &ip_pim_shutdown_cmd);
 	install_element(CONFIG_NODE, &ip_pim_v6_secondary_cmd);
 	install_element(VRF_NODE, &ip_pim_v6_secondary_cmd);
 	install_element(CONFIG_NODE, &no_ip_pim_v6_secondary_cmd);

@@ -1669,17 +1669,26 @@ int pim_ifp_up(struct interface *ifp)
 	struct pim_instance *pim;
 	uint32_t table_id;
 
-	if (PIM_DEBUG_ZEBRA) {
-		zlog_debug(
-			"%s: %s index %d(%u) flags %ld metric %d mtu %d operative %d",
-			__func__, ifp->name, ifp->ifindex, ifp->vrf_id,
-			(long)ifp->flags, ifp->metric, ifp->mtu,
-			if_is_operative(ifp));
-	}
-
 	pim = pim_get_pim_instance(ifp->vrf_id);
 
+	if (PIM_DEBUG_ZEBRA) {
+		zlog_debug(
+			"%s: %s index %d(%u) flags %ld metric %d mtu %d operative %d%s",
+			__func__, ifp->name, ifp->ifindex, ifp->vrf_id,
+			(long)ifp->flags, ifp->metric, ifp->mtu,
+			if_is_operative(ifp),
+			(pim && pim->shutdown) ? " shutdown" : "");
+	}
+
+	if (pim && pim->shutdown)
+		return 0;
+
 	pim_ifp = ifp->info;
+
+	/* don't up twice */
+	if (pim_ifp && pim_ifp->mroute_vif_index != -1)
+		return 0;
+
 	/*
 	 * If we have a pim_ifp already and this is an if_add
 	 * that means that we probably have a vrf move event
@@ -1723,15 +1732,25 @@ int pim_ifp_up(struct interface *ifp)
 
 int pim_ifp_down(struct interface *ifp)
 {
+	struct pim_interface *pim_ifp = ifp->info;
+	struct pim_instance *pim;
+
+	pim = pim_get_pim_instance(ifp->vrf_id);
+
 	if (PIM_DEBUG_ZEBRA) {
 		zlog_debug(
-			"%s: %s index %d(%u) flags %ld metric %d mtu %d operative %d",
+			"%s: %s index %d(%u) flags %ld metric %d mtu %d operative %d%s",
 			__func__, ifp->name, ifp->ifindex, ifp->vrf_id,
 			(long)ifp->flags, ifp->metric, ifp->mtu,
-			if_is_operative(ifp));
+			if_is_operative(ifp),
+			(pim && pim->shutdown) ? " shutdown" : "");
 	}
 
-	if (!if_is_operative(ifp)) {
+	/* don't down twice */
+	if (pim_ifp && pim_ifp->mroute_vif_index == -1)
+		return 0;
+
+	if (!if_is_operative(ifp) || (pim && pim->shutdown)) {
 		pim_ifchannel_delete_all(ifp);
 		/*
 		  pim_if_addr_del_all() suffices for shutting down IGMP,
@@ -1776,4 +1795,35 @@ int pim_ifp_destroy(struct interface *ifp)
 		pim_vxlan_del_term_dev(pim);
 
 	return 0;
+}
+
+void pim_vrf_shutdown(struct pim_instance *pim, bool shutdown)
+{
+	struct interface *ifp;
+
+	if (shutdown == pim->shutdown)
+		return;
+	pim->shutdown = shutdown;
+
+	if (PIM_DEBUG_ZEBRA) {
+		if (shutdown)
+			zlog_debug("entering admin shutdown on vrf %s",
+				   VRF_LOGNAME(pim->vrf));
+		else
+			zlog_debug("leaving admin shutdown on vrf %s",
+				   VRF_LOGNAME(pim->vrf));
+	}
+
+	FOR_ALL_INTERFACES(pim->vrf, ifp) {
+		struct pim_interface *pim_ifp = ifp->info;
+
+		if (!pim_ifp || pim_ifp->mroute_vif_index == 0)
+			/* pimreg stays up, too much breakage otherwise */
+			continue;
+
+		if (shutdown)
+			pim_ifp_down(ifp);
+		else
+			pim_ifp_up(ifp);
+	}
 }

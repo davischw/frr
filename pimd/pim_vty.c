@@ -176,6 +176,11 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 	else
 		snprintf(spaces, sizeof(spaces), "%s", " ");
 
+	if (pim->shutdown) {
+		vty_out(vty, "%sip pim shutdown\n", spaces);
+		++writes;
+	}
+
 	writes += pim_msdp_peer_config_write(vty, pim, spaces);
 	writes += pim_msdp_config_write(pim, vty, spaces);
 

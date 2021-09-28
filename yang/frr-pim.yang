@@ -125,6 +125,13 @@ module frr-pim {
     description
       "A grouping defining per address family pim global attributes";
 
+    leaf shutdown {
+      type boolean;
+      default "false";
+      description
+        "Disable PIM operation";
+    }
+
     leaf send-v6-secondary {
       when "../frr-pim:address-family = 'frr-rt:ipv4'" {
         description
