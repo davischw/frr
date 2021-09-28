@@ -20,12 +20,16 @@
 #ifndef __STATIC_VRF_H__
 #define __STATIC_VRF_H__
 
+#include "staticd/static_address_list.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 struct static_vrf {
 	struct vrf *vrf;
+
+	struct static_named_route_list named_route_list;
 
 	struct route_table *stable[AFI_MAX][SAFI_MAX];
 };

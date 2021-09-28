@@ -43,6 +43,16 @@ module frr-address-list {
       "Initial revision.";
   }
 
+  typedef address-list-ref {
+    type leafref {
+      path
+        "/frr-address-list:lib/frr-address-list:address-list/frr-address-list:name";
+      require-instance false;
+    }
+    description
+      "Reference to an address list.";
+  }
+
   typedef address-list-name {
     type string {
       length "1..64";

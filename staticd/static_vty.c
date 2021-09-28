@@ -555,7 +555,7 @@ DEFPY_YANG(ip_route_address_interface,
       ip_route_address_interface_cmd,
       "[no] ip route\
 	<A.B.C.D/M$prefix|A.B.C.D$prefix A.B.C.D$mask> \
-	A.B.C.D$gate                                   \
+	<A.B.C.D$gate|address-list WORD$address_name>  \
 	<INTERFACE|Null0>$ifname                       \
 	[{                                             \
 	  tag (1-4294967295)                           \
@@ -574,6 +574,8 @@ DEFPY_YANG(ip_route_address_interface,
       "IP destination prefix\n"
       "IP destination prefix mask\n"
       "IP gateway address\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "IP gateway interface name\n"
       "Null interface\n"
       "Set tag for this route\n"
@@ -600,7 +602,7 @@ DEFPY_YANG(ip_route_address_interface,
 		.safi = SAFI_UNICAST,
 		.prefix = prefix,
 		.prefix_mask = mask_str,
-		.gateway = gate_str,
+		.gateway = gate_str ? gate_str : address_name,
 		.interface_name = ifname,
 		.tag = tag_str,
 		.distance = distance_str,
@@ -623,7 +625,7 @@ DEFPY_YANG(ip_route_address_interface_vrf,
       ip_route_address_interface_vrf_cmd,
       "[no] ip route\
 	<A.B.C.D/M$prefix|A.B.C.D$prefix A.B.C.D$mask> \
-	A.B.C.D$gate                                   \
+	<A.B.C.D$gate|address-list WORD$address_name>  \
 	<INTERFACE|Null0>$ifname                       \
 	[{                                             \
 	  tag (1-4294967295)                           \
@@ -641,6 +643,8 @@ DEFPY_YANG(ip_route_address_interface_vrf,
       "IP destination prefix\n"
       "IP destination prefix mask\n"
       "IP gateway address\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "IP gateway interface name\n"
       "Null interface\n"
       "Set tag for this route\n"
@@ -666,7 +670,7 @@ DEFPY_YANG(ip_route_address_interface_vrf,
 		.safi = SAFI_UNICAST,
 		.prefix = prefix,
 		.prefix_mask = mask_str,
-		.gateway = gate_str,
+		.gateway = gate_str ? gate_str : address_name,
 		.interface_name = ifname,
 		.tag = tag_str,
 		.distance = distance_str,
@@ -689,7 +693,7 @@ DEFPY_YANG(ip_route,
       ip_route_cmd,
       "[no] ip route\
 	<A.B.C.D/M$prefix|A.B.C.D$prefix A.B.C.D$mask> \
-	<A.B.C.D$gate|<INTERFACE|Null0>$ifname>        \
+	<A.B.C.D$gate|<INTERFACE|Null0>$ifname|address-list WORD$address_name> \
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
@@ -708,6 +712,8 @@ DEFPY_YANG(ip_route,
       "IP gateway address\n"
       "IP gateway interface name\n"
       "Null interface\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
@@ -731,7 +737,7 @@ DEFPY_YANG(ip_route,
 		.safi = SAFI_UNICAST,
 		.prefix = prefix,
 		.prefix_mask = mask_str,
-		.gateway = gate_str,
+		.gateway = gate_str ? gate_str : address_name,
 		.interface_name = ifname,
 		.tag = tag_str,
 		.distance = distance_str,
@@ -753,7 +759,7 @@ DEFPY_YANG(ip_route_vrf,
       ip_route_vrf_cmd,
       "[no] ip route\
 	<A.B.C.D/M$prefix|A.B.C.D$prefix A.B.C.D$mask> \
-	<A.B.C.D$gate|<INTERFACE|Null0>$ifname>        \
+	<A.B.C.D$gate|<INTERFACE|Null0>$ifname|address-list WORD$address_name> \
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
@@ -771,6 +777,8 @@ DEFPY_YANG(ip_route_vrf,
       "IP gateway address\n"
       "IP gateway interface name\n"
       "Null interface\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
@@ -793,7 +801,7 @@ DEFPY_YANG(ip_route_vrf,
 		.safi = SAFI_UNICAST,
 		.prefix = prefix,
 		.prefix_mask = mask_str,
-		.gateway = gate_str,
+		.gateway = gate_str ? gate_str : address_name,
 		.interface_name = ifname,
 		.tag = tag_str,
 		.distance = distance_str,
@@ -907,7 +915,7 @@ DEFPY_YANG(ipv6_route_blackhole_vrf,
 DEFPY_YANG(ipv6_route_address_interface,
       ipv6_route_address_interface_cmd,
       "[no] ipv6 route X:X::X:X/M$prefix [from X:X::X:X/M] \
-          X:X::X:X$gate                                    \
+          <X:X::X:X$gate|address-list WORD$address_name>   \
           <INTERFACE|Null0>$ifname                         \
           [{                                               \
             tag (1-4294967295)                             \
@@ -927,6 +935,8 @@ DEFPY_YANG(ipv6_route_address_interface,
       "IPv6 source-dest route\n"
       "IPv6 source prefix\n"
       "IPv6 gateway address\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "IPv6 gateway interface name\n"
       "Null interface\n"
       "Set tag for this route\n"
@@ -953,7 +963,7 @@ DEFPY_YANG(ipv6_route_address_interface,
 		.safi = SAFI_UNICAST,
 		.prefix = prefix_str,
 		.source = from_str,
-		.gateway = gate_str,
+		.gateway = gate_str ? gate_str : address_name,
 		.interface_name = ifname,
 		.tag = tag_str,
 		.distance = distance_str,
@@ -975,7 +985,7 @@ DEFPY_YANG(ipv6_route_address_interface,
 DEFPY_YANG(ipv6_route_address_interface_vrf,
       ipv6_route_address_interface_vrf_cmd,
       "[no] ipv6 route X:X::X:X/M$prefix [from X:X::X:X/M] \
-          X:X::X:X$gate                                    \
+          <X:X::X:X$gate|address-list WORD$address_name>   \
           <INTERFACE|Null0>$ifname                         \
           [{                                               \
             tag (1-4294967295)                             \
@@ -994,6 +1004,8 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
       "IPv6 source-dest route\n"
       "IPv6 source prefix\n"
       "IPv6 gateway address\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "IPv6 gateway interface name\n"
       "Null interface\n"
       "Set tag for this route\n"
@@ -1019,7 +1031,7 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
 		.safi = SAFI_UNICAST,
 		.prefix = prefix_str,
 		.source = from_str,
-		.gateway = gate_str,
+		.gateway = gate_str ? gate_str : address_name,
 		.interface_name = ifname,
 		.tag = tag_str,
 		.distance = distance_str,
@@ -1041,7 +1053,7 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
 DEFPY_YANG(ipv6_route,
       ipv6_route_cmd,
       "[no] ipv6 route X:X::X:X/M$prefix [from X:X::X:X/M] \
-          <X:X::X:X$gate|<INTERFACE|Null0>$ifname>         \
+          <X:X::X:X$gate|<INTERFACE|Null0>$ifname|address-list WORD$address_name> \
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
@@ -1061,6 +1073,8 @@ DEFPY_YANG(ipv6_route,
       "IPv6 gateway address\n"
       "IPv6 gateway interface name\n"
       "Null interface\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
@@ -1084,7 +1098,7 @@ DEFPY_YANG(ipv6_route,
 		.safi = SAFI_UNICAST,
 		.prefix = prefix_str,
 		.source = from_str,
-		.gateway = gate_str,
+		.gateway = gate_str ? gate_str : address_name,
 		.interface_name = ifname,
 		.tag = tag_str,
 		.distance = distance_str,
@@ -1105,7 +1119,7 @@ DEFPY_YANG(ipv6_route,
 DEFPY_YANG(ipv6_route_vrf,
       ipv6_route_vrf_cmd,
       "[no] ipv6 route X:X::X:X/M$prefix [from X:X::X:X/M] \
-          <X:X::X:X$gate|<INTERFACE|Null0>$ifname>                 \
+          <X:X::X:X$gate|<INTERFACE|Null0>$ifname|address-list WORD$address_name> \
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
@@ -1124,6 +1138,8 @@ DEFPY_YANG(ipv6_route_vrf,
       "IPv6 gateway address\n"
       "IPv6 gateway interface name\n"
       "Null interface\n"
+      "Use address-list\n"
+      "Use address-list name\n"
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
@@ -1146,7 +1162,7 @@ DEFPY_YANG(ipv6_route_vrf,
 		.safi = SAFI_UNICAST,
 		.prefix = prefix_str,
 		.source = from_str,
-		.gateway = gate_str,
+		.gateway = gate_str ? gate_str : address_name,
 		.interface_name = ifname,
 		.tag = tag_str,
 		.distance = distance_str,

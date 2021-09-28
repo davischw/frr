@@ -261,7 +261,8 @@ struct static_nexthop *static_add_nexthop(struct static_path *pn,
 					  enum static_nh_type type,
 					  struct ipaddr *ipaddr,
 					  const char *ifname,
-					  const char *nh_vrf, uint32_t color)
+					  const char *nh_vrf, uint32_t color,
+					  const char *address_list_name)
 {
 	struct route_node *rn = pn->rn;
 	struct static_nexthop *nh;
@@ -328,6 +329,10 @@ struct static_nexthop *static_add_nexthop(struct static_path *pn,
 			&rn->p);
 		return nh;
 	}
+
+	if (ipaddr->ipa_type == 0 && address_list_name[0])
+		nh->snr =
+			static_address_list_new(nh_svrf, address_list_name, nh);
 
 	/* check whether interface exists in system & install if it does */
 	switch (nh->type) {
@@ -400,6 +405,8 @@ void static_delete_nexthop(struct static_nexthop *nh)
 
 	if (nh->nh_vrf_id == VRF_UNKNOWN)
 		goto EXIT;
+
+	static_address_list_free(&nh->snr);
 
 	static_zebra_nht_register(nh, false);
 	/*

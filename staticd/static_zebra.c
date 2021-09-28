@@ -327,6 +327,13 @@ void static_zebra_nht_register(struct static_nexthop *nh, bool reg)
 	struct static_nht_data *nhtd, lookup = {};
 	uint32_t cmd;
 
+	/*
+	 * If we are registering a next hop for tracking make sure the
+	 * address was resolved. If we are removing a registration then
+	 * it is expected that the address is not resolved anymore.
+	 */
+	if (nh->snr && reg && !static_named_route_active(nh->snr))
+		return;
 	if (!static_zebra_nht_get_prefix(nh, &lookup.nh))
 		return;
 	lookup.nh_vrf_id = nh->nh_vrf_id;
@@ -446,6 +453,8 @@ extern void static_zebra_route_add(struct static_path *pn, bool install)
 			continue;
 		/* Skip next hop which peer is down. */
 		if (nh->path_down)
+			continue;
+		if (nh->snr && !static_named_route_active(nh->snr))
 			continue;
 
 		api_nh->vrf_id = nh->nh_vrf_id;
