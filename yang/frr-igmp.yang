@@ -150,6 +150,14 @@ module frr-igmp {
         "Only process IGMP packets with IP Router Alert option set.";
     }
 
+    leaf immediate-leave {
+      type boolean;
+      default "false";
+      description
+        "Immediately drop group memberships on receiving IGMPv2 Leave. "
+      + "Has no effect when IGMPv3 is in use.";
+    }
+
     leaf igmpv3-sources-route-map {
       type frr-route-map:route-map-ref;
       description

@@ -781,8 +781,25 @@ static void toin_incl(struct igmp_group *group, int num_sources,
 static void toin_excl(struct igmp_group *group, int num_sources,
 		      struct in_addr *sources)
 {
+	struct listnode *src_node, *src_next;
+	struct pim_interface *pim_ifp = group->interface->info;
 	int num_sources_tosend;
 	int i;
+
+	if (group->igmp_version == 2 && pim_ifp->igmp_immediate_leave) {
+		struct igmp_source *src;
+
+		if (PIM_DEBUG_IGMP_TRACE)
+			zlog_debug("IGMP(v2) Immediate-leave group %pI4 on %s",
+				   &group->group_addr, group->interface->name);
+
+		igmp_group_timer_on(group, 0, group->interface->name);
+
+		for (ALL_LIST_ELEMENTS(group->group_source_list, src_node,
+				       src_next, src))
+			igmp_source_delete(src);
+		return;
+	}
 
 	/* Set SEND flag for X (sources with timer > 0) */
 	num_sources_tosend = source_mark_send_flag_by_timer(group);

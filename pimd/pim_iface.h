@@ -105,6 +105,7 @@ struct pim_interface {
 							   queries */
 	int igmp_last_member_query_count; /* IGMP last member query count */
 	bool igmp_require_ra;		/* drop IGMP without Router Alert */
+	bool igmp_immediate_leave;	/* IGMP v2-only immediate leave */
 	struct list *igmp_socket_list; /* list of struct igmp_sock */
 	struct list *igmp_join_list;   /* list of struct igmp_join */
 	struct list *igmp_group_list;  /* list of struct igmp_group */

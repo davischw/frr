@@ -447,6 +447,13 @@ int pim_interface_config_write(struct vty *vty)
 					++writes;
 				}
 
+				/* IF ip igmp immediate-leave */
+				if (pim_ifp->igmp_immediate_leave) {
+					vty_out(vty,
+						" ip igmp immediate-leave\n");
+					++writes;
+				}
+
 				/* IF ip igmp sources  */
 				if (pim_ifp->igmp_source_rmap) {
 					vty_out(vty,

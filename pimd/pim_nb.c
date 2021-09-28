@@ -520,6 +520,12 @@ const struct frr_yang_module_info frr_igmp_info = {
 			}
 		},
 		{
+			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/immediate-leave",
+			.cbs = {
+				.modify = lib_interface_igmp_immediate_leave_modify,
+			}
+		},
+		{
 			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/igmpv3-sources-route-map",
 			.cbs = {
 				.modify = lib_interface_igmp_sources_rmap_modify,
