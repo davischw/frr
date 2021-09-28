@@ -125,6 +125,8 @@ struct pim_interface {
 
 	/* NB: multicast_rmap is only applied for (S,G) data */
 	char *multicast_rmap;
+	/* IGMP v2-only immediate leave */
+	bool igmp_immediate_leave;
 
 	int pim_sock_fd;		/* PIM socket file descriptor */
 	struct thread *t_pim_sock_read; /* thread for reading PIM socket */

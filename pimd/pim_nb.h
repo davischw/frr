@@ -217,6 +217,8 @@ int lib_interface_gm_max_sources_modify(struct nb_cb_modify_args *args);
 int lib_interface_gm_max_groups_modify(struct nb_cb_modify_args *args);
 int lib_interface_gm_rmap_modify(struct nb_cb_modify_args *args);
 int lib_interface_gm_rmap_destroy(struct nb_cb_destroy_args *args);
+int lib_interface_igmp_immediate_leave_modify(struct nb_cb_modify_args *args);
+int lib_interface_igmp_immediate_leave_destroy(struct nb_cb_destroy_args *args);
 
 
 /* frr-candidate */

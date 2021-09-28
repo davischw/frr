@@ -4311,6 +4311,20 @@ DEFPY(interface_ip_igmp_require_ra, interface_ip_igmp_require_ra_cmd,
 	return nb_cli_apply_changes(vty, "./frr-gmp:gmp");
 }
 
+DEFPY(interface_ip_igmp_immediate_leave_ra,
+      interface_ip_igmp_immediate_leave_cmd,
+      "[no] ip igmp immediate-leave",
+      NO_STR
+      IP_STR
+      IFACE_IGMP_STR
+      "Immediately drop group memberships on receiving Leave (IGMPv2 only)\n")
+{
+	nb_cli_enqueue_change(vty, "./immediate-leave", NB_OP_MODIFY,
+			      no ? "false" : "true");
+
+	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+}
+
 DEFPY(interface_ip_igmp_rmap, interface_ip_igmp_rmap_cmd,
       "[no] ip igmp route-map RMAP_NAME",
       NO_STR
@@ -7133,6 +7147,7 @@ void pim_cmd_init(void)
 	install_element(INTERFACE_NODE, &interface_ip_igmp_require_ra_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_igmp_rmap_cmd);
 	install_element(INTERFACE_NODE, &no_interface_ip_igmp_rmap_cmd);
+	install_element(INTERFACE_NODE, &interface_ip_igmp_immediate_leave_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_pim_activeactive_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_pim_ssm_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ip_pim_ssm_cmd);

@@ -178,6 +178,15 @@ module frr-gmp {
         "Filter multicast with referenced route-map.";
     }
 
+    leaf immediate-leave {
+      when "../frr-gmp:address-family = 'frr-rt:ipv4'";
+      type boolean;
+      default "false";
+      description
+        "Immediately drop group memberships on receiving IGMPv2 Leave.
+         Has no effect when IGMPv3 is in use.";
+    }
+
     list static-group {
       key "group-addr source-addr";
       description
