@@ -4463,6 +4463,48 @@ void ospf_ls_ack_send_delayed(struct ospf_interface *oi)
 		ospf_ls_ack_send_list(oi, oi->ls_ack, dst);
 }
 
+void ospf_grace_lsa_send(struct ospf_interface *oi, struct ospf_lsa *lsa,
+			 in_addr_t addr)
+{
+	struct list *update;
+	struct ospf_packet *op;
+	uint16_t length = OSPF_HEADER_SIZE;
+	struct thread os_packet_thd;
+
+	update = list_new();
+	listnode_add(update, lsa);
+
+	op = ospf_ls_upd_packet_new(update, oi);
+
+	/* Prepare OSPF common header. */
+	ospf_make_header(OSPF_MSG_LS_UPD, oi, op->s);
+
+	/* Prepare OSPF Link State Update body. */
+	length += ospf_make_ls_upd(oi, update, op->s);
+
+	/* Fill OSPF header. */
+	ospf_fill_header(oi, op->s, length);
+
+	/* Set packet length. */
+	op->length = length;
+
+	/* Add packet to the interface output queue. */
+	op->dst.s_addr = addr;
+	ospf_packet_add(oi, op);
+
+	/* Call ospf_write() right away to send ospf packets to neighbors */
+	os_packet_thd.arg = (void *)oi->ospf;
+	if (oi->on_write_q == 0) {
+		listnode_add(oi->ospf->oi_write_q, oi);
+		oi->on_write_q = 1;
+	}
+	ospf_write(&os_packet_thd);
+	if (list_isempty(oi->ospf->oi_write_q))
+		OSPF_TIMER_OFF(oi->ospf->t_write);
+
+	list_delete(&update);
+}
+
 /*
  * On pt-to-pt links, all OSPF control packets are sent to the multicast
  * address. As a result, the kernel does not need to learn the interface

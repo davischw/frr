@@ -2688,6 +2688,57 @@ DEFPY(ospf_instance_shutdown, ospf_instance_shutdown_cmd,
 	return CMD_SUCCESS;
 }
 
+DEFPY(ospf_instance_shutdown_graceful, ospf_instance_shutdown_graceful_cmd,
+      "no shutdown graceful",
+      NO_STR
+      "Administrative shutdown\n"
+      "Attempt to perform a graceful restart\n")
+{
+	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
+	struct ospf_area *area;
+	struct ospf_interface *oi;
+	struct listnode *anode, *inode;
+
+	/*
+	 * RFC 3623 - Section 5 ("Unplanned Outages"):
+	 * "The grace-LSAs are encapsulated in Link State Update Packets
+	 * and sent out to all interfaces, even though the restarted
+	 * router has no adjacencies and no knowledge of previous
+	 * adjacencies".
+	 */
+	for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area)) {
+		for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode, oi)) {
+			/*
+			 * Can't check OSPF interface state as the OSPF
+			 * instance wasn't enabled yet.
+			 */
+			if (!if_is_operative(oi->ifp)
+			    || if_is_loopback(oi->ifp))
+				continue;
+
+			/* Send Grace-LSA. */
+			ospf_gr_lsa_originate(oi,
+					      OSPF_GR_SWITCH_CONTROL_PROCESSOR);
+
+			/* Start GR hello-delay interval. */
+			if (OSPF_IF_PARAM_CONFIGURED(IF_DEF_PARAMS(oi->ifp),
+						     v_gr_hello_delay)) {
+				oi->gr.hello_delay.elapsed_seconds = 0;
+				thread_add_timer(
+					master, ospf_gr_iface_send_grace_lsa,
+					oi, 1,
+					&oi->gr.hello_delay.t_grace_send);
+			}
+		}
+	}
+
+	/* Reenable routing instance in the GR mode. */
+	ospf_gr_restart_enter(ospf, time(NULL) + OSPF_DFLT_GRACE_INTERVAL);
+	ospf_shutdown(ospf, false);
+
+	return CMD_SUCCESS;
+}
+
 DEFUN(ospf_ti_lfa, ospf_ti_lfa_cmd, "fast-reroute ti-lfa [node-protection]",
       "Fast Reroute for MPLS and IP resilience\n"
       "Topology Independent LFA (Loop-Free Alternate)\n"
@@ -8828,6 +8879,59 @@ DEFUN_HIDDEN (no_ospf_retransmit_interval,
 	return no_ip_ospf_retransmit_interval(self, vty, argc, argv);
 }
 
+DEFPY (ip_ospf_gr_hdelay,
+       ip_ospf_gr_hdelay_cmd,
+       "ip ospf graceful-restart hello-delay (1-1800)",
+       IP_STR
+       "OSPF interface commands\n"
+       "Graceful Restart parameters\n"
+       "Delay the sending of the first hello packets.\n"
+       "Delay in seconds\n")
+{
+	VTY_DECLVAR_CONTEXT(interface, ifp);
+	struct ospf_if_params *params;
+
+	params = IF_DEF_PARAMS(ifp);
+
+	/* Note: new or updated value won't affect ongoing graceful restart. */
+	SET_IF_PARAM(params, v_gr_hello_delay);
+	params->v_gr_hello_delay = hello_delay;
+
+	return CMD_SUCCESS;
+}
+
+DEFPY (no_ip_ospf_gr_hdelay,
+       no_ip_ospf_gr_hdelay_cmd,
+       "no ip ospf graceful-restart hello-delay [(1-1800)]",
+       NO_STR
+       IP_STR
+       "OSPF interface commands\n"
+       "Graceful Restart parameters\n"
+       "Delay the sending of the first hello packets.\n"
+       "Delay in seconds\n")
+{
+	VTY_DECLVAR_CONTEXT(interface, ifp);
+	struct ospf_if_params *params;
+	struct route_node *rn;
+
+	params = IF_DEF_PARAMS(ifp);
+	UNSET_IF_PARAM(params, v_gr_hello_delay);
+	params->v_gr_hello_delay = 0;
+
+	for (rn = route_top(IF_OIFS(ifp)); rn; rn = route_next(rn)) {
+		struct ospf_interface *oi;
+
+		oi = rn->info;
+		if (!oi)
+			continue;
+
+		oi->gr.hello_delay.elapsed_seconds = 0;
+		THREAD_OFF(oi->gr.hello_delay.t_grace_send);
+	}
+
+	return CMD_SUCCESS;
+}
+
 DEFUN (ip_ospf_transmit_delay,
        ip_ospf_transmit_delay_addr_cmd,
        "ip ospf transmit-delay (1-65535) [A.B.C.D]",
@@ -11910,6 +12014,14 @@ static int config_write_interface_one(struct vty *vty, struct vrf *vrf)
 				vty_out(vty, "\n");
 			}
 
+			/* Hello Graceful-Restart Delay print. */
+			if (params
+			    && OSPF_IF_PARAM_CONFIGURED(params,
+							v_gr_hello_delay))
+				vty_out(vty,
+					" ip ospf graceful-restart hello-delay %u\n",
+					params->v_gr_hello_delay);
+
 			/* Router Priority print. */
 			if (OSPF_IF_PARAM_CONFIGURED(params, priority)
 			    && params->priority
@@ -12742,6 +12854,10 @@ static void ospf_vty_if_init(void)
 	install_element(INTERFACE_NODE,
 			&no_ip_ospf_retransmit_interval_addr_cmd);
 
+	/* "ip ospf graceful-restart hello-delay" commands. */
+	install_element(INTERFACE_NODE, &ip_ospf_gr_hdelay_cmd);
+	install_element(INTERFACE_NODE, &no_ip_ospf_gr_hdelay_cmd);
+
 	/* "ip ospf transmit-delay" commands. */
 	install_element(INTERFACE_NODE, &ip_ospf_transmit_delay_addr_cmd);
 	install_element(INTERFACE_NODE, &no_ip_ospf_transmit_delay_addr_cmd);
@@ -13033,6 +13149,7 @@ void ospf_vty_init(void)
 
 	/* shutdown command */
 	install_element(OSPF_NODE, &ospf_instance_shutdown_cmd);
+	install_element(OSPF_NODE, &ospf_instance_shutdown_graceful_cmd);
 
 	/* TI-LFA commands */
 	install_element(OSPF_NODE, &ospf_ti_lfa_cmd);

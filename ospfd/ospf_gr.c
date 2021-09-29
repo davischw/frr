@@ -48,6 +48,7 @@
 #include "ospfd/ospf_gr_clippy.c"
 #endif
 
+static int ospf_gr_grace_period_expired(struct thread *thread);
 static void ospf_gr_nvm_delete(struct ospf *ospf);
 
 /* Lookup self-originated Grace-LSA in the LSDB. */
@@ -68,7 +69,9 @@ static struct ospf_lsa *ospf_gr_lsa_lookup(struct ospf *ospf,
 
 /* Fill in fields of the Grace-LSA that is being originated. */
 static void ospf_gr_lsa_body_set(struct ospf_gr_info *gr_info,
-				 struct ospf_interface *oi, struct stream *s)
+				 struct ospf_interface *oi,
+				 enum ospf_gr_restart_reason reason,
+				 struct stream *s)
 {
 	struct grace_tlv_graceperiod tlv_period = {};
 	struct grace_tlv_restart_reason tlv_reason = {};
@@ -83,10 +86,7 @@ static void ospf_gr_lsa_body_set(struct ospf_gr_info *gr_info,
 	/* Put restart reason. */
 	tlv_reason.header.type = htons(RESTART_REASON_TYPE);
 	tlv_reason.header.length = htons(RESTART_REASON_LENGTH);
-	if (gr_info->restart_support)
-		tlv_reason.reason = OSPF_GR_SW_RESTART;
-	else
-		tlv_reason.reason = OSPF_GR_UNKNOWN_RESTART;
+	tlv_reason.reason = reason;
 	stream_put(s, &tlv_reason, sizeof(tlv_reason));
 
 	/* Put IP address. */
@@ -100,7 +100,8 @@ static void ospf_gr_lsa_body_set(struct ospf_gr_info *gr_info,
 }
 
 /* Generate Grace-LSA for a given interface. */
-static struct ospf_lsa *ospf_gr_lsa_new(struct ospf_interface *oi)
+static struct ospf_lsa *ospf_gr_lsa_new(struct ospf_interface *oi,
+					enum ospf_gr_restart_reason reason)
 {
 	struct stream *s;
 	struct lsa_header *lsah;
@@ -127,7 +128,7 @@ static struct ospf_lsa *ospf_gr_lsa_new(struct ospf_interface *oi)
 	lsa_header_set(s, options, lsa_type, lsa_id, oi->ospf->router_id);
 
 	/* Set opaque-LSA body fields. */
-	ospf_gr_lsa_body_set(&oi->ospf->gr_info, oi, s);
+	ospf_gr_lsa_body_set(&oi->ospf->gr_info, oi, reason, s);
 
 	/* Set length. */
 	length = stream_get_endp(s);
@@ -150,15 +151,17 @@ static struct ospf_lsa *ospf_gr_lsa_new(struct ospf_interface *oi)
 }
 
 /* Originate and install Grace-LSA for a given interface. */
-static void ospf_gr_lsa_originate(struct ospf_interface *oi)
+void ospf_gr_lsa_originate(struct ospf_interface *oi,
+			   enum ospf_gr_restart_reason reason)
 {
 	struct ospf_lsa *lsa, *old;
 
-	if (ospf_interface_neighbor_count(oi) == 0)
+	if (reason != OSPF_GR_SWITCH_CONTROL_PROCESSOR
+	    && ospf_interface_neighbor_count(oi) == 0)
 		return;
 
 	/* Create new Grace-LSA. */
-	lsa = ospf_gr_lsa_new(oi);
+	lsa = ospf_gr_lsa_new(oi, reason);
 	if (!lsa) {
 		zlog_warn("%s: ospf_gr_lsa_new() failed", __func__);
 		return;
@@ -169,18 +172,25 @@ static void ospf_gr_lsa_originate(struct ospf_interface *oi)
 	if (old)
 		lsa->data->ls_seqnum = lsa_seqnum_increment(old);
 
-	/* Install this LSA into LSDB. */
-	if (ospf_lsa_install(oi->ospf, oi, lsa) == NULL) {
-		zlog_warn("%s: ospf_lsa_install() failed", __func__);
-		ospf_lsa_unlock(&lsa);
-		return;
+	if (reason == OSPF_GR_SWITCH_CONTROL_PROCESSOR) {
+		ospf_lsa_checksum(lsa->data);
+		ospf_lsa_lock(lsa);
+		ospf_grace_lsa_send(oi, lsa, htonl(OSPF_ALLSPFROUTERS));
+		ospf_lsa_discard(lsa);
+	} else {
+		/* Install this LSA into LSDB. */
+		if (ospf_lsa_install(oi->ospf, oi, lsa) == NULL) {
+			zlog_warn("%s: ospf_lsa_install() failed", __func__);
+			ospf_lsa_unlock(&lsa);
+			return;
+		}
+
+		/* Flood the LSA through out the interface */
+		ospf_flood_through_interface(oi, NULL, lsa);
 	}
 
 	/* Update new LSA origination count. */
 	oi->ospf->lsa_originate_count++;
-
-	/* Flood the LSA through out the interface */
-	ospf_flood_through_interface(oi, NULL, lsa);
 }
 
 /* Flush a given self-originated Grace-LSA. */
@@ -267,13 +277,22 @@ static void ospf_gr_restart_exit(struct ospf *ospf, const char *reason)
 		 */
 		ospf_router_lsa_update_area(area);
 
-		/*
-		 * 2) The router should reoriginate network-LSAs on all segments
-		 *    where it is the Designated Router.
-		 */
-		for (ALL_LIST_ELEMENTS_RO(area->oiflist, anode, oi))
+		for (ALL_LIST_ELEMENTS_RO(area->oiflist, anode, oi)) {
+			/* Disable hello delay. */
+			if (oi->gr.hello_delay.t_grace_send) {
+				oi->gr.hello_delay.elapsed_seconds = 0;
+				THREAD_OFF(oi->gr.hello_delay.t_grace_send);
+				OSPF_ISM_TIMER_MSEC_ON(oi->t_hello,
+						       ospf_hello_timer, 1);
+			}
+
+			/*
+			 * 2) The router should reoriginate network-LSAs on all
+			 * segments where it is the Designated Router.
+			 */
 			if (oi->state == ISM_DR)
 				ospf_network_lsa_update(oi);
+		}
 	}
 
 	/*
@@ -297,6 +316,24 @@ static void ospf_gr_restart_exit(struct ospf *ospf, const char *reason)
 
 	/* 6) Any grace-LSAs that the router originated should be flushed. */
 	ospf_gr_flush_grace_lsas(ospf);
+}
+
+/* Enter the Graceful Restart mode. */
+void ospf_gr_restart_enter(struct ospf *ospf, int timestamp)
+{
+	unsigned long remaining_time;
+
+	ospf->gr_info.restart_in_progress = true;
+
+	/* Schedule grace period timeout. */
+	remaining_time = timestamp - time(NULL);
+	if (IS_DEBUG_OSPF_GR)
+		zlog_debug(
+			"GR: remaining time until grace period expires: %lu(s)",
+			remaining_time);
+
+	thread_add_timer(master, ospf_gr_grace_period_expired, ospf,
+			 remaining_time, &ospf->gr_info.t_grace_period);
 }
 
 /* Check if a Router-LSA contains a given link. */
@@ -571,6 +608,25 @@ static char *ospf_gr_nvm_filepath(struct ospf *ospf)
 	return filepath;
 }
 
+/* Send extra Grace-LSA out the interface (unplanned outages only). */
+int ospf_gr_iface_send_grace_lsa(struct thread *thread)
+{
+	struct ospf_interface *oi = THREAD_ARG(thread);
+	struct ospf_if_params *params = IF_DEF_PARAMS(oi->ifp);
+
+	oi->gr.hello_delay.t_grace_send = NULL;
+
+	ospf_gr_lsa_originate(oi, OSPF_GR_SWITCH_CONTROL_PROCESSOR);
+
+	if (++oi->gr.hello_delay.elapsed_seconds < params->v_gr_hello_delay)
+		thread_add_timer(master, ospf_gr_iface_send_grace_lsa, oi, 1,
+				 &oi->gr.hello_delay.t_grace_send);
+	else
+		OSPF_ISM_TIMER_MSEC_ON(oi->t_hello, ospf_hello_timer, 1);
+
+	return 0;
+}
+
 /*
  * Record in non-volatile memory that the given OSPF instance is attempting to
  * perform a graceful restart.
@@ -685,7 +741,6 @@ void ospf_gr_nvm_read(struct ospf *ospf)
 	json_object_object_get_ex(json_instance, "timestamp", &json_timestamp);
 	if (json_timestamp) {
 		time_t now;
-		unsigned long remaining_time;
 
 		/* Check if the grace period has already expired. */
 		now = time(NULL);
@@ -693,18 +748,8 @@ void ospf_gr_nvm_read(struct ospf *ospf)
 		if (now > timestamp) {
 			ospf_gr_restart_exit(
 				ospf, "grace period has expired already");
-		} else {
-			/* Schedule grace period timeout. */
-			ospf->gr_info.restart_in_progress = true;
-			remaining_time = timestamp - time(NULL);
-			if (IS_DEBUG_OSPF_GR)
-				zlog_debug(
-					"GR: remaining time until grace period expires: %lu(s)",
-					remaining_time);
-			thread_add_timer(master, ospf_gr_grace_period_expired,
-					 ospf, remaining_time,
-					 &ospf->gr_info.t_grace_period);
-		}
+		} else
+			ospf_gr_restart_enter(ospf, timestamp);
 	}
 
 	json_object_object_del(json_instances, inst_name);
@@ -750,7 +795,7 @@ static void ospf_gr_prepare(void)
 
 		/* Send a Grace-LSA to all neighbors. */
 		for (ALL_LIST_ELEMENTS_RO(ospf->oiflist, inode, oi))
-			ospf_gr_lsa_originate(oi);
+			ospf_gr_lsa_originate(oi, OSPF_GR_SW_RESTART);
 
 		/* Record end of the grace period in non-volatile memory. */
 		ospf_gr_nvm_update(ospf);

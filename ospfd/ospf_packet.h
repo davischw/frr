@@ -141,6 +141,8 @@ extern void ospf_fifo_free(struct ospf_fifo *);
 
 extern int ospf_read(struct thread *);
 extern void ospf_hello_send(struct ospf_interface *);
+extern void ospf_grace_lsa_send(struct ospf_interface *oi, struct ospf_lsa *lsa,
+				in_addr_t addr);
 extern void ospf_db_desc_send(struct ospf_neighbor *);
 extern void ospf_db_desc_resend(struct ospf_neighbor *);
 extern void ospf_ls_req_send(struct ospf_neighbor *);
