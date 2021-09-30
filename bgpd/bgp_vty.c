@@ -16342,7 +16342,7 @@ static void bgp_config_write_peer_af(struct vty *vty, struct bgp *bgp,
 	bool flag_scomm, flag_secomm, flag_slcomm;
 
 	/* Skip dynamic neighbors. */
-	if (peer_dynamic_neighbor(peer) || peer_address_list_neighbor(peer))
+	if (peer_dynamic_neighbor(peer))
 		return;
 
 	if (peer->conf_if)

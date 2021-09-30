@@ -7854,6 +7854,8 @@ struct peer *peer_lookup_in_view(struct vty *vty, struct bgp *bgp,
 	ret = str2sockunion(ip_str, &su);
 	if (ret < 0) {
 		peer = peer_lookup_by_conf_if(bgp, ip_str);
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp, ip_str);
 		if (!peer) {
 			peer = peer_lookup_by_hostname(bgp, ip_str);
 

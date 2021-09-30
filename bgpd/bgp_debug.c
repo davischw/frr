@@ -207,7 +207,8 @@ static struct peer *bgp_find_peer(struct vty *vty, const char *peer_str)
 	/* 'swpX' string */
 	if (ret < 0) {
 		peer = peer_lookup_by_conf_if(bgp, peer_str);
-
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(bgp, peer_str);
 		if (!peer)
 			peer = peer_lookup_by_hostname(bgp, peer_str);
 

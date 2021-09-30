@@ -33,10 +33,6 @@
 #include "bgpd/bgp_vty.h"
 #include "bgpd/bgp_zebra.h"
 
-#ifndef VTYSH_EXTRACT_PL
-#include "bgpd/bgp_address_list_clippy.c"
-#endif /* VTYSH_EXTRACT_PL */
-
 /*
  * Prototypes.
  */
@@ -156,14 +152,26 @@ struct bgp_named_peer *address_list_lookup_by_name(struct bgp *bgp,
 						   const char *name)
 {
 	struct bgp_named_peer *np;
+	struct listnode *node;
 
-	LIST_FOREACH (np, &bgp->named_peer_list, entry) {
-		if (strcmp(np->name, name))
-			continue;
+	if (bgp) {
+		LIST_FOREACH (np, &bgp->named_peer_list, entry) {
+			if (strcmp(np->name, name))
+				continue;
 
-		return np;
+			return np;
+		}
+		return NULL;
 	}
 
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		LIST_FOREACH (np, &bgp->named_peer_list, entry) {
+			if (strcmp(np->name, name))
+				continue;
+
+			return np;
+		}
+	}
 	return NULL;
 }
 

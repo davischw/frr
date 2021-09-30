@@ -13663,6 +13663,8 @@ DEFUN (show_ip_bgp_neighbor_received_prefix_filter,
 	ret = str2sockunion(peerstr, &su);
 	if (ret < 0) {
 		peer = peer_lookup_by_conf_if(NULL, peerstr);
+		if (peer == NULL)
+			peer = peer_lookup_by_address_list(NULL, peerstr);
 		if (!peer) {
 			if (uj)
 				vty_out(vty, "{}\n");
