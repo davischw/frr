@@ -114,8 +114,7 @@ struct pim_interface {
 	uint32_t igmp_source_count;
 	uint32_t igmp_source_limit, igmp_group_limit;
 
-	/* NB: igmp_source_rmap is only applied for IGMPv3 (S,G) data */
-	char *igmp_source_rmap;
+	char *igmp_rmap;
 
 	int pim_sock_fd;		/* PIM socket file descriptor */
 	struct thread *t_pim_sock_read; /* thread for reading PIM socket */

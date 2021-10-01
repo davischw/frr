@@ -3535,8 +3535,10 @@ int lib_interface_igmp_immediate_leave_modify(
 	return NB_OK;
 }
 
-int lib_interface_igmp_sources_rmap_modify(struct nb_cb_modify_args *args)
+int lib_interface_igmp_rmap_modify(struct nb_cb_modify_args *args)
 {
+	const struct lyd_node *if_dnode;
+	const char *ifp_name;
 	struct interface *ifp;
 	struct pim_interface *pim_ifp;
 	const char *rmap;
@@ -3545,6 +3547,15 @@ int lib_interface_igmp_sources_rmap_modify(struct nb_cb_modify_args *args)
 
 	switch (args->event) {
 	case NB_EV_VALIDATE:
+		if_dnode = yang_dnode_get_parent(args->dnode, "interface");
+		if (!is_pim_interface(if_dnode)) {
+			ifp_name = yang_dnode_get_string(if_dnode, "name");
+			snprintf(args->errmsg, args->errmsg_len,
+				 "multicast not enabled on interface %s",
+				 ifp_name);
+			return NB_ERR_VALIDATION;
+		}
+		break;
 	case NB_EV_ABORT:
 	case NB_EV_PREPARE:
 		break;
@@ -3552,8 +3563,11 @@ int lib_interface_igmp_sources_rmap_modify(struct nb_cb_modify_args *args)
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		pim_ifp = ifp->info;
 
-		XFREE(MTYPE_PIM_RMAP_NAME, pim_ifp->igmp_source_rmap);
-		pim_ifp->igmp_source_rmap = XSTRDUP(MTYPE_PIM_RMAP_NAME,
+		if (!pim_ifp)
+			break;
+
+		XFREE(MTYPE_PIM_RMAP_NAME, pim_ifp->igmp_rmap);
+		pim_ifp->igmp_rmap = XSTRDUP(MTYPE_PIM_RMAP_NAME,
 						    rmap);
 		break;
 	}
@@ -3561,7 +3575,7 @@ int lib_interface_igmp_sources_rmap_modify(struct nb_cb_modify_args *args)
 	return NB_OK;
 }
 
-int lib_interface_igmp_sources_rmap_destroy(struct nb_cb_destroy_args *args)
+int lib_interface_igmp_rmap_destroy(struct nb_cb_destroy_args *args)
 {
 	struct interface *ifp;
 	struct pim_interface *pim_ifp;
@@ -3574,7 +3588,11 @@ int lib_interface_igmp_sources_rmap_destroy(struct nb_cb_destroy_args *args)
 	case NB_EV_APPLY:
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		pim_ifp = ifp->info;
-		XFREE(MTYPE_PIM_RMAP_NAME, pim_ifp->igmp_source_rmap);
+
+		if (!pim_ifp)
+			break;
+
+		XFREE(MTYPE_PIM_RMAP_NAME, pim_ifp->igmp_rmap);
 		break;
 	}
 

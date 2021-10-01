@@ -158,7 +158,7 @@ module frr-igmp {
       + "Has no effect when IGMPv3 is in use.";
     }
 
-    leaf igmpv3-sources-route-map {
+    leaf igmpv3-route-map {
       type frr-route-map:route-map-ref;
       description
         "Filter IGMPv3 sources with referenced route-map.";

@@ -39,6 +39,7 @@
 #include "pim_time.h"
 #include "pim_southbound.h"
 #include "pim_zebra.h"
+#include "pim_routemap.h"
 
 static void group_timer_off(struct igmp_group *group);
 static int pim_igmp_general_query(struct thread *t);
@@ -1157,6 +1158,24 @@ static void group_timer_off(struct igmp_group *group)
 void igmp_group_timer_on(struct igmp_group *group, long interval_msec,
 			 const char *ifname)
 {
+	struct pim_interface *pim_ifp = group->interface->info;
+	struct prefix_sg sg = {
+		.family = AF_INET,
+		.prefixlen = 32,
+		.grp = group->group_addr,
+	};
+
+	if (interval_msec && pim_ifp->igmp_rmap
+	    && !pim_routemap_match(&sg, group->interface, NULL,
+				   pim_ifp->igmp_rmap)) {
+		if (PIM_DEBUG_IGMP_TRACE)
+			zlog_debug(
+				"Timer for %pSG4 on %s not refreshed due to route-map reject",
+				&sg, ifname);
+
+		return;
+	}
+
 	group_timer_off(group);
 
 	if (PIM_DEBUG_IGMP_EVENTS) {
