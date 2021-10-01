@@ -7458,47 +7458,52 @@ DEFUN (no_ip_pim_v6_secondary,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-DEFUN (ip_pim_rp,
+static bool rp_has_other(const struct lyd_node *dnode, const char *rp_xpath,
+			 const char *fallback)
+{
+	char group_list_xpath[XPATH_MAXLEN + 32];
+	char prefix_list_xpath[XPATH_MAXLEN + 32];
+
+	snprintf(group_list_xpath, sizeof(group_list_xpath), "%s/%sgroup-list",
+		 rp_xpath, fallback ? "" : "fallback-");
+	snprintf(prefix_list_xpath, sizeof(prefix_list_xpath),
+		 "%s/%sprefix-list", rp_xpath, fallback ? "" : "fallback-");
+
+	return yang_dnode_exists(dnode, group_list_xpath)
+		|| yang_dnode_exists(dnode, prefix_list_xpath);
+}
+
+DEFPY (ip_pim_rp,
        ip_pim_rp_cmd,
-       "ip pim rp A.B.C.D [A.B.C.D/M]",
+       "ip pim rp A.B.C.D [fallback$fallback] [A.B.C.D/M$group]",
        IP_STR
        "pim multicast routing\n"
        "Rendevous Point\n"
        "ip address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "Group Address range to cover\n")
 {
 	const char *vrfname;
-	int idx_rp = 3, idx_group = 4;
 	char rp_group_xpath[XPATH_MAXLEN];
 	int result = 0;
-	struct prefix group;
 	struct in_addr rp_addr;
-	const char *group_str =
-		(argc == 5) ? argv[idx_group]->arg : "224.0.0.0/4";
 
-	result = str2prefix(group_str, &group);
-	if (result) {
+	if (group_str) {
 		struct prefix temp;
 
-		prefix_copy(&temp, &group);
+		prefix_copy(&temp, group);
 		apply_mask(&temp);
-		if (!prefix_same(&group, &temp)) {
+		if (!prefix_same(group, &temp)) {
 			vty_out(vty, "%% Inconsistent address and mask: %s\n",
 				group_str);
 			return CMD_WARNING_CONFIG_FAILED;
 		}
-	}
+	} else
+		group_str = "224.0.0.0/4";
 
-	if (!result) {
-		vty_out(vty, "%% Bad group address specified: %s\n",
-			group_str);
-		return CMD_WARNING_CONFIG_FAILED;
-	}
-
-	result = inet_pton(AF_INET, argv[idx_rp]->arg, &rp_addr);
+	result = inet_pton(AF_INET, rp_str, &rp_addr);
 	if (result <= 0) {
-		vty_out(vty, "%% Bad RP address specified: %s\n",
-			argv[idx_rp]->arg);
+		vty_out(vty, "%% Bad RP address specified: %s\n", rp_str);
 		return CMD_WARNING_CONFIG_FAILED;
 	}
 
@@ -7507,27 +7512,26 @@ DEFUN (ip_pim_rp,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(rp_group_xpath, sizeof(rp_group_xpath),
-		 FRR_PIM_STATIC_RP_XPATH,
+		 FRR_PIM_STATIC_RP_XPATH "/%sgroup-list",
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
-		 argv[idx_rp]->arg);
-	strlcat(rp_group_xpath, "/group-list", sizeof(rp_group_xpath));
+		 rp_str, fallback ? "fallback-" : "");
 
 	nb_cli_enqueue_change(vty, rp_group_xpath, NB_OP_CREATE, group_str);
 
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-DEFUN (ip_pim_rp_prefix_list,
+DEFPY (ip_pim_rp_prefix_list,
        ip_pim_rp_prefix_list_cmd,
-       "ip pim rp A.B.C.D prefix-list WORD",
+       "ip pim rp A.B.C.D [fallback$fallback] prefix-list WORD",
        IP_STR
        "pim multicast routing\n"
        "Rendevous Point\n"
        "ip address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
-	int idx_rp = 3, idx_plist = 5;
 	const char *vrfname;
 	char rp_plist_xpath[XPATH_MAXLEN];
 
@@ -7536,35 +7540,35 @@ DEFUN (ip_pim_rp_prefix_list,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(rp_plist_xpath, sizeof(rp_plist_xpath),
-		 FRR_PIM_STATIC_RP_XPATH,
+		 FRR_PIM_STATIC_RP_XPATH "/%sprefix-list",
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
-		 argv[idx_rp]->arg);
-	strlcat(rp_plist_xpath, "/prefix-list", sizeof(rp_plist_xpath));
+		 rp_str, fallback ? "fallback-" : "");
 
 	nb_cli_enqueue_change(vty, rp_plist_xpath, NB_OP_MODIFY,
-			      argv[idx_plist]->arg);
+			      prefix_list);
 
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-DEFUN (no_ip_pim_rp,
+DEFPY (no_ip_pim_rp,
        no_ip_pim_rp_cmd,
-       "no ip pim rp A.B.C.D [A.B.C.D/M]",
+       "no ip pim rp A.B.C.D [fallback$fallback] [A.B.C.D/M$group]",
        NO_STR
        IP_STR
        "pim multicast routing\n"
        "Rendevous Point\n"
        "ip address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "Group Address range to cover\n")
 {
-	int idx_rp = 4, idx_group = 5;
-	const char *group_str =
-		(argc == 6) ? argv[idx_group]->arg : "224.0.0.0/4";
 	char group_list_xpath[XPATH_MAXLEN + 32];
 	char group_xpath[XPATH_MAXLEN + 64];
 	char rp_xpath[XPATH_MAXLEN];
 	const char *vrfname;
 	const struct lyd_node *group_dnode;
+
+	if (!group_str)
+		group_str = "224.0.0.0/4";
 
 	vrfname = pim_cli_get_vrf_name(vty);
 	if (vrfname == NULL)
@@ -7572,10 +7576,10 @@ DEFUN (no_ip_pim_rp,
 
 	snprintf(rp_xpath, sizeof(rp_xpath), FRR_PIM_STATIC_RP_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
-		 argv[idx_rp]->arg);
+		 rp_str);
 
-	snprintf(group_list_xpath, sizeof(group_list_xpath), "%s/group-list",
-		 rp_xpath);
+	snprintf(group_list_xpath, sizeof(group_list_xpath), "%s/%sgroup-list",
+		 rp_xpath, fallback ? "fallback-" : "");
 
 	snprintf(group_xpath, sizeof(group_xpath), "%s[.='%s']",
 		 group_list_xpath, group_str);
@@ -7587,7 +7591,8 @@ DEFUN (no_ip_pim_rp,
 
 	group_dnode = yang_dnode_get(vty->candidate_config->dnode, group_xpath);
 
-	if (yang_is_last_list_dnode(group_dnode))
+	if (yang_is_last_list_dnode(group_dnode)
+	    && !rp_has_other(vty->candidate_config->dnode, rp_xpath, fallback))
 		nb_cli_enqueue_change(vty, rp_xpath, NB_OP_DESTROY, NULL);
 	else
 		nb_cli_enqueue_change(vty, group_list_xpath, NB_OP_DESTROY,
@@ -7596,24 +7601,24 @@ DEFUN (no_ip_pim_rp,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-DEFUN (no_ip_pim_rp_prefix_list,
+DEFPY (no_ip_pim_rp_prefix_list,
        no_ip_pim_rp_prefix_list_cmd,
-       "no ip pim rp A.B.C.D prefix-list WORD",
+       "no ip pim rp A.B.C.D [fallback$fallback] prefix-list WORD",
        NO_STR
        IP_STR
        "pim multicast routing\n"
        "Rendevous Point\n"
        "ip address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
-	int idx_rp = 4;
-	int idx_plist = 6;
 	char rp_xpath[XPATH_MAXLEN];
 	char plist_xpath[XPATH_MAXLEN];
 	const char *vrfname;
 	const struct lyd_node *plist_dnode;
 	const char *plist;
+	const char *destroy;
 
 	vrfname = pim_cli_get_vrf_name(vty);
 	if (vrfname == NULL)
@@ -7621,12 +7626,12 @@ DEFUN (no_ip_pim_rp_prefix_list,
 
 	snprintf(rp_xpath, sizeof(rp_xpath), FRR_PIM_STATIC_RP_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
-		 argv[idx_rp]->arg);
+		 rp_str);
 
-	snprintf(plist_xpath, sizeof(plist_xpath), FRR_PIM_STATIC_RP_XPATH,
+	snprintf(plist_xpath, sizeof(plist_xpath),
+		 FRR_PIM_STATIC_RP_XPATH "/%sprefix-list",
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
-		 argv[idx_rp]->arg);
-	strlcat(plist_xpath, "/prefix-list", sizeof(plist_xpath));
+		 rp_str, fallback ? "fallback-" : "");
 
 	plist_dnode = yang_dnode_get(vty->candidate_config->dnode, plist_xpath);
 	if (!plist_dnode) {
@@ -7635,12 +7640,14 @@ DEFUN (no_ip_pim_rp_prefix_list,
 	}
 
 	plist = yang_dnode_get_string(plist_dnode, plist_xpath);
-	if (strcmp(argv[idx_plist]->arg, plist)) {
+	if (strcmp(prefix_list, plist)) {
 		vty_out(vty, "%% Unable to find specified RP\n");
 		return NB_OK;
 	}
 
-	nb_cli_enqueue_change(vty, rp_xpath, NB_OP_DESTROY, NULL);
+	destroy = rp_has_other(vty->candidate_config->dnode, rp_xpath,
+			       fallback) ? plist_xpath : rp_xpath;
+	nb_cli_enqueue_change(vty, destroy, NB_OP_DESTROY, NULL);
 
 	return nb_cli_apply_changes(vty, NULL);
 }
