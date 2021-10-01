@@ -32,7 +32,8 @@ struct pim_interface;
 enum rp_source {
 	RP_SRC_NONE = 0,
 	RP_SRC_STATIC,
-	RP_SRC_BSR
+	RP_SRC_BSR,
+	RP_SRC_FALLBACK,
 };
 
 struct rp_info {
@@ -41,6 +42,7 @@ struct rp_info {
 	enum rp_source rp_src;
 	int i_am_rp;
 	char *plist;
+	char *fallback_plist;
 };
 
 void pim_rp_init(struct pim_instance *pim);
@@ -51,7 +53,8 @@ void pim_rp_list_hash_clean(void *data);
 int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	       const char *plist, enum rp_source rp_src_flag);
 void pim_rp_del_config(struct pim_instance *pim, pim_addr rp_addr,
-		       const char *group, const char *plist);
+		       const char *group, const char *plist,
+		       enum rp_source rp_src_flag);
 int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	       const char *plist, enum rp_source rp_src_flag);
 int pim_rp_change(struct pim_instance *pim, pim_addr new_rp_addr,

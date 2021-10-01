@@ -167,6 +167,8 @@ struct pim_instance {
 	 */
 	struct list *rp_list;
 	struct route_table *rp_table;
+	struct list *fb_rp_list;
+	struct route_table *fb_rp_table;
 
 #if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
 	int iface_vif_index[MAXVIFS_VENDOR];

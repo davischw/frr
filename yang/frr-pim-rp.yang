@@ -106,6 +106,26 @@ module frr-pim-rp {
             }
           }
         }
+
+        choice fallback-group-list-or-prefix-list {
+          description
+            "Groups/prefix list for which this RP will be used only "
+          + "when BSR provides no RP configuration.";
+          case fallback-group-list {
+            leaf-list fallback-group-list {
+              type frr-route-types:ip-multicast-group-prefix;
+              description
+                "List of multicast group address.";
+            }
+          }
+          case fallback-prefix-list {
+            leaf fallback-prefix-list {
+              type plist-ref;
+              description
+                "Group prefix-list filter";
+            }
+          }
+        }
       }
     } // static-rp
   } // static-rp-container
