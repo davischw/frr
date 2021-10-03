@@ -1181,6 +1181,7 @@ int pim_ifchannel_local_membership_add(struct interface *ifp, pim_sgaddr *sg,
 		struct pim_upstream *up = pim_upstream_find(pim, sg);
 		struct pim_upstream *child;
 		struct listnode *up_node;
+		uint32_t thresh;
 
 		starch = ch;
 
@@ -1210,25 +1211,17 @@ int pim_ifchannel_local_membership_add(struct interface *ifp, pim_sgaddr *sg,
 			}
 		}
 
-		if (pim->spt.switchover == PIM_SPT_INFINITY) {
-			if (pim->spt.plist) {
-				struct prefix_list *plist = prefix_list_lookup(
-					AFI_IP, pim->spt.plist);
-				struct prefix g;
+		thresh = pim_vrf_spt_thresh(pim, sg->grp);
 
-				pim_addr_to_prefix(&g, up->sg.grp);
-				if (prefix_list_apply_ext(plist, NULL, &g,
-							  true) ==
-				    PREFIX_DENY) {
-					pim_channel_add_oif(
-						up->channel_oil, pim->regiface,
-						PIM_OIF_FLAG_PROTO_GM,
-						__func__);
-				}
-			}
-		} else
+		if (thresh < PIM_SPT_THRESH_NEVER) {
+			if (PIM_DEBUG_EVENTS)
+				zlog_debug(
+					"%pSG4 adding register OIF due to IGMP and SPT threshold %u",
+					sg, thresh);
+
 			pim_channel_add_oif(up->channel_oil, pim->regiface,
 					    PIM_OIF_FLAG_PROTO_GM, __func__);
+		}
 	}
 
 	return 1;

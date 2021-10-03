@@ -33,6 +33,7 @@
 #include "pim_southbound.h"
 #include "pim_time.h"
 #include "pim_vxlan.h"
+#include "pimd/pim_addr.h"
 
 static void pim_channel_update_mute(struct channel_oil *c_oil);
 
@@ -121,6 +122,10 @@ struct channel_oil *pim_channel_oil_add(struct pim_instance *pim,
 					pim_sgaddr *sg, const char *name)
 {
 	struct channel_oil *c_oil;
+	uint32_t thresh = 0;
+
+	if (pim_addr_is_any(sg->src))
+		thresh = pim_vrf_spt_thresh(pim, sg->grp);
 
 	c_oil = pim_find_channel_oil(pim, sg);
 	if (c_oil) {
@@ -153,6 +158,7 @@ struct channel_oil *pim_channel_oil_add(struct pim_instance *pim,
 
 	*oil_mcastgrp(c_oil) = sg->grp;
 	*oil_origin(c_oil) = sg->src;
+	c_oil->spt_threshold = thresh;
 
 	*oil_parent(c_oil) = system_maxvifs();
 	c_oil->oil_ref_count = 1;
@@ -166,6 +172,77 @@ struct channel_oil *pim_channel_oil_add(struct pim_instance *pim,
 		zlog_debug("%s(%s): c_oil %pSG add", __func__, name, sg);
 
 	return c_oil;
+}
+
+void pim_vrf_spt_reconfig(struct pim_instance *pim, struct prefix *groups)
+{
+	struct channel_oil *from, *c_oil;
+	pim_addr endaddr;
+	uint32_t thresh;
+
+	memset(&endaddr, 0xFF, sizeof(endaddr));
+
+	if (groups) {
+		struct channel_oil ref;
+
+#if PIM_IPV == 4
+		*oil_mcastgrp(&ref) = groups->u.prefix4;
+		if (groups->prefixlen)
+			endaddr.s_addr = ntohl(groups->u.prefix4.s_addr) +
+					 (1U << (32 - groups->prefixlen));
+#else
+		*oil_mcastgrp(&ref) = groups->u.prefix6;
+		switch (groups->prefixlen) {
+		case 0 ... 32:
+			endaddr.s6_addr32[0] =
+				ntohl(groups->u.prefix6.s6_addr32[0]) +
+				(1U << (32 - groups->prefixlen));
+			break;
+		case 33 ... 64:
+			endaddr.s6_addr32[1] =
+				ntohl(groups->u.prefix6.s6_addr32[1]) +
+				(1U << (64 - groups->prefixlen));
+			break;
+		case 65 ... 96:
+			endaddr.s6_addr32[2] =
+				ntohl(groups->u.prefix6.s6_addr32[2]) +
+				(1U << (96 - groups->prefixlen));
+			break;
+		case 97 ... 128:
+			endaddr.s6_addr32[3] =
+				ntohl(groups->u.prefix6.s6_addr32[3]) +
+				(1U << (128 - groups->prefixlen));
+			break;
+		}
+#endif
+		*oil_origin(&ref) = PIMADDR_ANY;
+
+		from = rb_pim_oil_find_gteq(&pim->channel_oil_head, &ref);
+	} else
+		from = rb_pim_oil_first(&pim->channel_oil_head);
+
+	if (!from)
+		return;
+
+	frr_each_from (rb_pim_oil, &pim->channel_oil_head, c_oil, from) {
+		if (pim_addr_cmp(*oil_mcastgrp(c_oil), endaddr) >= 0)
+			break;
+		if (!pim_addr_is_any(*oil_origin(c_oil)))
+			continue;
+
+		thresh = pim_vrf_spt_thresh(pim, *oil_mcastgrp(c_oil));
+		if (c_oil->spt_threshold == thresh)
+			continue;
+
+		if (PIM_DEBUG_MROUTE_DETAIL)
+			zlog_debug("SPT threshold for %pPA changed %u -> %u",
+				   oil_mcastgrp(c_oil), c_oil->spt_threshold,
+				   thresh);
+
+		c_oil->spt_threshold = thresh;
+
+		pim_upstream_mroute_update(c_oil, __func__);
+	}
 }
 
 struct channel_oil *pim_channel_oil_del(struct channel_oil *c_oil,
