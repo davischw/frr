@@ -207,33 +207,6 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 		oil->notifif.ifindex = 0;
 }
 
-/** Check if SPT JOIN is desirable. */
-static bool pimsb_want_spt_join(struct pim_instance *pim, struct in_addr group)
-{
-	struct prefix_list *pl;
-	struct prefix grp = {
-		.family = AF_INET,
-		.prefixlen = IPV4_MAX_PREFIXLEN,
-		.u.prefix4 = group,
-	};
-
-	if (pim->spt.switchover == PIM_SPT_IMMEDIATE)
-		return true;
-
-	/* If no prefix-list configured, then always accept. */
-	if (pim->spt.plist == NULL)
-		return false;
-
-	/* Otherwise check list (defaults to deny). */
-	pl = prefix_list_lookup(AFI_IP, pim->spt.plist);
-	if (pl == NULL)
-		return true;
-	if (prefix_list_apply(pl, &grp) == PREFIX_DENY)
-		return true;
-
-	return false;
-}
-
 static void pimsb_debug_oil(const struct channel_oil *oil)
 {
 	struct interface *ifp;
@@ -382,6 +355,7 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 	bool has_pimreg = false;
 	bool star_source = false;
 	uint32_t route_flags = 0;
+	uint32_t spt_threshold = 0;
 	struct prefix p = {};
 	char intf[32];
 	char oifs[512];
@@ -415,8 +389,10 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 	if (!oil->is_static && !star_source)
 		route_flags |= MRT_FLAG_RESTART_DL_TIMER;
 	if (i_am_lhr && star_source
-	    && pimsb_want_spt_join(oil->pim, oil->oil.mfcc_mcastgrp))
+	    && oil->spt_threshold < PIM_SPT_THRESH_NEVER) {
 		route_flags |= MRT_FLAG_JOIN_SPT_ALLOWED;
+		spt_threshold = oil->spt_threshold;
+	}
 	if (oil->oif_list_count == 0 || oil->filtered)
 		route_flags |= MRT_FLAG_DUMMY | MRT_FLAG_DL_TIMER;
 
@@ -471,7 +447,7 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 	stream_putw_at(s, oif_count_pos, oif_count);
 
 	/* SPT threshold. */
-	stream_putl(s, 0);
+	stream_putl(s, spt_threshold);
 
 	/* Interface address in the way to the RP. */
 	if (has_pimreg && has_rp_if) {

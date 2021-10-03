@@ -133,6 +133,9 @@ struct channel_oil {
 	struct pim_upstream *up;
 	time_t mroute_creation;
 
+	/* only valid on (*,G) entries */
+	uint32_t spt_threshold;
+
 	/** Input interface. */
 	struct channel_if iif;
 	/** Notification interface. */

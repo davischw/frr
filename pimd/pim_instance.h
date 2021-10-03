@@ -21,6 +21,7 @@
 #ifndef __PIM_INSTANCE_H__
 #define __PIM_INSTANCE_H__
 
+#include "memory.h"
 #include <mlag.h>
 
 #include "pim_str.h"
@@ -43,10 +44,8 @@
 #endif
 #endif
 
-enum pim_spt_switchover {
-	PIM_SPT_IMMEDIATE,
-	PIM_SPT_INFINITY,
-};
+#define PIM_SPT_THRESH_IMMEDIATE	0U
+#define PIM_SPT_THRESH_NEVER		~0U
 
 /* stats for updates rxed from the MLAG component during the life of a
  * session
@@ -136,7 +135,7 @@ struct pim_instance {
 	bool shutdown;
 
 	struct {
-		enum pim_spt_switchover switchover;
+		struct route_table *thresh_table;
 		char *plist;
 	} spt;
 
@@ -216,6 +215,13 @@ struct pim_instance {
 	int64_t last_route_change_time;
 };
 
+/* info pointer in pim_instance->spt.thresh_table nodes */
+DECLARE_MTYPE(PIM_SPT_CONFIG);
+
+struct spt_thresh_config {
+	uint32_t spt_threshold;
+};
+
 void pim_vrf_init(void);
 void pim_vrf_terminate(void);
 
@@ -224,5 +230,10 @@ extern struct pim_router *router;
 struct pim_instance *pim_get_pim_instance(vrf_id_t vrf_id);
 void pim_vrf_shutdown(struct pim_instance *pim, bool shutdown);
 void pim_vrf_resched_mfib_rmap(struct pim_instance *pim);
+
+uint32_t pim_vrf_spt_thresh(struct pim_instance *pim, struct in_addr group);
+void pim_vrf_spt_reconfig(struct pim_instance *pim, struct prefix *groups);
+void pim_spt_prefix_list_update(struct pim_instance *pim,
+				struct prefix_list *plist);
 
 #endif

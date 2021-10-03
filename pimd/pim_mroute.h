@@ -182,6 +182,7 @@ int pim_static_mroute_add(struct channel_oil *c_oil, const char *name);
 void pim_static_mroute_iif_update(struct channel_oil *c_oil,
 				int input_vif_index,
 				const char *name);
+int pim_upstream_mroute_update(struct channel_oil *c_oil, const char *name);
 int pim_mroute_del(struct channel_oil *c_oil, const char *name);
 
 int mroute_read(struct thread *t);

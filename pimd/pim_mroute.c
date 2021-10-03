@@ -1075,8 +1075,7 @@ static int pim_upstream_get_mroute_iif(struct channel_oil *c_oil,
 	return iif;
 }
 
-static int pim_upstream_mroute_update(struct channel_oil *c_oil,
-		const char *name)
+int pim_upstream_mroute_update(struct channel_oil *c_oil, const char *name)
 {
 	char buf[1000];
 

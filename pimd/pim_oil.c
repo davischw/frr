@@ -128,6 +128,10 @@ struct channel_oil *pim_channel_oil_add(struct pim_instance *pim,
 					const char *name)
 {
 	struct channel_oil *c_oil;
+	uint32_t thresh = 0;
+
+	if (sg->src.s_addr == INADDR_ANY)
+		thresh = pim_vrf_spt_thresh(pim, sg->grp);
 
 	c_oil = pim_find_channel_oil(pim, sg);
 	if (c_oil) {
@@ -160,6 +164,7 @@ struct channel_oil *pim_channel_oil_add(struct pim_instance *pim,
 
 	c_oil->oil.mfcc_mcastgrp = sg->grp;
 	c_oil->oil.mfcc_origin = sg->src;
+	c_oil->spt_threshold = thresh;
 
 	c_oil->oil.mfcc_parent = MAXVIFS;
 	c_oil->oil_ref_count = 1;
@@ -174,6 +179,50 @@ struct channel_oil *pim_channel_oil_add(struct pim_instance *pim,
 				__func__, name, pim_str_sg_dump(sg));
 
 	return c_oil;
+}
+
+void pim_vrf_spt_reconfig(struct pim_instance *pim, struct prefix *groups)
+{
+	struct channel_oil *from, *c_oil;
+	uint32_t endaddr = ntohl(INADDR_BROADCAST);
+	uint32_t thresh;
+
+	if (groups) {
+		struct channel_oil ref;
+
+		ref.oil.mfcc_mcastgrp = groups->u.prefix4;
+		ref.oil.mfcc_origin.s_addr = INADDR_ANY;
+
+		if (groups->prefixlen)
+			endaddr = ntohl(groups->u.prefix4.s_addr)
+				+ (1U << (32 - groups->prefixlen));
+
+		from = rb_pim_oil_find_gteq(&pim->channel_oil_head, &ref);
+	} else
+		from = rb_pim_oil_first(&pim->channel_oil_head);
+
+	if (!from)
+		return;
+
+	frr_each_from (rb_pim_oil, &pim->channel_oil_head, c_oil, from) {
+		if (ntohl(c_oil->oil.mfcc_mcastgrp.s_addr) >= endaddr)
+			break;
+		if (c_oil->oil.mfcc_origin.s_addr != INADDR_ANY)
+			continue;
+
+		thresh = pim_vrf_spt_thresh(pim, c_oil->oil.mfcc_mcastgrp);
+		if (c_oil->spt_threshold == thresh)
+			continue;
+
+		if (PIM_DEBUG_MROUTE_DETAIL)
+			zlog_debug("SPT threshold for %pI4 changed %u -> %u",
+				   &c_oil->oil.mfcc_mcastgrp.s_addr,
+				   c_oil->spt_threshold, thresh);
+
+		c_oil->spt_threshold = thresh;
+
+		pim_upstream_mroute_update(c_oil, __func__);
+	}
 }
 
 struct channel_oil *pim_channel_oil_del(struct channel_oil *c_oil,

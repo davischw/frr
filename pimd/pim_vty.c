@@ -169,6 +169,7 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 {
 	int writes = 0;
 	struct pim_ssm *ssm = pim->ssm_info;
+	struct route_node *node;
 	char spaces[10];
 
 	if (pim->vrf->vrf_id == VRF_DEFAULT)
@@ -238,17 +239,30 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 		++writes;
 	}
 
-	if (pim->spt.switchover == PIM_SPT_INFINITY) {
-		if (pim->spt.plist)
-			vty_out(vty,
-				"%sip pim spt-switchover infinity-and-beyond prefix-list %s\n",
-				spaces, pim->spt.plist);
-		else
-			vty_out(vty,
-				"%sip pim spt-switchover infinity-and-beyond\n",
-				spaces);
-		++writes;
+	if (pim->spt.plist)
+		vty_out(vty,
+			"%sip pim spt-switchover infinity-and-beyond prefix-list %s\n",
+			spaces, pim->spt.plist);
+
+	for (node = route_top(pim->spt.thresh_table); node;
+	     node = route_next(node)) {
+		struct spt_thresh_config *cfg = node->info;
+
+		switch (cfg->spt_threshold) {
+		case PIM_SPT_THRESH_IMMEDIATE:
+			vty_out(vty, "%sip pim spt-switchover %pFX immediate\n",
+				spaces, &node->p);
+			break;
+		case PIM_SPT_THRESH_NEVER:
+			vty_out(vty, "%sip pim spt-switchover %pFX never\n",
+				spaces, &node->p);
+			break;
+		default:
+			vty_out(vty, "%sip pim spt-switchover %pFX %u\n",
+				spaces, &node->p, cfg->spt_threshold);
+		}
 	}
+
 	if (pim->ecmp_rebalance_enable) {
 		vty_out(vty, "%sip pim ecmp rebalance\n", spaces);
 		++writes;

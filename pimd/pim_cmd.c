@@ -6888,154 +6888,102 @@ ALIAS (ip_mfib_rmap,
        "Multicast forwarding settings\n"
        "Filter forwarding entries through route-map\n")
 
-DEFUN (ip_pim_spt_switchover_infinity,
-       ip_pim_spt_switchover_infinity_cmd,
-       "ip pim spt-switchover infinity-and-beyond",
+DEFPY (ip_pim_spt_switchover_group,
+       ip_pim_spt_switchover_group_cmd,
+       "[no] ip pim spt-switchover A.B.C.D/M$group "
+		"<(1-4294967294)$bandwidth|never$never|immediate$immediate>",
+       NO_STR
        IP_STR
        PIM_STR
        "SPT-Switchover\n"
-       "Never switch to SPT Tree\n")
+       "Group range to configure SPT behavior for\n"
+       "Switch to SPT at bandwidth (kbps)\n"
+       "Never switch to SPT Tree\n"
+       "Switch to SPT immediately on any traffic\n")
+{
+	char spt_group_xpath[XPATH_MAXLEN];
+	char spt_group_bw_xpath[XPATH_MAXLEN + 64];
+	const char *vrfname;
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(spt_group_xpath, sizeof(spt_group_xpath),
+		 FRR_PIM_AF_XPATH "/spt-switchover/groups[group-range='%s']",
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+		 group_str);
+
+	if (no)
+		nb_cli_enqueue_change(vty, spt_group_xpath, NB_OP_DESTROY,
+				      NULL);
+	else {
+		const char *val = bandwidth_str;
+
+		snprintf(spt_group_bw_xpath, sizeof(spt_group_bw_xpath),
+			 "%s/bandwidth", spt_group_xpath);
+
+		if (never)
+			val = "4294967295";
+		else if (immediate)
+			val = "0";
+
+		nb_cli_enqueue_change(vty, spt_group_bw_xpath, NB_OP_MODIFY,
+				      val);
+	}
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+ALIAS (ip_pim_spt_switchover_group,
+       no_ip_pim_spt_switchover_group_cmd,
+       "no ip pim spt-switchover A.B.C.D/M$group",
+       NO_STR
+       IP_STR
+       PIM_STR
+       "SPT-Switchover\n"
+       "Group range to configure SPT behavior for\n")
+
+DEFPY (ip_pim_spt_switchover_infinity_plist,
+       ip_pim_spt_switchover_infinity_plist_cmd,
+       "[no] ip pim spt-switchover infinity-and-beyond prefix-list WORD",
+       NO_STR
+       IP_STR
+       PIM_STR
+       "SPT-Switchover\n"
+       "Never switch to SPT Tree\n"
+       "Prefix-List to control which groups to switch\n"
+       "Prefix-List name\n")
 {
 	const char *vrfname;
 	char spt_plist_xpath[XPATH_MAXLEN];
-	char spt_action_xpath[XPATH_MAXLEN];
 
 	vrfname = pim_cli_get_vrf_name(vty);
 	if (vrfname == NULL)
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(spt_plist_xpath, sizeof(spt_plist_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_plist_xpath, "/spt-switchover/spt-infinity-prefix-list",
-		sizeof(spt_plist_xpath));
+		 FRR_PIM_AF_XPATH "/spt-switchover/spt-infinity-prefix-list",
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
 
-	snprintf(spt_action_xpath, sizeof(spt_action_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_action_xpath, "/spt-switchover/spt-action",
-		sizeof(spt_action_xpath));
-
-	if (yang_dnode_exists(vty->candidate_config->dnode, spt_plist_xpath))
+	if (no)
 		nb_cli_enqueue_change(vty, spt_plist_xpath, NB_OP_DESTROY,
 				      NULL);
-	nb_cli_enqueue_change(vty, spt_action_xpath, NB_OP_MODIFY,
-			      "PIM_SPT_INFINITY");
+	else
+		nb_cli_enqueue_change(vty, spt_plist_xpath, NB_OP_MODIFY,
+				      prefix_list);
 
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-DEFUN (ip_pim_spt_switchover_infinity_plist,
-       ip_pim_spt_switchover_infinity_plist_cmd,
-       "ip pim spt-switchover infinity-and-beyond prefix-list WORD",
+ALIAS (ip_pim_spt_switchover_infinity_plist,
+       no_ip_pim_spt_switchover_infinity_plist_cmd,
+       "no ip pim spt-switchover infinity-and-beyond [prefix-list]",
+       NO_STR
        IP_STR
        PIM_STR
        "SPT-Switchover\n"
        "Never switch to SPT Tree\n"
-       "Prefix-List to control which groups to switch\n"
-       "Prefix-List name\n")
-{
-	const char *vrfname;
-	char spt_plist_xpath[XPATH_MAXLEN];
-	char spt_action_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(spt_plist_xpath, sizeof(spt_plist_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_plist_xpath, "/spt-switchover/spt-infinity-prefix-list",
-		sizeof(spt_plist_xpath));
-
-	snprintf(spt_action_xpath, sizeof(spt_action_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_action_xpath, "/spt-switchover/spt-action",
-		sizeof(spt_action_xpath));
-
-	nb_cli_enqueue_change(vty, spt_action_xpath, NB_OP_MODIFY,
-			      "PIM_SPT_INFINITY");
-	nb_cli_enqueue_change(vty, spt_plist_xpath, NB_OP_MODIFY,
-			      argv[5]->arg);
-
-	return nb_cli_apply_changes(vty, NULL);
-}
-
-DEFUN (no_ip_pim_spt_switchover_infinity,
-       no_ip_pim_spt_switchover_infinity_cmd,
-       "no ip pim spt-switchover infinity-and-beyond",
-       NO_STR
-       IP_STR
-       PIM_STR
-       "SPT_Switchover\n"
-       "Never switch to SPT Tree\n")
-{
-	const char *vrfname;
-	char spt_plist_xpath[XPATH_MAXLEN];
-	char spt_action_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(spt_plist_xpath, sizeof(spt_plist_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_plist_xpath, "/spt-switchover/spt-infinity-prefix-list",
-		sizeof(spt_plist_xpath));
-
-	snprintf(spt_action_xpath, sizeof(spt_action_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_action_xpath, "/spt-switchover/spt-action",
-		sizeof(spt_action_xpath));
-
-	nb_cli_enqueue_change(vty, spt_plist_xpath, NB_OP_DESTROY, NULL);
-	nb_cli_enqueue_change(vty, spt_action_xpath, NB_OP_MODIFY,
-			      "PIM_SPT_IMMEDIATE");
-
-	return nb_cli_apply_changes(vty, NULL);
-}
-
-DEFUN (no_ip_pim_spt_switchover_infinity_plist,
-       no_ip_pim_spt_switchover_infinity_plist_cmd,
-       "no ip pim spt-switchover infinity-and-beyond prefix-list WORD",
-       NO_STR
-       IP_STR
-       PIM_STR
-       "SPT_Switchover\n"
-       "Never switch to SPT Tree\n"
-       "Prefix-List to control which groups to switch\n"
-       "Prefix-List name\n")
-{
-	const char *vrfname;
-	char spt_plist_xpath[XPATH_MAXLEN];
-	char spt_action_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(spt_plist_xpath, sizeof(spt_plist_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_plist_xpath, "/spt-switchover/spt-infinity-prefix-list",
-		sizeof(spt_plist_xpath));
-
-	snprintf(spt_action_xpath, sizeof(spt_action_xpath),
-		 FRR_PIM_AF_XPATH, "frr-pim:pimd", "pim", vrfname,
-		 "frr-routing:ipv4");
-	strlcat(spt_action_xpath, "/spt-switchover/spt-action",
-		sizeof(spt_action_xpath));
-
-	nb_cli_enqueue_change(vty, spt_plist_xpath, NB_OP_DESTROY, NULL);
-	nb_cli_enqueue_change(vty, spt_action_xpath, NB_OP_MODIFY,
-			      "PIM_SPT_IMMEDIATE");
-
-	return nb_cli_apply_changes(vty, NULL);
-}
+       "Prefix-List to control which groups to switch\n")
 
 DEFPY (pim_register_accept_list,
        pim_register_accept_list_cmd,
@@ -11475,12 +11423,12 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &ip_mfib_rmap_cmd);
 	install_element(CONFIG_NODE, &no_ip_mfib_rmap_cmd);
 	install_element(VRF_NODE, &no_ip_mfib_rmap_cmd);
-	install_element(CONFIG_NODE, &ip_pim_spt_switchover_infinity_cmd);
-	install_element(VRF_NODE, &ip_pim_spt_switchover_infinity_cmd);
+	install_element(CONFIG_NODE, &ip_pim_spt_switchover_group_cmd);
+	install_element(VRF_NODE, &ip_pim_spt_switchover_group_cmd);
 	install_element(CONFIG_NODE, &ip_pim_spt_switchover_infinity_plist_cmd);
 	install_element(VRF_NODE, &ip_pim_spt_switchover_infinity_plist_cmd);
-	install_element(CONFIG_NODE, &no_ip_pim_spt_switchover_infinity_cmd);
-	install_element(VRF_NODE, &no_ip_pim_spt_switchover_infinity_cmd);
+	install_element(CONFIG_NODE, &no_ip_pim_spt_switchover_group_cmd);
+	install_element(VRF_NODE, &no_ip_pim_spt_switchover_group_cmd);
 	install_element(CONFIG_NODE,
 			&no_ip_pim_spt_switchover_infinity_plist_cmd);
 	install_element(VRF_NODE, &no_ip_pim_spt_switchover_infinity_plist_cmd);

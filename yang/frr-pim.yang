@@ -20,6 +20,10 @@ module frr-pim {
     prefix "inet";
   }
 
+  import frr-route-types {
+    prefix frr-route-types;
+  }
+
   import frr-route-map {
     prefix frr-route-map;
   }
@@ -153,33 +157,31 @@ module frr-pim {
       description
         "SPT-Switchover.";
 
-      leaf spt-action {
-        type enumeration {
-          enum "PIM_SPT_IMMEDIATE" {
-            value 0;
-            description
-              "Immediate switch to SPT Tree.";
-          }
-          enum "PIM_SPT_INFINITY" {
-            value 1;
-            description
-              "Never switch to SPT Tree.";
-          }
-        }
-        default "PIM_SPT_IMMEDIATE";
-        description
-          "SPT-Switchover action";
-      }
-
       leaf spt-infinity-prefix-list {
-        when "../spt-action = 'PIM_SPT_INFINITY'" {
-          description
-            "This leaf is only valid when the spt action
-             is PIM_SPT_INFINITY.";
-        }
         type plist-ref;
         description
-          "Prefix-List to control which groups to switch.";
+          "Prefix-List to control which groups never switch to SPT. "
+        + "Legacy setting, checked before spt-threshold list.";
+      }
+
+      list groups {
+        key "group-range";
+        description
+          "Configure SPT threshold per multicast group range.";
+
+        leaf group-range {
+          type frr-route-types:ip-multicast-group-prefix;
+          description
+            "Multicast group address.";
+        }
+
+        leaf bandwidth {
+          type uint32;
+          mandatory true;
+          description
+            "Bandwidth (kbps) to trigger SPT switchover at. "
+          + "0 is immediate, 4294967295 (-1) is never.";
+        }
       }
     }
 

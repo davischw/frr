@@ -98,7 +98,7 @@ static void pim_if_membership_refresh(struct interface *ifp)
 				struct prefix_sg sg;
 
 				memset(&sg, 0, sizeof(struct prefix_sg));
-				sg.src = src->source_addr;
+					sg.src = src->source_addr;
 				sg.grp = grp->group_addr;
 				pim_ifchannel_local_membership_add(
 					ifp, &sg, false /*is_vxlan*/);
@@ -183,31 +183,6 @@ static int interface_pim_use_src_cmd_worker(struct interface *ifp,
 	}
 
 	return ret;
-}
-
-static int pim_cmd_spt_switchover(struct pim_instance *pim,
-		enum pim_spt_switchover spt,
-		const char *plist)
-{
-	pim->spt.switchover = spt;
-
-	switch (pim->spt.switchover) {
-	case PIM_SPT_IMMEDIATE:
-		XFREE(MTYPE_PIM_PLIST_NAME, pim->spt.plist);
-
-		pim_upstream_add_lhr_star_pimreg(pim);
-		break;
-	case PIM_SPT_INFINITY:
-		pim_upstream_remove_lhr_star_pimreg(pim, plist);
-
-		XFREE(MTYPE_PIM_PLIST_NAME, pim->spt.plist);
-
-		if (plist)
-			pim->spt.plist = XSTRDUP(MTYPE_PIM_PLIST_NAME, plist);
-		break;
-	}
-
-	return NB_OK;
 }
 
 static int pim_ssm_cmd_worker(struct pim_instance *pim, const char *plist,
@@ -1002,49 +977,107 @@ int pim_af_mfib_rmap_destroy(struct nb_cb_destroy_args *args)
 	return NB_OK;
 }
 
-/*
- * XPath:
- * /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/spt-switchover
- */
-void routing_control_plane_protocols_control_plane_protocol_pim_address_family_spt_switchover_apply_finish(
-	struct nb_cb_apply_finish_args *args)
+int pim_af_spt_group_create(struct nb_cb_create_args *args)
 {
 	struct vrf *vrf;
 	struct pim_instance *pim;
-	int spt_switch_action;
-	const char *prefix_list = NULL;
+	struct route_node *rn;
+	struct spt_thresh_config *cfg;
+	struct prefix groups;
+	uint32_t thresh;
 
-	vrf = nb_running_get_entry(args->dnode, NULL, true);
-	pim = vrf->info;
-	spt_switch_action = yang_dnode_get_enum(args->dnode, "./spt-action");
+	yang_dnode_get_prefix(&groups, args->dnode, "./group-range");
+	thresh = yang_dnode_get_uint32(args->dnode, "./bandwidth");
 
-	switch (spt_switch_action) {
-	case PIM_SPT_INFINITY:
-		if (yang_dnode_exists(args->dnode,
-				      "./spt-infinity-prefix-list"))
-			prefix_list = yang_dnode_get_string(
-				args->dnode, "./spt-infinity-prefix-list");
-
-		pim_cmd_spt_switchover(pim, PIM_SPT_INFINITY,
-					prefix_list);
-		break;
-	case PIM_SPT_IMMEDIATE:
-		pim_cmd_spt_switchover(pim, PIM_SPT_IMMEDIATE, NULL);
-	}
-}
-
-/*
- * XPath: /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/spt-switchover/spt-action
- */
-int routing_control_plane_protocols_control_plane_protocol_pim_address_family_spt_switchover_spt_action_modify(
-	struct nb_cb_modify_args *args)
-{
 	switch (args->event) {
 	case NB_EV_VALIDATE:
 	case NB_EV_PREPARE:
 	case NB_EV_ABORT:
-	case NB_EV_APPLY:
 		break;
+
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		rn = route_node_get(pim->spt.thresh_table, &groups);
+		if (rn->info) {
+			route_unlock_node(rn);
+			cfg = rn->info;
+		} else {
+			cfg = XCALLOC(MTYPE_PIM_SPT_CONFIG, sizeof(*cfg));
+			rn->info = cfg;
+		}
+		cfg->spt_threshold = thresh;
+
+		pim_vrf_spt_reconfig(pim, &groups);
+	}
+
+	return NB_OK;
+}
+
+int pim_af_spt_group_destroy(struct nb_cb_destroy_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	struct route_node *rn;
+	struct prefix groups;
+
+	yang_dnode_get_prefix(&groups, args->dnode, "./group-range");
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		break;
+
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		rn = route_node_lookup(pim->spt.thresh_table, &groups);
+		if (!rn)
+			break;
+
+		route_unlock_node(rn);
+		XFREE(MTYPE_PIM_SPT_CONFIG, rn->info);
+		route_unlock_node(rn);
+
+		pim_vrf_spt_reconfig(pim, &groups);
+	}
+
+	return NB_OK;
+}
+
+int pim_af_spt_group_bandwidth_modify(struct nb_cb_modify_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	struct route_node *rn;
+	struct spt_thresh_config *cfg;
+	struct prefix groups;
+	uint32_t thresh;
+
+	yang_dnode_get_prefix(&groups, args->dnode, "../group-range");
+	thresh = yang_dnode_get_uint32(args->dnode, NULL);
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		break;
+
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		rn = route_node_lookup(pim->spt.thresh_table, &groups);
+		assertf(rn, "prefix=%pFX", &groups);
+		route_unlock_node(rn);
+
+		cfg = rn->info;
+		cfg->spt_threshold = thresh;
+
+		pim_vrf_spt_reconfig(pim, &groups);
 	}
 
 	return NB_OK;
@@ -1056,11 +1089,25 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_sp
 int routing_control_plane_protocols_control_plane_protocol_pim_address_family_spt_switchover_spt_infinity_prefix_list_modify(
 	struct nb_cb_modify_args *args)
 {
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	const char *plist_name;
+
 	switch (args->event) {
 	case NB_EV_VALIDATE:
 	case NB_EV_PREPARE:
 	case NB_EV_ABORT:
+		break;
+
 	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		XFREE(MTYPE_PIM_PLIST_NAME, pim->spt.plist);
+		plist_name = yang_dnode_get_string(args->dnode, NULL);
+		pim->spt.plist = XSTRDUP(MTYPE_PIM_PLIST_NAME, plist_name);
+
+		pim_vrf_spt_reconfig(pim, NULL);
 		break;
 	}
 
@@ -1070,11 +1117,21 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_sp
 int routing_control_plane_protocols_control_plane_protocol_pim_address_family_spt_switchover_spt_infinity_prefix_list_destroy(
 	struct nb_cb_destroy_args *args)
 {
+	struct vrf *vrf;
+	struct pim_instance *pim;
+
 	switch (args->event) {
 	case NB_EV_VALIDATE:
 	case NB_EV_PREPARE:
 	case NB_EV_ABORT:
+		break;
+
 	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		XFREE(MTYPE_PIM_PLIST_NAME, pim->spt.plist);
+		pim_vrf_spt_reconfig(pim, NULL);
 		break;
 	}
 

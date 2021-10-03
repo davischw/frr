@@ -22,6 +22,7 @@
 
 #include "hash.h"
 #include "vrf.h"
+#include "plist.h"
 #include "lib_errors.h"
 
 #include "pimd.h"
@@ -35,6 +36,15 @@
 #include "pim_vty.h"
 #include "pim_bsm.h"
 #include "pim_mlag.h"
+
+DEFINE_MTYPE(PIMD, PIM_SPT_CONFIG, "SPT switchover configuration");
+
+static void pim_spt_thresh_table_cleanup(struct route_table *table,
+					 struct route_node *node)
+{
+	if (node->info)
+		XFREE(MTYPE_PIM_SPT_CONFIG, node->info);
+}
 
 static void pim_instance_terminate(struct pim_instance *pim)
 {
@@ -71,6 +81,8 @@ static void pim_instance_terminate(struct pim_instance *pim)
 
 	pim_msdp_exit(pim);
 
+	route_table_finish(pim->spt.thresh_table);
+
 	XFREE(MTYPE_PIM_RMAP_NAME, pim->mfib_rmap);
 	XFREE(MTYPE_PIM_PLIST_NAME, pim->spt.plist);
 	XFREE(MTYPE_PIM_PLIST_NAME, pim->register_plist);
@@ -97,7 +109,8 @@ static struct pim_instance *pim_instance_init(struct vrf *vrf)
 
 	pim->vrf = vrf;
 
-	pim->spt.switchover = PIM_SPT_IMMEDIATE;
+	pim->spt.thresh_table = route_table_init();
+	pim->spt.thresh_table->cleanup = pim_spt_thresh_table_cleanup;
 	pim->spt.plist = NULL;
 
 	pim_msdp_init(pim, router->master);
@@ -251,4 +264,48 @@ void pim_vrf_resched_mfib_rmap(struct pim_instance *pim)
 
 	thread_add_timer_msec(router->master, pim_vrf_mfib_rmap, pim, 1,
 			      &pim->mfib_rmap_reapply);
+}
+
+uint32_t pim_vrf_spt_thresh(struct pim_instance *pim, struct in_addr group)
+{
+	struct prefix_list *pl = NULL;
+	struct route_node *rn;
+	struct spt_thresh_config *cfg;
+
+	/* prefix-list for "infinity" has precedence */
+	if (pim->spt.plist)
+		pl = prefix_list_lookup(AFI_IP, pim->spt.plist);
+	if (pl) {
+		struct prefix p = {
+			.family = AF_INET,
+			.prefixlen = IPV4_MAX_PREFIXLEN,
+			.u.prefix4 = group,
+		};
+
+		if (prefix_list_apply_ext(pl, NULL, &p, true) == PREFIX_PERMIT)
+			return PIM_SPT_THRESH_NEVER;
+	}
+
+	rn = route_node_match_ipv4(pim->spt.thresh_table, &group);
+	if (!rn)
+		return PIM_SPT_THRESH_IMMEDIATE;
+
+	assertf(rn->info, "group=%pI4", &group);
+	cfg = rn->info;
+	route_unlock_node(rn);
+
+	return cfg->spt_threshold;
+}
+
+void pim_spt_prefix_list_update(struct pim_instance *pim,
+				struct prefix_list *plist)
+{
+	if (!plist)
+		return;
+	if (!pim->spt.plist)
+		return;
+	if (strcmp(prefix_list_name(plist), pim->spt.plist))
+		return;
+
+	pim_vrf_spt_reconfig(pim, NULL);
 }
