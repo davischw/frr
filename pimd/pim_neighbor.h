@@ -45,6 +45,14 @@ struct pim_neighbor {
 	struct thread *jp_timer;
 	struct list *upstream_jp_agg;
 	struct bfd_session_params *bfd_session;
+
+	/* statistics */
+	uint32_t stat_hello_rcvd;
+	uint32_t stat_join_rcvd;
+	uint32_t stat_join_sent;
+	uint32_t stat_prune_rcvd;
+	uint32_t stat_prune_sent;
+	uint32_t stat_assert_rcvd;
 };
 
 static inline int pim_neigh_jp_period(struct pim_neighbor *neigh)

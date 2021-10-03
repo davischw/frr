@@ -1934,6 +1934,20 @@ static void pim_show_neighbors_single(struct pim_instance *pim, struct vty *vty,
 					json_object_boolean_true_add(
 						json_row, "helloOptionTBit");
 
+				/* NB: JP counters count (S,G) entries */
+				json_object_int_add(json_row, "statRxHelloPkt",
+						    neigh->stat_hello_rcvd);
+				json_object_int_add(json_row, "statRxAssertPkt",
+						    neigh->stat_assert_rcvd);
+				json_object_int_add(json_row, "statRxJoinItem",
+						    neigh->stat_join_rcvd);
+				json_object_int_add(json_row, "statRxPruneItem",
+						    neigh->stat_prune_rcvd);
+				json_object_int_add(json_row, "statTxJoinItem",
+						    neigh->stat_join_sent);
+				json_object_int_add(json_row, "statTxPruneItem",
+						    neigh->stat_prune_sent);
+
 				json_object_object_add(json_ifp, neigh_src_str,
 						       json_row);
 
@@ -1978,7 +1992,19 @@ static void pim_show_neighbors_single(struct pim_instance *pim, struct vty *vty,
 					option_t_bit ? "yes" : "no");
 				bfd_sess_show(vty, json_ifp,
 					      neigh->bfd_session);
-				vty_out(vty, "\n");
+				vty_out(vty, "\n    Counters:\n");
+				vty_out(vty, "    %10u  Received Hellos\n",
+					neigh->stat_hello_rcvd);
+				vty_out(vty, "    %10u  Received Asserts\n",
+					neigh->stat_assert_rcvd);
+				vty_out(vty, "    %10u  Received (S,G) Join items\n",
+					neigh->stat_join_rcvd);
+				vty_out(vty, "    %10u  Received (S,G) Prune items\n",
+					neigh->stat_prune_rcvd);
+				vty_out(vty, "    %10u  Sent (S,G) Join items\n",
+					neigh->stat_join_sent);
+				vty_out(vty, "    %10u  Sent (S,G) Prune items\n",
+					neigh->stat_prune_sent);
 			}
 		}
 	}

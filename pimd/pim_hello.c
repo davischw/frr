@@ -353,6 +353,8 @@ int pim_hello_recv(struct interface *ifp, struct in_addr src_addr,
 					__func__);
 		}
 
+		++neigh->stat_hello_rcvd;
+
 		/* actual addr list has been saved under neighbor */
 		return 0;
 	}
@@ -410,6 +412,9 @@ int pim_hello_recv(struct interface *ifp, struct in_addr src_addr,
 						"%s: forwarding bsm to new nbr failed",
 						__func__);
 			}
+
+			++neigh->stat_hello_rcvd;
+
 			/* actual addr list is saved under neighbor */
 			return 0;
 
@@ -420,6 +425,8 @@ int pim_hello_recv(struct interface *ifp, struct in_addr src_addr,
 	/*
 	  Update existing neighbor
 	*/
+
+	++neigh->stat_hello_rcvd;
 
 	pim_neighbor_update(neigh, hello_options, hello_option_holdtime,
 			    hello_option_dr_priority, hello_option_addr_list);
