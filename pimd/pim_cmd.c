@@ -89,6 +89,9 @@ static struct cmd_node debug_node = {
 	.config_write = pim_debug_config_write,
 };
 
+static void json_object_pim_ifp_add(struct json_object *json,
+				    struct interface *ifp);
+
 static struct vrf *pim_cmd_lookup_vrf(struct vty *vty, struct cmd_token *argv[],
 				      const int argc, int *idx)
 {
@@ -156,6 +159,118 @@ static void pim_show_assert(struct pim_instance *pim, struct vty *vty)
 			pim_show_assert_helper(vty, pim_ifp, ch, now);
 		} /* scan interface channels */
 	}
+}
+
+static void pim_assert_metric_json(json_object *parent, const char *key,
+				   const struct pim_assert_metric *am)
+{
+	char ipbuf[INET_ADDRSTRLEN];
+	json_object *json;
+
+	json = json_object_new_object();
+
+	inet_ntop(AF_INET, &am->ip_address, ipbuf, sizeof(ipbuf));
+	json_object_string_add(json, "address", ipbuf);
+
+	if (am->metric_preference == PIM_ASSERT_METRIC_PREFERENCE_MAX)
+		json_object_string_add(json, "preference", "infinity");
+	else
+		json_object_int_add(json, "preference", am->metric_preference);
+
+	if (am->route_metric == PIM_ASSERT_ROUTE_METRIC_MAX)
+		json_object_string_add(json, "routeMetric", "infinity");
+	else
+		json_object_int_add(json, "routeMetric", am->route_metric);
+
+	json_object_boolean_add(json, "rptFlag", am->rpt_bit_flag);
+
+	json_object_object_add(parent, key, json);
+}
+
+static void pim_show_assert_json_helper(struct vty *vty,
+					struct pim_interface *pim_ifp,
+					struct pim_ifchannel *ch, time_t now,
+					json_object *json_iface)
+{
+	char ch_src_str[INET_ADDRSTRLEN];
+	char ch_grp_str[INET_ADDRSTRLEN];
+	char winner_str[INET_ADDRSTRLEN];
+	char uptime[10];
+	char timer[10];
+	struct pim_assert_metric am;
+	json_object *json_grp = NULL, *json_src = NULL;
+
+	pim_inet4_dump("<ch_src?>", ch->sg.src, ch_src_str, sizeof(ch_src_str));
+	pim_inet4_dump("<ch_grp?>", ch->sg.grp, ch_grp_str, sizeof(ch_grp_str));
+	pim_inet4_dump("<assrt_win?>", ch->ifassert_winner, winner_str,
+		       sizeof(winner_str));
+
+	pim_time_uptime(uptime, sizeof(uptime), now - ch->ifassert_creation);
+	pim_time_timer_to_mmss(timer, sizeof(timer), ch->t_ifassert_timer);
+
+	json_object_object_get_ex(json_iface, ch_grp_str, &json_grp);
+	if (!json_grp) {
+		json_grp = json_object_new_object();
+		json_object_object_add(json_iface, ch_grp_str, json_grp);
+	}
+
+	json_src = json_object_new_object();
+	json_object_object_add(json_grp, ch_src_str, json_src);
+
+	json_object_string_add(json_src, "assertState",
+			       pim_ifchannel_ifassert_name(ch->ifassert_state));
+	json_object_string_add(json_src, "assertWinner", winner_str);
+	json_object_string_add(json_src, "uptime", uptime);
+	json_object_string_add(json_src, "assertTimer", timer);
+
+	json_object_boolean_add(json_src, "couldAssert",
+				PIM_IF_FLAG_TEST_COULD_ASSERT(ch->flags));
+	json_object_boolean_add(json_src, "evalCouldAssert",
+				pim_macro_ch_could_assert_eval(ch));
+	json_object_boolean_add(json_src, "trackingDesired",
+			PIM_IF_FLAG_TEST_ASSERT_TRACKING_DESIRED(ch->flags));
+	json_object_boolean_add(json_src, "evalTrackingDesired",
+				pim_macro_assert_tracking_desired_eval(ch));
+
+	pim_assert_metric_json(json_src, "assertWinnerMetric",
+			       &ch->ifassert_winner_metric);
+
+	am = pim_macro_spt_assert_metric(&ch->upstream->rpf,
+					 pim_ifp->primary_address);
+	pim_assert_metric_json(json_src, "localMetric", &am);
+}
+
+static void pim_show_assert_json(struct pim_instance *pim, struct vty *vty)
+{
+	struct pim_interface *pim_ifp;
+	struct pim_ifchannel *ch;
+	struct interface *ifp;
+	time_t now;
+	json_object *json;
+
+	now = pim_time_monotonic_sec();
+	json = json_object_new_object();
+
+	FOR_ALL_INTERFACES (pim->vrf, ifp) {
+		struct json_object *json_iface;
+
+		pim_ifp = ifp->info;
+		if (!pim_ifp)
+			continue;
+
+		json_iface = json_object_new_object();
+		json_object_pim_ifp_add(json_iface, ifp);
+		json_object_object_add(json, ifp->name, json_iface);
+
+		RB_FOREACH (ch, pim_ifchannel_rb, &pim_ifp->ifchannel_rb) {
+			pim_show_assert_json_helper(vty, pim_ifp, ch, now,
+						    json_iface);
+		} /* scan interface channels */
+	}
+
+	vty_out(vty, "%s\n", json_object_to_json_string_ext(json,
+				JSON_C_TO_STRING_PRETTY));
+	json_object_free(json);
 }
 
 static void pim_show_assert_internal_helper(struct vty *vty,
@@ -4444,20 +4559,25 @@ DEFUN (show_ip_pim_mlag_summary,
 
 DEFUN (show_ip_pim_assert,
        show_ip_pim_assert_cmd,
-       "show ip pim [vrf NAME] assert",
+       "show ip pim [vrf NAME] assert [json]",
        SHOW_STR
        IP_STR
        PIM_STR
        VRF_CMD_HELP_STR
-       "PIM interface assert\n")
+       "PIM interface assert\n"
+       JSON_STR)
 {
+	bool uj = use_json(argc, argv);
 	int idx = 2;
 	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
 
 	if (!vrf)
 		return CMD_WARNING;
 
-	pim_show_assert(vrf->info, vty);
+	if (uj)
+		pim_show_assert_json(vrf->info, vty);
+	else
+		pim_show_assert(vrf->info, vty);
 
 	return CMD_SUCCESS;
 }
