@@ -67,6 +67,7 @@ static void recv_join(struct interface *ifp, struct pim_neighbor *neigh,
 	assert(pim_ifp);
 
 	++pim_ifp->pim_ifstat_join_recv;
+	++neigh->stat_join_rcvd;
 
 	/*
 	 * If the RPT and WC are set it's a (*,G)
@@ -126,6 +127,7 @@ static void recv_prune(struct interface *ifp, struct pim_neighbor *neigh,
 	assert(pim_ifp);
 
 	++pim_ifp->pim_ifstat_prune_recv;
+	++neigh->stat_prune_rcvd;
 
 	if ((source_flags & PIM_RPT_BIT_MASK)
 	    && (source_flags & PIM_WILDCARD_BIT_MASK)) {
@@ -418,6 +420,7 @@ int pim_joinprune_send(struct pim_rpf *rpf, struct list *groups)
 {
 	struct pim_jp_agg_group *group;
 	struct pim_interface *pim_ifp = NULL;
+	struct pim_neighbor *neigh = NULL;
 	struct pim_jp_groups *grp = NULL;
 	struct pim_jp *msg = NULL;
 	struct listnode *node, *nnode;
@@ -463,6 +466,11 @@ int pim_joinprune_send(struct pim_rpf *rpf, struct list *groups)
 	  expire, followed by the Join/Prune or Assert message.
 	*/
 	pim_hello_require(rpf->source_nexthop.interface);
+
+	neigh = pim_neighbor_find(rpf->source_nexthop.interface, rpf->rpf_addr);
+	if (!neigh)
+		zlog_warn("sending JP to non-neighbor %pPA on %s",
+			  &rpf->rpf_addr, rpf->source_nexthop.interface->name);
 
 	for (ALL_LIST_ELEMENTS(groups, node, nnode, group)) {
 		if (new_packet) {
@@ -544,6 +552,11 @@ int pim_joinprune_send(struct pim_rpf *rpf, struct list *groups)
 		if (!pim_ifp->pim_passive_enable) {
 			pim_ifp->pim_ifstat_join_send += ntohs(grp->joins);
 			pim_ifp->pim_ifstat_prune_send += ntohs(grp->prunes);
+
+			if (neigh) {
+				neigh->stat_join_sent += ntohs(grp->joins);
+				neigh->stat_prune_sent += ntohs(grp->prunes);
+			}
 		}
 
 		if (PIM_DEBUG_PIM_TRACE)

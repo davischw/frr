@@ -37,6 +37,7 @@
 #include "pim_assert.h"
 #include "pim_zebra.h"
 #include "pim_ifchannel.h"
+#include "pim_neighbor.h"
 
 static int assert_action_a3(struct pim_ifchannel *ch);
 static void assert_action_a2(struct pim_ifchannel *ch,
@@ -313,6 +314,7 @@ int pim_assert_recv(struct interface *ifp, struct pim_neighbor *neigh,
 	}
 
 	++pim_ifp->pim_ifstat_assert_recv;
+	++neigh->stat_assert_rcvd;
 
 	return dispatch_assert(ifp, msg_source_addr, sg.grp, msg_metric);
 }
