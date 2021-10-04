@@ -485,8 +485,7 @@ static int pim_zebra_fpm_sync(ZAPI_CALLBACK_ARGS)
 static zclient_handler *const pim_handlers[] = {
 	[ZEBRA_INTERFACE_ADDRESS_ADD] = pim_zebra_if_address_add,
 	[ZEBRA_INTERFACE_ADDRESS_DELETE] = pim_zebra_if_address_del,
-
-	[ZEBRA_NEXTHOP_UPDATE] = pim_parse_nexthop_update,
+//	[ZEBRA_NEXTHOP_UPDATE] = pim_parse_nexthop_update,
 	[ZEBRA_ROUTER_ID_UPDATE] = pim_router_id_update_zebra,
 	[ZEBRA_INTERFACE_VRF_UPDATE] = pim_zebra_interface_vrf_update,
 
@@ -519,6 +518,8 @@ void pim_zebra_init(void)
 	}
 
 	zclient_lookup_new();
+
+	pim_nht_init();
 
 #if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
 	if (pim_southbound_enabled)

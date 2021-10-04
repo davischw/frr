@@ -2820,15 +2820,20 @@ static int pim_print_vty_pnc_cache_walkcb(struct hash_bucket *bucket, void *arg)
 	struct vty_pnc_cache_walk_data *cwd = arg;
 	struct vty *vty = cwd->vty;
 	struct pim_instance *pim = cwd->pim;
+	struct pim_nexthop_data *nhd;
 	struct nexthop *nh_node = NULL;
 	ifindex_t first_ifindex;
 	struct interface *ifp = NULL;
+	char selchar = 0;
 
-	for (nh_node = pnc->nexthop; nh_node; nh_node = nh_node->next) {
+	nhd = &pnc->rib[SAFI_UNICAST - 1];
+	selchar = (pnc->rib_sel == SAFI_UNICAST) ? '>' : ' ';
+	for (nh_node = nhd->nexthop; nh_node; nh_node = nh_node->next) {
 		first_ifindex = nh_node->ifindex;
 
 		ifp = if_lookup_by_index(first_ifindex, pim->vrf->vrf_id);
 
+		vty_out(vty, "%cu  ", selchar);
 		vty_out(vty, "%-15pPA ", &pnc->rpf.rpf_addr);
 		vty_out(vty, "%-16s ", ifp ? ifp->name : "NULL");
 #if PIM_IPV == 4
@@ -2838,6 +2843,25 @@ static int pim_print_vty_pnc_cache_walkcb(struct hash_bucket *bucket, void *arg)
 #endif
 		vty_out(vty, "\n");
 	}
+
+	nhd = &pnc->rib[SAFI_MULTICAST - 1];
+	selchar = (pnc->rib_sel == SAFI_MULTICAST) ? '>' : ' ';
+	for (nh_node = nhd->nexthop; nh_node; nh_node = nh_node->next) {
+		first_ifindex = nh_node->ifindex;
+
+		ifp = if_lookup_by_index(first_ifindex, pim->vrf->vrf_id);
+
+		vty_out(vty, "%cm  ", selchar);
+		vty_out(vty, "%-15pPA ", &pnc->rpf.rpf_addr);
+		vty_out(vty, "%-16s ", ifp ? ifp->name : "NULL");
+#if PIM_IPV == 4
+		vty_out(vty, "%pI4 ", &nh_node->gate.ipv4);
+#else
+		vty_out(vty, "%pI6 ", &nh_node->gate.ipv6);
+#endif
+		vty_out(vty, "\n");
+	}
+
 	return CMD_SUCCESS;
 }
 
@@ -2848,6 +2872,7 @@ static int pim_print_json_pnc_cache_walkcb(struct hash_bucket *backet,
 	struct json_pnc_cache_walk_data *cwd = arg;
 	struct pim_instance *pim = cwd->pim;
 	struct nexthop *nh_node = NULL;
+	struct pim_nexthop_data *nhd;
 	ifindex_t first_ifindex;
 	struct interface *ifp = NULL;
 	char addr_str[PIM_ADDRSTRLEN];
@@ -2855,7 +2880,8 @@ static int pim_print_json_pnc_cache_walkcb(struct hash_bucket *backet,
 	json_object *json_ifp = NULL;
 	json_object *json_arr = NULL;
 
-	for (nh_node = pnc->nexthop; nh_node; nh_node = nh_node->next) {
+	nhd = &pnc->rib[SAFI_UNICAST - 1];
+	for (nh_node = nhd->nexthop; nh_node; nh_node = nh_node->next) {
 		first_ifindex = nh_node->ifindex;
 		ifp = if_lookup_by_index(first_ifindex, pim->vrf->vrf_id);
 		snprintfrr(addr_str, sizeof(addr_str), "%pPA",
@@ -2867,6 +2893,9 @@ static int pim_print_json_pnc_cache_walkcb(struct hash_bucket *backet,
 						&pnc->rpf.rpf_addr);
 			json_object_object_addf(cwd->json_obj, json_row, "%pPA",
 						&pnc->rpf.rpf_addr);
+			json_object_string_addf(
+				json_row, "flags", "%cu",
+				pnc->rib_sel == SAFI_UNICAST ? '>' : ' ');
 			json_arr = json_object_new_array();
 			json_object_object_add(json_row, "nexthops", json_arr);
 		}
@@ -2882,6 +2911,39 @@ static int pim_print_json_pnc_cache_walkcb(struct hash_bucket *backet,
 #endif
 		json_object_array_add(json_arr, json_ifp);
 	}
+
+	nhd = &pnc->rib[SAFI_MULTICAST - 1];
+	for (nh_node = nhd->nexthop; nh_node; nh_node = nh_node->next) {
+		first_ifindex = nh_node->ifindex;
+		ifp = if_lookup_by_index(first_ifindex, pim->vrf->vrf_id);
+		snprintfrr(addr_str, sizeof(addr_str), "%pPA",
+			   &pnc->rpf.rpf_addr);
+		json_object_object_get_ex(cwd->json_obj, addr_str, &json_row);
+		if (!json_row) {
+			json_row = json_object_new_object();
+			json_object_string_addf(json_row, "address", "%pPA",
+						&pnc->rpf.rpf_addr);
+			json_object_object_addf(cwd->json_obj, json_row, "%pPA",
+						&pnc->rpf.rpf_addr);
+			json_object_string_addf(
+				json_row, "flags", "%cu",
+				pnc->rib_sel == SAFI_MULTICAST ? '>' : ' ');
+			json_arr = json_object_new_array();
+			json_object_object_add(json_row, "nexthops", json_arr);
+		}
+		json_ifp = json_object_new_object();
+		json_object_string_add(json_ifp, "interface",
+				       ifp ? ifp->name : "NULL");
+#if PIM_IPV == 4
+		json_object_string_addf(json_ifp, "nexthop", "%pI4",
+					&nh_node->gate.ipv4);
+#else
+		json_object_string_addf(json_ifp, "nexthop", "%pI6",
+					&nh_node->gate.ipv6);
+#endif
+		json_object_array_add(json_arr, json_ifp);
+	}
+
 	return CMD_SUCCESS;
 }
 
@@ -2965,16 +3027,19 @@ void pim_show_nexthop(struct pim_instance *pim, struct vty *vty, bool uj)
 	} else {
 		vty_out(vty, "Number of registered addresses: %lu\n",
 			pim->rpf_hash->count);
-		vty_out(vty, "Address         Interface        Nexthop\n");
-		vty_out(vty, "---------------------------------------------\n");
+		vty_out(vty, "fl  Address         Interface        Nexthop\n");
+		vty_out(vty, "-------------------------------------------------\n");
 	}
 
 	if (uj) {
 		hash_walk(pim->rpf_hash, pim_print_json_pnc_cache_walkcb,
 			  &jcwd);
 		vty_json(vty, jcwd.json_obj);
-	} else
+	} else {
 		hash_walk(pim->rpf_hash, pim_print_vty_pnc_cache_walkcb, &cwd);
+		vty_out(vty, "-------------------------------------------------\n");
+		vty_out(vty, "Flags: > - selected, u - URIB, m - MRIB\n");
+	}
 }
 
 int pim_show_neighbors_cmd_helper(const char *vrf, struct vty *vty,
