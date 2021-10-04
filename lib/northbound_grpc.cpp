@@ -181,7 +181,8 @@ template <typename Q, typename S> class NewRpcState : RpcStateBase
 
 		if (this->state == DELETED) {
 			grpc_debug("%s RPC: -> [DELETED]", name);
-			delete this;
+                        // The statement below causes crashes:
+                        //delete this;
 			return DELETED;
 		}
 		return this->state;
