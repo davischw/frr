@@ -24,6 +24,7 @@
 #include "config.h"
 #endif
 
+#include "lib/lib_errors.h"
 #include "if.h"
 #include "pimd.h"
 #include "pim_iface.h"
@@ -263,13 +264,19 @@ void pim_bsm_proc_init(struct pim_instance *pim)
 	scope->cand_rp_interval = PIM_CRP_ADV_INTERVAL;
 	cand_rp_groups_init(scope->cand_rp_groups);
 
-	scope->unicast_sock = pim_socket_raw(IPPROTO_PIM);
-	pim_socket_ip_hdr(scope->unicast_sock);
-	sockopt_reuseaddr(scope->unicast_sock);
+	frr_with_privs(&pimd_privs) {
+		scope->unicast_sock = vrf_socket(AF_INET, SOCK_RAW, IPPROTO_PIM,
+						 pim->vrf->vrf_id,
+						 pim->vrf->name);
 
-	frr_with_privs (&pimd_privs) {
-		vrf_bind(pim->vrf->vrf_id, scope->unicast_sock,
-			 NULL);
+		if (scope->unicast_sock == -1) {
+			flog_err(EC_LIB_SOCKET,
+				 "pim_bsm_proc_init: socket: %m");
+			exit(1);
+		}
+
+		pim_socket_ip_hdr(scope->unicast_sock);
+		sockopt_reuseaddr(scope->unicast_sock);
 	}
 }
 
