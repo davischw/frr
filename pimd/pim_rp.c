@@ -56,13 +56,19 @@ void pim_rp_list_hash_clean(void *data)
 {
 	struct pim_nexthop_cache *pnc = (struct pim_nexthop_cache *)data;
 
+#ifdef DEV_BUILD
+	/* PNC should not be deleted in pim_rp.c */
+	CPP_NOTICE("cleanup required in aisle 4");
+#endif
 	list_delete(&pnc->rp_list);
 
 	hash_clean(pnc->upstream_hash, NULL);
 	hash_free(pnc->upstream_hash);
 	pnc->upstream_hash = NULL;
-	if (pnc->nexthop)
-		nexthops_free(pnc->nexthop);
+	if (pnc->rib[0].nexthop)
+		nexthops_free(pnc->rib[0].nexthop);
+	if (pnc->rib[1].nexthop)
+		nexthops_free(pnc->rib[1].nexthop);
 
 	XFREE(MTYPE_PIM_NEXTHOP_CACHE, pnc);
 }
@@ -1890,7 +1896,7 @@ void pim_resolve_rp_nh(struct pim_instance *pim, struct pim_neighbor *nbr)
 	struct rp_info *rp_info = NULL;
 	struct nexthop *nh_node = NULL;
 	struct prefix nht_p;
-	struct pim_nexthop_cache pnc;
+	struct pim_nexthop_data nhd;
 
 	for (ALL_LIST_ELEMENTS_RO(pim->rp_list, node, rp_info)) {
 		if (rp_info->rp.rpf_addr.u.prefix4.s_addr == INADDR_NONE)
@@ -1899,12 +1905,11 @@ void pim_resolve_rp_nh(struct pim_instance *pim, struct pim_neighbor *nbr)
 		nht_p.family = AF_INET;
 		nht_p.prefixlen = IPV4_MAX_BITLEN;
 		nht_p.u.prefix4 = rp_info->rp.rpf_addr.u.prefix4;
-		memset(&pnc, 0, sizeof(struct pim_nexthop_cache));
 		if (!pim_find_or_track_nexthop(pim, &nht_p, NULL, rp_info,
-					       &pnc))
+					       &nhd))
 			continue;
 
-		for (nh_node = pnc.nexthop; nh_node; nh_node = nh_node->next) {
+		for (nh_node = nhd.nexthop; nh_node; nh_node = nh_node->next) {
 			if (nh_node->gate.ipv4.s_addr != INADDR_ANY)
 				continue;
 
@@ -1936,12 +1941,12 @@ void pim_resolve_rp_nh(struct pim_instance *pim, struct pim_neighbor *nbr)
 		nht_p.family = AF_INET;
 		nht_p.prefixlen = IPV4_MAX_BITLEN;
 		nht_p.u.prefix4 = rp_info->rp.rpf_addr.u.prefix4;
-		memset(&pnc, 0, sizeof(struct pim_nexthop_cache));
+		memset(&nhd, 0, sizeof(nhd));
 		if (!pim_find_or_track_nexthop(pim, &nht_p, NULL, rp_info,
-					       &pnc))
+					       &nhd))
 			continue;
 
-		for (nh_node = pnc.nexthop; nh_node; nh_node = nh_node->next) {
+		for (nh_node = nhd.nexthop; nh_node; nh_node = nh_node->next) {
 			if (nh_node->gate.ipv4.s_addr != INADDR_ANY)
 				continue;
 

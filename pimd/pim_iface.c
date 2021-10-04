@@ -654,9 +654,7 @@ void pim_if_addr_add(struct connected *ifc)
 			}
 			struct pim_nexthop_cache *pnc = NULL;
 			struct pim_rpf rpf;
-			struct zclient *zclient = NULL;
 
-			zclient = pim_zebra_zclient_get();
 			/* RP config might come prior to (local RP's interface)
 			   IF UP event.
 			   In this case, pnc would not have pim enabled
@@ -671,8 +669,7 @@ void pim_if_addr_add(struct connected *ifc)
 			rpf.rpf_addr.u.prefix4 = ifc->address->u.prefix4;
 			pnc = pim_nexthop_cache_find(pim_ifp->pim, &rpf);
 			if (pnc)
-				pim_sendmsg_zebra_rnh(pim_ifp->pim, zclient,
-						      pnc,
+				pim_sendmsg_zebra_rnh(pim_ifp->pim, pnc,
 						      ZEBRA_NEXTHOP_REGISTER);
 		}
 	} /* pim */

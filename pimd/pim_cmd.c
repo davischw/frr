@@ -3153,18 +3153,28 @@ static int pim_print_pnc_cache_walkcb(struct hash_bucket *bucket, void *arg)
 	struct nexthop *nh_node = NULL;
 	ifindex_t first_ifindex;
 	struct interface *ifp = NULL;
-	char buf[PREFIX_STRLEN];
+	struct pim_nexthop_data *nhd;
+	char selchar;
 
-	for (nh_node = pnc->nexthop; nh_node; nh_node = nh_node->next) {
+	nhd = &pnc->rib[SAFI_UNICAST - 1];
+	selchar = (pnc->rib_sel == SAFI_UNICAST) ? '>' : ' ';
+	for (nh_node = nhd->nexthop; nh_node; nh_node = nh_node->next) {
 		first_ifindex = nh_node->ifindex;
 		ifp = if_lookup_by_index(first_ifindex, pim->vrf->vrf_id);
 
-		vty_out(vty, "%-15s ", inet_ntop(AF_INET,
-						 &pnc->rpf.rpf_addr.u.prefix4,
-						 buf, sizeof(buf)));
-		vty_out(vty, "%-16s ", ifp ? ifp->name : "NULL");
-		vty_out(vty, "%pI4 ", &nh_node->gate.ipv4);
-		vty_out(vty, "\n");
+		vty_out(vty, "%cu  %-15pI4 %-16s %pI4\n", selchar,
+			&pnc->rpf.rpf_addr.u.prefix4,
+			ifp ? ifp->name : "NULL", &nh_node->gate.ipv4);
+	}
+	nhd = &pnc->rib[SAFI_MULTICAST - 1];
+	selchar = (pnc->rib_sel == SAFI_MULTICAST) ? '>' : ' ';
+	for (nh_node = nhd->nexthop; nh_node; nh_node = nh_node->next) {
+		first_ifindex = nh_node->ifindex;
+		ifp = if_lookup_by_index(first_ifindex, pim->vrf->vrf_id);
+
+		vty_out(vty, "%cm  %-15pI4 %-16s %pI4\n", selchar,
+			&pnc->rpf.rpf_addr.u.prefix4,
+			ifp ? ifp->name : "NULL", &nh_node->gate.ipv4);
 	}
 	return CMD_SUCCESS;
 }
@@ -3177,10 +3187,12 @@ static void pim_show_nexthop(struct pim_instance *pim, struct vty *vty)
 	cwd.pim = pim;
 	vty_out(vty, "Number of registered addresses: %lu\n",
 		pim->rpf_hash->count);
-	vty_out(vty, "Address         Interface        Nexthop\n");
-	vty_out(vty, "---------------------------------------------\n");
+	vty_out(vty, "fl  Address         Interface        Nexthop\n");
+	vty_out(vty, "-------------------------------------------------\n");
 
 	hash_walk(pim->rpf_hash, pim_print_pnc_cache_walkcb, &cwd);
+	vty_out(vty, "-------------------------------------------------\n");
+	vty_out(vty, "Flags: > - selected, u - URIB, m - MRIB\n");
 }
 
 /* Display the bsm database details */

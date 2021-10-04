@@ -48,6 +48,22 @@
 #define PIM_SPT_THRESH_IMMEDIATE	0U
 #define PIM_SPT_THRESH_NEVER		~0U
 
+/* RPF lookup behaviour */
+enum rpf_mode {
+	RPF_NO_CONFIG = 0,  /* MIX_MRIB_FIRST, but no show in config write */
+	RPF_MRIB_ONLY,      /* MRIB only */
+	RPF_URIB_ONLY,      /* URIB only */
+	RPF_MIX_MRIB_FIRST, /* MRIB, if nothing at all then URIB */
+	RPF_MIX_DISTANCE,   /* MRIB & URIB, lower distance wins */
+	RPF_MIX_PFXLEN,     /* MRIB & URIB, longer prefix wins */
+			    /* on equal value, MRIB wins for last 2 */
+};
+
+enum pim_spt_switchover {
+	PIM_SPT_IMMEDIATE,
+	PIM_SPT_INFINITY,
+};
+
 /* stats for updates rxed from the MLAG component during the life of a
  * session
  */
@@ -143,6 +159,7 @@ struct pim_instance {
 	/* The name of the register-accept prefix-list */
 	char *register_plist;
 
+	enum rpf_mode rpf_mode;
 	struct hash *rpf_hash;
 
 	void *ssm_info; /* per-vrf SSM configuration */
