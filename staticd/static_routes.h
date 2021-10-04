@@ -86,6 +86,8 @@ PREDECL_DLIST(static_nexthop_list);
 struct static_route_info {
 	/* path list */
 	struct static_path_list_head path_list;
+
+	safi_t safi;
 };
 
 /* Static path information */
