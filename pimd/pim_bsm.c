@@ -266,8 +266,7 @@ void pim_bsm_proc_init(struct pim_instance *pim)
 
 	frr_with_privs(&pimd_privs) {
 		scope->unicast_sock = vrf_socket(AF_INET, SOCK_RAW, IPPROTO_PIM,
-						 pim->vrf->vrf_id,
-						 pim->vrf->name);
+						 pim->vrf->vrf_id, NULL);
 
 		if (scope->unicast_sock == -1) {
 			flog_err(EC_LIB_SOCKET,
