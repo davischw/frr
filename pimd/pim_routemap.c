@@ -365,7 +365,7 @@ int pim_nb_rmap_match_plist_modify(struct nb_cb_modify_args *args)
 #include "northbound_cli.h"
 
 #ifndef VTYSH_EXTRACT_PL
-#include "pim_routemap_clippy.c"
+#include "pimd/pim_routemap_clippy.c"
 #endif
 
 DEFPY_YANG (rmap_match_addr,
