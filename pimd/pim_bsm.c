@@ -247,12 +247,41 @@ static inline void pim_bs_timer_restart(struct bsm_scope *scope, int bs_timeout)
 	pim_bs_timer_start(scope, bs_timeout);
 }
 
+void pim_bsm_socket_init(struct pim_instance *pim)
+{
+	struct bsm_scope *scope = &pim->global_scope;
+
+	/* VRF not enabled yet. */
+	if (!vrf_is_enabled(pim->vrf))
+		return;
+
+	/* Don't create a duplicated socket. */
+	if (scope->unicast_sock != -1)
+		return;
+
+	frr_with_privs(&pimd_privs) {
+		int sock = vrf_socket(AF_INET, SOCK_RAW, IPPROTO_PIM,
+				      pim->vrf->vrf_id, NULL);
+		if (sock == -1) {
+			flog_err(EC_LIB_SOCKET,
+				 "pim_bsm_proc_init: socket: %m");
+			exit(1);
+		}
+
+		pim_socket_ip_hdr(sock);
+		sockopt_reuseaddr(sock);
+
+		scope->unicast_sock = sock;
+	}
+}
+
 void pim_bsm_proc_init(struct pim_instance *pim)
 {
 	struct bsm_scope *scope = &pim->global_scope;
 
 	memset(scope, 0, sizeof(*scope));
 
+	scope->unicast_sock = -1;
 	scope->sz_id = PIM_GBL_SZ_ID;
 	scope->bsrp_table = route_table_init();
 	scope->accept_nofwd_bsm = true;
@@ -264,19 +293,7 @@ void pim_bsm_proc_init(struct pim_instance *pim)
 	scope->cand_rp_interval = PIM_CRP_ADV_INTERVAL;
 	cand_rp_groups_init(scope->cand_rp_groups);
 
-	frr_with_privs(&pimd_privs) {
-		scope->unicast_sock = vrf_socket(AF_INET, SOCK_RAW, IPPROTO_PIM,
-						 pim->vrf->vrf_id, NULL);
-
-		if (scope->unicast_sock == -1) {
-			flog_err(EC_LIB_SOCKET,
-				 "pim_bsm_proc_init: socket: %m");
-			exit(1);
-		}
-
-		pim_socket_ip_hdr(scope->unicast_sock);
-		sockopt_reuseaddr(scope->unicast_sock);
-	}
+	pim_bsm_socket_init(pim);
 }
 
 void pim_bsm_proc_free(struct pim_instance *pim)
@@ -287,6 +304,7 @@ void pim_bsm_proc_free(struct pim_instance *pim)
 	struct cand_rp_group *crpgrp;
 
 	close(scope->unicast_sock);
+	scope->unicast_sock = -1;
 
 	pim_bs_timer_stop(scope);
 	pim_bsm_frags_free(scope);

@@ -283,4 +283,10 @@ void pim_cand_addrs_changed(void);
 int pim_cand_config_write(struct pim_instance *pim, struct vty *vty,
 			  const char *indent);
 
+/**
+ * Initialize BSM socket if not already. Socket creation can fail if VRF is
+ * not active yet.
+ */
+void pim_bsm_socket_init(struct pim_instance *pim);
+
 #endif
