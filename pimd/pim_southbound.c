@@ -1587,6 +1587,11 @@ int pim_socket_mcast(int protocol, struct in_addr ifaddr, struct interface *ifp,
 	return fd;
 }
 
+int pim_socket_get(void)
+{
+	return pim_fd;
+}
+
 void pim_sock_delete(struct interface *ifp, const char *delete_message)
 {
 	struct pim_interface *pim_ifp = ifp->info;

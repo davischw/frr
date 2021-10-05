@@ -466,7 +466,7 @@ static void pim_sock_read_on(struct interface *ifp)
 			pim_ifp->pim_sock_fd, &pim_ifp->t_pim_sock_read);
 }
 
-static int pim_sock_open(struct interface *ifp)
+static __attribute__((unused)) int pim_sock_open(struct interface *ifp)
 {
 	int fd;
 	struct pim_interface *pim_ifp = ifp->info;
@@ -677,7 +677,7 @@ int pim_msg_send(int fd, struct in_addr src, struct in_addr dst,
 	}
 
 #ifdef PIM_SOUTHBOUND
-	if (IN_MULTICAST(ntohl(to.sin_addr.s_addr))) {
+	{
 		struct interface *ifp = if_lookup_by_name_all_vrf(ifname);
 		struct pimsb_pim_args args = {};
 
@@ -695,7 +695,8 @@ int pim_msg_send(int fd, struct in_addr src, struct in_addr dst,
 		args.datalen = sendlen;
 		args.ifindex = ifp->ifindex;
 		pimsb_msg_send_frame(&args);
-	} else
+		return 0;
+	}
 #endif /* PIM_SOUTHBOUND */
 		pim_msg_send_frame(fd, (char *)buffer, sendlen,
 				   (struct sockaddr *)&to, tolen);
@@ -924,7 +925,11 @@ int pim_sock_add(struct interface *ifp)
 		return -1;
 	}
 
+#ifdef PIM_SOUTHBOUND
+	pim_ifp->pim_sock_fd = pim_socket_get();
+#else
 	pim_ifp->pim_sock_fd = pim_sock_open(ifp);
+#endif
 	if (pim_ifp->pim_sock_fd < 0) {
 		if (PIM_DEBUG_PIM_PACKETS)
 			zlog_debug("Could not open PIM socket on interface %s",
@@ -956,7 +961,9 @@ int pim_sock_add(struct interface *ifp)
 	/*
 	 * Start receiving PIM messages
 	 */
+#ifndef PIM_SOUTHBOUND
 	pim_sock_read_on(ifp);
+#endif /* PIM_SOUTHBOUND */
 
 	/*
 	 * Start sending PIM hello's

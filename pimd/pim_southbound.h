@@ -135,6 +135,7 @@ void pimsb_igmp_leave(struct interface *ifp, struct in_addr *source,
 bool pimsb_igmp_sg_is_static(const struct igmp_source *source,
 			     const struct igmp_group *group);
 
+int pim_socket_get(void);
 int pim_socket_mcast(int protocol, struct in_addr ifaddr, struct interface *ifp,
 		     uint8_t loop);
 int pimsb_msg_send_frame(const struct pimsb_pim_args *args);
