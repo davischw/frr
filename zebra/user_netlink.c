@@ -1361,7 +1361,7 @@ rib_delete_nexthop(afi_t afi, struct route_node *rn, struct route_entry *re,
 	int copy_count;
 
 	/* Easiest case: if there is only one next hop then delete it. */
-	if (nexthop_group_active_nexthop_num_no_recurse(&re->nhe->nhg) == 1) {
+	if (nexthop_group_active_nexthop_num_no_recurse(&re->nhe->nhg) <= 1) {
 		rib_delnode(rn, re);
 		route_unlock_node(rn);
 		return 0;
