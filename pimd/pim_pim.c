@@ -681,11 +681,6 @@ int pim_msg_send(int fd, struct in_addr src, struct in_addr dst,
 		struct interface *ifp = if_lookup_by_name_all_vrf(ifname);
 		struct pimsb_pim_args args = {};
 
-		if (ifp == NULL) {
-			zlog_err("%s: no interface :%s", __func__, ifname);
-			return 0;
-		}
-
 		/* Fix warning. */
 		tolen = tolen;
 
@@ -693,7 +688,8 @@ int pim_msg_send(int fd, struct in_addr src, struct in_addr dst,
 		args.destination = dst.s_addr;
 		args.data = buffer;
 		args.datalen = sendlen;
-		args.ifindex = ifp->ifindex;
+		args.ifindex = ifp ? ifp->ifindex : 0;
+
 		pimsb_msg_send_frame(&args);
 		return 0;
 	}
