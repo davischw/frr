@@ -1051,7 +1051,7 @@ DEFPY (debug_ospf6_lsa_aggregation,
 
 DEFUN (debug_ospf6_lsa_type,
        debug_ospf6_lsa_hex_cmd,
-       "debug ospf6 lsa <router|network|inter-prefix|inter-router|as-external|link|intra-prefix|unknown> [<originate|examine|flooding>]",
+       "debug ospf6 lsa <router|network|inter-prefix|inter-router|as-external|nssa|link|intra-prefix|unknown> [<originate|examine|flooding>]",
        DEBUG_STR
        OSPF6_STR
        "Debug Link State Advertisements (LSAs)\n"
@@ -1060,6 +1060,7 @@ DEFUN (debug_ospf6_lsa_type,
        "Display Inter-Area-Prefix LSAs\n"
        "Display Inter-Router LSAs\n"
        "Display As-External LSAs\n"
+       "Display NSSA LSAs\n"
        "Display Link LSAs\n"
        "Display Intra-Area-Prefix LSAs\n"
        "Display LSAs of unknown origin\n"
@@ -1103,7 +1104,7 @@ DEFUN (debug_ospf6_lsa_type,
 
 DEFUN (no_debug_ospf6_lsa_type,
        no_debug_ospf6_lsa_hex_cmd,
-       "no debug ospf6 lsa <router|network|inter-prefix|inter-router|as-external|link|intra-prefix|unknown> [<originate|examine|flooding>]",
+       "no debug ospf6 lsa <router|network|inter-prefix|inter-router|as-external|nssa|link|intra-prefix|unknown> [<originate|examine|flooding>]",
        NO_STR
        DEBUG_STR
        OSPF6_STR
@@ -1113,6 +1114,7 @@ DEFUN (no_debug_ospf6_lsa_type,
        "Display Inter-Area-Prefix LSAs\n"
        "Display Inter-Router LSAs\n"
        "Display As-External LSAs\n"
+       "Display NSSA LSAs\n"
        "Display Link LSAs\n"
        "Display Intra-Area-Prefix LSAs\n"
        "Display LSAs of unknown origin\n"
