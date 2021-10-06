@@ -52,9 +52,9 @@ int ospf6_area_nssa_unset(struct ospf6 *ospf6, struct ospf6_area *area);
 int ospf6_area_nssa_set(struct ospf6 *ospf6, struct ospf6_area *area);
 
 extern void ospf6_nssa_lsa_flush(struct ospf6 *ospf6, struct prefix_ipv6 *p);
-extern struct ospf6_lsa *ospf6_translated_nssa_refresh(struct ospf6_area *,
-						       struct ospf6_lsa *,
-						       struct ospf6_lsa *);
+extern struct ospf6_lsa *ospf6_translated_nssa_refresh(struct ospf6_area *oa,
+						       struct ospf6_lsa *type7,
+						       struct ospf6_lsa *type5);
 extern struct ospf6_lsa *ospf6_translated_nssa_originate(struct ospf6_area *,
 							 struct ospf6_lsa *);
 
@@ -69,8 +69,6 @@ extern void install_element_ospf6_debug_nssa(void);
 extern void ospf6_abr_nssa_type_7_defaults(struct ospf6 *osof6);
 int ospf6_redistribute_check(struct ospf6 *ospf6, struct ospf6_route *route,
 			     int type);
-extern int ospf6_abr_translate_nssa(struct ospf6_area *area,
-				    struct ospf6_lsa *lsa);
 extern void ospf6_abr_check_translate_nssa(struct ospf6_area *area,
 					   struct ospf6_lsa *lsa);
 extern void ospf6_abr_nssa_check_status(struct ospf6 *ospf6);
