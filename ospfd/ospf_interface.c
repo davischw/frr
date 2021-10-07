@@ -42,6 +42,7 @@
 #include "ospfd/ospf_asbr.h"
 #include "ospfd/ospf_lsa.h"
 #include "ospfd/ospf_lsdb.h"
+#include "ospfd/ospf_nb.h"
 #include "ospfd/ospf_neighbor.h"
 #include "ospfd/ospf_nsm.h"
 #include "ospfd/ospf_packet.h"
@@ -351,6 +352,8 @@ void ospf_if_cleanup(struct ospf_interface *oi)
 
 void ospf_if_free(struct ospf_interface *oi)
 {
+	ospf_nb_del_interface(oi);
+
 	ospf_if_down(oi);
 
 	ospf_fifo_free(oi->obuf);

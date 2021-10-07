@@ -37,6 +37,7 @@
 #include "ospfd/ospf_asbr.h"
 #include "ospfd/ospf_lsa.h"
 #include "ospfd/ospf_lsdb.h"
+#include "ospfd/ospf_nb.h"
 #include "ospfd/ospf_neighbor.h"
 #include "ospfd/ospf_nsm.h"
 #include "ospfd/ospf_packet.h"
@@ -504,11 +505,12 @@ struct ospf_neighbor *ospf_nbr_get(struct ospf_interface *oi,
 			nbr->src = iph->ip_src;
 			memcpy(&nbr->address, p, sizeof(struct prefix));
 		}
+
+		nbr->router_id = ospfh->router_id;
 	} else {
 		rn->info = nbr = ospf_nbr_add(oi, ospfh, p);
+		nbr->router_id = ospfh->router_id;
 	}
-
-	nbr->router_id = ospfh->router_id;
 
 	return nbr;
 }

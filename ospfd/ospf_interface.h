@@ -279,6 +279,8 @@ struct ospf_interface {
 
 	uint32_t full_nbrs;
 
+	bool auth_sequence_set;
+
 	QOBJ_FIELDS;
 };
 DECLARE_QOBJ_TYPE(ospf_interface);

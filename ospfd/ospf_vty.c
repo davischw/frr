@@ -986,7 +986,7 @@ static int ospf_vl_set(struct ospf *ospf, struct ospf_vl_config_data *vl_config)
 	return CMD_SUCCESS;
 }
 
-static void ospf_shutdown(struct ospf *ospf, bool shutdown)
+void ospf_shutdown(struct ospf *ospf, bool shutdown)
 {
 	struct ospf_area *area;
 	struct ospf_interface *oi;
