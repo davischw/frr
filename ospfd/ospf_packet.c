@@ -385,7 +385,7 @@ static int ospf_make_md5_digest(struct ospf_interface *oi,
 	MD5_CTX ctx;
 #endif
 	void *ibuf;
-	uint32_t t;
+	uint32_t t __attribute__((unused));
 	struct crypt_key *ck;
 	const uint8_t *auth_key;
 
@@ -399,11 +399,15 @@ static int ospf_make_md5_digest(struct ospf_interface *oi,
 	   waste CPU rewriting other headers.
 
 	   Note that quagga_time /deliberately/ is not used here */
+#if 0
 	t = (time(NULL) & 0xFFFFFFFF);
 	if (t > oi->crypt_seqnum)
 		oi->crypt_seqnum = t;
 	else
 		oi->crypt_seqnum++;
+#else
+	oi->crypt_seqnum += 1;
+#endif
 
 	ospfh->u.crypt.crypt_seqnum = htonl(oi->crypt_seqnum);
 

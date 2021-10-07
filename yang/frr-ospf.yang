@@ -1,0 +1,137 @@
+module frr-ospf {
+  yang-version 1.1;
+  namespace "http://frrouting.org/yang/ospf";
+  prefix frr-ospf;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import frr-interface {
+    prefix frr-interface;
+  }
+  import frr-vrf {
+    prefix frr-vrf;
+  }
+  import frr-route-types {
+    prefix frr-route-types;
+  }
+
+  organization
+    "FRRouting";
+  contact
+    "FRR Users List:       <mailto:frog@lists.frrouting.org>
+     FRR Development List: <mailto:dev@lists.frrouting.org>";
+  description
+    "This module defines a model for managing FRR OSPF daemons.
+
+     Copyright 2021 FRRouting
+
+     Redistribution and use in source and binary forms, with or without
+     modification, are permitted provided that the following conditions
+     are met:
+
+     1. Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in the
+     documentation and/or other materials provided with the distribution.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+     \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+     LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+     A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+     HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+     LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+     DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+     THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.";
+
+  revision 2021-07-20 {
+    description
+      "Initial revision.";
+    reference
+      "RFC 2328: OSPF Version 2.
+       RFC 5340: OSPF for IPv6.";
+  }
+
+  container ospf {
+    list instance {
+      key "vrf id";
+
+      leaf vrf {
+        type frr-vrf:vrf-ref;
+        description
+          "VRF instance is running on.";
+      }
+
+      leaf id {
+        type uint16;
+        description
+          "OSPF instance identification.";
+      }
+
+      leaf auth-sequence-number {
+        type uint32;
+        default 0;
+        description
+          "Authentication sequence number starting point.";
+      }
+
+      leaf shutdown {
+        type boolean;
+        default false;
+        description
+          "Disable or enable an OSPF instance. If graceful restart is
+           configured, then the grace LSA will be sent.";
+      }
+
+      list area {
+        key "id";
+
+        leaf id {
+          type inet:ipv4-address;
+          description
+            "OSPF area identification.";
+        }
+
+        list interface {
+          key "name";
+
+          leaf name {
+            type frr-interface:interface-ref;
+            description "Interface name.";
+          }
+
+          list neighbor {
+            key "router-id";
+
+            leaf router-id {
+              type inet:ipv4-address;
+              description
+                "Neighbor router id identification.";
+            }
+
+            leaf source {
+              type inet:ipv4-address;
+              description
+                "Local source address.";
+            }
+
+            leaf auth-sequence-number-current {
+              type uint32;
+              config false;
+              description
+                "Current authentication sequence number.";
+            }
+          }
+        }
+      }
+    }
+  }
+}

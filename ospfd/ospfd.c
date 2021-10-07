@@ -49,6 +49,7 @@
 #include "ospfd/ospf_asbr.h"
 #include "ospfd/ospf_lsa.h"
 #include "ospfd/ospf_lsdb.h"
+#include "ospfd/ospf_nb.h"
 #include "ospfd/ospf_neighbor.h"
 #include "ospfd/ospf_nsm.h"
 #include "ospfd/ospf_spf.h"
@@ -465,6 +466,7 @@ static int ospf_is_ready(struct ospf *ospf)
 static void ospf_add(struct ospf *ospf)
 {
 	listnode_add(om->ospf, ospf);
+	ospf_nb_add_instance(ospf);
 }
 
 static void ospf_delete(struct ospf *ospf)
@@ -714,6 +716,8 @@ static void ospf_finish_final(struct ospf *ospf)
 	struct listnode *node, *nnode;
 	struct ospf_redist *red;
 	int i;
+
+	ospf_nb_del_instance(ospf);
 
 	QOBJ_UNREG(ospf);
 
@@ -988,6 +992,8 @@ void ospf_area_lsdb_discard_delete(struct ospf_area *area)
 
 static void ospf_area_free(struct ospf_area *area)
 {
+	ospf_nb_del_area(area);
+
 	ospf_opaque_type10_lsa_term(area);
 
 	/* Free LSDBs. */
@@ -1047,6 +1053,8 @@ struct ospf_area *ospf_area_get(struct ospf *ospf, struct in_addr area_id)
 			SET_FLAG(area->stub_router_state,
 				 OSPF_AREA_ADMIN_STUB_ROUTED);
 		}
+
+		ospf_nb_add_area(area);
 	}
 
 	return area;
@@ -1115,6 +1123,8 @@ struct ospf_interface *add_ospf_interface(struct connected *co,
 	if ((area->ospf->router_id.s_addr != INADDR_ANY)
 	    && if_is_operative(co->ifp))
 		ospf_if_up(oi);
+
+	ospf_nb_add_interface(oi);
 
 	return oi;
 }

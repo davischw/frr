@@ -92,6 +92,7 @@ static const char *const frr_native_modules[] = {
 	"frr-zebra",
 	"frr-pathd",
 	"frr-bfdd",
+	"frr-ospf",
 };
 /* clang-format on */
 
