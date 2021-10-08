@@ -390,6 +390,8 @@ struct ospf *ospf_new_alloc(unsigned short instance, const char *name)
 
 	ospf_asbr_external_aggregator_init(new);
 
+	SET_FLAG(new->config, OSPF_OPAQUE_CAPABLE);
+
 	QOBJ_REG(new, ospf);
 
 	new->fd = -1;
