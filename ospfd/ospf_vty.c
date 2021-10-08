@@ -2717,8 +2717,8 @@ DEFPY(ospf_instance_shutdown_graceful, ospf_instance_shutdown_graceful_cmd,
 				continue;
 
 			/* Send Grace-LSA. */
-			ospf_gr_lsa_originate(oi,
-					      OSPF_GR_SWITCH_CONTROL_PROCESSOR);
+			ospf_gr_lsa_originate(
+				oi, OSPF_GR_SWITCH_CONTROL_PROCESSOR, false);
 
 			/* Start GR hello-delay interval. */
 			if (OSPF_IF_PARAM_CONFIGURED(IF_DEF_PARAMS(oi->ifp),

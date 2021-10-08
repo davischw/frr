@@ -152,7 +152,7 @@ static struct ospf_lsa *ospf_gr_lsa_new(struct ospf_interface *oi,
 
 /* Originate and install Grace-LSA for a given interface. */
 void ospf_gr_lsa_originate(struct ospf_interface *oi,
-			   enum ospf_gr_restart_reason reason)
+			   enum ospf_gr_restart_reason reason, bool maxage)
 {
 	struct ospf_lsa *lsa, *old;
 
@@ -166,6 +166,9 @@ void ospf_gr_lsa_originate(struct ospf_interface *oi,
 		zlog_warn("%s: ospf_gr_lsa_new() failed", __func__);
 		return;
 	}
+
+	if (maxage)
+		lsa->data->ls_age = htons(OSPF_LSA_MAXAGE);
 
 	/* Find the old LSA and increase the seqno. */
 	old = ospf_gr_lsa_lookup(oi->ospf, oi->area);
@@ -193,37 +196,6 @@ void ospf_gr_lsa_originate(struct ospf_interface *oi,
 	oi->ospf->lsa_originate_count++;
 }
 
-/* Flush a given self-originated Grace-LSA. */
-static struct ospf_lsa *ospf_gr_flush_grace_lsa(struct ospf_interface *oi,
-						struct ospf_lsa *old)
-{
-	struct ospf_lsa *lsa;
-
-	if (ospf_interface_neighbor_count(oi) == 0)
-		return NULL;
-
-	if (IS_DEBUG_OSPF_GR)
-		zlog_debug(
-			"GR: flushing self-originated Grace-LSAs [interface %s]",
-			oi->ifp->name);
-
-	lsa = ospf_lsa_dup(old);
-	lsa->data->ls_age = htons(OSPF_LSA_MAXAGE);
-	lsa->data->ls_seqnum = lsa_seqnum_increment(lsa);
-
-	/* Install updated LSA into LSDB. */
-	if (ospf_lsa_install(oi->ospf, oi, lsa) == NULL) {
-		zlog_warn("%s: ospf_lsa_install() failed", __func__);
-		ospf_lsa_unlock(&lsa);
-		return NULL;
-	}
-
-	/* Flood the LSA through out the interface */
-	ospf_flood_through_interface(oi, NULL, lsa);
-
-	return lsa;
-}
-
 /* Flush all self-originated Grace-LSAs. */
 static void ospf_gr_flush_grace_lsas(struct ospf *ospf)
 {
@@ -231,7 +203,6 @@ static void ospf_gr_flush_grace_lsas(struct ospf *ospf)
 	struct listnode *anode;
 
 	for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area)) {
-		struct ospf_lsa *lsa;
 		struct ospf_interface *oi;
 		struct listnode *inode;
 
@@ -240,15 +211,8 @@ static void ospf_gr_flush_grace_lsas(struct ospf *ospf)
 				"GR: flushing self-originated Grace-LSAs [area %pI4]",
 				&area->area_id);
 
-		lsa = ospf_gr_lsa_lookup(ospf, area);
-		if (!lsa) {
-			zlog_warn("%s: Grace-LSA not found [area %pI4]",
-				  __func__, &area->area_id);
-			continue;
-		}
-
 		for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode, oi))
-			ospf_gr_flush_grace_lsa(oi, lsa);
+			ospf_gr_lsa_originate(oi, OSPF_GR_SW_RESTART, true);
 	}
 }
 
@@ -616,7 +580,7 @@ int ospf_gr_iface_send_grace_lsa(struct thread *thread)
 
 	oi->gr.hello_delay.t_grace_send = NULL;
 
-	ospf_gr_lsa_originate(oi, OSPF_GR_SWITCH_CONTROL_PROCESSOR);
+	ospf_gr_lsa_originate(oi, OSPF_GR_SWITCH_CONTROL_PROCESSOR, false);
 
 	if (++oi->gr.hello_delay.elapsed_seconds < params->v_gr_hello_delay)
 		thread_add_timer(master, ospf_gr_iface_send_grace_lsa, oi, 1,
@@ -795,7 +759,7 @@ static void ospf_gr_prepare(void)
 
 		/* Send a Grace-LSA to all neighbors. */
 		for (ALL_LIST_ELEMENTS_RO(ospf->oiflist, inode, oi))
-			ospf_gr_lsa_originate(oi, OSPF_GR_SW_RESTART);
+			ospf_gr_lsa_originate(oi, OSPF_GR_SW_RESTART, false);
 
 		/* Record end of the grace period in non-volatile memory. */
 		ospf_gr_nvm_update(ospf);

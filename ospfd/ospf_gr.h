@@ -182,7 +182,8 @@ extern void ospf_gr_helper_supported_gracetime_set(struct ospf *ospf,
 extern void ospf_gr_helper_set_supported_planned_only_restart(struct ospf *ospf,
 							     bool planned_only);
 extern void ospf_gr_lsa_originate(struct ospf_interface *oi,
-				  enum ospf_gr_restart_reason reason);
+				  enum ospf_gr_restart_reason reason,
+				  bool maxage);
 extern int ospf_gr_iface_send_grace_lsa(struct thread *thread);
 extern void ospf_gr_restart_enter(struct ospf *ospf, int timestamp);
 extern void ospf_gr_check_lsdb_consistency(struct ospf *ospf,
