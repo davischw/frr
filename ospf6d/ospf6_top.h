@@ -166,9 +166,10 @@ struct ospf6 {
 	} nssa_default_import_check;
 
 	uint8_t flag;
-#define OSPF6_FLAG_ABR          0x04
-#define OSPF6_FLAG_ASBR         0x08
-#define OSPF6_FLAG_SHUTDOWN     0x10
+#define OSPF6_FLAG_ABR			0x04
+#define OSPF6_FLAG_ASBR			0x08
+#define OSPF6_FLAG_SHUTDOWN		0x10
+#define OSPF6_FLAG_SHUTDOWN_GRACEFUL	0x20
 
 	int redistribute; /* Num of redistributed protocols. */
 

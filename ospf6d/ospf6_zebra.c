@@ -472,7 +472,8 @@ void ospf6_zebra_route_update_add(struct ospf6_route *request,
 				  struct ospf6 *ospf6)
 {
 	if (ospf6->gr_info.restart_in_progress
-	    || ospf6->gr_info.prepare_in_progress) {
+	    || ospf6->gr_info.prepare_in_progress
+	    || CHECK_FLAG(ospf6->flag, OSPF6_FLAG_SHUTDOWN_GRACEFUL)) {
 		if (IS_DEBUG_OSPF6_GR)
 			zlog_debug(
 				"Zebra: Graceful Restart in progress -- not installing %pFX",
@@ -487,7 +488,8 @@ void ospf6_zebra_route_update_remove(struct ospf6_route *request,
 				     struct ospf6 *ospf6)
 {
 	if (ospf6->gr_info.restart_in_progress
-	    || ospf6->gr_info.prepare_in_progress) {
+	    || ospf6->gr_info.prepare_in_progress
+	    || CHECK_FLAG(ospf6->flag, OSPF6_FLAG_SHUTDOWN_GRACEFUL)) {
 		if (IS_DEBUG_OSPF6_GR)
 			zlog_debug(
 				"Zebra: Graceful Restart in progress -- not uninstalling %pFX",
@@ -504,7 +506,8 @@ void ospf6_zebra_add_discard(struct ospf6_route *request, struct ospf6 *ospf6)
 	struct prefix *dest = &request->prefix;
 
 	if (ospf6->gr_info.restart_in_progress
-	    || ospf6->gr_info.prepare_in_progress) {
+	    || ospf6->gr_info.prepare_in_progress
+	    || CHECK_FLAG(ospf6->flag, OSPF6_FLAG_SHUTDOWN_GRACEFUL)) {
 		if (IS_DEBUG_OSPF6_GR)
 			zlog_debug(
 				"Zebra: Graceful Restart in progress -- not installing %pFX",
@@ -541,7 +544,8 @@ void ospf6_zebra_delete_discard(struct ospf6_route *request,
 	struct prefix *dest = &request->prefix;
 
 	if (ospf6->gr_info.restart_in_progress
-	    || ospf6->gr_info.prepare_in_progress) {
+	    || ospf6->gr_info.prepare_in_progress
+	    || CHECK_FLAG(ospf6->flag, OSPF6_FLAG_SHUTDOWN_GRACEFUL)) {
 		if (IS_DEBUG_OSPF6_GR)
 			zlog_debug(
 				"Zebra: Graceful Restart in progress -- not uninstalling %pFX",

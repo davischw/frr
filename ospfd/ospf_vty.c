@@ -1007,7 +1007,7 @@ static int ospf_vl_set(struct ospf *ospf, struct ospf_vl_config_data *vl_config)
 	return CMD_SUCCESS;
 }
 
-static void ospf_shutdown(struct ospf *ospf, bool shutdown)
+static void ospf_shutdown(struct ospf *ospf, bool shutdown, bool graceful)
 {
 	struct ospf_area *area;
 	struct ospf_interface *oi;
@@ -1038,8 +1038,11 @@ static void ospf_shutdown(struct ospf *ospf, bool shutdown)
 			ospf_discard_from_db(ospf, ospf->lsdb, lsa);
 
 		SET_FLAG(ospf->config, OSPF_SHUTDOWN);
+		if (graceful)
+			SET_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL);
 	} else {
 		UNSET_FLAG(ospf->config, OSPF_SHUTDOWN);
+		UNSET_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL);
 
 		/* Bring interfaces back. */
 		for (ALL_LIST_ELEMENTS_RO(ospf->oiflist, inode, oi))
@@ -2683,13 +2686,13 @@ DEFPY(ospf_instance_shutdown, ospf_instance_shutdown_cmd,
 {
 	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
 
-	ospf_shutdown(ospf, !no);
+	ospf_shutdown(ospf, !no, false);
 
 	return CMD_SUCCESS;
 }
 
 DEFPY(ospf_instance_shutdown_graceful, ospf_instance_shutdown_graceful_cmd,
-      "no shutdown graceful",
+      "[no] shutdown graceful",
       NO_STR
       "Administrative shutdown\n"
       "Attempt to perform a graceful restart\n")
@@ -2699,42 +2702,49 @@ DEFPY(ospf_instance_shutdown_graceful, ospf_instance_shutdown_graceful_cmd,
 	struct ospf_interface *oi;
 	struct listnode *anode, *inode;
 
-	/*
-	 * RFC 3623 - Section 5 ("Unplanned Outages"):
-	 * "The grace-LSAs are encapsulated in Link State Update Packets
-	 * and sent out to all interfaces, even though the restarted
-	 * router has no adjacencies and no knowledge of previous
-	 * adjacencies".
-	 */
-	for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area)) {
-		for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode, oi)) {
-			/*
-			 * Can't check OSPF interface state as the OSPF
-			 * instance wasn't enabled yet.
-			 */
-			if (!if_is_operative(oi->ifp)
-			    || if_is_loopback(oi->ifp))
-				continue;
+	if (no) {
+		/*
+		 * RFC 3623 - Section 5 ("Unplanned Outages"):
+		 * "The grace-LSAs are encapsulated in Link State Update Packets
+		 * and sent out to all interfaces, even though the restarted
+		 * router has no adjacencies and no knowledge of previous
+		 * adjacencies".
+		 */
+		for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area)) {
+			for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode, oi)) {
+				/*
+				 * Can't check OSPF interface state as the OSPF
+				 * instance wasn't enabled yet.
+				 */
+				if (!if_is_operative(oi->ifp)
+				    || if_is_loopback(oi->ifp))
+					continue;
 
-			/* Send Grace-LSA. */
-			ospf_gr_lsa_originate(
-				oi, OSPF_GR_SWITCH_CONTROL_PROCESSOR, false);
+				/* Send Grace-LSA. */
+				ospf_gr_lsa_originate(
+					oi, OSPF_GR_SWITCH_CONTROL_PROCESSOR, false);
 
-			/* Start GR hello-delay interval. */
-			if (OSPF_IF_PARAM_CONFIGURED(IF_DEF_PARAMS(oi->ifp),
-						     v_gr_hello_delay)) {
-				oi->gr.hello_delay.elapsed_seconds = 0;
-				thread_add_timer(
-					master, ospf_gr_iface_send_grace_lsa,
-					oi, 1,
-					&oi->gr.hello_delay.t_grace_send);
+				/* Start GR hello-delay interval. */
+				if (OSPF_IF_PARAM_CONFIGURED(
+					    IF_DEF_PARAMS(oi->ifp),
+					    v_gr_hello_delay)) {
+					oi->gr.hello_delay.elapsed_seconds = 0;
+					thread_add_timer(
+						master,
+						ospf_gr_iface_send_grace_lsa,
+						oi, 1,
+						&oi->gr.hello_delay
+							 .t_grace_send);
+				}
 			}
 		}
-	}
 
-	/* Reenable routing instance in the GR mode. */
-	ospf_gr_restart_enter(ospf, time(NULL) + OSPF_DFLT_GRACE_INTERVAL);
-	ospf_shutdown(ospf, false);
+		/* Reenable routing instance in the GR mode. */
+		ospf_gr_restart_enter(ospf,
+				      time(NULL) + OSPF_DFLT_GRACE_INTERVAL);
+		ospf_shutdown(ospf, false, false);
+	} else
+		ospf_shutdown(ospf, true, true);
 
 	return CMD_SUCCESS;
 }
