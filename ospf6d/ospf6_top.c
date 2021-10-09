@@ -1418,8 +1418,8 @@ DEFPY(ospf6_instance_shutdown_graceful, ospf6_instance_shutdown_graceful_cmd,
 		}
 
 		/* Reenable routing instance in the GR mode. */
-		ospf6_gr_restart_enter(ospf6,
-				       time(NULL) + OSPF6_DFLT_GRACE_INTERVAL);
+		ospf6_gr_restart_enter(
+			ospf6, time(NULL) + ospf6->gr_info.grace_period);
 		ospf6_shutdown(ospf6, false, false);
 	} else
 		ospf6_shutdown(ospf6, true, true);

@@ -2741,7 +2741,7 @@ DEFPY(ospf_instance_shutdown_graceful, ospf_instance_shutdown_graceful_cmd,
 
 		/* Reenable routing instance in the GR mode. */
 		ospf_gr_restart_enter(ospf,
-				      time(NULL) + OSPF_DFLT_GRACE_INTERVAL);
+				      time(NULL) + ospf->gr_info.grace_period);
 		ospf_shutdown(ospf, false, false);
 	} else
 		ospf_shutdown(ospf, true, true);
