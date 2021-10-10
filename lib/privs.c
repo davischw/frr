@@ -282,6 +282,14 @@ static void zprivs_caps_init(struct zebra_privs_t *zprivs)
 		}
 	}
 
+	/* Make sure to make the process as dumpable after setreuid() */
+	if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) == -1) {
+		fprintf(stderr,
+			"privs_init: could not set PR_SET_DUMPABLE, %s\n",
+			safe_strerror(errno));
+		exit(1);
+	}
+
 	if (!zprivs_state.syscaps_p)
 		return;
 
@@ -702,6 +710,14 @@ void zprivs_init(struct zebra_privs_t *zprivs)
 
 	zprivs->change = zprivs_change_uid;
 	zprivs->current_state = zprivs_state_uid;
+
+	/* Make sure to make the process as dumpable after seteuid */
+	if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) == -1) {
+		fprintf(stderr,
+			"privs_init: could not set PR_SET_DUMPABLE, %s\n",
+			safe_strerror(errno));
+		exit(1);
+	}
 #endif /* HAVE_CAPABILITIES */
 }
 
