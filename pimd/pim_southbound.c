@@ -2178,6 +2178,7 @@ static void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 				    oil->oil_inherited_rescan);
 		json_object_string_add(json_source, "iif", in_ifname);
 		json_object_string_add(json_source, "upTime", mroute_uptime);
+		json_object_string_add(json_source, "flags", state_str);
 		json_oil = NULL;
 
 		for (oif_idx = 0; oif_idx < MAXVIFS; ++oif_idx) {
@@ -2235,7 +2236,6 @@ static void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 					    oil->oil.mfcc_ttls[oif_idx]);
 			json_object_string_add(json_ifp_out, "upTime",
 					       mroute_uptime);
-			json_object_string_add(json_source, "flags", state_str);
 			if (!json_oil) {
 				json_oil = json_object_new_object();
 				json_object_object_add(json_source, "oil",
