@@ -98,10 +98,11 @@ module frr-pim-candidate {
           "RP advertisement interval (seconds).  Holdtime is 2.5 times this.";
       }
 
-      leaf-list group-list {
-        type frr-route-types:ipv4-multicast-group-prefix;
+      leaf group-list {
+        type string;
         description
-          "List of multicast group address.";
+          "Access list name with the list of permitted multicast groups.
+           (denied prefixes mean nothing)";
       }
 
       choice source-address-or-interface {
