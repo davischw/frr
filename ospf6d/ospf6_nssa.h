@@ -42,9 +42,6 @@ extern unsigned char config_debug_ospf6_nssa;
 	 || (type == OSPF6_INTRA_PREFIX_LSA_MIN_SIZE)                          \
 	 || (type == OSPF6_AS_NSSA_LSA))
 
-#define OSPF6_LSA_APPROVED      0x08
-#define OSPF6_LSA_LOCAL_XLT     0x40
-
 #define OSPF6_ABR_TASK_DELAY    7
 
 int ospf6_area_nssa_no_summary_set(struct ospf6 *ospf6, struct in_addr area_id);
