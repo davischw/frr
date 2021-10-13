@@ -108,7 +108,6 @@ struct bsm_scope {
 	uint8_t cand_rp_prio;
 	unsigned int cand_rp_interval;	/* default: PIM_CRP_ADV_INTERVAL=60 */
 	/* holdtime is not configurable, always 2.5 * interval. */
-	struct cand_rp_groups_head cand_rp_groups[1];
 
 	/* Candidate RP state */
 	int unicast_sock;
@@ -117,6 +116,9 @@ struct bsm_scope {
 
 	/* for sending holdtime=0 zap */
 	struct in_addr cand_rp_prev_addr;
+
+	/** Access list with group list. */
+	char *group_list;
 };
 
 struct cand_rp_group {
@@ -275,8 +277,6 @@ struct bsgrp_node *pim_bsm_get_bsgrp_node(struct bsm_scope *scope,
 
 void pim_cand_rp_apply(struct bsm_scope *scope);
 void pim_cand_rp_trigger(struct bsm_scope *scope);
-void pim_cand_rp_grp_add(struct bsm_scope *scope, const struct prefix_ipv4 *p);
-void pim_cand_rp_grp_del(struct bsm_scope *scope, const struct prefix_ipv4 *p);
 
 void pim_cand_addrs_changed(void);
 

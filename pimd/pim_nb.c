@@ -472,7 +472,7 @@ const struct frr_yang_module_info frr_pim_candidate_info = {
 		{
 			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/frr-pim-candidate:candidate-rp/group-list",
 			.cbs = {
-				.create = routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_group_list_create,
+				.modify = routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_group_list_modify,
 				.destroy = routing_control_plane_protocols_control_plane_protocol_pim_address_family_candidate_rp_group_list_destroy,
 			}
 		},

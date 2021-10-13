@@ -25,6 +25,7 @@
 #endif
 
 #include "lib/lib_errors.h"
+#include "lib/filter.h"
 #include "if.h"
 #include "pimd.h"
 #include "pim_iface.h"
@@ -291,7 +292,6 @@ void pim_bsm_proc_init(struct pim_instance *pim)
 	pim_bs_timer_start(scope, PIM_BS_TIME);
 
 	scope->cand_rp_interval = PIM_CRP_ADV_INTERVAL;
-	cand_rp_groups_init(scope->cand_rp_groups);
 
 	pim_bsm_socket_init(pim);
 }
@@ -301,7 +301,6 @@ void pim_bsm_proc_free(struct pim_instance *pim)
 	struct bsm_scope *scope = &pim->global_scope;
 	struct route_node *rn;
 	struct bsgrp_node *bsgrp;
-	struct cand_rp_group *crpgrp;
 
 	close(scope->unicast_sock);
 	scope->unicast_sock = -1;
@@ -317,11 +316,7 @@ void pim_bsm_proc_free(struct pim_instance *pim)
 		pim_free_bsgrp_data(bsgrp);
 	}
 
-	while ((crpgrp = cand_rp_groups_pop(scope->cand_rp_groups)))
-		XFREE(MTYPE_PIM_CAND_RP_GRP, crpgrp);
-
-	cand_rp_groups_fini(scope->cand_rp_groups);
-
+	XFREE(MTYPE_TMP, scope->group_list);
 	route_table_finish(scope->bsrp_table);
 }
 
@@ -1653,6 +1648,60 @@ static void pim_cand_rp_adv_stop_maybe(struct bsm_scope *scope)
 	scope->cand_rp_prev_addr.s_addr = INADDR_ANY;
 }
 
+static size_t pim_cand_rp_packet_groups(const struct bsm_scope *scope,
+					struct pim_encoded_group_ipv4 *groups,
+					size_t remaining)
+{
+	struct filter_cisco *cfilter;
+	struct access_list *acl;
+	struct filter *filter;
+	size_t total;
+
+	/* No groups. */
+	if (scope->group_list == NULL)
+		return 0;
+
+	acl = access_list_lookup(AFI_IP, scope->group_list);
+	if (acl == NULL)
+		return 0;
+
+	total = 0;
+	for (filter = acl->head; filter; filter = filter->next) {
+		struct in_addr mask;
+
+		/* Only permit is handled here. */
+		if (filter->type != FILTER_PERMIT)
+			continue;
+
+		if (!filter->cisco || !filter->u.cfilter.extended) {
+			zlog_err("BROKEN CONFIG: non-extended entry in access list %s for Candidate-RP config",
+				 scope->group_list);
+			continue;
+		}
+
+		memset(&groups[total], 0,
+		       sizeof(struct pim_encoded_group_ipv4));
+
+		cfilter = &filter->u.cfilter;
+
+		groups[total].family = IANA_AFI_IPV4;
+		/* Wildcard bits == inverted mask, convert it */
+		mask = cfilter->sadr.dst_mask;
+		mask.s_addr = ~mask.s_addr;
+		groups[total].mask = ip_masklen(mask);
+		groups[total].addr = cfilter->sadr.dst;
+
+		total++;
+
+		/* Don't go beyond boundaries. */
+		if ((total * sizeof(struct pim_encoded_group_ipv4))
+		    >= remaining)
+			break;
+	}
+
+	return total;
+}
+
 static int pim_cand_rp_adv(struct thread *t)
 {
 	struct bsm_scope *scope = THREAD_ARG(t);
@@ -1679,37 +1728,24 @@ static int pim_cand_rp_adv(struct thread *t)
 		return 0;
 	}
 
-	zlog_debug("Candidate-RP (%u, %pI4) advertising %zu groups to %pI4",
-		   scope->cand_rp_prio, &scope->cand_rp_addrsel.run_addr,
-		   cand_rp_groups_count(scope->cand_rp_groups),
-		   &scope->current_bsr);
-
-	struct cand_rp_group *grp;
 	struct cand_rp_msg *msg;
-	uint8_t buf[PIM_MSG_HEADER_LEN + sizeof(*msg)
-		    + sizeof(struct pim_encoded_group_ipv4)
-			      * cand_rp_groups_count(scope->cand_rp_groups)];
-	size_t i = 0;
-
+#define MAX_GROUP_BYTE_SIZE (/* prefix_cnt max */ 255 * /* group length */ 20)
+	uint8_t buf[PIM_MSG_HEADER_LEN + sizeof(*msg) + MAX_GROUP_BYTE_SIZE];
 
 	msg = (struct cand_rp_msg *)(&buf[PIM_MSG_HEADER_LEN]);
-	msg->prefix_cnt = cand_rp_groups_count(scope->cand_rp_groups);
+	msg->prefix_cnt = pim_cand_rp_packet_groups(scope, &msg->groups[0],
+						    MAX_GROUP_BYTE_SIZE);
 	msg->rp_prio = scope->cand_rp_prio;
 	msg->rp_holdtime = htons((scope->cand_rp_interval * 5 + 1) / 2);
 	msg->rp_addr.family = IANA_AFI_IPV4;
 	msg->rp_addr.reserved = 0;
 	msg->rp_addr.addr = scope->cand_rp_addrsel.run_addr;
 
-	frr_each (cand_rp_groups, scope->cand_rp_groups, grp) {
-		memset(&msg->groups[i], 0, sizeof(msg->groups[i]));
-
-		msg->groups[i].family = IANA_AFI_IPV4;
-		msg->groups[i].mask = grp->p.prefixlen;
-		msg->groups[i].addr = grp->p.prefix;
-		i++;
-	}
-
 	scope->cand_rp_prev_addr = scope->cand_rp_addrsel.run_addr;
+
+	zlog_debug("Candidate-RP (%u, %pI4) advertising %d groups to %pI4",
+		   scope->cand_rp_prio, &scope->cand_rp_addrsel.run_addr,
+		   msg->prefix_cnt, &scope->current_bsr);
 
 	pim_msg_build_header(buf, sizeof(buf), PIM_MSG_TYPE_CANDIDATE, false);
 
@@ -1778,37 +1814,6 @@ void pim_cand_rp_apply(struct bsm_scope *scope)
 	pim_cand_rp_trigger(scope);
 }
 
-void pim_cand_rp_grp_add(struct bsm_scope *scope, const struct prefix_ipv4 *p)
-{
-	struct cand_rp_group *grp, ref;
-
-	ref.p = *p;
-	grp = cand_rp_groups_find(scope->cand_rp_groups, &ref);
-	if (grp)
-		return;
-
-	grp = XCALLOC(MTYPE_PIM_CAND_RP_GRP, sizeof(*grp));
-	grp->p = *p;
-	cand_rp_groups_add(scope->cand_rp_groups, grp);
-
-	pim_cand_rp_trigger(scope);
-}
-
-void pim_cand_rp_grp_del(struct bsm_scope *scope, const struct prefix_ipv4 *p)
-{
-	struct cand_rp_group *grp, ref;
-
-	ref.p = *p;
-	grp = cand_rp_groups_find(scope->cand_rp_groups, &ref);
-	if (!grp)
-		return;
-
-	cand_rp_groups_del(scope->cand_rp_groups, grp);
-	XFREE(MTYPE_PIM_CAND_RP_GRP, grp);
-
-	pim_cand_rp_trigger(scope);
-}
-
 static struct thread *t_cand_addrs_reapply;
 
 static int pim_cand_addrs_reapply(struct thread *t)
@@ -1867,15 +1872,11 @@ int pim_cand_config_write(struct pim_instance *pim, struct vty *vty,
 			vty_out(vty, " interval %u", scope->cand_rp_interval);
 		cand_addrsel_config_write(vty, &scope->cand_rp_addrsel);
 		vty_out(vty, "\n");
+		if (scope->group_list)
+			vty_out(vty,
+				"%sip pim candidate-rp group access-list %s\n",
+				indent, scope->group_list);
 		ret++;
-
-		struct cand_rp_group *group;
-
-		frr_each (cand_rp_groups, scope->cand_rp_groups, group) {
-			vty_out(vty, "%sip pim candidate-rp group %pFX\n",
-				indent, &group->p);
-			ret++;
-		}
 	}
 	return ret;
 }
