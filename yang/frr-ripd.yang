@@ -9,6 +9,9 @@ module frr-ripd {
   import ietf-yang-types {
     prefix yang;
   }
+  import frr-bfdd {
+    prefix frr-bfdd;
+  }
   import frr-interface {
     prefix frr-interface;
   }
@@ -339,6 +342,12 @@ module frr-ripd {
         }
       }
 
+      leaf default-bfd-profile {
+        type frr-bfdd:profile-ref;
+        description
+          "BFD profile to use by default.";
+      }
+
       /*
        * Operational data.
        */
@@ -580,6 +589,17 @@ module frr-ripd {
           type string;
           description
             "Key-chain name.";
+        }
+      }
+
+      container bfd {
+        presence
+          "Present if BFD is configured for RIP peers in this interface.";
+
+        leaf profile {
+          type frr-bfdd:profile-ref;
+          description
+            "BFD profile to use.";
         }
       }
     }

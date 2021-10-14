@@ -36,9 +36,11 @@
 #include "if_rmap.h"
 #include "libfrr.h"
 #include "routemap.h"
+#include "bfd.h"
 #include "lib/address_list.h"
 
 #include "ripd/ripd.h"
+#include "ripd/rip_bfd.h"
 #include "ripd/rip_nb.h"
 #include "ripd/rip_errors.h"
 
@@ -81,6 +83,7 @@ static void sigint(void)
 {
 	zlog_notice("Terminating on signal");
 
+	bfd_protocol_integration_set_shutdown(true);
 	rip_vrf_terminate();
 	if_rmap_terminate();
 	rip_zclient_stop();
@@ -180,6 +183,7 @@ int main(int argc, char **argv)
 	rip_if_init();
 	rip_cli_init();
 	rip_zclient_init(master);
+	rip_bfd_init(master);
 
 	frr_config_fork();
 	frr_run(master);

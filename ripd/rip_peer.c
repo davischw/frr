@@ -28,6 +28,7 @@
 #include "memory.h"
 
 #include "ripd/ripd.h"
+#include "ripd/rip_bfd.h"
 
 DEFINE_MTYPE_STATIC(RIPD, RIP_PEER, "RIP peer");
 
@@ -36,8 +37,9 @@ static struct rip_peer *rip_peer_new(void)
 	return XCALLOC(MTYPE_RIP_PEER, sizeof(struct rip_peer));
 }
 
-static void rip_peer_free(struct rip_peer *peer)
+void rip_peer_free(struct rip_peer *peer)
 {
+	bfd_sess_free(&peer->bfd_session);
 	RIP_TIMER_OFF(peer->t_timeout);
 	XFREE(MTYPE_RIP_PEER, peer);
 }
@@ -79,7 +81,8 @@ static int rip_peer_timeout(struct thread *t)
 }
 
 /* Get RIP peer.  At the same time update timeout thread. */
-static struct rip_peer *rip_peer_get(struct rip *rip, struct in_addr *addr)
+static struct rip_peer *rip_peer_get(struct rip *rip, struct rip_interface *ri,
+				     struct in_addr *addr)
 {
 	struct rip_peer *peer;
 
@@ -90,7 +93,9 @@ static struct rip_peer *rip_peer_get(struct rip *rip, struct in_addr *addr)
 	} else {
 		peer = rip_peer_new();
 		peer->rip = rip;
+		peer->ri = ri;
 		peer->addr = *addr;
+		rip_bfd_session_update(peer);
 		listnode_add_sort(rip->peer_list, peer);
 	}
 
@@ -105,24 +110,27 @@ static struct rip_peer *rip_peer_get(struct rip *rip, struct in_addr *addr)
 	return peer;
 }
 
-void rip_peer_update(struct rip *rip, struct sockaddr_in *from, uint8_t version)
+void rip_peer_update(struct rip *rip, struct rip_interface *ri,
+		     struct sockaddr_in *from, uint8_t version)
 {
 	struct rip_peer *peer;
-	peer = rip_peer_get(rip, &from->sin_addr);
+	peer = rip_peer_get(rip, ri, &from->sin_addr);
 	peer->version = version;
 }
 
-void rip_peer_bad_route(struct rip *rip, struct sockaddr_in *from)
+void rip_peer_bad_route(struct rip *rip, struct rip_interface *ri,
+			struct sockaddr_in *from)
 {
 	struct rip_peer *peer;
-	peer = rip_peer_get(rip, &from->sin_addr);
+	peer = rip_peer_get(rip, ri, &from->sin_addr);
 	peer->recv_badroutes++;
 }
 
-void rip_peer_bad_packet(struct rip *rip, struct sockaddr_in *from)
+void rip_peer_bad_packet(struct rip *rip, struct rip_interface *ri,
+			 struct sockaddr_in *from)
 {
 	struct rip_peer *peer;
-	peer = rip_peer_get(rip, &from->sin_addr);
+	peer = rip_peer_get(rip, ri, &from->sin_addr);
 	peer->recv_badpackets++;
 }
 

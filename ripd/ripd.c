@@ -1143,7 +1143,7 @@ static void rip_response_process(struct rip_packet *packet, int size,
 	if (from->sin_port != htons(RIP_PORT_DEFAULT)) {
 		zlog_info("response doesn't come from RIP port: %d",
 			  from->sin_port);
-		rip_peer_bad_packet(rip, from);
+		rip_peer_bad_packet(rip, ri, from);
 		return;
 	}
 
@@ -1157,7 +1157,7 @@ static void rip_response_process(struct rip_packet *packet, int size,
 		zlog_info(
 			"This datagram doesn't come from a valid neighbor: %pI4",
 			&from->sin_addr);
-		rip_peer_bad_packet(rip, from);
+		rip_peer_bad_packet(rip, ri, from);
 		return;
 	}
 
@@ -1167,7 +1167,7 @@ static void rip_response_process(struct rip_packet *packet, int size,
 	; /* Alredy done in rip_read () */
 
 	/* Update RIP peer. */
-	rip_peer_update(rip, from, packet->version);
+	rip_peer_update(rip, ri, from, packet->version);
 
 	/* Set RTE pointer. */
 	rte = packet->rte;
@@ -1196,7 +1196,7 @@ static void rip_response_process(struct rip_packet *packet, int size,
 		if (!rip_destination_check(rte->prefix)) {
 			zlog_info(
 				"Network is net 0 or net 127 or it is not unicast network");
-			rip_peer_bad_route(rip, from);
+			rip_peer_bad_route(rip, ri, from);
 			continue;
 		}
 
@@ -1206,7 +1206,7 @@ static void rip_response_process(struct rip_packet *packet, int size,
 		/* - is the metric valid (i.e., between 1 and 16, inclusive) */
 		if (!(rte->metric >= 1 && rte->metric <= 16)) {
 			zlog_info("Route's metric is not in the 1-16 range.");
-			rip_peer_bad_route(rip, from);
+			rip_peer_bad_route(rip, ri, from);
 			continue;
 		}
 
@@ -1215,7 +1215,7 @@ static void rip_response_process(struct rip_packet *packet, int size,
 		    && rte->nexthop.s_addr != INADDR_ANY) {
 			zlog_info("RIPv1 packet with nexthop value %pI4",
 				  &rte->nexthop);
-			rip_peer_bad_route(rip, from);
+			rip_peer_bad_route(rip, ri, from);
 			continue;
 		}
 
@@ -1348,7 +1348,7 @@ static void rip_response_process(struct rip_packet *packet, int size,
 			zlog_warn(
 				"RIPv2 address %pI4 is not mask /%d applied one",
 				&rte->prefix, ip_masklen(rte->mask));
-			rip_peer_bad_route(rip, from);
+			rip_peer_bad_route(rip, ri, from);
 			continue;
 		}
 
@@ -1684,7 +1684,7 @@ static void rip_request_process(struct rip_packet *packet, int size,
 		return;
 
 	/* RIP peer update. */
-	rip_peer_update(rip, from, packet->version);
+	rip_peer_update(rip, ri, from, packet->version);
 
 	lim = ((caddr_t)packet) + size;
 	rte = packet->rte;
@@ -1833,17 +1833,27 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 	int vrecv;
 	int ret;
 
+	/* Is RIP running or is this RIP neighbor ?*/
+	ri = ifp->info;
+	if (!ri->running && !rip_neighbor_lookup(rip, &from)) {
+		if (IS_RIP_DEBUG_EVENT)
+			zlog_debug("RIP is not enabled on interface %s.",
+				   ifp->name);
+		rip_peer_bad_packet(rip, ri, &from);
+		return -1;
+	}
+
 	/* Packet length check. */
 	if (len < RIP_PACKET_MINSIZ) {
 		zlog_warn("packet size %d is smaller than minimum size %d", len,
 			  RIP_PACKET_MINSIZ);
-		rip_peer_bad_packet(rip, &from);
+		rip_peer_bad_packet(rip, ri, &from);
 		return len;
 	}
 	if (len > RIP_PACKET_MAXSIZ) {
 		zlog_warn("packet size %d is larger than max size %d", len,
 			  RIP_PACKET_MAXSIZ);
-		rip_peer_bad_packet(rip, &from);
+		rip_peer_bad_packet(rip, ri, &from);
 		return len;
 	}
 
@@ -1851,7 +1861,7 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 	if ((len - RIP_PACKET_MINSIZ) % 20) {
 		zlog_warn("packet size %d is wrong for RIP packet alignment",
 			  len);
-		rip_peer_bad_packet(rip, &from);
+		rip_peer_bad_packet(rip, ri, &from);
 		return len;
 	}
 
@@ -1862,7 +1872,7 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 	if (packet->version == 0) {
 		zlog_info("version 0 with command %d received.",
 			  packet->command);
-		rip_peer_bad_packet(rip, &from);
+		rip_peer_bad_packet(rip, ri, &from);
 		return -1;
 	}
 
@@ -1877,16 +1887,6 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 	if (packet->version > RIPv2)
 		packet->version = RIPv2;
 
-	/* Is RIP running or is this RIP neighbor ?*/
-	ri = ifp->info;
-	if (!ri->running && !rip_neighbor_lookup(rip, &from)) {
-		if (IS_RIP_DEBUG_EVENT)
-			zlog_debug("RIP is not enabled on interface %s.",
-				   ifp->name);
-		rip_peer_bad_packet(rip, &from);
-		return -1;
-	}
-
 	/* RIP Version check. RFC2453, 4.6 and 5.1 */
 	vrecv = ((ri->ri_receive == RI_RIP_UNSPEC) ? rip->version_recv
 						   : ri->ri_receive);
@@ -1897,7 +1897,7 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 			zlog_debug(
 				"  packet's v%d doesn't fit to if version spec",
 				packet->version);
-		rip_peer_bad_packet(rip, &from);
+		rip_peer_bad_packet(rip, ri, &from);
 		return -1;
 	}
 
@@ -1912,7 +1912,7 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 				"packet RIPv%d is dropped because authentication disabled",
 				packet->version);
 		ripd_notif_send_auth_type_failure(ifp->name);
-		rip_peer_bad_packet(rip, &from);
+		rip_peer_bad_packet(rip, ri, &from);
 		return -1;
 	}
 
@@ -1948,7 +1948,7 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 				zlog_debug(
 					"RIPv1 dropped because authentication enabled");
 			ripd_notif_send_auth_type_failure(ifp->name);
-			rip_peer_bad_packet(rip, &from);
+			rip_peer_bad_packet(rip, ri, &from);
 			return -1;
 		}
 	} else if (ri->auth_type != RIP_NO_AUTH) {
@@ -1961,7 +1961,7 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 				zlog_debug(
 					"RIPv2 authentication failed: no auth RTE in packet");
 			ripd_notif_send_auth_type_failure(ifp->name);
-			rip_peer_bad_packet(rip, &from);
+			rip_peer_bad_packet(rip, ri, &from);
 			return -1;
 		}
 
@@ -1971,7 +1971,7 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 				zlog_debug(
 					"RIPv2 dropped because authentication enabled");
 			ripd_notif_send_auth_type_failure(ifp->name);
-			rip_peer_bad_packet(rip, &from);
+			rip_peer_bad_packet(rip, ri, &from);
 			return -1;
 		}
 
@@ -2007,7 +2007,7 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 				zlog_debug("RIPv2 %s authentication failure",
 					   auth_desc);
 			ripd_notif_send_auth_failure(ifp->name);
-			rip_peer_bad_packet(rip, &from);
+			rip_peer_bad_packet(rip, ri, &from);
 			return -1;
 		}
 	}
@@ -2026,16 +2026,16 @@ int rip_read_process(struct rip *rip, struct interface *ifp,
 		zlog_info(
 			"Obsolete command %s received, please sent it to routed",
 			lookup_msg(rip_msg, packet->command, NULL));
-		rip_peer_bad_packet(rip, &from);
+		rip_peer_bad_packet(rip, ri, &from);
 		break;
 	case RIP_POLL_ENTRY:
 		zlog_info("Obsolete command %s received",
 			  lookup_msg(rip_msg, packet->command, NULL));
-		rip_peer_bad_packet(rip, &from);
+		rip_peer_bad_packet(rip, ri, &from);
 		break;
 	default:
 		zlog_info("Unknown RIP command %d received", packet->command);
-		rip_peer_bad_packet(rip, &from);
+		rip_peer_bad_packet(rip, ri, &from);
 		break;
 	}
 
@@ -3439,6 +3439,7 @@ void rip_clean(struct rip *rip)
 	route_table_finish(rip->distance_table);
 
 	RB_REMOVE(rip_instance_head, &rip_instances, rip);
+	XFREE(MTYPE_TMP, rip->default_bfd_profile);
 	XFREE(MTYPE_RIP_VRF_NAME, rip->vrf_name);
 	XFREE(MTYPE_RIP, rip);
 }

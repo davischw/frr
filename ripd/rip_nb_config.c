@@ -34,6 +34,7 @@
 #include "ripd/rip_nb.h"
 #include "ripd/rip_debug.h"
 #include "ripd/rip_interface.h"
+#include "ripd/rip_bfd.h"
 
 /*
  * XPath: /frr-ripd:ripd/instance
@@ -829,6 +830,39 @@ int ripd_instance_version_send_modify(struct nb_cb_modify_args *args)
 }
 
 /*
+ * XPath: /frr-ripd:ripd/instance/default-bfd-profile
+ */
+int ripd_instance_default_bfd_profile_modify(struct nb_cb_modify_args *args)
+{
+	struct rip *rip;
+
+	if (args->event != NB_EV_APPLY)
+		return NB_OK;
+
+	rip = nb_running_get_entry(args->dnode, NULL, true);
+	XFREE(MTYPE_TMP, rip->default_bfd_profile);
+	rip->default_bfd_profile =
+		XSTRDUP(MTYPE_TMP, yang_dnode_get_string(args->dnode, NULL));
+	rip_bfd_instance_update(rip);
+
+	return NB_OK;
+}
+
+int ripd_instance_default_bfd_profile_destroy(struct nb_cb_destroy_args *args)
+{
+	struct rip *rip;
+
+	if (args->event != NB_EV_APPLY)
+		return NB_OK;
+
+	rip = nb_running_get_entry(args->dnode, NULL, true);
+	XFREE(MTYPE_TMP, rip->default_bfd_profile);
+	rip_bfd_instance_update(rip);
+
+	return NB_OK;
+}
+
+/*
  * XPath: /frr-interface:lib/interface/frr-ripd:rip/split-horizon
  */
 int lib_interface_rip_split_horizon_modify(struct nb_cb_modify_args *args)
@@ -989,6 +1023,78 @@ int lib_interface_rip_authentication_password_destroy(
 	ifp = nb_running_get_entry(args->dnode, NULL, true);
 	ri = ifp->info;
 	XFREE(MTYPE_RIP_INTERFACE_STRING, ri->auth_str);
+
+	return NB_OK;
+}
+
+/*
+ * XPath: /frr-interface:lib/interface/frr-ripd:rip/bfd
+ */
+int lib_interface_rip_bfd_create(struct nb_cb_create_args *args)
+{
+	struct interface *ifp;
+	struct rip_interface *ri;
+
+	if (args->event != NB_EV_APPLY)
+		return NB_OK;
+
+	ifp = nb_running_get_entry(args->dnode, NULL, true);
+	ri = ifp->info;
+	ri->bfd.enabled = true;
+	rip_bfd_interface_update(ri);
+
+	return NB_OK;
+}
+
+int lib_interface_rip_bfd_destroy(struct nb_cb_destroy_args *args)
+{
+	struct interface *ifp;
+	struct rip_interface *ri;
+
+	if (args->event != NB_EV_APPLY)
+		return NB_OK;
+
+	ifp = nb_running_get_entry(args->dnode, NULL, true);
+	ri = ifp->info;
+	ri->bfd.enabled = false;
+	rip_bfd_interface_update(ri);
+
+	return NB_OK;
+}
+
+/*
+ * XPath: /frr-interface:lib/interface/frr-ripd:rip/bfd/profile
+ */
+int lib_interface_rip_bfd_profile_modify(struct nb_cb_modify_args *args)
+{
+	struct interface *ifp;
+	struct rip_interface *ri;
+
+	if (args->event != NB_EV_APPLY)
+		return NB_OK;
+
+	ifp = nb_running_get_entry(args->dnode, NULL, true);
+	ri = ifp->info;
+	XFREE(MTYPE_TMP, ri->bfd.profile);
+	ri->bfd.profile =
+		XSTRDUP(MTYPE_TMP, yang_dnode_get_string(args->dnode, NULL));
+	rip_bfd_interface_update(ri);
+
+	return NB_OK;
+}
+
+int lib_interface_rip_bfd_profile_destroy(struct nb_cb_destroy_args *args)
+{
+	struct interface *ifp;
+	struct rip_interface *ri;
+
+	if (args->event != NB_EV_APPLY)
+		return NB_OK;
+
+	ifp = nb_running_get_entry(args->dnode, NULL, true);
+	ri = ifp->info;
+	XFREE(MTYPE_TMP, ri->bfd.profile);
+	rip_bfd_interface_update(ri);
 
 	return NB_OK;
 }

@@ -6,6 +6,7 @@ if RIPD
 noinst_LIBRARIES += ripd/librip.a
 sbin_PROGRAMS += ripd/ripd
 vtysh_scan += \
+	ripd/rip_bfd.c \
 	ripd/rip_cli.c \
 	ripd/rip_debug.c \
 	ripd/ripd.c \
@@ -19,6 +20,7 @@ man8 += $(MANBUILD)/frr-ripd.8
 endif
 
 ripd_librip_a_SOURCES = \
+	ripd/rip_bfd.c \
 	ripd/rip_cli.c \
 	ripd/rip_debug.c \
 	ripd/rip_errors.c \
@@ -37,6 +39,7 @@ ripd_librip_a_SOURCES = \
 	# end
 
 clippy_scan += \
+	ripd/rip_bfd.c \
 	ripd/rip_cli.c \
 	# end
 

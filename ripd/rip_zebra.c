@@ -28,6 +28,7 @@
 #include "zclient.h"
 #include "log.h"
 #include "vrf.h"
+#include "bfd.h"
 #include "ripd/ripd.h"
 #include "ripd/rip_debug.h"
 #include "ripd/rip_interface.h"
@@ -211,6 +212,7 @@ void rip_zebra_vrf_register(struct vrf *vrf)
 			   vrf->name, vrf->vrf_id);
 
 	zclient_send_reg_requests(zclient, vrf->vrf_id);
+	bfd_client_sendmsg(zclient, ZEBRA_BFD_CLIENT_REGISTER, vrf->vrf_id);
 }
 
 void rip_zebra_vrf_deregister(struct vrf *vrf)
@@ -223,11 +225,13 @@ void rip_zebra_vrf_deregister(struct vrf *vrf)
 			   vrf->name, vrf->vrf_id);
 
 	zclient_send_dereg_requests(zclient, vrf->vrf_id);
+	bfd_client_sendmsg(zclient, ZEBRA_BFD_CLIENT_DEREGISTER, vrf->vrf_id);
 }
 
 static void rip_zebra_connected(struct zclient *zclient)
 {
 	zclient_send_reg_requests(zclient, VRF_DEFAULT);
+	bfd_client_sendmsg(zclient, ZEBRA_BFD_CLIENT_REGISTER, VRF_DEFAULT);
 }
 
 void rip_zclient_init(struct thread_master *master)
