@@ -472,6 +472,7 @@ static void rip_interface_reset(struct rip_interface *ri)
 	ri->sent_updates = 0;
 
 	ri->passive = 0;
+	XFREE(MTYPE_TMP, ri->bfd.profile);
 
 	rip_interface_clean(ri);
 }
@@ -1124,6 +1125,7 @@ void rip_interface_sync(struct interface *ifp)
 	struct rip_interface *ri;
 
 	ri = ifp->info;
+	ri->ifp = ifp;
 	if (ri)
 		ri->rip = ifp->vrf->info;
 }
