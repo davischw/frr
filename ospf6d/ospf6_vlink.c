@@ -41,6 +41,39 @@
 #endif /* VTYSH_EXTRACT_PL */
 
 static uint8_t debug_vlink;
+static int sb_socket = -1;
+
+struct sb_vldata {
+	uint16_t vr_id;
+	struct in_addr router_id;
+	struct in_addr area_id;
+	struct in6_addr src;
+	struct in6_addr dst;
+} __attribute__((packed));
+
+static void sb_vlink_send_info(struct ospf6_virtual_link *vlink)
+{
+	struct sb_vldata vldata;
+	struct sockaddr_in dst = {
+		.sin_family = AF_INET,
+		.sin_port = htons(2621),
+		.sin_addr.s_addr = inet_addr("127.200.0.254"),
+	};
+	ssize_t ret;
+
+	vldata.vr_id = htons(vlink->ospf6->vrf_id);
+	vldata.router_id = vlink->remote;
+	vldata.area_id.s_addr = vlink->area->area_id;
+	vldata.src = vlink->area->vlink_local_addr;
+	vldata.dst = vlink->transport;
+
+	ret = sendto(sb_socket, &vldata, sizeof(vldata), 0,
+		     (struct sockaddr *)&dst, sizeof(dst));
+
+	if (ret <= 0)
+		zlog_warn("auth data send failed for virtual link to %pI4 area %pI4: %m",
+			  &vlink->remote, &vlink->area->area_id);
+}
 
 /* implementation note/rosetta stone:
  *
@@ -199,14 +232,13 @@ static int ospf6_vlink_hello(struct thread *t)
 	return 0;
 }
 
-static void ospf6_vlink_refresh(struct ospf6_virtual_link *vlink)
+static void ospf6_vlink_refresh(struct ospf6_virtual_link *vlink, bool changed)
 {
 	struct ospf6_vlink_addrs_head oldaddrs[1];
 	struct ospf6_vlink_addr *vaddr, ref, *bestaddr = NULL;
 	struct ospf6_route *ort;
 	struct ospf6_lsa *lsa;
 	struct prefix pfx;
-	bool changed = false;
 
 	ospf6_vlink_addrs_init(oldaddrs);
 	ospf6_vlink_addrs_swap_all(oldaddrs, vlink->addrs);
@@ -298,8 +330,10 @@ static void ospf6_vlink_refresh(struct ospf6_virtual_link *vlink)
 				 vlink->hello_interval, &vlink->t_hello);
 	}
 out:
-	if (changed)
+	if (changed) {
+		sb_vlink_send_info(vlink);
 		OSPF6_ROUTER_LSA_SCHEDULE(vlink->ospf6->backbone);
+	}
 
 	ospf6_vlink_addr_delall(oldaddrs);
 }
@@ -315,7 +349,7 @@ void ospf6_vlink_area_calculation(struct ospf6_area *oa)
 			   ospf6_area_vlinks_count(oa->vlinks), &oa->area_id);
 
 	frr_each (ospf6_area_vlinks, oa->vlinks, vlink)
-		ospf6_vlink_refresh(vlink);
+		ospf6_vlink_refresh(vlink, false);
 }
 
 void ospf6_vlink_prefix_update(struct ospf6_area *oa, in_addr_t rtr)
@@ -334,7 +368,21 @@ void ospf6_vlink_prefix_update(struct ospf6_area *oa, in_addr_t rtr)
 		zlog_debug("recalculating virtual link addrs in %pI4 for %pI4",
 			   &oa->area_id, &rtr);
 
-	ospf6_vlink_refresh(vlink);
+	ospf6_vlink_refresh(vlink, false);
+}
+
+void ospf6_vlink_area_la_change(struct ospf6_area *oa, struct in6_addr *addr)
+{
+	struct ospf6_virtual_link *vlink;
+
+	if (debug_vlink)
+		zlog_debug("LA for virtual links in area %pI4 changed from %pI6 to %pI6",
+			   &oa->area_id, &oa->vlink_local_addr, addr);
+
+	oa->vlink_local_addr = *addr;
+
+	frr_each (ospf6_area_vlinks, oa->vlinks, vlink)
+		sb_vlink_send_info(vlink);
 }
 
 /**
@@ -390,6 +438,9 @@ static void ospf6_virtual_link_free(struct ospf6_virtual_link **vlink)
 
 	if ((*vlink) == NULL)
 		return;
+
+	memset(&(*vlink)->transport, 0, sizeof((*vlink)->transport));
+	sb_vlink_send_info(*vlink);
 
 	oa = (*vlink)->area;
 	THREAD_OFF((*vlink)->t_hello);
@@ -545,7 +596,7 @@ DEFPY(ospf6_vlink_config, ospf6_vlink_config_cmd,
 	if (dead_str)
 		vlink->dead_interval = dead;
 
-	ospf6_vlink_refresh(vlink);
+	ospf6_vlink_refresh(vlink, true);
 
 	return CMD_SUCCESS;
 }
@@ -572,6 +623,14 @@ void ospf6_vlink_area_config(struct ospf6_area *oa, struct vty *vty)
 
 void ospf6_virtual_link_init(void)
 {
+	struct sockaddr_in sin = { .sin_family = AF_INET };
+	int ret;
+
+	sb_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	assertf(sb_socket >= 0, "failed to open SB socket for vlink auth: %m");
+	ret = bind(sb_socket, (struct sockaddr *)&sin, sizeof(sin));
+	assertf(ret == 0, "failed to bind SB socket for vlink auth: %m");
+
 	install_element(ENABLE_NODE, &debug_ospf6_vlink_cmd);
 	install_element(CONFIG_NODE, &debug_ospf6_vlink_cmd);
 

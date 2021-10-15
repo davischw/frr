@@ -1091,6 +1091,7 @@ int ospf6_intra_prefix_lsa_originate_stub(struct thread *thread)
 	unsigned short prefix_num = 0;
 	struct ospf6_route_table *route_advertise;
 	int ls_id = 0;
+	struct in6_addr la_addr;
 
 	oa = (struct ospf6_area *)THREAD_ARG(thread);
 	oa->thread_intra_prefix_lsa = NULL;
@@ -1213,9 +1214,12 @@ int ospf6_intra_prefix_lsa_originate_stub(struct thread *thread)
 	}
 
 	if (!la)
-		memset(&oa->vlink_local_addr, 0, sizeof(oa->vlink_local_addr));
+		memset(&la_addr, 0, sizeof(la_addr));
 	else
-		oa->vlink_local_addr = la->prefix.u.prefix6;
+		la_addr = la->prefix.u.prefix6;
+
+	if (!IPV6_ADDR_SAME(&oa->vlink_local_addr, &la_addr))
+		ospf6_vlink_area_la_change(oa, &la_addr);
 
 	if (route_advertise->count == 0) {
 		if (old) {
