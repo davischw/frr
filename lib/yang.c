@@ -99,6 +99,7 @@ static const char *const frr_native_modules[] = {
 	"frr-bgpd",
 	"frr-bfdd",
 	"frr-ospf",
+	"frr-ospfv3",
 };
 /* clang-format on */
 
