@@ -2275,6 +2275,8 @@ static void ospf6_write(struct thread *thread)
 	oi = listgetdata(node);
 
 	while ((pkt_count < ospf6->write_oi_count) && oi) {
+		struct in6_addr *src_addr;
+
 		op = ospf6_fifo_head(oi->obuf);
 		assert(op);
 		assert(op->length >= OSPF6_HEADER_SIZE);
@@ -2284,6 +2286,11 @@ static void ospf6_write(struct thread *thread)
 		iovector[1].iov_base = NULL;
 		iovector[1].iov_len = 0;
 
+		if (oi->type == OSPF_IFTYPE_VIRTUALLINK)
+			src_addr = &oi->area->vlink_local_addr;
+		else
+			src_addr = oi->linklocal_addr;
+
 		oh = (struct ospf6_header *)STREAM_DATA(op->s);
 
 		if (oi->at_data.flags != 0) {
@@ -2291,8 +2298,7 @@ static void ospf6_write(struct thread *thread)
 			if (at_len) {
 				iovector[0].iov_len =
 					ntohs(oh->length) + at_len;
-				ospf6_auth_digest_send(oi->linklocal_addr, oi,
-						       oh, at_len,
+				ospf6_auth_digest_send(src_addr, oi, oh, at_len,
 						       iovector[0].iov_len);
 			} else {
 				iovector[0].iov_len = ntohs(oh->length);
