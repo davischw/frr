@@ -85,6 +85,13 @@ module frr-ripd {
         description
           "VRF name.";
       }
+      leaf shutdown {
+        type boolean;
+        default "false";
+        description
+          "Disable RIP operation";
+      }
+
       leaf allow-ecmp {
         type boolean;
         default "false";

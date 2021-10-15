@@ -40,6 +40,13 @@ const struct frr_yang_module_info frr_ripd_info = {
 			},
 		},
 		{
+			.xpath = "/frr-ripd:ripd/instance/shutdown",
+			.cbs = {
+				.cli_show = cli_show_rip_shutdown,
+				.modify = ripd_instance_shutdown_modify,
+			},
+		},
+		{
 			.xpath = "/frr-ripd:ripd/instance/allow-ecmp",
 			.cbs = {
 				.cli_show = cli_show_rip_allow_ecmp,
