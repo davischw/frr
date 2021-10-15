@@ -97,6 +97,27 @@ void cli_show_router_rip(struct vty *vty, struct lyd_node *dnode,
 	vty_out(vty, "\n");
 }
 
+DEFPY_YANG (rip_shutdown,
+	    rip_shutdown_cmd,
+	    "[no] shutdown",
+	    NO_STR
+	    "Disable RIP operation\n")
+{
+	nb_cli_enqueue_change(vty, "./shutdown", NB_OP_MODIFY,
+			      no ? "false" : "true");
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+void cli_show_rip_shutdown(struct vty *vty, struct lyd_node *dnode,
+			   bool show_defaults)
+{
+	if (!yang_dnode_get_bool(dnode, NULL))
+		vty_out(vty, " no");
+
+	vty_out(vty, " shutdown\n");
+}
+
 /*
  * XPath: /frr-ripd:ripd/instance/allow-ecmp
  */
@@ -1161,6 +1182,7 @@ void rip_cli_init(void)
 	install_element(RIP_NODE, &rip_distribute_list_cmd);
 	install_element(RIP_NODE, &rip_no_distribute_list_cmd);
 
+	install_element(RIP_NODE, &rip_shutdown_cmd);
 	install_element(RIP_NODE, &rip_allow_ecmp_cmd);
 	install_element(RIP_NODE, &rip_default_information_originate_cmd);
 	install_element(RIP_NODE, &rip_default_metric_cmd);

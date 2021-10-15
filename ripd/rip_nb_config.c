@@ -100,6 +100,22 @@ int ripd_instance_destroy(struct nb_cb_destroy_args *args)
 }
 
 /*
+ * XPath: /frr-ripd:ripd/instance/shutdown
+ */
+int ripd_instance_shutdown_modify(struct nb_cb_modify_args *args)
+{
+	struct rip *rip;
+
+	if (args->event != NB_EV_APPLY)
+		return NB_OK;
+
+	rip = nb_running_get_entry(args->dnode, NULL, true);
+	rip_vrf_shutdown(rip, yang_dnode_get_bool(args->dnode, NULL));
+
+	return NB_OK;
+}
+
+/*
  * XPath: /frr-ripd:ripd/instance/allow-ecmp
  */
 int ripd_instance_allow_ecmp_modify(struct nb_cb_modify_args *args)

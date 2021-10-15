@@ -70,7 +70,7 @@ static int rip_triggered_update(struct thread *);
 static int rip_update_jitter(unsigned long);
 static void rip_distance_table_node_cleanup(struct route_table *table,
 					    struct route_node *node);
-static void rip_instance_enable(struct rip *rip, struct vrf *vrf, int sock);
+static void rip_instance_enable(struct rip *rip, int sock);
 static void rip_instance_disable(struct rip *rip);
 
 static void rip_distribute_update(struct distribute_ctx *ctx,
@@ -2717,6 +2717,32 @@ struct rip *rip_lookup_by_vrf_name(const char *vrf_name)
 	return RB_FIND(rip_instance_head, &rip_instances, &rip);
 }
 
+/* Link RIP instance to VRF. */
+static void rip_vrf_link(struct rip *rip, struct vrf *vrf)
+{
+	struct interface *ifp;
+
+	rip->vrf = vrf;
+	rip->distribute_ctx->vrf = vrf;
+	vrf->info = rip;
+
+	FOR_ALL_INTERFACES (vrf, ifp)
+		rip_interface_sync(ifp);
+}
+
+/* Unlink RIP instance from VRF. */
+static void rip_vrf_unlink(struct rip *rip, struct vrf *vrf)
+{
+	struct interface *ifp;
+
+	rip->vrf = NULL;
+	rip->distribute_ctx->vrf = NULL;
+	vrf->info = NULL;
+
+	FOR_ALL_INTERFACES (vrf, ifp)
+		rip_interface_sync(ifp);
+}
+
 /* Create new RIP instance and set it to global variable. */
 struct rip *rip_create(const char *vrf_name, struct vrf *vrf, int socket)
 {
@@ -2774,9 +2800,10 @@ struct rip *rip_create(const char *vrf_name, struct vrf *vrf, int socket)
 	rip->obuf = stream_new(1500);
 
 	/* Enable the routing instance if possible. */
-	if (vrf && vrf_is_enabled(vrf))
-		rip_instance_enable(rip, vrf, socket);
-	else {
+	if (vrf && vrf_is_enabled(vrf)) {
+		rip_vrf_link(rip, vrf);
+		rip_instance_enable(rip, socket);
+	} else {
 		rip->vrf = NULL;
 		rip->sock = -1;
 	}
@@ -3523,47 +3550,22 @@ static void rip_routemap_update(const char *notused)
 		rip_routemap_update_redistribute(rip);
 }
 
-/* Link RIP instance to VRF. */
-static void rip_vrf_link(struct rip *rip, struct vrf *vrf)
-{
-	struct interface *ifp;
-
-	rip->vrf = vrf;
-	rip->distribute_ctx->vrf = vrf;
-	vrf->info = rip;
-
-	FOR_ALL_INTERFACES (vrf, ifp)
-		rip_interface_sync(ifp);
-}
-
-/* Unlink RIP instance from VRF. */
-static void rip_vrf_unlink(struct rip *rip, struct vrf *vrf)
-{
-	struct interface *ifp;
-
-	rip->vrf = NULL;
-	rip->distribute_ctx->vrf = NULL;
-	vrf->info = NULL;
-
-	FOR_ALL_INTERFACES (vrf, ifp)
-		rip_interface_sync(ifp);
-}
-
-static void rip_instance_enable(struct rip *rip, struct vrf *vrf, int sock)
+static void rip_instance_enable(struct rip *rip, int sock)
 {
 	rip->sock = sock;
-
-	rip_vrf_link(rip, vrf);
 	rip->enabled = true;
 
 	/* Resend all redistribute requests. */
 	rip_redistribute_enable(rip);
 
+	/* Reenable interfaces. */
+	rip_enable_apply_all(rip);
+
 	/* Create read and timer thread. */
 	rip_event(rip, RIP_READ, rip->sock);
 	rip_event(rip, RIP_UPDATE_EVENT, 1);
 
-	rip_zebra_vrf_register(vrf);
+	rip_zebra_vrf_register(rip->vrf);
 }
 
 static void rip_instance_disable(struct rip *rip)
@@ -3614,8 +3616,42 @@ static void rip_instance_disable(struct rip *rip)
 
 	rip_zebra_vrf_deregister(vrf);
 
-	rip_vrf_unlink(rip, vrf);
 	rip->enabled = false;
+}
+
+void rip_vrf_shutdown(struct rip *rip, bool shutdown)
+{
+	struct vrf *vrf = rip->vrf;
+	struct interface *ifp;
+
+	if (rip->shutdown == shutdown)
+		return;
+
+	rip->shutdown = shutdown;
+	if (rip->enabled == !rip->shutdown)
+		return;
+
+	if (rip->shutdown) {
+		if (IS_RIP_DEBUG_EVENT)
+			zlog_debug("VRF %s(%u) admin shutdown", rip->vrf->name,
+				   rip->vrf->vrf_id);
+
+		rip_instance_disable(rip);
+		FOR_ALL_INTERFACES (vrf, ifp)
+			rip_interface_sync(ifp);
+
+	} else if (vrf) {
+		int socket;
+
+		if (IS_RIP_DEBUG_EVENT)
+			zlog_debug("VRF %s(%u) admin un-shutdown",
+				   rip->vrf->name, rip->vrf->vrf_id);
+
+		socket = rip_create_socket(vrf);
+		FOR_ALL_INTERFACES (vrf, ifp)
+			rip_interface_sync(ifp);
+		rip_instance_enable(rip, socket);
+	}
 }
 
 static int rip_vrf_new(struct vrf *vrf)
@@ -3686,13 +3722,15 @@ static int rip_vrf_enable(struct vrf *vrf)
 		zlog_debug("%s: VRF %s(%u) enabled", __func__, vrf->name,
 			   vrf->vrf_id);
 
+	rip_vrf_link(rip, vrf);
+
 	/* Activate the VRF RIP instance. */
-	if (!rip->enabled) {
+	if (!rip->enabled && !rip->shutdown) {
 		socket = rip_create_socket(vrf);
 		if (socket < 0)
 			return -1;
 
-		rip_instance_enable(rip, vrf, socket);
+		rip_instance_enable(rip, socket);
 	}
 
 	return 0;
@@ -3703,17 +3741,19 @@ static int rip_vrf_disable(struct vrf *vrf)
 	struct rip *rip;
 
 	rip = rip_lookup_by_vrf_name(vrf->name);
-	if (!rip || !rip->enabled)
+	if (!rip)
 		return 0;
 
-	if (IS_RIP_DEBUG_EVENT)
-		zlog_debug("%s: VRF %s(%u) disabled", __func__, vrf->name,
-			   vrf->vrf_id);
+	if (rip->enabled) {
+		if (IS_RIP_DEBUG_EVENT)
+			zlog_debug("%s: VRF %s(%u) disabled", __func__,
+				   vrf->name, vrf->vrf_id);
 
-	/* Deactivate the VRF RIP instance. */
-	if (rip->enabled)
+		/* Deactivate the VRF RIP instance. */
 		rip_instance_disable(rip);
+	}
 
+	rip_vrf_unlink(rip, vrf);
 	return 0;
 }
 

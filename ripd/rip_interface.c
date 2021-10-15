@@ -55,7 +55,6 @@ static void rip_passive_interface_apply(struct interface *);
 static int rip_if_down(struct interface *ifp);
 static int rip_enable_if_lookup(struct rip *rip, const char *ifname);
 static int rip_enable_network_lookup2(struct connected *connected);
-static void rip_enable_apply_all(struct rip *rip);
 
 const struct message ri_version_msg[] = {{RI_RIP_VERSION_1, "1"},
 					 {RI_RIP_VERSION_2, "2"},
@@ -937,7 +936,7 @@ void rip_enable_apply(struct interface *ifp)
 }
 
 /* Apply network configuration to all interface. */
-static void rip_enable_apply_all(struct rip *rip)
+void rip_enable_apply_all(struct rip *rip)
 {
 	struct interface *ifp;
 
@@ -1183,11 +1182,15 @@ void rip_interface_sync(struct interface *ifp)
 
 	vrf = vrf_lookup_by_id(ifp->vrf_id);
 	if (vrf) {
+		struct rip *rip = vrf->info;
 		struct rip_interface *ri;
+
+		if (rip && rip->shutdown)
+			rip = NULL;
 
 		ri = ifp->info;
 		if (ri) {
-			ri->rip = vrf->info;
+			ri->rip = rip;
 			ri->ifp = ifp;
 		}
 	}

@@ -110,6 +110,12 @@ struct rip {
 	/* VRF backpointer (might be NULL if the VRF doesn't exist). */
 	struct vrf *vrf;
 
+	/* soft-disable VRF for RIP.  Call rip_vrf_shutdown() to change */
+	bool shutdown;
+
+	/* helper for shutdown to remember if VRF would be up */
+	bool vrf_ok;
+
 	/* Status of the routing instance. */
 	bool enabled;
 
@@ -477,6 +483,7 @@ extern int rip_enable_if_delete(struct rip *rip, const char *ifname);
 extern void rip_event(struct rip *rip, enum rip_event event, int sock);
 extern void rip_ecmp_disable(struct rip *rip);
 
+extern void rip_vrf_shutdown(struct rip *rip, bool shutdown);
 extern int rip_create_socket(struct vrf *vrf);
 
 extern int rip_redistribute_check(struct rip *rip, int type);

@@ -28,6 +28,7 @@ int ripd_instance_destroy(struct nb_cb_destroy_args *args);
 const void *ripd_instance_get_next(struct nb_cb_get_next_args *args);
 int ripd_instance_get_keys(struct nb_cb_get_keys_args *args);
 const void *ripd_instance_lookup_entry(struct nb_cb_lookup_entry_args *args);
+int ripd_instance_shutdown_modify(struct nb_cb_modify_args *args);
 int ripd_instance_allow_ecmp_modify(struct nb_cb_modify_args *args);
 int ripd_instance_default_information_originate_modify(
 	struct nb_cb_modify_args *args);
@@ -136,6 +137,8 @@ void ripd_instance_timers_apply_finish(struct nb_cb_apply_finish_args *args);
 /* Optional 'cli_show' callbacks. */
 void cli_show_router_rip(struct vty *vty, struct lyd_node *dnode,
 			 bool show_defaults);
+void cli_show_rip_shutdown(struct vty *vty, struct lyd_node *dnode,
+			   bool show_defaults);
 void cli_show_rip_allow_ecmp(struct vty *vty, struct lyd_node *dnode,
 			     bool show_defaults);
 void cli_show_rip_default_information_originate(struct vty *vty,
