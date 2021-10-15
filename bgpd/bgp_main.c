@@ -66,6 +66,7 @@
 #include "bgpd/bgp_nht.h"
 #include "bgpd/bgp_routemap_nb.h"
 #include "bgpd/bgp_community_alias.h"
+#include "bgpd/bgp_nb.h"
 
 #ifdef ENABLE_BGP_VNC
 #include "bgpd/rfapi/rfapi_backend.h"
@@ -381,6 +382,7 @@ static const struct frr_yang_module_info *const bgpd_yang_modules[] = {
 	&frr_interface_info,
 	&frr_route_map_info,
 	&frr_vrf_info,
+	&frr_bgpd_info,
 	&frr_bgp_route_map_info,
 };
 
@@ -514,6 +516,7 @@ int main(int argc, char **argv)
 #endif
 
 	/* BGP related initialization.  */
+	bgp_nb_init();
 	bgp_init((unsigned short)instance);
 
 	if (list_isempty(bm->addresses)) {

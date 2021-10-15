@@ -92,6 +92,7 @@
 #include "bgpd/bgp_evpn_private.h"
 #include "bgpd/bgp_evpn_mh.h"
 #include "bgpd/bgp_mac.h"
+#include "bgpd/bgp_nb.h"
 
 DEFINE_MTYPE_STATIC(BGPD, PEER_TX_SHUTDOWN_MSG, "Peer shutdown message (TX)");
 DEFINE_MTYPE_STATIC(BGPD, BGP_EVPN_INFO, "BGP EVPN instance information");
@@ -3436,6 +3437,7 @@ int bgp_get(struct bgp **bgp_val, as_t *as, const char *name,
 	 */
 	bgp_handle_socket(bgp, vrf, VRF_UNKNOWN, true);
 	listnode_add(bm->bgp, bgp);
+	bgp_nb_add_instance(bgp);
 
 	if (IS_BGP_INST_KNOWN_TO_ZEBRA(bgp)) {
 		if (BGP_DEBUG(zebra, ZEBRA))
@@ -3687,6 +3689,7 @@ int bgp_delete(struct bgp *bgp)
 	/* Remove visibility via the master list - there may however still be
 	 * routes to be processed still referencing the struct bgp.
 	 */
+	bgp_nb_del_instance(bgp);
 	listnode_delete(bm->bgp, bgp);
 
 	/* Free interfaces in this instance. */

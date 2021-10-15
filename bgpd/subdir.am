@@ -83,6 +83,7 @@ bgpd_libbgp_a_SOURCES = \
 	bgpd/bgp_memory.c \
 	bgpd/bgp_mpath.c \
 	bgpd/bgp_mplsvpn.c \
+	bgpd/bgp_nb.c \
 	bgpd/bgp_network.c \
 	bgpd/bgp_nexthop.c \
 	bgpd/bgp_nht.c \
@@ -250,6 +251,7 @@ nodist_bgpd_bgpd_SOURCES = \
 	yang/frr-bgp-bmp.yang.c \
 	yang/frr-bgp-rpki.yang.c \
 	yang/frr-deviations-bgp-datacenter.yang.c \
+	yang/frr-bgpd.yang.c \
 	yang/frr-bgp-filter.yang.c \
 	yang/frr-bgp-route-map.yang.c \
 	# end

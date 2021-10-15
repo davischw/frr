@@ -34,6 +34,7 @@ dist_yangmodels_DATA += yang/frr-bgp-route-map.yang
 dist_yangmodels_DATA += yang/frr-pim-route-map.yang
 dist_yangmodels_DATA += yang/frr-ospf.yang
 dist_yangmodels_DATA += yang/frr-ospfv3.yang
+dist_yangmodels_DATA += yang/frr-bgpd.yang
 dist_yangmodels_DATA += yang/frr-vrf.yang
 dist_yangmodels_DATA += yang/frr-route-types.yang
 dist_yangmodels_DATA += yang/frr-routing.yang
