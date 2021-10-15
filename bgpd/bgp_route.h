@@ -528,7 +528,6 @@ struct bgp_aggregate {
 #define UNSUPPRESS_MAP_NAME(F)  ((F)->usmap.name)
 #define UNSUPPRESS_MAP(F)       ((F)->usmap.map)
 
-#define ADVERTISE_MAP_NAME(F)	((F)->advmap.aname)
 #define ADVERTISE_MAP(F)	((F)->advmap.amap)
 
 #define ADVERTISE_CONDITION(F)	((F)->advmap.condition)

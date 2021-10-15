@@ -1862,14 +1862,22 @@ void bgp_notify_conditional_adv_scanner(struct update_subgroup *subgrp)
 	afi_t afi = SUBGRP_AFI(subgrp);
 	safi_t safi = SUBGRP_SAFI(subgrp);
 	struct bgp_filter *filter = &peer->filter[afi][safi];
+	struct bgp_filter *pg_filter = NULL;
+	struct peer_af *iter;
 
-	if (!ADVERTISE_MAP_NAME(filter))
+	if (peer->group)
+		pg_filter = &peer->group->conf->filter[afi][safi];
+
+	if (bgp_advmaps_count(filter->advmaps) == 0 &&
+	    (!pg_filter || bgp_advmaps_count(pg_filter->advmaps) == 0))
 		return;
 
 	if (!CHECK_FLAG(peer->flags, PEER_FLAG_CONFIG_NODE))
 		return;
 
-	peer->advmap_table_change = true;
+	SUBGRP_FOREACH_PEER (subgrp, iter) {
+		iter->peer->filter[afi][safi].advmap_rib_changed = true;
+	}
 }
 
 
@@ -2224,32 +2232,6 @@ bool subgroup_announce_check(struct bgp_dest *dest, struct bgp_path_info *pi,
 
 	bgp_peer_remove_private_as(bgp, afi, safi, peer, attr);
 	bgp_peer_as_override(bgp, afi, safi, peer, attr);
-
-	if (filter->advmap.update_type == UPDATE_TYPE_WITHDRAW &&
-	    filter->advmap.aname &&
-	    route_map_lookup_by_name(filter->advmap.aname)) {
-		struct bgp_path_info rmap_path = {0};
-		struct bgp_path_info_extra dummy_rmap_path_extra = {0};
-		struct attr dummy_attr = *attr;
-
-		/* Fill temp path_info */
-		prep_for_rmap_apply(&rmap_path, &dummy_rmap_path_extra, dest,
-				    pi, peer, &dummy_attr);
-
-		struct route_map *amap =
-			route_map_lookup_by_name(filter->advmap.aname);
-
-		ret = route_map_apply(amap, p, &rmap_path);
-
-		bgp_attr_flush(&dummy_attr);
-
-		/*
-		 * The conditional advertisement mode is Withdraw and this
-		 * prefix is a conditional prefix. Don't advertise it
-		 */
-		if (ret == RMAP_PERMITMATCH)
-			return false;
-	}
 
 	/* Route map & unsuppress-map apply. */
 	if (!post_attr &&
@@ -4889,7 +4871,7 @@ static void bgp_announce_route_timer_expired(struct thread *t)
 	peer_af_announce_route(paf, 1);
 
 	/* Notify BGP conditional advertisement scanner percess */
-	peer->advmap_config_change[paf->afi][paf->safi] = true;
+	peer->filter[paf->afi][paf->safi].advmap_rib_changed = true;
 }
 
 /*
