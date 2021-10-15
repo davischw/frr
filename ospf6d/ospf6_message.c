@@ -2053,6 +2053,7 @@ void ospf6_hello_send_addr(struct ospf6_interface *oi,
 	uint8_t *p;
 	struct listnode *node, *nnode;
 	struct ospf6_neighbor *on;
+	struct in6_addr *src_addr;
 
 	memset(sendbuf, 0, iobuflen);
 	oh = (struct ospf6_header *)sendbuf;
@@ -2099,6 +2100,11 @@ void ospf6_hello_send_addr(struct ospf6_interface *oi,
 	oh->type = OSPF6_MESSAGE_TYPE_HELLO;
 	oh->length = htons(p - sendbuf);
 
+	if (vlink)
+		src_addr = &oi->area->vlink_local_addr;
+	else
+		src_addr = oi->linklocal_addr;
+
 	if ((oi->state == OSPF6_INTERFACE_POINTTOPOINT
 	     || oi->state == OSPF6_INTERFACE_POINTTOMULTIPOINT)
 	    && !addr && oi->p2xp_no_multicast_hello) {
@@ -2108,12 +2114,11 @@ void ospf6_hello_send_addr(struct ospf6_interface *oi,
 				continue;
 
 			oi->hello_out++;
-			ospf6_send(oi->linklocal_addr, &on->linklocal_addr, oi,
-				   oh);
+			ospf6_send(src_addr, &on->linklocal_addr, oi, oh);
 		}
 	} else {
 		oi->hello_out++;
-		ospf6_send(oi->linklocal_addr, addr ?: &allspfrouters6, oi, oh);
+		ospf6_send(src_addr, addr ?: &allspfrouters6, oi, oh);
 	}
 }
 

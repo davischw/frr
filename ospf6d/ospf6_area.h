@@ -72,6 +72,7 @@ struct ospf6_area {
 
 	/* virtual links traversing this area */
 	struct ospf6_area_vlinks_head vlinks[1];
+	struct in6_addr vlink_local_addr;
 
 	struct ospf6_lsdb *lsdb;
 	struct ospf6_lsdb *lsdb_self;

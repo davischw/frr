@@ -236,6 +236,9 @@ static void ospf6_vlink_refresh(struct ospf6_virtual_link *vlink)
 				vaddr = ospf6_vlink_addr_new(vlink, addr);
 			ospf6_vlink_addrs_add(vlink->addrs, vaddr);
 
+			/* RFC5340 4.4.3.9 requires using neighbor's first LA
+			 * (other addrs would work, except with IPsec...)
+			 */
 			if (!bestaddr)
 				bestaddr = vaddr;
 		}

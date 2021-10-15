@@ -1084,14 +1084,13 @@ int ospf6_intra_prefix_lsa_originate_stub(struct thread *thread)
 	struct ospf6_intra_prefix_lsa *intra_prefix_lsa;
 	struct ospf6_interface *oi;
 	struct ospf6_neighbor *on;
-	struct ospf6_route *route;
+	struct ospf6_route *route, *la = NULL;
 	struct ospf6_prefix *op;
 	struct listnode *i, *j;
 	int full_count = 0;
 	unsigned short prefix_num = 0;
 	struct ospf6_route_table *route_advertise;
 	int ls_id = 0;
-	bool have_la = false;
 
 	oa = (struct ospf6_area *)THREAD_ARG(thread);
 	oa->thread_intra_prefix_lsa = NULL;
@@ -1175,31 +1174,48 @@ int ospf6_intra_prefix_lsa_originate_stub(struct thread *thread)
 		/* connected prefix to advertise */
 		for (route = ospf6_route_head(oi->route_connected); route;
 		     route = ospf6_route_best_next(route)) {
-			const char *la_flag = "";
+			bool is_la;
+			struct ospf6_route *added;
 
-			if (route->prefix_options & OSPF6_PREFIX_OPTION_LA) {
-				la_flag = " (LA)";
-				have_la = true;
-			}
+			is_la = route->prefix_options & OSPF6_PREFIX_OPTION_LA;
 			if (IS_OSPF6_DEBUG_ORIGINATE(INTRA_PREFIX))
 				zlog_debug("    include %pFX%s",
-					   &route->prefix, la_flag);
-			ospf6_route_add(ospf6_route_copy(route),
-					route_advertise);
+					   &route->prefix, is_la ? " LA" : "");
+
+			added = ospf6_route_add(ospf6_route_copy(route),
+						route_advertise);
+			if (!is_la)
+				continue;
+
+			if (!la) {
+				la = added;
+				continue;
+			}
+
+			/* prefixes will be advertised in sorted order, so the
+			 * our "first" LA will be the lowest one
+			 */
+			if (prefix_cmp(&added->prefix, &la->prefix) < 0)
+				la = added;
 		}
 	}
 
-	if (ospf6_vlink_area_vlcount(oa) && !have_la) {
+	if (ospf6_vlink_area_vlcount(oa) && !la) {
 		/* if we're here, we have no loopback or ptp interfaces in
 		 * the area (those always create LA=1 prefixes).  So we need
 		 * to grab a local addr somewhere else.  Unfortunately,
 		 * oi->route_connected contains masked prefixes, no addrs...
 		 */
 
-		route = ospf6_intra_vlink_find_la(oa);
-		if (route)
-			ospf6_route_add(route, route_advertise);
+		la = ospf6_intra_vlink_find_la(oa);
+		if (la)
+			la = ospf6_route_add(la, route_advertise);
 	}
+
+	if (!la)
+		memset(&oa->vlink_local_addr, 0, sizeof(oa->vlink_local_addr));
+	else
+		oa->vlink_local_addr = la->prefix.u.prefix6;
 
 	if (route_advertise->count == 0) {
 		if (old) {

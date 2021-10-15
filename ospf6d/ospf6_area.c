@@ -1150,6 +1150,8 @@ static int show_ospf6_area_spf_tree_common(struct vty *vty,
 	root = (struct ospf6_vertex *)route->route_option;
 	ospf6_spf_display_subtree(vty, "", 0, root, NULL, false);
 
+	vty_out(vty, "\nLocal address for virtual links: %pI6\n",
+		&oa->vlink_local_addr);
 	return CMD_SUCCESS;
 }
 
