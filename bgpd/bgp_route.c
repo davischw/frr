@@ -1725,8 +1725,13 @@ void bgp_notify_conditional_adv_scanner(struct update_subgroup *subgrp)
 	safi_t safi = SUBGRP_SAFI(subgrp);
 	struct bgp *bgp = SUBGRP_INST(subgrp);
 	struct bgp_filter *filter = &peer->filter[afi][safi];
+	struct bgp_filter *pg_filter = NULL;
 
-	if (!ADVERTISE_MAP_NAME(filter))
+	if (peer->group)
+		pg_filter = &peer->group->conf->filter[afi][safi];
+
+	if (bgp_advmaps_count(filter->advmaps) == 0 &&
+	    (!pg_filter || bgp_advmaps_count(pg_filter->advmaps) == 0))
 		return;
 
 	for (ALL_LIST_ELEMENTS(bgp->peer, temp_node, temp_nnode, temp_peer)) {
@@ -1736,7 +1741,7 @@ void bgp_notify_conditional_adv_scanner(struct update_subgroup *subgrp)
 		if (peer != temp_peer)
 			continue;
 
-		temp_peer->advmap_table_change = true;
+		temp_peer->filter[afi][safi].advmap_rib_changed = true;
 		break;
 	}
 }
@@ -4530,7 +4535,7 @@ static int bgp_announce_route_timer_expired(struct thread *t)
 	peer_af_announce_route(paf, 1);
 
 	/* Notify BGP conditional advertisement scanner percess */
-	peer->advmap_config_change[paf->afi][paf->safi] = true;
+	peer->filter[paf->afi][paf->safi].advmap_rib_changed = true;
 
 	return 0;
 }

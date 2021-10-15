@@ -822,12 +822,41 @@ struct bgp_nexthop {
 #define BGP_GTSM_HOPS_CONNECTED 1
 
 /* Advertise map */
-#define CONDITION_NON_EXIST	false
-#define CONDITION_EXIST		true
+enum condition_type {
+	CONDITION_NON_EXIST = 0,
+	CONDITION_EXIST,
+
+	_CONDITION_TYPE_LEN,
+};
 
 enum update_type { WITHDRAW, ADVERTISE };
 
 #include "filter.h"
+
+PREDECL_SORTLIST_UNIQ(bgp_advmaps);
+
+struct bgp_advmap {
+	struct bgp_advmaps_item itm;
+
+	unsigned seqno;
+
+	uint8_t cond;
+	bool status;
+
+	char *aname;
+	struct route_map *amap;
+
+	char *cname;
+	struct route_map *cmap;
+};
+
+static inline int bgp_advmap_cmp(const struct bgp_advmap *a,
+				 const struct bgp_advmap *b)
+{
+	return numcmp(a->seqno, b->seqno);
+}
+
+DECLARE_SORTLIST_UNIQ(bgp_advmaps, struct bgp_advmap, itm, bgp_advmap_cmp);
 
 /* BGP filter structure. */
 struct bgp_filter {
@@ -861,18 +890,9 @@ struct bgp_filter {
 		struct route_map *map;
 	} usmap;
 
-	/* Advertise-map */
-	struct {
-		char *aname;
-		struct route_map *amap;
-
-		bool condition;
-
-		char *cname;
-		struct route_map *cmap;
-
-		enum update_type update_type;
-	} advmap;
+	struct bgp_advmaps_head advmaps[1];
+	bool advmap_cfg_changed;
+	bool advmap_rib_changed;
 };
 
 /* IBGP/EBGP identifier.  We also have a CONFED peer, which is to say,
@@ -1334,7 +1354,7 @@ struct peer {
 #define PEER_FLAG_MAX_PREFIX_OUT            (1U << 27) /* outgoing maximum prefix */
 #define PEER_FLAG_MAX_PREFIX_FORCE          (1U << 28) /* maximum-prefix <num> force */
 #define PEER_FLAG_CONFIG_DAMPENING (1U << 29) /* route flap dampening */
-
+#define PEER_FLAG_ADVERTISE_MAPS            (1U << 30) /* advertise-maps */
 
 	enum bgp_addpath_strat addpath_type[AFI_MAX][SAFI_MAX];
 
@@ -1507,7 +1527,6 @@ struct peer {
 #define PEER_FT_PREFIX_LIST           (1U << 2) /* prefix-list */
 #define PEER_FT_ROUTE_MAP             (1U << 3) /* route-map */
 #define PEER_FT_UNSUPPRESS_MAP        (1U << 4) /* unsuppress-map */
-#define PEER_FT_ADVERTISE_MAP         (1U << 5) /* advertise-map */
 
 	/* ORF Prefix-list */
 	struct prefix_list *orf_plist[AFI_MAX][SAFI_MAX];
@@ -1624,10 +1643,6 @@ struct peer {
 
 	/* Extended Message Support */
 	uint16_t max_packet_size;
-
-	/* Conditional advertisement */
-	bool advmap_config_change[AFI_MAX][SAFI_MAX];
-	bool advmap_table_change;
 
 	/* set TCP max segment size */
 	uint32_t tcp_mss;
@@ -2142,11 +2157,12 @@ extern int peer_unsuppress_map_set(struct peer *peer, afi_t afi, safi_t safi,
 				   struct route_map *route_map);
 
 extern int peer_advertise_map_set(struct peer *peer, afi_t afi, safi_t safi,
+				  unsigned seqno,
 				  const char *advertise_name,
 				  struct route_map *advertise_map,
 				  const char *condition_name,
 				  struct route_map *condition_map,
-				  bool condition);
+				  enum condition_type condition);
 
 extern int peer_password_set(struct peer *, const char *);
 extern int peer_password_unset(struct peer *);
@@ -2154,11 +2170,7 @@ extern int peer_password_unset(struct peer *);
 extern int peer_unsuppress_map_unset(struct peer *, afi_t, safi_t);
 
 extern int peer_advertise_map_unset(struct peer *peer, afi_t afi, safi_t safi,
-				    const char *advertise_name,
-				    struct route_map *advertise_map,
-				    const char *condition_name,
-				    struct route_map *condition_map,
-				    bool condition);
+				    unsigned seqno);
 
 extern int peer_maximum_prefix_set(struct peer *, afi_t, safi_t, uint32_t,
 				   uint8_t, int, uint16_t, bool force);

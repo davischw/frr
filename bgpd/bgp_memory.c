@@ -108,6 +108,7 @@ DEFINE_MTYPE(BGPD, TIP_ADDR, "BGP own tunnel-ip address");
 
 DEFINE_MTYPE(BGPD, BGP_REDIST, "BGP redistribution");
 DEFINE_MTYPE(BGPD, BGP_FILTER_NAME, "BGP Filter Information");
+DEFINE_MTYPE(BGPD, BGP_ADVMAP, "BGP advertise-map");
 DEFINE_MTYPE(BGPD, BGP_DUMP_STR, "BGP Dump String Information");
 DEFINE_MTYPE(BGPD, ENCAP_TLV, "ENCAP TLV");
 

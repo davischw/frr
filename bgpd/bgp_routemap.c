@@ -3527,6 +3527,7 @@ static void bgp_route_map_process_peer(const char *rmap_name,
 				       int afi, int safi, int route_update)
 {
 	struct bgp_filter *filter;
+	struct bgp_advmap *advmap;
 
 	if (!peer || !rmap_name)
 		return;
@@ -3578,22 +3579,24 @@ static void bgp_route_map_process_peer(const char *rmap_name,
 	if (filter->usmap.name && (strcmp(rmap_name, filter->usmap.name) == 0))
 		filter->usmap.map = map;
 
-	if (filter->advmap.aname
-	    && (strcmp(rmap_name, filter->advmap.aname) == 0)) {
-		filter->advmap.amap = map;
-	}
-
-	if (filter->advmap.cname
-	    && (strcmp(rmap_name, filter->advmap.cname) == 0)) {
-		filter->advmap.cmap = map;
+	frr_each (bgp_advmaps, filter->advmaps, advmap) {
+		if (advmap->aname && !strcmp(advmap->aname, rmap_name)) {
+			route_map_counter_decrement(advmap->amap);
+			route_map_counter_increment(map);
+			advmap->amap = map;
+			filter->advmap_cfg_changed = true;
+		}
+		if (advmap->cname && !strcmp(advmap->cname, rmap_name)) {
+			route_map_counter_decrement(advmap->cmap);
+			route_map_counter_increment(map);
+			advmap->cmap = map;
+			filter->advmap_cfg_changed = true;
+		}
 	}
 
 	if (peer->default_rmap[afi][safi].name
 	    && (strcmp(rmap_name, peer->default_rmap[afi][safi].name) == 0))
 		peer->default_rmap[afi][safi].map = map;
-
-	/* Notify BGP conditional advertisement scanner percess */
-	peer->advmap_config_change[afi][safi] = true;
 }
 
 static void bgp_route_map_update_peer_group(const char *rmap_name,
@@ -3603,6 +3606,7 @@ static void bgp_route_map_update_peer_group(const char *rmap_name,
 	struct peer_group *group;
 	struct listnode *node, *nnode;
 	struct bgp_filter *filter;
+	struct bgp_advmap *advmap;
 	int afi, safi;
 	int direct;
 
@@ -3627,6 +3631,25 @@ static void bgp_route_map_update_peer_group(const char *rmap_name,
 			if (filter->usmap.name
 			    && (strcmp(rmap_name, filter->usmap.name) == 0))
 				filter->usmap.map = map;
+
+			frr_each (bgp_advmaps, filter->advmaps, advmap) {
+				if (advmap->aname && !strcmp(advmap->aname,
+							     rmap_name)) {
+					route_map_counter_decrement(
+							advmap->amap);
+					route_map_counter_increment(map);
+					advmap->amap = map;
+					filter->advmap_cfg_changed = true;
+				}
+				if (advmap->cname && !strcmp(advmap->cname,
+							     rmap_name)) {
+					route_map_counter_decrement(
+							advmap->cmap);
+					route_map_counter_increment(map);
+					advmap->cmap = map;
+					filter->advmap_cfg_changed = true;
+				}
+			}
 		}
 	}
 }

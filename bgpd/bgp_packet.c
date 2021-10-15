@@ -305,6 +305,10 @@ static void bgp_update_explicit_eors(struct peer *peer)
 int bgp_nlri_parse(struct peer *peer, struct attr *attr,
 		   struct bgp_nlri *packet, int mp_withdraw)
 {
+	if (packet->afi < AFI_MAX && packet->safi < SAFI_MAX)
+		peer->filter[packet->afi][packet->safi].advmap_rib_changed =
+			true;
+
 	switch (packet->safi) {
 	case SAFI_UNICAST:
 	case SAFI_MULTICAST:
@@ -1823,6 +1827,8 @@ static int bgp_update_receive(struct peer *peer, bgp_size_t size)
                             "%s: rcvd End-of-RIB for %s from %s in vrf %s",
                             __func__, get_afi_safi_str(afi, safi, false),
                             peer->host, vrf ? vrf->name : VRF_DEFAULT_NAME);
+
+			peer->filter[afi][safi].advmap_rib_changed = true;
                 }
 	}
 
@@ -1831,9 +1837,6 @@ static int bgp_update_receive(struct peer *peer, bgp_size_t size)
 	bgp_attr_unintern_sub(&attr);
 
 	peer->update_time = bgp_clock();
-
-	/* Notify BGP Conditional advertisement scanner process */
-	peer->advmap_table_change = true;
 
 	return Receive_UPDATE_message;
 }

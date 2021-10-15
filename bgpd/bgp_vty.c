@@ -7253,31 +7253,44 @@ ALIAS_HIDDEN(no_neighbor_filter_list, no_neighbor_filter_list_hidden_cmd,
 
 /* Set advertise-map to the peer. */
 static int peer_advertise_map_set_vty(struct vty *vty, const char *ip_str,
-				      afi_t afi, safi_t safi,
+				      afi_t afi, safi_t safi, unsigned seqno,
 				      const char *advertise_str,
 				      const char *condition_str, bool condition,
 				      bool set)
 {
 	int ret = CMD_WARNING_CONFIG_FAILED;
 	struct peer *peer;
-	struct route_map *advertise_map;
-	struct route_map *condition_map;
 
 	peer = peer_and_group_lookup_vty(vty, ip_str);
 	if (!peer)
 		return ret;
 
-	condition_map = route_map_lookup_warn_noexist(vty, condition_str);
-	advertise_map = route_map_lookup_warn_noexist(vty, advertise_str);
+	if (set) {
+		struct route_map *advertise_map;
+		struct route_map *condition_map;
 
-	if (set)
-		ret = peer_advertise_map_set(peer, afi, safi, advertise_str,
-					     advertise_map, condition_str,
-					     condition_map, condition);
-	else
-		ret = peer_advertise_map_unset(peer, afi, safi, advertise_str,
-					       advertise_map, condition_str,
-					       condition_map, condition);
+		condition_map = route_map_lookup_warn_noexist(vty,
+							      condition_str);
+		advertise_map = route_map_lookup_warn_noexist(vty,
+							      advertise_str);
+
+		if (!seqno) {
+			struct bgp_advmap *advmap;
+
+			frr_each (bgp_advmaps, peer->filter[afi][safi].advmaps,
+				  advmap)
+				seqno = advmap->seqno;
+
+			seqno += 10;
+			seqno -= (seqno % 10);
+		}
+
+		ret = peer_advertise_map_set(peer, afi, safi, seqno,
+					     advertise_str, advertise_map,
+					     condition_str, condition_map,
+					     condition);
+	} else
+		ret = peer_advertise_map_unset(peer, afi, safi, seqno);
 
 	return bgp_vty_return(vty, ret);
 }
@@ -7301,31 +7314,67 @@ DEFPY (bgp_condadv_period,
 
 DEFPY (neighbor_advertise_map,
        neighbor_advertise_map_cmd,
-       "[no$no] neighbor <A.B.C.D|X:X::X:X|WORD>$neighbor advertise-map WORD$advertise_str <exist-map|non-exist-map>$exist WORD$condition_str",
+       "[no] neighbor <A.B.C.D|X:X::X:X|WORD>$neighbor advertise-map WORD$advertise_str [seq (1-4294967295)] <exist-map|non-exist-map$nex> WORD$condition_str",
        NO_STR
        NEIGHBOR_STR
        NEIGHBOR_ADDR_STR2
        "Route-map to conditionally advertise routes\n"
        "Name of advertise map\n"
+       "Sequence number to order advertise-maps\n"
+       "Sequence number to order advertise-maps\n"
        "Advertise routes only if prefixes in exist-map are installed in BGP table\n"
        "Advertise routes only if prefixes in non-exist-map are not installed in BGP table\n"
        "Name of the exist or non exist map\n")
 {
 	bool condition = CONDITION_EXIST;
 
-	if (!strcmp(exist, "non-exist-map"))
+	if (nex)
 		condition = CONDITION_NON_EXIST;
 
+	if (no && !seq) {
+		vty_out(vty,
+			"%% sequence number is required delete advertise-map entry\n");
+		return CMD_WARNING_CONFIG_FAILED;
+	}
+
 	return peer_advertise_map_set_vty(vty, neighbor, bgp_node_afi(vty),
-					  bgp_node_safi(vty), advertise_str,
-					  condition_str, condition, !no);
+					  bgp_node_safi(vty), seq,
+					  advertise_str, condition_str,
+					  condition, !no);
+}
+
+DEFPY (no_neighbor_advertise_map,
+       no_neighbor_advertise_map_cmd,
+       "no neighbor <A.B.C.D|X:X::X:X|WORD>$neighbor advertise-map",
+       NO_STR
+       NEIGHBOR_STR
+       NEIGHBOR_ADDR_STR2
+       "Route-map to conditionally advertise routes\n")
+{
+	int ret = CMD_WARNING_CONFIG_FAILED;
+	struct peer *peer;
+	struct bgp_advmap *advmap;
+	afi_t afi = bgp_node_afi(vty);
+	safi_t safi = bgp_node_safi(vty);
+
+	peer = peer_and_group_lookup_vty(vty, neighbor);
+	if (!peer)
+		return ret;
+
+	while ((advmap = bgp_advmaps_first(peer->filter[afi][safi].advmaps)))
+		peer_advertise_map_set_vty(vty, neighbor, afi, safi,
+					   advmap->seqno, NULL, NULL, 0, false);
+
+	return CMD_SUCCESS;
 }
 
 ALIAS_HIDDEN(neighbor_advertise_map, neighbor_advertise_map_hidden_cmd,
-	     "[no$no] neighbor <A.B.C.D|X:X::X:X|WORD>$neighbor advertise-map WORD$advertise_str <exist-map|non-exist-map>$exist WORD$condition_str",
+	     "[no] neighbor <A.B.C.D|X:X::X:X|WORD>$neighbor advertise-map WORD$advertise_str [seq (1-4294967295)] <exist-map|non-exist-map$nex>$exist WORD$condition_str",
 	     NO_STR NEIGHBOR_STR NEIGHBOR_ADDR_STR2
 	     "Route-map to conditionally advertise routes\n"
 	     "Name of advertise map\n"
+	     "Sequence number to order advertise-maps\n"
+	     "Sequence number to order advertise-maps\n"
 	     "Advertise routes only if prefixes in exist-map are installed in BGP table\n"
 	     "Advertise routes only if prefixes in non-exist-map are not installed in BGP table\n"
 	     "Name of the exist or non exist map\n")
@@ -11205,7 +11254,8 @@ static void bgp_show_peer_afi(struct vty *vty, struct peer *p, afi_t afi,
 			      safi_t safi, bool use_json,
 			      json_object *json_neigh)
 {
-	struct bgp_filter *filter;
+	struct bgp_filter *filter, *pg_filter = NULL;
+	struct bgp_advmap *advmap, *pg_advmap;
 	struct peer_af *paf;
 	char orf_pfx_name[BUFSIZ];
 	int orf_pfx_count;
@@ -11213,7 +11263,11 @@ static void bgp_show_peer_afi(struct vty *vty, struct peer *p, afi_t afi,
 	json_object *json_prefA = NULL;
 	json_object *json_prefB = NULL;
 	json_object *json_addr = NULL;
+	json_object *json_advmaps = NULL;
 	json_object *json_advmap = NULL;
+
+	if (p->group)
+		pg_filter = &p->group->conf->filter[afi][safi];
 
 	if (use_json) {
 		json_addr = json_object_new_object();
@@ -11488,25 +11542,52 @@ static void bgp_show_peer_afi(struct vty *vty, struct peer *p, afi_t afi,
 					       "selectiveUnsuppressRouteMap",
 					       filter->usmap.name);
 
-		/* advertise-map */
-		if (filter->advmap.aname) {
+		json_advmaps = json_object_new_array();
+
+		advmap = bgp_advmaps_first(filter->advmaps);
+		pg_advmap = pg_filter ? bgp_advmaps_first(pg_filter->advmaps)
+				      : NULL;
+
+		while (advmap || pg_advmap) {
+			struct bgp_advmap *now = NULL;
+			bool from_pg;
+
+			if ((advmap && pg_advmap &&
+			     advmap->seqno > pg_advmap->seqno)
+			    || !advmap) {
+				now = pg_advmap;
+				pg_advmap = bgp_advmaps_next(pg_filter->advmaps,
+							     pg_advmap);
+				from_pg = true;
+			} else {
+				now = advmap;
+				advmap = bgp_advmaps_next(filter->advmaps,
+							  advmap);
+				from_pg = false;
+			}
+
+			assert(now);
+
 			json_advmap = json_object_new_object();
-			json_object_string_add(json_advmap, "condition",
-					       filter->advmap.condition
-						       ? "EXIST"
-						       : "NON_EXIST");
+			json_object_int_add(json_advmap, "sequenceNumber",
+					       advmap->seqno);
+			if (from_pg)
+				json_object_boolean_true_add(json_advmap,
+							     "inheritedFromPeerGroup");
+
 			json_object_string_add(json_advmap, "conditionMap",
-					       filter->advmap.cname);
+					       advmap->cname);
+			json_object_string_add(json_advmap, "conditionType",
+					       advmap->cond == CONDITION_EXIST ?
+							"exist" : "non-exist");
 			json_object_string_add(json_advmap, "advertiseMap",
-					       filter->advmap.aname);
-			json_object_string_add(json_advmap, "advertiseStatus",
-					       filter->advmap.update_type
-							       == ADVERTISE
-						       ? "Advertise"
-						       : "Withdraw");
-			json_object_object_add(json_addr, "advertiseMap",
-					       json_advmap);
+					       advmap->aname);
+			json_object_boolean_add(json_advmap, "conditionStatus",
+						advmap->status);
+			json_object_array_add(json_advmaps, json_advmap);
 		}
+		json_object_object_add(json_addr, "advertiseMaps",
+				       json_advmaps);
 
 		/* Receive prefix count */
 		json_object_int_add(json_addr, "acceptedPrefixCounter",
@@ -11803,19 +11884,39 @@ static void bgp_show_peer_afi(struct vty *vty, struct peer *p, afi_t afi,
 				filter->usmap.map ? "*" : "",
 				filter->usmap.name);
 
-		/* advertise-map */
-		if (filter->advmap.aname && filter->advmap.cname)
+		advmap = bgp_advmaps_first(filter->advmaps);
+		pg_advmap = pg_filter ? bgp_advmaps_first(pg_filter->advmaps)
+				      : NULL;
+
+		while (advmap || pg_advmap) {
+			struct bgp_advmap *now = NULL;
+			bool from_pg;
+
+			if ((advmap && pg_advmap &&
+			     advmap->seqno > pg_advmap->seqno)
+			    || !advmap) {
+				now = pg_advmap;
+				pg_advmap = bgp_advmaps_next(pg_filter->advmaps,
+							     pg_advmap);
+				from_pg = true;
+			} else {
+				now = advmap;
+				advmap = bgp_advmaps_next(filter->advmaps,
+							  advmap);
+				from_pg = false;
+			}
+
+			assert(now);
+
 			vty_out(vty,
-				"  Condition %s, Condition-map %s%s, Advertise-map %s%s, status: %s\n",
-				filter->advmap.condition ? "EXIST"
-							 : "NON_EXIST",
-				filter->advmap.cmap ? "*" : "",
-				filter->advmap.cname,
-				filter->advmap.amap ? "*" : "",
-				filter->advmap.aname,
-				filter->advmap.update_type == ADVERTISE
-					? "Advertise"
-					: "Withdraw");
+				"  Advertise-map #%u%s: Condition-map %s %s%s (%s), Advertise-map %s%s\n",
+				now->seqno, from_pg ? " (from peer group)" : "",
+				now->cond == CONDITION_EXIST ? "exist"
+							     : "non-exist",
+				now->cmap ? "*" : "", now->cname,
+				now->status ? "true" : "false",
+				now->amap ? "*" : "", now->aname);
+		}
 
 		/* Receive prefix count */
 		vty_out(vty, "  %u accepted prefixes\n",
@@ -15829,10 +15930,6 @@ static bool peergroup_filter_check(struct peer *peer, afi_t afi, safi_t safi,
 		return !!(filter->map[direct].name);
 	case PEER_FT_UNSUPPRESS_MAP:
 		return !!(filter->usmap.name);
-	case PEER_FT_ADVERTISE_MAP:
-		return !!(filter->advmap.aname
-			  && ((filter->advmap.condition == direct)
-			      && filter->advmap.cname));
 	default:
 		return false;
 	}
@@ -15976,6 +16073,7 @@ static void bgp_config_write_filter(struct vty *vty, struct peer *peer,
 				    afi_t afi, safi_t safi)
 {
 	struct bgp_filter *filter;
+	struct bgp_advmap *advmap;
 	char *addr;
 
 	addr = peer->host;
@@ -16018,17 +16116,13 @@ static void bgp_config_write_filter(struct vty *vty, struct peer *peer,
 		vty_out(vty, "  neighbor %s unsuppress-map %s\n", addr,
 			filter->usmap.name);
 
-	/* advertise-map : always applied in OUT direction*/
-	if (peergroup_filter_check(peer, afi, safi, PEER_FT_ADVERTISE_MAP,
-				   CONDITION_NON_EXIST))
-		vty_out(vty,
-			"  neighbor %s advertise-map %s non-exist-map %s\n",
-			addr, filter->advmap.aname, filter->advmap.cname);
-
-	if (peergroup_filter_check(peer, afi, safi, PEER_FT_ADVERTISE_MAP,
-				   CONDITION_EXIST))
-		vty_out(vty, "  neighbor %s advertise-map %s exist-map %s\n",
-			addr, filter->advmap.aname, filter->advmap.cname);
+	frr_each (bgp_advmaps, filter->advmaps, advmap) {
+		vty_out(vty, "  neighbor %s advertise-map %s seq %u %s %s\n",
+			addr, advmap->aname, advmap->seqno,
+			advmap->cond == CONDITION_EXIST ? "exist-map"
+							: "non-exist-map",
+			advmap->cname);
+	}
 
 	/* filter-list. */
 	if (peergroup_filter_check(peer, afi, safi, PEER_FT_FILTER_LIST,
@@ -18348,6 +18442,14 @@ void bgp_vty_init(void)
 	install_element(BGP_IPV6L_NODE, &neighbor_advertise_map_cmd);
 	install_element(BGP_VPNV4_NODE, &neighbor_advertise_map_cmd);
 	install_element(BGP_VPNV6_NODE, &neighbor_advertise_map_cmd);
+	install_element(BGP_IPV4_NODE, &no_neighbor_advertise_map_cmd);
+	install_element(BGP_IPV4M_NODE, &no_neighbor_advertise_map_cmd);
+	install_element(BGP_IPV4L_NODE, &no_neighbor_advertise_map_cmd);
+	install_element(BGP_IPV6_NODE, &no_neighbor_advertise_map_cmd);
+	install_element(BGP_IPV6M_NODE, &no_neighbor_advertise_map_cmd);
+	install_element(BGP_IPV6L_NODE, &no_neighbor_advertise_map_cmd);
+	install_element(BGP_VPNV4_NODE, &no_neighbor_advertise_map_cmd);
+	install_element(BGP_VPNV6_NODE, &no_neighbor_advertise_map_cmd);
 
 	/* neighbor maximum-prefix-out commands. */
 	install_element(BGP_NODE, &neighbor_maximum_prefix_out_cmd);
