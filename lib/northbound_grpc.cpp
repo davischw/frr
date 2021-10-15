@@ -139,11 +139,11 @@ template <typename Q, typename S> class NewRpcState : RpcStateBase
       public:
 	NewRpcState(Candidates *cdb, reqfunc_t rfunc,
 		    void (*cb)(NewRpcState<Q, S> *), const char *name)
-	    : requestf(rfunc), callback(cb), responder(&ctx),
+	    : requestf(rfunc), requestsf(NULL), callback(cb), responder(&ctx),
 	      async_responder(&ctx), name(name), cdb(cdb){};
 	NewRpcState(Candidates *cdb, reqsfunc_t rfunc,
 		    void (*cb)(NewRpcState<Q, S> *), const char *name)
-	    : requestsf(rfunc), callback(cb), responder(&ctx),
+	    : requestf(NULL), requestsf(rfunc), callback(cb), responder(&ctx),
 	      async_responder(&ctx), name(name), cdb(cdb){};
 
 	CallState doCallback() override
@@ -1249,6 +1249,12 @@ static grpc::ServerCompletionQueue *s_cq;
 
 static void *grpc_pthread_start(void *arg)
 {
+	sigset_t allsigs;
+
+	/* make sure all signal handling happens on main FRR thread */
+	sigfillset(&allsigs);
+	sigprocmask(SIG_BLOCK, &allsigs, NULL);
+
 	struct frr_pthread *fpt = static_cast<frr_pthread *>(arg);
 	uint port = (uint) reinterpret_cast<intptr_t>(fpt->data);
 
@@ -1288,8 +1294,8 @@ static void *grpc_pthread_start(void *arg)
 
 	/* Process inbound RPCs */
 	while (true) {
-		void *tag;
-		bool ok;
+		void *tag = NULL;
+		bool ok = false;
 
 		s_cq->Next(&tag, &ok);
 		if (!ok)
