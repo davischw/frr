@@ -40,6 +40,7 @@
 #include "ospf6_zebra.h"
 
 #include "ospf6_top.h"
+#include "ospf6_nb.h"
 #include "ospf6_area.h"
 #include "ospf6_interface.h"
 #include "ospf6_neighbor.h"
@@ -148,10 +149,12 @@ static void ospf6_disable(struct ospf6 *o);
 static void ospf6_add(struct ospf6 *ospf6)
 {
 	listnode_add(om6->ospf6, ospf6);
+	ospf6_nb_add_instance(ospf6);
 }
 
 static void ospf6_del(struct ospf6 *ospf6)
 {
+	ospf6_nb_del_instance(ospf6);
 	listnode_delete(om6->ospf6, ospf6);
 }
 
@@ -714,7 +717,7 @@ void ospf6_router_id_update(struct ospf6 *ospf6)
 		ospf6->router_id = ospf6->router_id_zebra;
 }
 
-static void ospf6_shutdown(struct ospf6 *o, bool shutdown, bool graceful)
+void ospf6_shutdown(struct ospf6 *o, bool shutdown, bool graceful)
 {
 	struct listnode *node;
 	struct ospf6_area *oa;

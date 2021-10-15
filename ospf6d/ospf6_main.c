@@ -48,6 +48,7 @@
 #include "ospf6_lsa.h"
 #include "ospf6_interface.h"
 #include "ospf6_zebra.h"
+#include "ospf6_nb.h"
 #include "ospf6_routemap_nb.h"
 
 /* Default configuration file name for ospf6d. */
@@ -176,6 +177,7 @@ static const struct frr_yang_module_info *const ospf6d_yang_modules[] = {
 	&frr_interface_info,
 	&frr_route_map_info,
 	&frr_vrf_info,
+	&frr_ospfv3_info,
 	&frr_ospf_route_map_info,
 	&frr_ospf6_route_map_info,
 };
@@ -233,6 +235,7 @@ int main(int argc, char *argv[], char *envp[])
 	prefix_list_init();
 
 	/* initialize ospf6 */
+	ospf6_nb_init();
 	ospf6_init(master);
 
 	/* initialize southbound. */
