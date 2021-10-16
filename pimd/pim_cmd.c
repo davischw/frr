@@ -8554,7 +8554,7 @@ DEFPY (interface_ip_igmp_limits,
 	else
 		nb_cli_enqueue_change(vty, xpath, NB_OP_MODIFY, val_str);
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
 }
 
 ALIAS (interface_ip_igmp_limits,
