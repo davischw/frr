@@ -43,6 +43,8 @@ struct rp_info {
 	int i_am_rp;
 	char *plist;
 	char *fallback_plist;
+	char *alist;
+	char *fallback_alist;
 };
 
 void pim_rp_init(struct pim_instance *pim);
@@ -51,12 +53,14 @@ void pim_rp_free(struct pim_instance *pim);
 void pim_rp_list_hash_clean(void *data);
 
 int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
-	       const char *plist, enum rp_source rp_src_flag);
+	       const char *plist, const char *alist,
+	       enum rp_source rp_src_flag);
 void pim_rp_del_config(struct pim_instance *pim, pim_addr rp_addr,
-		       const char *group, const char *plist,
+		       const char *group, const char *plist, const char *alist,
 		       enum rp_source rp_src_flag);
 int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
-	       const char *plist, enum rp_source rp_src_flag);
+	       const char *plist, const char *alist,
+	       enum rp_source rp_src_flag);
 int pim_rp_change(struct pim_instance *pim, pim_addr new_rp_addr,
 		  struct prefix group, enum rp_source rp_src_flag);
 void pim_rp_prefix_list_update(struct pim_instance *pim,

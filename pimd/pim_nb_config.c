@@ -234,11 +234,12 @@ static int pim_ssm_cmd_worker(struct pim_instance *pim, const char *plist,
 
 static int pim_rp_cmd_worker(struct pim_instance *pim, pim_addr rp_addr,
 			     struct prefix group, const char *plist,
-			     bool fallback, char *errmsg, size_t errmsg_len)
+			     const char *alist, bool fallback, char *errmsg,
+			     size_t errmsg_len)
 {
 	int result;
 
-	result = pim_rp_new(pim, rp_addr, group, plist,
+	result = pim_rp_new(pim, rp_addr, group, plist, alist,
 			    fallback ? RP_SRC_FALLBACK : RP_SRC_STATIC);
 
 	if (result == PIM_RP_NO_PATH) {
@@ -259,9 +260,33 @@ static int pim_rp_cmd_worker(struct pim_instance *pim, pim_addr rp_addr,
 		return NB_ERR_INCONSISTENCY;
 	}
 
+	if (result == PIM_GROUP_ACLIST_OVERLAP) {
+		snprintf(errmsg, errmsg_len,
+			 "This group is already covered by a RP prefix-list");
+		return NB_ERR_INCONSISTENCY;
+	}
+
+	if (result == PIM_GROUP_ACLIST_OVERLAP) {
+		snprintf(errmsg, errmsg_len,
+			 "This group is already covered by a RP prefix-list");
+		return NB_ERR_INCONSISTENCY;
+	}
+
 	if (result == PIM_RP_PFXLIST_IN_USE) {
 		snprintf(errmsg, errmsg_len,
 			 "The same prefix-list cannot be applied to multiple RPs");
+		return NB_ERR_INCONSISTENCY;
+	}
+
+	if (result == PIM_RP_ACLIST_IN_USE) {
+		snprintf(errmsg, errmsg_len,
+			 "This group is already covered by a RP prefix-list");
+		return NB_ERR_INCONSISTENCY;
+	}
+
+	if (result == PIM_RP_ACLIST_IN_USE) {
+		snprintf(errmsg, errmsg_len,
+			 "This group is already covered by a RP prefix-list");
 		return NB_ERR_INCONSISTENCY;
 	}
 
@@ -270,28 +295,31 @@ static int pim_rp_cmd_worker(struct pim_instance *pim, pim_addr rp_addr,
 
 static int pim_no_rp_cmd_worker(struct pim_instance *pim, pim_addr rp_addr,
 				struct prefix group, const char *plist,
-				bool fallback, bool both, char *errmsg,
-				size_t errmsg_len)
+				const char *alist, bool fallback, bool all,
+				char *errmsg, size_t errmsg_len)
 {
 	char group_str[PREFIX2STR_BUFFER];
 	int result;
 
 	prefix2str(&group, group_str, sizeof(group_str));
 
-	if (both) {
+	if (all) {
+		struct prefix dummy = {.family = AF_INET, .prefixlen = 0};
 		int r1, r2;
 
-		r1 = pim_rp_del(pim, rp_addr, group, plist, RP_SRC_STATIC);
-		r2 = pim_rp_del(pim, rp_addr, group, plist, RP_SRC_FALLBACK);
+		r1 = pim_rp_del(pim, rp_addr, dummy, NULL, NULL, RP_SRC_STATIC);
+		r2 = pim_rp_del(pim, rp_addr, dummy, NULL, NULL,
+				RP_SRC_FALLBACK);
 		result = r1 ? r2 : r1;
-	} else
-		result = pim_rp_del(pim, rp_addr, group, plist,
+	} else {
+		result = pim_rp_del(pim, rp_addr, group, plist, alist,
 				    fallback ? RP_SRC_FALLBACK : RP_SRC_STATIC);
 
-	if (result == PIM_GROUP_BAD_ADDRESS) {
-		snprintf(errmsg, errmsg_len,
-			 "Bad group address specified: %s", group_str);
-		return NB_ERR_INCONSISTENCY;
+		if (result == PIM_GROUP_BAD_ADDRESS) {
+			snprintf(errmsg, errmsg_len,
+				 "Bad group address specified: %s", group_str);
+			return NB_ERR_INCONSISTENCY;
+		}
 	}
 
 	if (result == PIM_RP_BAD_ADDRESS) {
@@ -2804,10 +2832,9 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 {
 	struct vrf *vrf;
 	struct pim_instance *pim;
-	struct prefix group;
 	pim_addr rp_addr;
-	const char *plist;
 	int result = 0;
+	struct prefix group;
 
 	switch (args->event) {
 	case NB_EV_VALIDATE:
@@ -2818,31 +2845,14 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 		vrf = nb_running_get_entry(args->dnode, NULL, true);
 		pim = vrf->info;
 		yang_dnode_get_pimaddr(&rp_addr, args->dnode, "./rp-address");
-
-		if (yang_dnode_get(args->dnode, "./group-list")) {
-			yang_dnode_get_prefix(&group, args->dnode,
-					      "./group-list");
-			apply_mask(&group);
-			result = pim_no_rp_cmd_worker(pim, rp_addr, group, NULL,
-						      false, true, args->errmsg,
-						      args->errmsg_len);
+		if (!pim_get_all_mcast_group(&group)) {
+			flog_err(EC_LIB_DEVELOPMENT,
+				 "Unable to convert 224.0.0.0/4 to prefix");
+			return NB_ERR_INCONSISTENCY;
 		}
-
-		else if (yang_dnode_get(args->dnode, "./prefix-list")) {
-			plist = yang_dnode_get_string(args->dnode,
-					"./prefix-list");
-			if (!pim_get_all_mcast_group(&group)) {
-				flog_err(
-					EC_LIB_DEVELOPMENT,
-					"Unable to convert 224.0.0.0/4 to prefix");
-				return NB_ERR_INCONSISTENCY;
-			}
-
-			result = pim_no_rp_cmd_worker(
-				pim, rp_addr, group, plist, false, true,
-				args->errmsg, args->errmsg_len);
-		}
-
+		result = pim_no_rp_cmd_worker(pim, rp_addr, group, NULL, NULL,
+					      false, true, args->errmsg,
+					      args->errmsg_len);
 		if (result)
 			return NB_ERR_INCONSISTENCY;
 		break;
@@ -2873,7 +2883,7 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 		yang_dnode_get_pimaddr(&rp_addr, args->dnode, "../rp-address");
 		yang_dnode_get_prefix(&group, args->dnode, NULL);
 		apply_mask(&group);
-		return pim_rp_cmd_worker(pim, rp_addr, group, NULL, false,
+		return pim_rp_cmd_worker(pim, rp_addr, group, NULL, NULL, false,
 					 args->errmsg, args->errmsg_len);
 	}
 
@@ -2900,8 +2910,8 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 		yang_dnode_get_prefix(&group, args->dnode, NULL);
 		apply_mask(&group);
 
-		return pim_no_rp_cmd_worker(pim, rp_addr, group, NULL, false,
-					    true, args->errmsg,
+		return pim_no_rp_cmd_worker(pim, rp_addr, group, NULL, NULL,
+					    false, true, args->errmsg,
 					    args->errmsg_len);
 	}
 
@@ -2935,8 +2945,8 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 				 "Unable to convert 224.0.0.0/4 to prefix");
 			return NB_ERR_INCONSISTENCY;
 		}
-		return pim_rp_cmd_worker(pim, rp_addr, group, plist, false,
-					 args->errmsg, args->errmsg_len);
+		return pim_rp_cmd_worker(pim, rp_addr, group, plist, NULL,
+					 false, args->errmsg, args->errmsg_len);
 	}
 
 	return NB_OK;
@@ -2966,8 +2976,8 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 				 "Unable to convert 224.0.0.0/4 to prefix");
 			return NB_ERR_INCONSISTENCY;
 		}
-		return pim_no_rp_cmd_worker(pim, rp_addr, group, plist, false,
-					    false, args->errmsg,
+		return pim_no_rp_cmd_worker(pim, rp_addr, group, plist, NULL,
+					    false, false, args->errmsg,
 					    args->errmsg_len);
 		break;
 	}
@@ -2995,7 +3005,7 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 		yang_dnode_get_ipv4p(&group, args->dnode, NULL);
 		apply_mask_ipv4((struct prefix_ipv4 *)&group);
 
-		return pim_rp_cmd_worker(pim, rp_addr, group, NULL, true,
+		return pim_rp_cmd_worker(pim, rp_addr, group, NULL, NULL, true,
 					 args->errmsg, args->errmsg_len);
 	}
 
@@ -3022,8 +3032,8 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 		yang_dnode_get_ipv4p(&group, args->dnode, NULL);
 		apply_mask_ipv4((struct prefix_ipv4 *)&group);
 
-		return pim_no_rp_cmd_worker(pim, rp_addr, group, NULL, true,
-					    false, args->errmsg,
+		return pim_no_rp_cmd_worker(pim, rp_addr, group, NULL, NULL,
+					    true, false, args->errmsg,
 					    args->errmsg_len);
 		break;
 	}
@@ -3050,13 +3060,13 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 		pim = vrf->info;
 		yang_dnode_get_pimaddr(&rp_addr, args->dnode, "../rp-address");
 		plist = yang_dnode_get_string(args->dnode, NULL);
-		if (pim_get_all_mcast_group(&group)) {
+		if (!pim_get_all_mcast_group(&group)) {
 			flog_err(EC_LIB_DEVELOPMENT,
 				 "Unable to convert 224.0.0.0/4 to prefix");
 			return NB_ERR_INCONSISTENCY;
 		}
-		return pim_no_rp_cmd_worker(pim, rp_addr, group, plist, true,
-					    false, args->errmsg,
+		return pim_no_rp_cmd_worker(pim, rp_addr, group, plist, NULL,
+					    true, false, args->errmsg,
 					    args->errmsg_len);
 		break;
 	}
@@ -3083,13 +3093,145 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 		pim = vrf->info;
 		plist = yang_dnode_get_string(args->dnode, NULL);
 		yang_dnode_get_pimaddr(&rp_addr, args->dnode, "../rp-address");
-		if (pim_get_all_mcast_group(&group)) {
+		if (!pim_get_all_mcast_group(&group)) {
 			flog_err(EC_LIB_DEVELOPMENT,
 				 "Unable to convert 224.0.0.0/4 to prefix");
 			return NB_ERR_INCONSISTENCY;
 		}
-		return pim_rp_cmd_worker(pim, rp_addr, group, plist, true,
+		return pim_rp_cmd_worker(pim, rp_addr, group, plist, NULL, true,
 					 args->errmsg, args->errmsg_len);
+	}
+
+	return NB_OK;
+}
+
+/*
+ * XPath:
+ * /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/frr-pim-rp:rp/static-rp/rp-list/access-list
+ */
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp_static_rp_rp_list_access_list_modify(
+	struct nb_cb_modify_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	struct prefix group;
+	pim_addr rp_addr;
+	const char *alist;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+		alist = yang_dnode_get_string(args->dnode, NULL);
+		yang_dnode_get_pimaddr(&rp_addr, args->dnode, "../rp-address");
+		if (!pim_get_all_mcast_group(&group)) {
+			flog_err(EC_LIB_DEVELOPMENT,
+				 "Unable to convert 224.0.0.0/4 to prefix");
+			return NB_ERR_INCONSISTENCY;
+		}
+		return pim_rp_cmd_worker(pim, rp_addr, group, NULL, alist,
+					 false, args->errmsg, args->errmsg_len);
+	}
+
+	return NB_OK;
+}
+
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp_static_rp_rp_list_access_list_destroy(
+	struct nb_cb_destroy_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	struct prefix group;
+	pim_addr rp_addr;
+	const char *alist;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+		yang_dnode_get_pimaddr(&rp_addr, args->dnode, "../rp-address");
+		alist = yang_dnode_get_string(args->dnode, NULL);
+		if (!pim_get_all_mcast_group(&group)) {
+			flog_err(EC_LIB_DEVELOPMENT,
+				 "Unable to convert 224.0.0.0/4 to prefix");
+			return NB_ERR_INCONSISTENCY;
+		}
+		return pim_no_rp_cmd_worker(pim, rp_addr, group, NULL, alist,
+					    false, false, args->errmsg,
+					    args->errmsg_len);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp_static_rp_rp_list_fb_access_list_modify(
+	struct nb_cb_modify_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	struct prefix group;
+	pim_addr rp_addr;
+	const char *alist;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+		alist = yang_dnode_get_string(args->dnode, NULL);
+		yang_dnode_get_pimaddr(&rp_addr, args->dnode, "../rp-address");
+		if (!pim_get_all_mcast_group(&group)) {
+			flog_err(EC_LIB_DEVELOPMENT,
+				 "Unable to convert 224.0.0.0/4 to prefix");
+			return NB_ERR_INCONSISTENCY;
+		}
+		return pim_rp_cmd_worker(pim, rp_addr, group, NULL, alist, true,
+					 args->errmsg, args->errmsg_len);
+	}
+
+	return NB_OK;
+}
+
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp_static_rp_rp_list_fb_access_list_destroy(
+	struct nb_cb_destroy_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	struct prefix group;
+	pim_addr rp_addr;
+	const char *alist;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+		yang_dnode_get_pimaddr(&rp_addr, args->dnode, "../rp-address");
+		alist = yang_dnode_get_string(args->dnode, NULL);
+		if (!pim_get_all_mcast_group(&group)) {
+			flog_err(EC_LIB_DEVELOPMENT,
+				 "Unable to convert 224.0.0.0/4 to prefix");
+			return NB_ERR_INCONSISTENCY;
+		}
+		return pim_no_rp_cmd_worker(pim, rp_addr, group, NULL, alist,
+					    true, false, args->errmsg,
+					    args->errmsg_len);
+		break;
 	}
 
 	return NB_OK;

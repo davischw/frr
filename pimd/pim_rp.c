@@ -19,6 +19,7 @@
  */
 #include <zebra.h>
 
+#include "filter.h"
 #include "lib/json.h"
 #include "log.h"
 #include "network.h"
@@ -72,7 +73,7 @@ void pim_rp_list_hash_clean(void *data)
 static void pim_rp_info_free(struct rp_info *rp_info)
 {
 	XFREE(MTYPE_PIM_FILTER_NAME, rp_info->plist);
-
+	XFREE(MTYPE_PIM_FILTER_NAME, rp_info->alist);
 	XFREE(MTYPE_PIM_RP, rp_info);
 }
 
@@ -158,6 +159,24 @@ void pim_rp_free(struct pim_instance *pim)
 /*
  * Given an RP's prefix-list, return the RP's rp_info for that prefix-list
  */
+static struct rp_info *pim_rp_find_rpaddr(struct pim_instance *pim,
+					  enum rp_source rp_src, pim_addr rp)
+{
+	struct list *list;
+	struct listnode *node;
+	struct rp_info *rp_info;
+
+	list = (rp_src != RP_SRC_FALLBACK) ? pim->rp_list : pim->fb_rp_list;
+
+	for (ALL_LIST_ELEMENTS_RO(list, node, rp_info))
+		if (pim_addr_cmp(rp, rp_info->rp.rpf_addr) == 0)
+			return rp_info;
+	return NULL;
+}
+
+/*
+ * Given an RP's prefix-list, return the RP's rp_info for that prefix-list
+ */
 static struct rp_info *pim_rp_find_prefix_list(struct pim_instance *pim,
 					       enum rp_source rp_src,
 					       pim_addr rp, const char *plist)
@@ -171,6 +190,29 @@ static struct rp_info *pim_rp_find_prefix_list(struct pim_instance *pim,
 	for (ALL_LIST_ELEMENTS_RO(list, node, rp_info)) {
 		if ((!pim_addr_cmp(rp, rp_info->rp.rpf_addr)) &&
 		    rp_info->plist && strcmp(rp_info->plist, plist) == 0) {
+			return rp_info;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+ * Given an RP's prefix-list, return the RP's rp_info for that prefix-list
+ */
+static struct rp_info *pim_rp_find_access_list(struct pim_instance *pim,
+					       enum rp_source rp_src,
+					       pim_addr rp, const char *alist)
+{
+	struct list *list;
+	struct listnode *node;
+	struct rp_info *rp_info;
+
+	list = (rp_src != RP_SRC_FALLBACK) ? pim->rp_list : pim->fb_rp_list;
+
+	for (ALL_LIST_ELEMENTS_RO(list, node, rp_info)) {
+		if (pim_addr_cmp(rp, rp_info->rp.rpf_addr) == 0 &&
+		    rp_info->alist && strcmp(rp_info->alist, alist) == 0) {
 			return rp_info;
 		}
 	}
@@ -198,6 +240,27 @@ static int pim_rp_prefix_list_used(struct pim_instance *pim, const char *plist)
 		}
 	}
 
+	return 0;
+}
+
+/*
+ * Return true if plist is used by any rp_info
+ */
+static int pim_rp_access_list_used(struct pim_instance *pim, const char *alist)
+{
+	struct listnode *node;
+	struct rp_info *rp_info;
+
+	for (ALL_LIST_ELEMENTS_RO(pim->rp_list, node, rp_info)) {
+		if (rp_info->alist && strcmp(rp_info->alist, alist) == 0) {
+			return 1;
+		}
+	}
+	for (ALL_LIST_ELEMENTS_RO(pim->fb_rp_list, node, rp_info)) {
+		if (rp_info->alist && strcmp(rp_info->alist, alist) == 0) {
+			return 1;
+		}
+	}
 	return 0;
 }
 
@@ -244,6 +307,54 @@ static struct rp_info *pim_rp_find_exact(struct pim_instance *pim,
 
 #include "lib/plist_int.h"
 
+static inline bool pim_rp_try_alist(struct rp_info *rp_info,
+				    const struct prefix *group,
+				    struct prefix *ent)
+{
+	struct prefix nullpfx = {.family = AF_INET, .prefixlen = 0};
+	struct prefix tmp;
+	struct in_addr tmpmask;
+	struct filter *hit = NULL;
+	struct access_list *acl;
+
+	if (!rp_info->alist)
+		return false;
+
+	acl = access_list_lookup(AFI_IP, rp_info->alist);
+	if (!acl)
+		return false;
+
+	if (access_list_apply_sadr(acl, &nullpfx, group, &hit) == FILTER_DENY)
+		return false;
+
+	assert(hit);
+
+	if (!hit->cisco || !hit->u.cfilter.extended) {
+		zlog_err(
+			"BROKEN CONFIG: non-extended entry in access list %s for RP config",
+			rp_info->alist);
+		return false;
+	}
+
+	/* mask is inverted in ext ACL... */
+	tmpmask.s_addr = ~hit->u.cfilter.sadr.dst_mask.s_addr;
+
+	tmp.family = AF_INET;
+	tmp.prefixlen = ip_masklen(tmpmask);
+	tmp.u.prefix4 = hit->u.cfilter.sadr.dst;
+
+	if (tmp.prefixlen < 4) {
+		tmp.prefixlen = 4;
+		tmp.u.prefix4.s_addr = inet_addr("224.0.0.0");
+	}
+
+	if (ent->prefixlen >= tmp.prefixlen)
+		return false;
+
+	*ent = tmp;
+	return true;
+}
+
 /*
  * Given a group, return the rp_info for that group
  */
@@ -254,20 +365,21 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 	struct rp_info *best = NULL;
 	struct rp_info *rp_info;
 	struct prefix_list *plist;
-	const struct prefix *bp;
-	const struct prefix_list_entry *entry;
+	struct prefix alist_pfx = {.prefixlen = 0};
+	const struct prefix *bp = NULL;
 	struct route_node *rn;
 
 	bp = NULL;
 	for (ALL_LIST_ELEMENTS_RO(pim->rp_list, node, rp_info)) {
 		if (rp_info->plist) {
+			const struct prefix_list_entry *entry;
 			plist = prefix_list_lookup(PIM_AFI, rp_info->plist);
 
 			if (prefix_list_apply_ext(plist, &entry, group, true)
 			    == PREFIX_DENY || !entry)
 				continue;
 
-			if (!best) {
+			if (!bp) {
 				best = rp_info;
 				bp = &entry->prefix;
 				continue;
@@ -276,6 +388,21 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 			if (bp && bp->prefixlen < entry->prefix.prefixlen) {
 				best = rp_info;
 				bp = &entry->prefix;
+				continue;
+			}
+		}
+
+		if (pim_rp_try_alist(rp_info, group, &alist_pfx)) {
+			if (!bp) {
+				best = rp_info;
+				bp = &alist_pfx;
+				continue;
+			}
+
+			if (bp && bp->prefixlen < alist_pfx.prefixlen) {
+				best = rp_info;
+				bp = &alist_pfx;
+				continue;
 			}
 		}
 	}
@@ -315,16 +442,19 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 	 * So we have a non plist rp_info found in the lookup and no plists
 	 * at all to be choosen, return it!
 	 */
-	if (!best)
-		best = rp_info;
-	else if (rp_info->group.prefixlen < best->group.prefixlen)
-		best = rp_info;
+	if (rp_info && !rp_info->alist && !rp_info->plist) {
+		if (!best)
+			best = rp_info;
+		else if (rp_info->group.prefixlen < best->group.prefixlen)
+			best = rp_info;
+	}
 
-	if (!pim_addr_is_any(best->rp.rpf_addr))
+	if (best && !pim_addr_is_any(best->rp.rpf_addr))
 		return best;
 
 	for (ALL_LIST_ELEMENTS_RO(pim->fb_rp_list, node, rp_info)) {
 		if (rp_info->plist) {
+			const struct prefix_list_entry *entry;
 			plist = prefix_list_lookup(PIM_AFI, rp_info->plist);
 
 			if (prefix_list_apply_ext(plist, &entry, group, true) ==
@@ -332,7 +462,7 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 			    !entry)
 				continue;
 
-			if (!best) {
+			if (!bp) {
 				best = rp_info;
 				bp = &entry->prefix;
 				continue;
@@ -341,6 +471,20 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 			if (bp && bp->prefixlen < entry->prefix.prefixlen) {
 				best = rp_info;
 				bp = &entry->prefix;
+			}
+		}
+
+		if (pim_rp_try_alist(rp_info, group, &alist_pfx)) {
+			if (!bp) {
+				best = rp_info;
+				bp = &alist_pfx;
+				continue;
+			}
+
+			if (bp && bp->prefixlen < alist_pfx.prefixlen) {
+				best = rp_info;
+				bp = &alist_pfx;
+				continue;
 			}
 		}
 	}
@@ -500,7 +644,7 @@ void pim_upstream_update(struct pim_instance *pim, struct pim_upstream *up)
 }
 
 int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
-	       const char *plist, enum rp_source rp_src_flag)
+	       const char *plist, const char *alist, enum rp_source rp_src_flag)
 {
 	int result = 0;
 	struct list *list;
@@ -533,6 +677,8 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	prefix_copy(&rp_info->group, &group);
 	rp_info->rp_src = rp_src_flag;
 
+	/* These are mutually exclusive and can't be set at the same time. */
+	assert(!(plist && alist));
 	if (plist) {
 		/*
 		 * Return if the prefix-list is already configured for this RP
@@ -559,18 +705,68 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 				if (tmp_rp_info->plist)
 					pim_rp_del_config(pim, rp_addr, NULL,
 							  tmp_rp_info->plist,
-							  rp_src_flag);
+							  NULL, rp_src_flag);
+				else if (tmp_rp_info->alist)
+					pim_rp_del_config(
+						pim, rp_info->rp.rpf_addr, NULL,
+						NULL, tmp_rp_info->alist,
+						rp_src_flag);
 				else
 					pim_rp_del_config(
 						pim, rp_addr,
 						prefix2str(&tmp_rp_info->group,
 							   buffer, BUFSIZ),
-						NULL, rp_src_flag);
+						NULL, NULL, rp_src_flag);
 			}
 		}
 
 		rp_info->plist = XSTRDUP(MTYPE_PIM_FILTER_NAME, plist);
+	} else if (alist) {
+		/*
+		 * Return if the prefix-list is already configured for this RP
+		 */
+		if (pim_rp_find_access_list(pim, rp_src_flag,
+					    rp_info->rp.rpf_addr, alist)) {
+			XFREE(MTYPE_PIM_RP, rp_info);
+			return PIM_SUCCESS;
+		}
+
+		/*
+		 * Barf if the prefix-list is already configured for an RP
+		 */
+		if (pim_rp_access_list_used(pim, alist)) {
+			XFREE(MTYPE_PIM_RP, rp_info);
+			return PIM_RP_ACLIST_IN_USE;
+		}
+
+		/*
+		 * Free any existing rp_info entries for this RP
+		 */
+		for (ALL_LIST_ELEMENTS(list, node, nnode, tmp_rp_info)) {
+			if (pim_addr_cmp(rp_info->rp.rpf_addr,
+					 tmp_rp_info->rp.rpf_addr) == 0) {
+				if (tmp_rp_info->plist)
+					pim_rp_del_config(
+						pim, rp_info->rp.rpf_addr, NULL,
+						tmp_rp_info->plist, NULL,
+						rp_src_flag);
+				else if (tmp_rp_info->alist)
+					pim_rp_del_config(
+						pim, rp_info->rp.rpf_addr, NULL,
+						NULL, tmp_rp_info->alist,
+						rp_src_flag);
+				else
+					pim_rp_del_config(
+						pim, rp_info->rp.rpf_addr,
+						prefix2str(&tmp_rp_info->group,
+							   buffer, BUFSIZ),
+						NULL, NULL, rp_src_flag);
+			}
+		}
+
+		rp_info->alist = XSTRDUP(MTYPE_PIM_FILTER_NAME, alist);
 	} else {
+		struct route_node *rn;
 
 		if (!pim_get_all_mcast_group(&group_all)) {
 			XFREE(MTYPE_PIM_RP, rp_info);
@@ -594,8 +790,17 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 			    (!pim_addr_cmp(rp_info->rp.rpf_addr,
 					   tmp_rp_info->rp.rpf_addr))) {
 				pim_rp_del_config(pim, rp_addr, NULL,
-						  tmp_rp_info->plist,
+						  tmp_rp_info->plist, NULL,
 						  rp_src_flag);
+				continue;
+			}
+			if (tmp_rp_info->alist &&
+			    pim_addr_cmp(rp_info->rp.rpf_addr,
+					 tmp_rp_info->rp.rpf_addr) == 0) {
+				pim_rp_del_config(
+					pim, rp_info->rp.rpf_addr, NULL, NULL,
+					tmp_rp_info->alist, rp_src_flag);
+				continue;
 			}
 		}
 
@@ -675,6 +880,9 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 			if (tmp_rp_info->plist) {
 				XFREE(MTYPE_PIM_RP, rp_info);
 				return PIM_GROUP_PFXLIST_OVERLAP;
+			} else if (tmp_rp_info->alist) {
+				XFREE(MTYPE_PIM_RP, rp_info);
+				return PIM_GROUP_ACLIST_OVERLAP;
 			} else {
 				/*
 				 * If the only RP that covers this group is an
@@ -701,6 +909,8 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 				}
 			}
 		}
+		rn = route_node_get(table, &rp_info->group);
+		rn->info = rp_info;
 	}
 
 	listnode_add_sort(list, rp_info);
@@ -751,7 +961,7 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 
 void pim_rp_del_config(struct pim_instance *pim, pim_addr rp_addr,
 		       const char *group_range, const char *plist,
-		       enum rp_source rp_src_flag)
+		       const char *alist, enum rp_source rp_src_flag)
 {
 	struct prefix group;
 	int result;
@@ -769,11 +979,11 @@ void pim_rp_del_config(struct pim_instance *pim, pim_addr rp_addr,
 		return;
 	}
 
-	pim_rp_del(pim, rp_addr, group, plist, rp_src_flag);
+	pim_rp_del(pim, rp_addr, group, plist, alist, rp_src_flag);
 }
 
 int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
-	       const char *plist, enum rp_source rp_src_flag)
+	       const char *plist, const char *alist, enum rp_source rp_src_flag)
 {
 	struct list *list;
 	struct route_table *table;
@@ -783,6 +993,7 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	pim_addr nht_p;
 	struct route_node *rn;
 	bool was_plist = false;
+	bool was_alist = false;
 	struct rp_info *trp_info;
 	struct pim_upstream *up;
 	struct bsgrp_node *bsgrp = NULL;
@@ -800,6 +1011,11 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	if (plist)
 		rp_info = pim_rp_find_prefix_list(pim, rp_src_flag, rp_addr,
 						  plist);
+	else if (alist)
+		rp_info = pim_rp_find_access_list(pim, rp_src_flag, rp_addr,
+						  alist);
+	else if (group.prefixlen == 0)
+		rp_info = pim_rp_find_rpaddr(pim, rp_src_flag, rp_addr);
 	else
 		rp_info = pim_rp_find_exact(pim, rp_src_flag, rp_addr, &group);
 
@@ -809,6 +1025,11 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	if (rp_info->plist) {
 		XFREE(MTYPE_PIM_FILTER_NAME, rp_info->plist);
 		was_plist = true;
+	}
+
+	if (rp_info->alist) {
+		XFREE(MTYPE_PIM_FILTER_NAME, rp_info->alist);
+		was_alist = true;
 	}
 
 	if (PIM_DEBUG_PIM_TRACE)
@@ -882,7 +1103,7 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 
 	listnode_delete(list, rp_info);
 
-	if (!was_plist) {
+	if (!was_plist && !was_alist) {
 		rn = route_node_get(table, &rp_info->group);
 		if (rn) {
 			if (rn->info != rp_info)
@@ -964,7 +1185,8 @@ int pim_rp_change(struct pim_instance *pim, pim_addr new_rp_addr,
 
 	rn = route_node_lookup(table, &group);
 	if (!rn) {
-		result = pim_rp_new(pim, new_rp_addr, group, NULL, rp_src_flag);
+		result = pim_rp_new(pim, new_rp_addr, group, NULL, NULL,
+				    rp_src_flag);
 		return result;
 	}
 
@@ -972,7 +1194,8 @@ int pim_rp_change(struct pim_instance *pim, pim_addr new_rp_addr,
 
 	if (!rp_info) {
 		route_unlock_node(rn);
-		result = pim_rp_new(pim, new_rp_addr, group, NULL, rp_src_flag);
+		result = pim_rp_new(pim, new_rp_addr, group, NULL, NULL,
+				    rp_src_flag);
 		return result;
 	}
 
@@ -1317,7 +1540,12 @@ int pim_rp_config_write(struct pim_instance *pim, struct vty *vty,
 			continue;
 
 		rp_addr = rp_info->rp.rpf_addr;
-		if (rp_info->plist)
+		if (rp_info->alist)
+			vty_out(vty,
+				"%s" PIM_AF_NAME
+				" pim rp %pPA access-list %s\n",
+				spaces, &rp_addr, rp_info->alist);
+		else if (rp_info->plist)
 			vty_out(vty,
 				"%s" PIM_AF_NAME
 				" pim rp %pPA prefix-list %s\n",
@@ -1332,7 +1560,11 @@ int pim_rp_config_write(struct pim_instance *pim, struct vty *vty,
 		if (pim_addr_is_any(rp_info->rp.rpf_addr))
 			continue;
 
-		if (rp_info->plist)
+		if (rp_info->alist)
+			vty_out(vty,
+				"%sip pim rp %pPA fallback access-list %s\n",
+				spaces, &rp_info->rp.rpf_addr, rp_info->alist);
+		else if (rp_info->plist)
 			vty_out(vty,
 				"%sip pim rp %pPA fallback prefix-list %s\n",
 				spaces, &rp_info->rp.rpf_addr, rp_info->plist);
