@@ -3765,6 +3765,11 @@ DEFPY (ip_pim_rp,
 {
 	const char *group_str = (gp_str) ? gp_str : "224.0.0.0/4";
 
+	if (1) {
+		vty_out(vty, "%% [VENDOR] command disabled, use extended access list to configure RPs\n");
+		return CMD_WARNING;
+	}
+
 	return pim_process_rp_cmd(vty, rp_str, group_str);
 }
 
@@ -3778,6 +3783,11 @@ DEFPY (ip_pim_rp_prefix_list,
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
+	if (1) {
+		vty_out(vty, "%% [VENDOR] command disabled, use extended access list to configure RPs\n");
+		return CMD_WARNING;
+	}
+
 	return pim_process_rp_plist_cmd(vty, rp_str, plist);
 }
 
@@ -3821,6 +3831,11 @@ DEFPY (no_ip_pim_rp,
 {
 	const char *group_str = (gp_str) ? gp_str : "224.0.0.0/4";
 
+	if (1) {
+		vty_out(vty, "%% [VENDOR] command disabled, use extended access list to configure RPs\n");
+		return CMD_WARNING;
+	}
+
 	return pim_process_no_rp_cmd(vty, rp_str, group_str);
 }
 
@@ -3835,6 +3850,11 @@ DEFPY (no_ip_pim_rp_prefix_list,
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
+	if (1) {
+		vty_out(vty, "%% [VENDOR] command disabled, use extended access list to configure RPs\n");
+		return CMD_WARNING;
+	}
+
 	return pim_process_no_rp_plist_cmd(vty, rp_str, plist);
 }
 
