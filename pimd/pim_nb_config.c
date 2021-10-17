@@ -824,8 +824,7 @@ int pim_af_mfib_rmap_modify(struct nb_cb_modify_args *args)
 
 		rmap = yang_dnode_get_string(args->dnode, NULL);
 
-		XFREE(MTYPE_PIM_RMAP_NAME, pim->mfib_rmap);
-		pim->mfib_rmap = XSTRDUP(MTYPE_PIM_RMAP_NAME, rmap);
+		pim_filter_ref_set_rmap(&pim->mfib_filter, rmap);
 		pim_vrf_resched_mfib_rmap(pim);
 		break;
 	}
@@ -847,7 +846,7 @@ int pim_af_mfib_rmap_destroy(struct nb_cb_destroy_args *args)
 		vrf = nb_running_get_entry(args->dnode, NULL, true);
 		pim = vrf->info;
 
-		XFREE(MTYPE_PIM_RMAP_NAME, pim->mfib_rmap);
+		pim_filter_ref_set_rmap(&pim->mfib_filter, NULL);
 		pim_vrf_resched_mfib_rmap(pim);
 		break;
 	}
@@ -3684,9 +3683,7 @@ int lib_interface_gm_rmap_modify(struct nb_cb_modify_args *args)
 	case NB_EV_APPLY:
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		pim_ifp = ifp->info;
-
-		XFREE(MTYPE_PIM_RMAP_NAME, pim_ifp->multicast_rmap);
-		pim_ifp->multicast_rmap = XSTRDUP(MTYPE_PIM_RMAP_NAME, rmap);
+		pim_filter_ref_set_rmap(&pim_ifp->igmp_filter, rmap);
 		break;
 	}
 
@@ -3706,7 +3703,7 @@ int lib_interface_gm_rmap_destroy(struct nb_cb_destroy_args *args)
 	case NB_EV_APPLY:
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		pim_ifp = ifp->info;
-		XFREE(MTYPE_PIM_RMAP_NAME, pim_ifp->multicast_rmap);
+		pim_filter_ref_set_rmap(&pim_ifp->igmp_filter, NULL);
 		break;
 	}
 

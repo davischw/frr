@@ -32,6 +32,8 @@
 #include "pim_memory.h"
 #include "pim_assert.h"
 
+struct access_list;
+
 #define PIMD_VTY_PORT       2611
 #define PIM6D_VTY_PORT      2622
 
@@ -287,5 +289,6 @@ void pim_terminate(void);
 extern void pim_route_map_init(void);
 extern void pim_route_map_terminate(void);
 void pim_prefix_list_update(struct prefix_list *plist);
+void pim_access_list_update(struct access_list *plist);
 
 #endif /* PIMD_H */

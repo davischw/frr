@@ -32,6 +32,7 @@
 #include "pim_oil.h"
 #include "pim_upstream.h"
 #include "pim_mroute.h"
+#include "pim_routemap.h"
 
 #define PIM_SPT_THRESH_NEVER ~0U
 
@@ -159,7 +160,7 @@ struct pim_instance {
 	struct timer_wheel *upstream_sg_wheel;
 
 	/* filter applied on MFC installation => controls data */
-	char *mfib_rmap;
+	struct pim_filter_ref mfib_filter;
 	struct thread *mfib_rmap_reapply;
 
 	/*

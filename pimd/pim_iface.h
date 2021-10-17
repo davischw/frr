@@ -33,8 +33,7 @@
 #include "pim_upstream.h"
 #include "bfd.h"
 #include "pim_str.h"
-
-DECLARE_MTYPE(PIM_RMAP_NAME);
+#include "pim_routemap.h"
 
 #define PIM_IF_IS_DELETED(ifp) ((ifp)->ifindex == IFINDEX_INTERNAL)
 
@@ -124,7 +123,7 @@ struct pim_interface {
 	uint32_t gm_source_limit, gm_group_limit;
 
 	/* NB: multicast_rmap is only applied for (S,G) data */
-	char *multicast_rmap;
+	struct pim_filter_ref igmp_filter;
 	/* IGMP v2-only immediate leave */
 	bool igmp_immediate_leave;
 
