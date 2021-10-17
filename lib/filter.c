@@ -356,7 +356,8 @@ enum filter_type access_list_apply(struct access_list *access,
 
 enum filter_type access_list_apply_sadr(struct access_list *access,
 					union prefixconstptr src,
-					union prefixconstptr dst)
+					union prefixconstptr dst,
+					struct filter **match)
 {
 	struct filter *filter;
 
@@ -365,11 +366,17 @@ enum filter_type access_list_apply_sadr(struct access_list *access,
 
 	for (filter = access->head; filter; filter = filter->next) {
 		if (filter->cisco) {
-			if (filter_match_cisco_sadr(filter, src.p, dst.p))
+			if (filter_match_cisco_sadr(filter, src.p, dst.p)) {
+				if (match)
+					*match = filter;
 				return filter->type;
+			}
 		} else {
-			if (filter_match_zebra_sadr(filter, src.p, dst.p))
+			if (filter_match_zebra_sadr(filter, src.p, dst.p)) {
+				if (match)
+					*match = filter;
 				return filter->type;
+			}
 		}
 	}
 
@@ -750,7 +757,7 @@ DEFPY (debug_access_list_match,
 			afi2str(afi), access_list,
 			ret == FILTER_DENY ? "DENY" : "PERMIT", dst);
 	} else {
-		ret = access_list_apply_sadr(alist, src, dst);
+		ret = access_list_apply_sadr(alist, src, dst, NULL);
 
 		vty_out(vty, "%s access list %s yields %s for %pFX<-%pFX\n",
 			afi2str(afi), access_list,

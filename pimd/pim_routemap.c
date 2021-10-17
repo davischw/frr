@@ -118,7 +118,7 @@ bool pim_filter_match(const struct pim_filter_ref *ref,
 		src.prefix = sg->src;
 		dst.prefix = sg->grp;
 
-		result = access_list_apply_sadr(ref->alist, &src, &dst);
+		result = access_list_apply_sadr(ref->alist, &src, &dst, NULL);
 		if (result != FILTER_PERMIT)
 			return false;
 	}

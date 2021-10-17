@@ -154,7 +154,8 @@ extern enum filter_type access_list_apply(struct access_list *access,
 					  const void *object);
 extern enum filter_type access_list_apply_sadr(struct access_list *access,
 					       union prefixconstptr src,
-					       union prefixconstptr dst);
+					       union prefixconstptr dst,
+					       struct filter **match);
 
 struct access_list *access_list_get(afi_t afi, const char *name);
 void access_list_delete(struct access_list *access);

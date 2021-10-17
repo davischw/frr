@@ -393,7 +393,7 @@ static int pim_on_g2rp_timer(struct thread *t)
 				      RP_SRC_BSR);
 		} else {
 			pim_rp_del(pim, bsrp_addr, bsgrp_node->group, NULL,
-				   RP_SRC_BSR);
+				   NULL, RP_SRC_BSR);
 		}
 	}
 
@@ -497,7 +497,7 @@ static void pim_instate_pend_list(struct bsgrp_node *bsgrp_node)
 			zlog_debug("%s: Route node doesn't exist", __func__);
 		if (pend)
 			pim_rp_new(pim, pend->rp_address, bsgrp_node->group,
-				   NULL, RP_SRC_BSR);
+				   NULL, NULL, RP_SRC_BSR);
 		had_rp_node = false;
 	} else {
 		rp_info = (struct rp_info *)rn->info;
@@ -505,7 +505,8 @@ static void pim_instate_pend_list(struct bsgrp_node *bsgrp_node)
 			route_unlock_node(rn);
 			if (pend)
 				pim_rp_new(pim, pend->rp_address,
-					   bsgrp_node->group, NULL, RP_SRC_BSR);
+					   bsgrp_node->group, NULL, NULL,
+					   RP_SRC_BSR);
 			had_rp_node = false;
 		}
 	}
@@ -545,7 +546,7 @@ static void pim_instate_pend_list(struct bsgrp_node *bsgrp_node)
 		/* Possible when a group with 0 rp count received in BSM */
 		if ((active) && (!pend)) {
 			pim_rp_del(pim, active->rp_address, bsgrp_node->group,
-				   NULL, RP_SRC_BSR);
+				   NULL, NULL, RP_SRC_BSR);
 			pim_free_bsgrp_node(bsgrp_node->scope->bsrp_table,
 					    &bsgrp_node->group);
 			if (PIM_DEBUG_BSM) {
@@ -1263,7 +1264,7 @@ static bool pim_bsm_parse_install_g2rp(struct bsm_scope *scope, uint8_t *buf,
 			old_rpinfo = bsm_rpinfos_first(bsgrp->bsrp_list);
 			if (old_rpinfo)
 				pim_rp_del(scope->pim, old_rpinfo->rp_address,
-					   group, NULL, RP_SRC_BSR);
+					   group, NULL, NULL, RP_SRC_BSR);
 
 			pim_free_bsgrp_node(scope->bsrp_table, &bsgrp->group);
 			pim_free_bsgrp_data(bsgrp);

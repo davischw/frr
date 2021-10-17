@@ -105,6 +105,13 @@ module frr-pim-rp {
                 "Group prefix-list filter";
             }
           }
+          case access-list {
+            leaf access-list {
+              type string;
+              description
+                "Group access-list filter.";
+            }
+          }
         }
 
         choice fallback-group-list-or-prefix-list {
@@ -123,6 +130,13 @@ module frr-pim-rp {
               type plist-ref;
               description
                 "Group prefix-list filter";
+            }
+          }
+          case fallback-access-list {
+            leaf fallback-access-list {
+              type string;
+              description
+                "Group access-list filter.";
             }
           }
         }

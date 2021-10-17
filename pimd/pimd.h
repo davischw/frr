@@ -125,13 +125,15 @@ struct access_list;
 #define PIM_GROUP_BAD_ADDRESS           -2
 #define PIM_GROUP_OVERLAP               -3
 #define PIM_GROUP_PFXLIST_OVERLAP       -4
-#define PIM_RP_BAD_ADDRESS              -5
-#define PIM_RP_NO_PATH                  -6
-#define PIM_RP_NOT_FOUND                -7
-#define PIM_RP_PFXLIST_IN_USE           -8
-#define PIM_IFACE_NOT_FOUND             -9
-#define PIM_UPDATE_SOURCE_DUP           -10
-#define PIM_GROUP_BAD_ADDR_MASK_COMBO   -11
+#define PIM_GROUP_ACLIST_OVERLAP        -5
+#define PIM_RP_BAD_ADDRESS              -6
+#define PIM_RP_NO_PATH                  -7
+#define PIM_RP_NOT_FOUND                -8
+#define PIM_RP_PFXLIST_IN_USE           -9
+#define PIM_RP_ACLIST_IN_USE            -10
+#define PIM_IFACE_NOT_FOUND             -11
+#define PIM_UPDATE_SOURCE_DUP           -12
+#define PIM_GROUP_BAD_ADDR_MASK_COMBO   -13
 
 extern const char *const PIM_ALL_SYSTEMS;
 extern const char *const PIM_ALL_ROUTERS;
