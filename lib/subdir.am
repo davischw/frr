@@ -168,6 +168,7 @@ endif
 clippy_scan += \
 	lib/address_list_cli.c \
 	lib/if.c \
+	lib/filter.c \
 	lib/filter_cli.c \
 	lib/log_vty.c \
 	lib/nexthop_group.c \

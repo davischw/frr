@@ -918,8 +918,8 @@ static int lib_access_list_entry_destination_host_modify(
 	f = nb_running_get_entry(args->dnode, NULL, true);
 	fc = &f->u.cfilter;
 	fc->extended = 1;
-	yang_dnode_get_ipv4(&fc->mask, args->dnode, NULL);
-	fc->mask_mask.s_addr = CISCO_BIN_HOST_WILDCARD_MASK;
+	yang_dnode_get_ipv4(&fc->wtf.mask, args->dnode, NULL);
+	fc->wtf.mask_mask.s_addr = CISCO_BIN_HOST_WILDCARD_MASK;
 
 	acl_notify_route_map(f->acl, RMAP_EVENT_FILTER_ADDED);
 
@@ -938,7 +938,7 @@ static int lib_access_list_entry_destination_host_destroy(
 	f = nb_running_get_entry(args->dnode, NULL, true);
 	fc = &f->u.cfilter;
 	fc->extended = 0;
-	cisco_unset_addr_mask(&fc->mask, &fc->mask_mask);
+	cisco_unset_addr_mask(&fc->wtf.mask, &fc->wtf.mask_mask);
 
 	acl_notify_route_map(f->acl, RMAP_EVENT_FILTER_DELETED);
 
@@ -971,7 +971,7 @@ static int lib_access_list_entry_destination_network_address_modify(
 	f = nb_running_get_entry(args->dnode, NULL, true);
 	fc = &f->u.cfilter;
 	fc->extended = 1;
-	yang_dnode_get_ipv4(&fc->mask, args->dnode, NULL);
+	yang_dnode_get_ipv4(&fc->wtf.mask, args->dnode, NULL);
 
 	acl_notify_route_map(f->acl, RMAP_EVENT_FILTER_ADDED);
 
@@ -1004,7 +1004,7 @@ static int lib_access_list_entry_destination_network_mask_modify(
 	f = nb_running_get_entry(args->dnode, NULL, true);
 	fc = &f->u.cfilter;
 	fc->extended = 1;
-	yang_dnode_get_ipv4(&fc->mask_mask, args->dnode, NULL);
+	yang_dnode_get_ipv4(&fc->wtf.mask_mask, args->dnode, NULL);
 
 	acl_notify_route_map(f->acl, RMAP_EVENT_FILTER_ADDED);
 
@@ -1037,8 +1037,8 @@ static int lib_access_list_entry_destination_any_create(
 	f = nb_running_get_entry(args->dnode, NULL, true);
 	fc = &f->u.cfilter;
 	fc->extended = 1;
-	fc->mask.s_addr = INADDR_ANY;
-	fc->mask_mask.s_addr = CISCO_BIN_ANY_WILDCARD_MASK;
+	fc->wtf.mask.s_addr = INADDR_ANY;
+	fc->wtf.mask_mask.s_addr = CISCO_BIN_ANY_WILDCARD_MASK;
 
 	acl_notify_route_map(f->acl, RMAP_EVENT_FILTER_ADDED);
 
@@ -1057,7 +1057,7 @@ static int lib_access_list_entry_destination_any_destroy(
 	f = nb_running_get_entry(args->dnode, NULL, true);
 	fc = &f->u.cfilter;
 	fc->extended = 0;
-	cisco_unset_addr_mask(&fc->mask, &fc->mask_mask);
+	cisco_unset_addr_mask(&fc->wtf.mask, &fc->wtf.mask_mask);
 
 	acl_notify_route_map(f->acl, RMAP_EVENT_FILTER_DELETED);
 
