@@ -1032,6 +1032,99 @@ int pim_af_mfib_alist_destroy(struct nb_cb_destroy_args *args)
 	return NB_OK;
 }
 
+/*
+ * XPath: /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/join-route-map
+ */
+int pim_af_join_rmap_modify(struct nb_cb_modify_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	const char *rmap;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		rmap = yang_dnode_get_string(args->dnode, NULL);
+
+		pim_filter_ref_set_rmap(&pim->join_filter, rmap);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int pim_af_join_rmap_destroy(struct nb_cb_destroy_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		pim_filter_ref_set_rmap(&pim->join_filter, NULL);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int pim_af_join_alist_modify(struct nb_cb_modify_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	const char *alist;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		alist = yang_dnode_get_string(args->dnode, NULL);
+
+		pim_filter_ref_set_alist(&pim->join_filter, alist);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int pim_af_join_alist_destroy(struct nb_cb_destroy_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		pim_filter_ref_set_alist(&pim->join_filter, NULL);
+		break;
+	}
+
+	return NB_OK;
+}
+
 int pim_af_spt_group_create(struct nb_cb_create_args *args)
 {
 	struct vrf *vrf;

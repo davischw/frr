@@ -7046,6 +7046,82 @@ ALIAS (ip_mfib_alist,
        "Multicast forwarding settings\n"
        "Filter forwarding entries through access-list\n")
 
+DEFPY (ip_pim_rmap,
+       ip_pim_rmap_cmd,
+       "[no] ip pim route-map RMAP_NAME",
+       NO_STR
+       IP_STR
+       PIM_STR
+       "Filter PIM joins through route-map\n"
+       "Route-map name\n")
+{
+	const char *vrfname;
+	char join_rmap_xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(join_rmap_xpath, sizeof(join_rmap_xpath),
+		 FRR_PIM_AF_XPATH "/pim-join-route-map", "frr-pim:pimd", "pim",
+		 vrfname, "frr-routing:ipv4");
+
+	if (no)
+		nb_cli_enqueue_change(vty, join_rmap_xpath,
+				      NB_OP_DESTROY, NULL);
+	else
+		nb_cli_enqueue_change(vty, join_rmap_xpath,
+				      NB_OP_MODIFY, rmap_name);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+ALIAS (ip_pim_rmap,
+       no_ip_pim_rmap_cmd,
+       "no ip pim route-map",
+       NO_STR
+       IP_STR
+       "Multicast forwarding settings\n"
+       "Filter PIM joins through route-map\n")
+
+DEFPY (ip_pim_alist,
+       ip_pim_alist_cmd,
+       "[no] ip pim access-list ALIST_NAME",
+       NO_STR
+       IP_STR
+       PIM_STR
+       "Filter PIM joins through access-list\n"
+       "Access-list name\n")
+{
+	const char *vrfname;
+	char join_alist_xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(join_alist_xpath, sizeof(join_alist_xpath),
+		 FRR_PIM_AF_XPATH "/pim-join-access-list", "frr-pim:pimd",
+		 "pim", vrfname, "frr-routing:ipv4");
+
+	if (no)
+		nb_cli_enqueue_change(vty, join_alist_xpath,
+				      NB_OP_DESTROY, NULL);
+	else
+		nb_cli_enqueue_change(vty, join_alist_xpath,
+				      NB_OP_MODIFY, alist_name);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+ALIAS (ip_pim_alist,
+       no_ip_pim_alist_cmd,
+       "no ip pim access-list",
+       NO_STR
+       IP_STR
+       PIM_STR
+       "Filter PIM joins through access-list\n")
+
 DEFPY (ip_pim_spt_switchover_group,
        ip_pim_spt_switchover_group_cmd,
        "[no] ip pim spt-switchover A.B.C.D/M$group "
@@ -11617,6 +11693,7 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &ip_pim_ssm_prefix_list_cmd);
 	install_element(CONFIG_NODE, &ip_pim_register_suppress_cmd);
 	install_element(CONFIG_NODE, &no_ip_pim_register_suppress_cmd);
+
 	install_element(CONFIG_NODE, &ip_mfib_rmap_cmd);
 	install_element(VRF_NODE, &ip_mfib_rmap_cmd);
 	install_element(CONFIG_NODE, &no_ip_mfib_rmap_cmd);
@@ -11625,6 +11702,16 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &ip_mfib_alist_cmd);
 	install_element(CONFIG_NODE, &no_ip_mfib_alist_cmd);
 	install_element(VRF_NODE, &no_ip_mfib_alist_cmd);
+
+	install_element(CONFIG_NODE, &ip_pim_rmap_cmd);
+	install_element(VRF_NODE, &ip_pim_rmap_cmd);
+	install_element(CONFIG_NODE, &no_ip_pim_rmap_cmd);
+	install_element(VRF_NODE, &no_ip_pim_rmap_cmd);
+	install_element(CONFIG_NODE, &ip_pim_alist_cmd);
+	install_element(VRF_NODE, &ip_pim_alist_cmd);
+	install_element(CONFIG_NODE, &no_ip_pim_alist_cmd);
+	install_element(VRF_NODE, &no_ip_pim_alist_cmd);
+
 	install_element(CONFIG_NODE, &ip_pim_spt_switchover_group_cmd);
 	install_element(VRF_NODE, &ip_pim_spt_switchover_group_cmd);
 	install_element(CONFIG_NODE, &ip_pim_spt_switchover_infinity_plist_cmd);

@@ -170,6 +170,9 @@ struct pim_instance {
 	struct pim_filter_ref mfib_filter;
 	struct thread *mfib_rmap_reapply;
 
+	/* filter on received PIM JOINs */
+	struct pim_filter_ref join_filter;
+
 	/*
 	 * RP information
 	 */

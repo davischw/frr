@@ -168,6 +168,7 @@ int pim_joinprune_recv(struct interface *ifp, struct pim_neighbor *neigh,
 {
 	struct prefix msg_upstream_addr;
 	struct pim_interface *pim_ifp;
+	struct pim_instance *pim;
 	uint8_t msg_num_groups;
 	uint16_t msg_holdtime;
 	int addr_offset;
@@ -181,6 +182,7 @@ int pim_joinprune_recv(struct interface *ifp, struct pim_neighbor *neigh,
 	buf = tlv_buf;
 	pastend = tlv_buf + tlv_buf_size;
 	pim_ifp = ifp->info;
+	pim = pim_ifp->pim;
 
 	/*
 	  Parse ucast addr
@@ -302,6 +304,10 @@ int pim_joinprune_recv(struct interface *ifp, struct pim_neighbor *neigh,
 
 			/* if we are filtering this group, skip the join */
 			if (filtered)
+				continue;
+
+			if (!pim_filter_match(&pim->join_filter, &sg, ifp,
+					      NULL))
 				continue;
 
 			recv_join(ifp, neigh, msg_holdtime,
