@@ -153,6 +153,13 @@ module frr-pim {
         "Pass MFIB entries through specified route-map.";
     }
 
+    leaf mfib-access-list {
+      type frr-route-map:access-list-ref;
+      description
+        "Pass MFIB entries through specified access list. "
+      + "Use extended filter items only!";
+    }
+
     container spt-switchover {
       description
         "SPT-Switchover.";

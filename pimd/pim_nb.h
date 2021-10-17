@@ -50,6 +50,8 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_se
 	struct nb_cb_destroy_args *args);
 int pim_af_mfib_rmap_modify(struct nb_cb_modify_args *args);
 int pim_af_mfib_rmap_destroy(struct nb_cb_destroy_args *args);
+int pim_af_mfib_alist_modify(struct nb_cb_modify_args *args);
+int pim_af_mfib_alist_destroy(struct nb_cb_destroy_args *args);
 int pim_af_spt_group_create(struct nb_cb_create_args *args);
 int pim_af_spt_group_destroy(struct nb_cb_destroy_args *args);
 int pim_af_spt_group_bandwidth_modify(struct nb_cb_modify_args *args);
@@ -219,6 +221,8 @@ int lib_interface_igmp_require_router_alert_modify(struct nb_cb_modify_args *arg
 int lib_interface_igmp_immediate_leave_modify(struct nb_cb_modify_args *args);
 int lib_interface_igmp_rmap_modify(struct nb_cb_modify_args *args);
 int lib_interface_igmp_rmap_destroy(struct nb_cb_destroy_args *args);
+int lib_interface_igmp_alist_modify(struct nb_cb_modify_args *args);
+int lib_interface_igmp_alist_destroy(struct nb_cb_destroy_args *args);
 int lib_interface_igmp_address_family_create(struct nb_cb_create_args *args);
 int lib_interface_igmp_address_family_destroy(struct nb_cb_destroy_args *args);
 int lib_interface_igmp_address_family_static_group_create(

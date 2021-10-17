@@ -99,6 +99,13 @@ const struct frr_yang_module_info frr_pim_info = {
 			}
 		},
 		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/mfib-access-list",
+			.cbs = {
+				.modify = pim_af_mfib_alist_modify,
+				.destroy = pim_af_mfib_alist_destroy,
+			}
+		},
+		{
 			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/spt-switchover/groups",
 			.cbs = {
 				.create = pim_af_spt_group_create,
@@ -548,10 +555,17 @@ const struct frr_yang_module_info frr_igmp_info = {
 			}
 		},
 		{
-			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/igmpv3-route-map",
+			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/igmp-route-map",
 			.cbs = {
 				.modify = lib_interface_igmp_rmap_modify,
 				.destroy = lib_interface_igmp_rmap_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-interface:lib/interface/frr-igmp:igmp/igmp-access-list",
+			.cbs = {
+				.modify = lib_interface_igmp_alist_modify,
+				.destroy = lib_interface_igmp_alist_destroy,
 			}
 		},
 		{

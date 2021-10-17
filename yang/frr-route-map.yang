@@ -194,6 +194,10 @@ module frr-route-map {
       "Reference to a route-map.";
   }
 
+  typedef access-list-ref {
+    type string;
+  }
+
   grouping rmap-match-condition {
     container rmap-match-condition {
       choice match-condition {

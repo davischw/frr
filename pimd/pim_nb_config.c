@@ -985,6 +985,53 @@ int pim_af_mfib_rmap_destroy(struct nb_cb_destroy_args *args)
 	return NB_OK;
 }
 
+int pim_af_mfib_alist_modify(struct nb_cb_modify_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	const char *alist;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		alist = yang_dnode_get_string(args->dnode, NULL);
+
+		pim_filter_ref_set_alist(&pim->mfib_filter, alist);
+		pim_vrf_resched_mfib_rmap(pim);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int pim_af_mfib_alist_destroy(struct nb_cb_destroy_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		pim_filter_ref_set_alist(&pim->mfib_filter, NULL);
+		pim_vrf_resched_mfib_rmap(pim);
+		break;
+	}
+
+	return NB_OK;
+}
+
 int pim_af_spt_group_create(struct nb_cb_create_args *args)
 {
 	struct vrf *vrf;
@@ -3775,6 +3822,68 @@ int lib_interface_igmp_rmap_destroy(struct nb_cb_destroy_args *args)
 			break;
 
 		pim_filter_ref_set_rmap(&pim_ifp->igmp_filter, NULL);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int lib_interface_igmp_alist_modify(struct nb_cb_modify_args *args)
+{
+	const struct lyd_node *if_dnode;
+	const char *ifp_name;
+	struct interface *ifp;
+	struct pim_interface *pim_ifp;
+	const char *alist;
+
+	alist = yang_dnode_get_string(args->dnode, NULL);
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+		if_dnode = yang_dnode_get_parent(args->dnode, "interface");
+		if (!is_pim_interface(if_dnode)) {
+			ifp_name = yang_dnode_get_string(if_dnode, "name");
+			snprintf(args->errmsg, args->errmsg_len,
+				 "multicast not enabled on interface %s",
+				 ifp_name);
+			return NB_ERR_VALIDATION;
+		}
+		break;
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		ifp = nb_running_get_entry(args->dnode, NULL, true);
+		pim_ifp = ifp->info;
+
+		if (!pim_ifp)
+			break;
+
+		pim_filter_ref_set_alist(&pim_ifp->igmp_filter, alist);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int lib_interface_igmp_alist_destroy(struct nb_cb_destroy_args *args)
+{
+	struct interface *ifp;
+	struct pim_interface *pim_ifp;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		ifp = nb_running_get_entry(args->dnode, NULL, true);
+		pim_ifp = ifp->info;
+
+		if (!pim_ifp)
+			break;
+
+		pim_filter_ref_set_alist(&pim_ifp->igmp_filter, NULL);
 		break;
 	}
 

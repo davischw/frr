@@ -158,10 +158,17 @@ module frr-igmp {
       + "Has no effect when IGMPv3 is in use.";
     }
 
-    leaf igmpv3-route-map {
+    leaf igmp-route-map {
       type frr-route-map:route-map-ref;
       description
-        "Filter IGMPv3 sources with referenced route-map.";
+        "Filter IGMP joins with referenced route-map.";
+    }
+
+    leaf igmp-access-list {
+      type frr-route-map:access-list-ref;
+      description
+        "Pass IGMP joins through specified access list. "
+      + "Use extended filter items only!";
     }
   }
 
