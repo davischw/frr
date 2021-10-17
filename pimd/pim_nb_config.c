@@ -854,6 +854,53 @@ int pim_af_mfib_rmap_destroy(struct nb_cb_destroy_args *args)
 	return NB_OK;
 }
 
+int pim_af_mfib_alist_modify(struct nb_cb_modify_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	const char *alist;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		alist = yang_dnode_get_string(args->dnode, NULL);
+
+		pim_filter_ref_set_alist(&pim->mfib_filter, alist);
+		pim_vrf_resched_mfib_rmap(pim);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int pim_af_mfib_alist_destroy(struct nb_cb_destroy_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		pim_filter_ref_set_alist(&pim->mfib_filter, NULL);
+		pim_vrf_resched_mfib_rmap(pim);
+		break;
+	}
+
+	return NB_OK;
+}
+
 int pim_af_spt_group_create(struct nb_cb_create_args *args)
 {
 	struct vrf *vrf;

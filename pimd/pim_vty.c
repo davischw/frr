@@ -455,6 +455,12 @@ int pim_config_write(struct vty *vty, int writes, struct interface *ifp,
 		++writes;
 	}
 
+	if (pim_ifp->igmp_filter.alistname) {
+		vty_out(vty, " ip igmp access-list %s\n",
+			pim_ifp->igmp_filter.alistname);
+		++writes;
+	}
+
 	/* IF ip igmp require-router-alert */
 	if (pim_ifp->igmp_require_ra) {
 		vty_out(vty, " ip igmp require-router-alert\n");

@@ -3293,6 +3293,43 @@ ALIAS (ip_mfib_rmap,
        "Multicast forwarding settings\n"
        "Filter forwarding entries through route-map\n")
 
+DEFPY(ip_mfib_alist, ip_mfib_alist_cmd,
+      "[no] ip mfib access-list ALIST_NAME",
+      NO_STR
+      IP_STR
+      "Multicast forwarding settings\n"
+      "Filter forwarding entries through access-list\n"
+      "Access-list name\n")
+{
+	const char *vrfname;
+	char mfib_alist_xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(mfib_alist_xpath, sizeof(mfib_alist_xpath),
+		 FRR_PIM_VRF_XPATH "/mfib-access-list", "frr-pim:pimd", "pim",
+		 vrfname, "frr-routing:ipv4");
+
+	if (no)
+		nb_cli_enqueue_change(vty, mfib_alist_xpath, NB_OP_DESTROY,
+				      NULL);
+	else
+		nb_cli_enqueue_change(vty, mfib_alist_xpath, NB_OP_MODIFY,
+				      alist_name);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+ALIAS(ip_mfib_alist,
+      no_ip_mfib_alist_cmd,
+      "no ip mfib access-list",
+      NO_STR
+      IP_STR
+      "Multicast forwarding settings\n"
+      "Filter forwarding entries through access-list\n")
+
 DEFPY (ip_pim_spt_switchover_group,
        ip_pim_spt_switchover_group_cmd,
        "[no] ip pim spt-switchover A.B.C.D/M$group "
@@ -4548,6 +4585,33 @@ ALIAS (interface_ip_igmp_rmap,
        IP_STR
        IFACE_IGMP_STR
        "Filter joins through route-map\n")
+
+DEFPY(interface_ip_igmp_alist,
+      interface_ip_igmp_alist_cmd,
+      "[no] ip igmp access-list ALIST_NAME",
+      NO_STR
+      IP_STR
+      IFACE_IGMP_STR
+      "Filter joins through access-list\n"
+      "Access-list name\n")
+{
+	if (no)
+		nb_cli_enqueue_change(vty, "./igmp-access-list", NB_OP_DESTROY,
+				      NULL);
+	else
+		nb_cli_enqueue_change(vty, "./igmp-access-list", NB_OP_MODIFY,
+				      alist_name);
+
+	return nb_cli_apply_changes(vty, "./frr-gmp:gmp");
+}
+
+ALIAS(interface_ip_igmp_alist,
+      no_interface_ip_igmp_alist_cmd,
+      "no ip igmp access-list",
+      NO_STR
+      IP_STR
+      IFACE_IGMP_STR
+      "Filter joins through access-list\n")
 
 DEFUN (interface_ip_pim_drprio,
        interface_ip_pim_drprio_cmd,
