@@ -32,9 +32,8 @@
 #include "pim_igmp.h"
 #include "pim_upstream.h"
 #include "pim_instance.h"
+#include "pim_routemap.h"
 #include "bfd.h"
-
-DECLARE_MTYPE(PIM_RMAP_NAME);
 
 #define PIM_IF_MASK_PIM                             (1 << 0)
 #define PIM_IF_MASK_IGMP                            (1 << 1)
@@ -114,7 +113,7 @@ struct pim_interface {
 	uint32_t igmp_source_count;
 	uint32_t igmp_source_limit, igmp_group_limit;
 
-	char *igmp_rmap;
+	struct pim_filter_ref igmp_filter;
 
 	int pim_sock_fd;		/* PIM socket file descriptor */
 	struct thread *t_pim_sock_read; /* thread for reading PIM socket */

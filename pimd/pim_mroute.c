@@ -1123,13 +1123,13 @@ static bool pim_oil_check_filtered(struct channel_oil *c_oil,
 	struct prefix_sg sg;
 	struct pim_interface *pim_iif = iifp ? iifp->info : NULL;
 
-	if (!pim_iif || !pim_iif->pim->mfib_rmap)
+	if (!pim_iif)
 		return false;
 
 	sg.src = c_oil->oil.mfcc_origin;
 	sg.grp = c_oil->oil.mfcc_mcastgrp;
 
-	if (!pim_routemap_match(&sg, NULL, iifp, pim_iif->pim->mfib_rmap))
+	if (!pim_filter_match(&pim_iif->pim->mfib_filter, &sg, NULL, iifp))
 		return true;
 
 	return false;

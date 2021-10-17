@@ -11480,6 +11480,7 @@ DEFPY (debug_rmap_apply,
        "Interface (unqualified) to match\n"
        "Interface (unqualified) to match\n")
 {
+	struct pim_filter_ref ref;
 	struct interface *iifp = NULL, *gen_ifp = NULL;
 	struct prefix_sg sg;
 	bool res;
@@ -11513,10 +11514,15 @@ DEFPY (debug_rmap_apply,
 	sg.src = source;
 	sg.grp = group;
 
-	res = pim_routemap_match(&sg, gen_ifp, iifp, rmap_name);
+	memset(&ref, 0, sizeof(ref));
+	pim_filter_ref_set_rmap(&ref, rmap_name);
+
+	res = pim_filter_match(&ref, &sg, gen_ifp, iifp);
 	vty_out(vty, "route-map %s for %pSG4, iface:%s, iif:%s: %s\n",
 		rmap_name, &sg, gen_ifp ? gen_ifp->name : "*",
 		iifp ? iifp->name : "*", res ? "permitted" : "denied");
+
+	pim_filter_ref_set_rmap(&ref, NULL);
 
 	return res ? CMD_SUCCESS : CMD_WARNING;
 }

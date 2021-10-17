@@ -266,7 +266,6 @@ void pim_if_delete(struct interface *ifp)
 		pim_ifchannel_delete(ch);
 	}
 
-	XFREE(MTYPE_PIM_RMAP_NAME, pim_ifp->igmp_rmap);
 	XFREE(MTYPE_PIM_PLIST_NAME, pim_ifp->nbr_plist);
 	XFREE(MTYPE_PIM_INTERFACE, pim_ifp);
 

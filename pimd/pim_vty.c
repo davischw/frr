@@ -233,9 +233,9 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 		++writes;
 	}
 
-	if (pim->mfib_rmap) {
+	if (pim->mfib_filter.rmapname) {
 		vty_out(vty, "%sip mfib route-map %s\n", spaces,
-			pim->mfib_rmap);
+			pim->mfib_filter.rmapname);
 		++writes;
 	}
 
@@ -476,9 +476,9 @@ int pim_interface_config_write(struct vty *vty)
 				}
 
 				/* IF ip igmp sources  */
-				if (pim_ifp->igmp_rmap) {
+				if (pim_ifp->igmp_filter.rmap) {
 					vty_out(vty, " ip igmp route-map %s\n",
-						pim_ifp->igmp_rmap);
+						pim_ifp->igmp_filter.rmapname);
 					++writes;
 				}
 

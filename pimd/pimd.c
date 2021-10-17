@@ -45,6 +45,7 @@
 #include "pim_zlookup.h"
 #include "pim_zebra.h"
 #include "pim_mlag.h"
+#include "pim_routemap.h"
 
 #if MAXVIFS > 256
 CPP_NOTICE("Work needs to be done to make this work properly via the pim mroute socket\n");
@@ -59,6 +60,11 @@ DEFINE_MTYPE_STATIC(PIMD, ROUTER, "PIM Router information");
 
 struct pim_router *router = NULL;
 struct in_addr qpim_all_pim_routers_addr;
+
+void pim_access_list_update(struct access_list *alist)
+{
+	pim_filter_ref_update();
+}
 
 void pim_prefix_list_update(struct prefix_list *plist)
 {

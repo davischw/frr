@@ -926,6 +926,8 @@ void pim_igmp_if_init(struct pim_interface *pim_ifp, struct interface *ifp)
 	snprintf(hash_name, sizeof(hash_name), "IGMP %s hash", ifp->name);
 	pim_ifp->igmp_group_hash = hash_create(
 		igmp_group_hash_key, igmp_group_hash_equal, hash_name);
+
+	pim_filter_ref_init(&pim_ifp->igmp_filter);
 }
 
 void pim_igmp_if_reset(struct pim_interface *pim_ifp)
@@ -942,6 +944,8 @@ void pim_igmp_if_reset(struct pim_interface *pim_ifp)
 void pim_igmp_if_fini(struct pim_interface *pim_ifp)
 {
 	pim_igmp_if_reset(pim_ifp);
+
+	pim_filter_ref_fini(&pim_ifp->igmp_filter);
 
 	assert(pim_ifp->igmp_group_list);
 	assert(!listcount(pim_ifp->igmp_group_list));
@@ -1165,9 +1169,8 @@ void igmp_group_timer_on(struct igmp_group *group, long interval_msec,
 		.grp = group->group_addr,
 	};
 
-	if (interval_msec && pim_ifp->igmp_rmap
-	    && !pim_routemap_match(&sg, group->interface, NULL,
-				   pim_ifp->igmp_rmap)) {
+	if (interval_msec && !pim_filter_match(&pim_ifp->igmp_filter, &sg,
+					       group->interface, NULL)) {
 		if (PIM_DEBUG_IGMP_TRACE)
 			zlog_debug(
 				"Timer for %pSG4 on %s not refreshed due to route-map reject",

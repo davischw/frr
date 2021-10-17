@@ -23,12 +23,65 @@
 #include "if.h"
 #include "vty.h"
 #include "routemap.h"
+#include "filter.h"
 
 #include "pimd.h"
 #include "pim_routemap.h"
 #include "pim_util.h"
 
+DEFINE_MTYPE_STATIC(PIMD, PIM_ACL_REF, "PIM filter name");
+
+DECLARE_DLIST(pim_filter_refs, struct pim_filter_ref, itm);
+
+static struct pim_filter_refs_head refs[1] = { INIT_DLIST(refs[0]) };
+
 static void rmap_cli_init(void);
+
+void pim_filter_ref_init(struct pim_filter_ref *ref)
+{
+	memset(ref, 0, sizeof(*ref));
+	pim_filter_refs_add_tail(refs, ref);
+}
+
+void pim_filter_ref_fini(struct pim_filter_ref *ref)
+{
+	pim_filter_refs_del(refs, ref);
+
+	XFREE(MTYPE_PIM_ACL_REF, ref->rmapname);
+	XFREE(MTYPE_PIM_ACL_REF, ref->alistname);
+}
+
+void pim_filter_ref_set_rmap(struct pim_filter_ref *ref, const char *rmapname)
+{
+	XFREE(MTYPE_PIM_ACL_REF, ref->rmapname);
+	ref->rmap = NULL;
+
+	if (rmapname) {
+		ref->rmapname = XSTRDUP(MTYPE_PIM_ACL_REF, rmapname);
+		ref->rmap = route_map_lookup_by_name(ref->rmapname);
+	}
+}
+
+void pim_filter_ref_set_alist(struct pim_filter_ref *ref, const char *alistname)
+{
+	XFREE(MTYPE_PIM_ACL_REF, ref->alistname);
+	ref->alist = NULL;
+
+	if (alistname) {
+		ref->alistname = XSTRDUP(MTYPE_PIM_ACL_REF, alistname);
+		ref->alist = access_list_lookup(AFI_IP, ref->alistname);
+	}
+}
+
+void pim_filter_ref_update(void)
+{
+	struct pim_filter_ref *ref;
+
+	frr_each (pim_filter_refs, refs, ref) {
+		ref->rmap = route_map_lookup_by_name(ref->rmapname);
+		ref->alist = access_list_lookup(AFI_IP, ref->alistname);
+	}
+}
 
 /*
  * PIM currently uses route-maps only as (S,G) & nexthop/iface filters.
@@ -43,34 +96,51 @@ struct pim_rmap_info {
 	struct interface *generic_ifp, *iif;
 };
 
-bool pim_routemap_match(const struct prefix_sg *sg,
-			struct interface *generic_ifp,
-			struct interface *iif, const char *rmapname)
+bool pim_filter_match(const struct pim_filter_ref *ref,
+		      const struct prefix_sg *sg, struct interface *generic_ifp,
+		      struct interface *iif)
 {
-	struct route_map *rmap;
-	route_map_result_t result;
-	struct prefix dummy_prefix = { .family = AF_INET };
-	struct pim_rmap_info info = {
-		.sg = sg,
-		.iif = iif,
-		.generic_ifp = generic_ifp,
-	};
-
-	if (!rmapname)
-		return true;
-
-	rmap = route_map_lookup_by_name(rmapname);
-	if (!rmap)
-		return false;
-
 	if (sg->grp.s_addr && !pim_is_group_224_4(sg->grp))
 		return false;
 	if (sg->src.s_addr && IPV4_CLASS_DE(ntohl(sg->src.s_addr)))
 		return false;
 
-	result = route_map_apply(rmap, &dummy_prefix, &info);
+	if (ref->alistname) {
+		enum filter_type result;
+		struct prefix_ipv4 src, dst;
 
-	return result == RMAP_PERMITMATCH;
+		if (!ref->alist)
+			return false;
+
+		src.family = dst.family = AF_INET;
+		src.prefixlen = dst.prefixlen = 32;
+
+		src.prefix = sg->src;
+		dst.prefix = sg->grp;
+
+		result = access_list_apply_sadr(ref->alist, &src, &dst);
+		if (result != FILTER_PERMIT)
+			return false;
+	}
+
+	if (ref->rmapname) {
+		route_map_result_t result;
+		struct prefix dummy_prefix = { .family = AF_INET };
+		struct pim_rmap_info info = {
+			.sg = sg,
+			.iif = iif,
+			.generic_ifp = generic_ifp,
+		};
+
+		if (!ref->rmap)
+			return false;
+
+		result = route_map_apply(ref->rmap, &dummy_prefix, &info);
+		if (result != RMAP_PERMITMATCH)
+			return false;
+	}
+
+	return true;
 }
 
 /* matches */
@@ -248,7 +318,8 @@ static void trigger_mfib_rmap(const char *rmap_name)
 	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
 		struct pim_instance *pim = vrf->info;
 
-		if (pim->mfib_rmap && !strcmp(pim->mfib_rmap, rmap_name))
+		if (pim->mfib_filter.rmapname &&
+		    !strcmp(pim->mfib_filter.rmapname, rmap_name))
 			pim_vrf_resched_mfib_rmap(pim);
 	}
 }
