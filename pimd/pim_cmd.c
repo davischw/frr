@@ -7602,6 +7602,11 @@ DEFPY (ip_pim_rp,
 	int result = 0;
 	struct in_addr rp_addr;
 
+	if (1) {
+		vty_out(vty, "%% [VENDOR] command disabled, use extended access list to configure RPs\n");
+		return CMD_WARNING;
+	}
+
 	if (group_str) {
 		struct prefix temp;
 
@@ -7648,6 +7653,11 @@ DEFPY (ip_pim_rp_prefix_list,
 {
 	const char *vrfname;
 	char rp_plist_xpath[XPATH_MAXLEN];
+
+	if (1) {
+		vty_out(vty, "%% [VENDOR] command disabled, use extended access list to configure RPs\n");
+		return CMD_WARNING;
+	}
 
 	vrfname = pim_cli_get_vrf_name(vty);
 	if (vrfname == NULL)
@@ -7709,6 +7719,11 @@ DEFPY (no_ip_pim_rp,
 	const char *vrfname;
 	const struct lyd_node *group_dnode;
 
+	if (1) {
+		vty_out(vty, "%% [VENDOR] command disabled, use extended access list to configure RPs\n");
+		return CMD_WARNING;
+	}
+
 	if (!group_str)
 		group_str = "224.0.0.0/4";
 
@@ -7761,6 +7776,11 @@ DEFPY (no_ip_pim_rp_prefix_list,
 	const struct lyd_node *plist_dnode;
 	const char *plist;
 	const char *destroy;
+
+	if (1) {
+		vty_out(vty, "%% [VENDOR] command disabled, use extended access list to configure RPs\n");
+		return CMD_WARNING;
+	}
 
 	vrfname = pim_cli_get_vrf_name(vty);
 	if (vrfname == NULL)
