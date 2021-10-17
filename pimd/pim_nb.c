@@ -106,6 +106,20 @@ const struct frr_yang_module_info frr_pim_info = {
 			}
 		},
 		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/pim-join-route-map",
+			.cbs = {
+				.modify = pim_af_join_rmap_modify,
+				.destroy = pim_af_join_rmap_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/pim-join-access-list",
+			.cbs = {
+				.modify = pim_af_join_alist_modify,
+				.destroy = pim_af_join_alist_destroy,
+			}
+		},
+		{
 			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/spt-switchover/groups",
 			.cbs = {
 				.create = pim_af_spt_group_create,

@@ -152,6 +152,7 @@ int pim_joinprune_recv(struct interface *ifp, struct pim_neighbor *neigh,
 	pim_addr msg_upstream_addr;
 	bool wrong_af = false;
 	struct pim_interface *pim_ifp;
+	struct pim_instance *pim;
 	uint8_t msg_num_groups;
 	uint16_t msg_holdtime;
 	int addr_offset;
@@ -165,6 +166,7 @@ int pim_joinprune_recv(struct interface *ifp, struct pim_neighbor *neigh,
 	buf = tlv_buf;
 	pastend = tlv_buf + tlv_buf_size;
 	pim_ifp = ifp->info;
+	pim = pim_ifp->pim;
 
 	if (pim_ifp->pim_passive_enable) {
 		if (PIM_DEBUG_PIM_PACKETS)
@@ -269,6 +271,12 @@ int pim_joinprune_recv(struct interface *ifp, struct pim_neighbor *neigh,
 
 			/* if we are filtering this group, skip the join */
 			if (filtered)
+				continue;
+
+			struct prefix_sg sg_prefix;
+			pim_sg_to_prefix(&sg, &sg_prefix);
+			if (!pim_filter_match(&pim->join_filter, &sg_prefix,
+					      ifp, NULL))
 				continue;
 
 			recv_join(ifp, neigh, msg_holdtime, msg_upstream_addr,
