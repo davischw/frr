@@ -222,10 +222,8 @@ static int ospf_instance_create(struct nb_cb_create_args *args)
 			if (o->name && strcmp(o->name, vrf_name))
 				continue;
 
-#if 0
 			/* Set sequence number default value. */
 			o->auth_seq_num = 0;
-#endif
 
 			nb_running_set_entry(args->dnode, o);
 			return NB_OK;
@@ -309,10 +307,9 @@ ospf_instance_lookup_entry(struct nb_cb_lookup_entry_args *args)
  */
 static int ospf_instance_auth_sequence_number(struct nb_cb_modify_args *args)
 {
-#if 0
 	struct ospf *ospf;
-	struct listnode *node;
 	struct ospf_interface *oif;
+	struct listnode *node;
 
 	if (args->event != NB_EV_APPLY)
 		return NB_OK;
@@ -321,7 +318,6 @@ static int ospf_instance_auth_sequence_number(struct nb_cb_modify_args *args)
 	ospf->auth_seq_num = htonl(yang_dnode_get_uint32(args->dnode, NULL));
 	for (ALL_LIST_ELEMENTS_RO(ospf->oiflist, node, oif))
 		oif->crypt_seqnum = ntohl(ospf->auth_seq_num);
-#endif
 
 	return NB_OK;
 }
@@ -425,14 +421,13 @@ static int ospf_instance_area_create(struct nb_cb_create_args *args)
 		break;
 
 	case NB_EV_APPLY:
-		node = nb_running_get_entry(args->dnode, NULL, true);
-		o = listgetdata(node);
+		o = nb_running_get_entry(args->dnode, NULL, true);
 		yang_dnode_get_ipv4(&area_id, args->dnode, "./id");
 		for (ALL_LIST_ELEMENTS_RO(o->areas, node, area)) {
 			if (!IPV4_ADDR_SAME(&area->area_id, &area_id))
 				continue;
 
-			nb_running_set_entry(args->dnode, node);
+			nb_running_set_entry(args->dnode, area);
 			return NB_OK;
 		}
 
@@ -535,14 +530,13 @@ static int ospf_instance_area_interface_create(struct nb_cb_create_args *args)
 		break;
 
 	case NB_EV_APPLY:
-		node = nb_running_get_entry(args->dnode, NULL, true);
-		area = listgetdata(node);
+		area = nb_running_get_entry(args->dnode, NULL, true);
 		ifname = yang_dnode_get_string(args->dnode, "./name");
 		for (ALL_LIST_ELEMENTS_RO(area->oiflist, node, oif)) {
 			if (strcmp(oif->ifp->name, ifname))
 				continue;
 
-			nb_running_set_entry(args->dnode, node);
+			nb_running_set_entry(args->dnode, oif);
 			return NB_OK;
 		}
 
@@ -614,7 +608,6 @@ ospf_instance_area_interface_neighbor_create(struct nb_cb_create_args *args)
 {
 	struct ospf_interface *oi;
 	struct route_node *rn;
-	struct listnode *node;
 	const char *ifname;
 	struct ospf *o;
 	struct in_addr source;
@@ -667,8 +660,7 @@ ospf_instance_area_interface_neighbor_create(struct nb_cb_create_args *args)
 		break;
 
 	case NB_EV_APPLY:
-		node = nb_running_get_entry(args->dnode, NULL, true);
-		oi = listgetdata(node);
+		oi = nb_running_get_entry(args->dnode, NULL, true);
 		yang_dnode_get_ipv4(&router_id, args->dnode, "./router-id");
 		yang_dnode_get_ipv4(&source, args->dnode, "./source");
 		rn = ospf_neighbor_lookup(oi, &source, &router_id);

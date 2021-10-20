@@ -290,6 +290,9 @@ struct ospf {
 	int ie_other_sock;
 	struct thread *ie_other_ev;
 
+	/* Authentication sequence number to start from. */
+	uint32_t auth_seq_num;
+
 	/* Distribute lists out of other route sources. */
 	struct {
 		char *name;
