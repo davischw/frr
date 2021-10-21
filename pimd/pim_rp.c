@@ -1685,6 +1685,9 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 			if (rp_info->plist)
 				json_object_string_add(json_row, "prefixList",
 						       rp_info->plist);
+			else if (rp_info->alist)
+				json_object_string_add(json_row, "accessList",
+						       rp_info->alist);
 			else
 				json_object_string_addf(json_row, "group",
 							"%pFX",
@@ -1700,7 +1703,7 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 					  &rp_info->rp.rpf_addr,
 					  rp_info->plist
 					  ? rp_info->plist
-					  : grp,
+					  : rp_info->alist ? rp_info->alist : grp,
 					  rp_info->rp.source_nexthop.interface
 					  ? rp_info->rp.source_nexthop
 						.interface->name
