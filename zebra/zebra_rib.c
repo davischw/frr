@@ -675,9 +675,11 @@ void rib_install_kernel(struct route_node *rn, struct route_entry *re,
 	if (info->safi != SAFI_UNICAST) {
 		for (ALL_NEXTHOPS(re->nhe->nhg, nexthop))
 			SET_FLAG(nexthop->flags, NEXTHOP_FLAG_FIB);
+
+		zebra_rib_evaluate_rn_nexthops(
+			rn, zebra_router_get_next_sequence(), false);
 		return;
 	}
-
 
 	/*
 	 * Install the resolved nexthop object first.
@@ -749,9 +751,16 @@ void rib_uninstall_kernel(struct route_node *rn, struct route_entry *re)
 	struct zebra_vrf *zvrf = vrf_info_lookup(re->vrf_id);
 
 	if (info->safi != SAFI_UNICAST) {
+		const struct prefix *p, *src_p;
+
+		srcdest_rnode_prefixes(rn, &p, &src_p);
+
 		UNSET_FLAG(re->status, ROUTE_ENTRY_INSTALLED);
 		for (ALL_NEXTHOPS(re->nhe->nhg, nexthop))
 			UNSET_FLAG(nexthop->flags, NEXTHOP_FLAG_FIB);
+
+		zebra_rib_evaluate_rn_nexthops(
+			rn, zebra_router_get_next_sequence(), true);
 		return;
 	}
 
