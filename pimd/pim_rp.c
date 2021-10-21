@@ -1628,6 +1628,40 @@ void pim_rp_show_information(struct pim_instance *pim, struct vty *vty, bool uj)
 	}
 }
 
+static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info)
+{
+	struct filter *item;
+	struct filter_cisco *cfilter;
+	struct access_list *acl;
+
+	acl = access_list_lookup(AFI_IP, rp_info->alist);
+	if (!acl) {
+		vty_out(vty, "\t-- access list does not exist\n");
+		return;
+	}
+
+	for (item = acl->head; item; item = item->next) {
+		struct prefix_ipv4 p;
+		struct in_addr mask;
+
+		if (!item->cisco || !item->u.cfilter.extended) {
+			vty_out(vty,
+				"\t-- INVALID ENTRY: seq %"PRId64" is not an extended access-list item!\n",
+				item->seq);
+			continue;
+		}
+
+		cfilter = &item->u.cfilter;
+
+		p.family = AF_INET;
+		mask = cfilter->sadr.dst_mask;
+		mask.s_addr = ~mask.s_addr;
+		p.prefixlen = ip_masklen(mask);
+		p.prefix = cfilter->sadr.dst;
+		vty_out(vty, "\t%pFX\n", &p);
+	}
+}
+
 static void pim_rp_show_info_list(struct list *list, struct vty *vty,
 				  json_object *json)
 {
@@ -1743,6 +1777,9 @@ static void pim_rp_show_info_list(struct list *list, struct vty *vty,
 					rp_info->i_am_rp ? "yes" : "no");
 
 				vty_out(vty, "%s\n", source);
+
+				if (rp_info->alist)
+					pim_rpinfo_show_alist(vty, rp_info);
 			}
 			prev_rp_info = rp_info;
 		}
