@@ -7112,15 +7112,13 @@ static void show_ip_ospf_database_maxage(struct vty *vty, struct ospf *ospf,
 		OSPF_LSA_TYPE_OPAQUE_LINK_DESC OSPF_LSA_TYPE_OPAQUE_AREA_DESC  \
 			OSPF_LSA_TYPE_OPAQUE_AS_DESC
 
-static int show_ip_ospf_database_common(struct vty *vty, struct ospf *ospf,
-					int arg_base, int argc,
-					struct cmd_token **argv,
-					uint8_t use_vrf, json_object *json,
-					bool uj)
+static int
+show_ip_ospf_database_common(struct vty *vty, struct ospf *ospf, bool maxage,
+			     bool self, const char *type_name,
+			     struct in_addr *lsid, struct in_addr *adv_router,
+			     bool use_vrf, json_object *json, bool uj)
 {
-	int idx_type = 4;
-	int type, ret;
-	struct in_addr id, adv_router;
+	int type;
 	char buf[PREFIX_STRLEN];
 	json_object *json_vrf = NULL;
 
@@ -7151,49 +7149,8 @@ static int show_ip_ospf_database_common(struct vty *vty, struct ospf *ospf,
 			&ospf->router_id);
 	}
 
-	/* Show all LSA. */
-	if ((argc == arg_base + 4) || (uj && (argc == arg_base + 5))) {
-		show_ip_ospf_database_summary(vty, ospf, 0, json_vrf);
-		if (json) {
-			if (use_vrf) {
-				if (ospf->vrf_id == VRF_DEFAULT)
-					json_object_object_add(json, "default",
-							       json_vrf);
-				else
-					json_object_object_add(json, ospf->name,
-							       json_vrf);
-			}
-		}
-		return CMD_SUCCESS;
-	}
-
-	/* Set database type to show. */
-	if (strncmp(argv[arg_base + idx_type]->text, "r", 1) == 0)
-		type = OSPF_ROUTER_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "ne", 2) == 0)
-		type = OSPF_NETWORK_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "ns", 2) == 0)
-		type = OSPF_AS_NSSA_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "su", 2) == 0)
-		type = OSPF_SUMMARY_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "a", 1) == 0)
-		type = OSPF_ASBR_SUMMARY_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "e", 1) == 0)
-		type = OSPF_AS_EXTERNAL_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "se", 2) == 0) {
-		show_ip_ospf_database_summary(vty, ospf, 1, json_vrf);
-		if (json) {
-			if (use_vrf) {
-				if (ospf->vrf_id == VRF_DEFAULT)
-					json_object_object_add(json, "default",
-							       json_vrf);
-				else
-					json_object_object_add(json, ospf->name,
-							       json_vrf);
-			}
-		}
-		return CMD_SUCCESS;
-	} else if (strncmp(argv[arg_base + idx_type]->text, "m", 1) == 0) {
+	/* Show MaxAge LSAs */
+	if (maxage) {
 		show_ip_ospf_database_maxage(vty, ospf, json_vrf);
 		if (json) {
 			if (use_vrf) {
@@ -7206,277 +7163,51 @@ static int show_ip_ospf_database_common(struct vty *vty, struct ospf *ospf,
 			}
 		}
 		return CMD_SUCCESS;
-	} else if (strncmp(argv[arg_base + idx_type]->text, "opaque-l", 8) == 0)
-		type = OSPF_OPAQUE_LINK_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "opaque-ar", 9) == 0)
-		type = OSPF_OPAQUE_AREA_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "opaque-as", 9) == 0)
-		type = OSPF_OPAQUE_AS_LSA;
-	else
-		return CMD_WARNING;
+	}
 
-	/* `show ip ospf database LSA'. */
-	if ((argc == arg_base + 5) || (uj && (argc == arg_base + 6)))
-		show_lsa_detail(vty, ospf, type, NULL, NULL, json_vrf);
-	else if (argc >= arg_base + 6) {
-		ret = inet_aton(argv[arg_base + 5]->arg, &id);
-		if (!ret)
-			return CMD_WARNING;
-
-		/* `show ip ospf database LSA ID'. */
-		if ((argc == arg_base + 6) || (uj && (argc == arg_base + 7)))
-			show_lsa_detail(vty, ospf, type, &id, NULL, json_vrf);
-		/* `show ip ospf database LSA ID adv-router ADV_ROUTER'. */
-		else if ((argc == arg_base + 7)
-			 || (uj && (argc == arg_base + 8))) {
-			if (strncmp(argv[arg_base + 6]->text, "s", 1) == 0)
-				adv_router = ospf->router_id;
-			else {
-				ret = inet_aton(argv[arg_base + 7]->arg,
-						&adv_router);
-				if (!ret)
-					return CMD_WARNING;
+	/* Show all LSAs. */
+	if (!type_name) {
+		show_ip_ospf_database_summary(vty, ospf, self, json_vrf);
+		if (json) {
+			if (use_vrf) {
+				if (ospf->vrf_id == VRF_DEFAULT)
+					json_object_object_add(json, "default",
+							       json_vrf);
+				else
+					json_object_object_add(json, ospf->name,
+							       json_vrf);
 			}
-			show_lsa_detail(vty, ospf, type, &id, &adv_router,
-					json_vrf);
 		}
-	}
-
-	if (json) {
-		if (use_vrf) {
-			if (ospf->vrf_id == VRF_DEFAULT)
-				json_object_object_add(json, "default",
-						       json_vrf);
-			else
-				json_object_object_add(json, ospf->name,
-						       json_vrf);
-		}
-	}
-
-	return CMD_SUCCESS;
-}
-
-DEFUN (show_ip_ospf_database_max,
-       show_ip_ospf_database_max_cmd,
-       "show ip ospf [vrf <NAME|all>] database <max-age|self-originate> [json]",
-       SHOW_STR
-       IP_STR
-       "OSPF information\n"
-       VRF_CMD_HELP_STR
-       "All VRFs\n"
-       "Database summary\n"
-       "LSAs in MaxAge list\n"
-       "Self-originated link states\n"
-       JSON_STR)
-{
-	struct ospf *ospf = NULL;
-	struct listnode *node = NULL;
-	char *vrf_name = NULL;
-	bool all_vrf = false;
-	int ret = CMD_SUCCESS;
-	int inst = 0;
-	int idx_vrf = 0;
-	uint8_t use_vrf = 0;
-	bool uj = use_json(argc, argv);
-	json_object *json = NULL;
-
-	if (uj)
-		json = json_object_new_object();
-
-	OSPF_FIND_VRF_ARGS(argv, argc, idx_vrf, vrf_name, all_vrf);
-
-	if (vrf_name) {
-		bool ospf_output = false;
-
-		use_vrf = 1;
-
-		if (all_vrf) {
-			for (ALL_LIST_ELEMENTS_RO(om->ospf, node, ospf)) {
-				if (!ospf->oi_running)
-					continue;
-				ospf_output = true;
-				ret = show_ip_ospf_database_common(
-					vty, ospf, idx_vrf ? 2 : 0, argc, argv,
-					use_vrf, json, uj);
-			}
-
-			if (!ospf_output)
-				vty_out(vty, "%% OSPF instance not found\n");
-		} else {
-			ospf = ospf_lookup_by_inst_name(inst, vrf_name);
-			if (ospf == NULL || !ospf->oi_running) {
-				vty_out(vty, "%% OSPF instance not found\n");
-				return CMD_SUCCESS;
-			}
-			ret = (show_ip_ospf_database_common(
-				vty, ospf, idx_vrf ? 2 : 0, argc, argv, use_vrf,
-				json, uj));
-		}
-	} else {
-		/* Display default ospf (instance 0) info */
-		ospf = ospf_lookup_by_vrf_id(VRF_DEFAULT);
-		if (ospf == NULL || !ospf->oi_running) {
-			vty_out(vty, "%% OSPF instance not found\n");
-			return CMD_SUCCESS;
-		}
-
-		ret = show_ip_ospf_database_common(vty, ospf, 0, argc, argv,
-						   use_vrf, json, uj);
-	}
-
-	if (uj) {
-		vty_out(vty, "%s\n", json_object_to_json_string(json));
-		json_object_free(json);
-	}
-
-	return ret;
-}
-
-ALIAS (show_ip_ospf_database_max,
-       show_ip_ospf_database_cmd,
-       "show ip ospf [vrf <NAME|all>] database [<asbr-summary|external|network|router|summary|nssa-external|opaque-link|opaque-area|opaque-as> [A.B.C.D [<self-originate|adv-router A.B.C.D>]]] [json]",
-       SHOW_STR
-       IP_STR
-       "OSPF information\n"
-       VRF_CMD_HELP_STR
-       "All VRFs\n"
-       "Database summary\n"
-        OSPF_LSA_TYPES_DESC
-       "Link State ID (as an IP address)\n"
-       "Self-originated link states\n"
-       "Advertising Router link states\n"
-       "Advertising Router (as an IP address)\n"
-       JSON_STR)
-
-DEFUN (show_ip_ospf_instance_database_max,
-       show_ip_ospf_instance_database_max_cmd,
-       "show ip ospf (1-65535) database <max-age|self-originate> [json]",
-       SHOW_STR
-       IP_STR
-       "OSPF information\n"
-       "Instance ID\n"
-       "Database summary\n"
-       "LSAs in MaxAge list\n"
-       "Self-originated link states\n"
-       JSON_STR)
-{
-	int idx_number = 3;
-	struct ospf *ospf;
-	unsigned short instance = 0;
-	bool uj = use_json(argc, argv);
-	json_object *json = NULL;
-
-	if (uj)
-		json = json_object_new_object();
-
-	instance = strtoul(argv[idx_number]->arg, NULL, 10);
-	if (instance != ospf_instance)
-		return CMD_NOT_MY_INSTANCE;
-
-	ospf = ospf_lookup_instance(instance);
-	if (!ospf || !ospf->oi_running)
 		return CMD_SUCCESS;
-
-	show_ip_ospf_database_common(vty, ospf, 1, argc, argv, 0, json, uj);
-
-	if (uj) {
-		vty_out(vty, "%s\n",
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-
-	return CMD_SUCCESS;
-}
-
-ALIAS (show_ip_ospf_instance_database_max,
-       show_ip_ospf_instance_database_cmd,
-       "show ip ospf (1-65535) database [<asbr-summary|external|network|router|summary|nssa-external|opaque-link|opaque-area|opaque-as> [A.B.C.D [<self-originate|adv-router A.B.C.D>]]] [json]",
-       SHOW_STR
-       IP_STR
-       "OSPF information\n"
-       "Instance ID\n"
-       "Database summary\n"
-        OSPF_LSA_TYPES_DESC
-       "Link State ID (as an IP address)\n"
-       "Self-originated link states\n"
-       "Advertising Router link states\n"
-       "Advertising Router (as an IP address)\n"
-       JSON_STR)
-
-static int show_ip_ospf_database_type_adv_router_common(struct vty *vty,
-							struct ospf *ospf,
-							int arg_base, int argc,
-							struct cmd_token **argv,
-							uint8_t use_vrf,
-							json_object *json,
-							bool uj)
-{
-	int idx_type = 4;
-	int type, ret;
-	struct in_addr adv_router;
-	char buf[PREFIX_STRLEN];
-	json_object *json_vrf = NULL;
-
-	if (uj) {
-		if (use_vrf)
-			json_vrf = json_object_new_object();
-		else
-			json_vrf = json;
-	}
-
-	if (ospf->instance) {
-		if (uj)
-			json_object_int_add(json, "ospfInstance",
-					    ospf->instance);
-		else
-			vty_out(vty, "\nOSPF Instance: %d\n\n", ospf->instance);
-	}
-
-	ospf_show_vrf_name(ospf, vty, json_vrf, use_vrf);
-
-	/* Show Router ID. */
-	if (uj) {
-		json_object_string_add(json_vrf, "routerId",
-				       inet_ntop(AF_INET, &ospf->router_id,
-						 buf, sizeof(buf)));
-	} else {
-		vty_out(vty, "\n       OSPF Router with ID (%pI4)\n\n",
-			&ospf->router_id);
 	}
 
 	/* Set database type to show. */
-	if (strncmp(argv[arg_base + idx_type]->text, "r", 1) == 0)
+	if (strncmp(type_name, "r", 1) == 0)
 		type = OSPF_ROUTER_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "ne", 2) == 0)
+	else if (strncmp(type_name, "ne", 2) == 0)
 		type = OSPF_NETWORK_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "ns", 2) == 0)
+	else if (strncmp(type_name, "ns", 2) == 0)
 		type = OSPF_AS_NSSA_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "s", 1) == 0)
+	else if (strncmp(type_name, "su", 2) == 0)
 		type = OSPF_SUMMARY_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "a", 1) == 0)
+	else if (strncmp(type_name, "a", 1) == 0)
 		type = OSPF_ASBR_SUMMARY_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "e", 1) == 0)
+	else if (strncmp(type_name, "e", 1) == 0)
 		type = OSPF_AS_EXTERNAL_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "opaque-l", 8) == 0)
+	else if (strncmp(type_name, "opaque-l", 8) == 0)
 		type = OSPF_OPAQUE_LINK_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "opaque-ar", 9) == 0)
+	else if (strncmp(type_name, "opaque-ar", 9) == 0)
 		type = OSPF_OPAQUE_AREA_LSA;
-	else if (strncmp(argv[arg_base + idx_type]->text, "opaque-as", 9) == 0)
+	else if (strncmp(type_name, "opaque-as", 9) == 0)
 		type = OSPF_OPAQUE_AS_LSA;
 	else
 		return CMD_WARNING;
 
-	/* `show ip ospf database LSA adv-router ADV_ROUTER'. */
-	if (strncmp(argv[arg_base + 5]->text, "s", 1) == 0)
-		adv_router = ospf->router_id;
-	else {
-		ret = inet_aton(argv[arg_base + 6]->arg, &adv_router);
-		if (!ret)
-			return CMD_WARNING;
-	}
-
-	show_lsa_detail_adv_router(vty, ospf, type, &adv_router, json_vrf);
+	if (adv_router && !lsid)
+		show_lsa_detail_adv_router(vty, ospf, type, adv_router,
+					   json_vrf);
+	else
+		show_lsa_detail(vty, ospf, type, lsid, adv_router, json_vrf);
 
 	if (json) {
 		if (use_vrf) {
@@ -7492,73 +7223,81 @@ static int show_ip_ospf_database_type_adv_router_common(struct vty *vty,
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_ospf_database_type_adv_router,
-       show_ip_ospf_database_type_adv_router_cmd,
-       "show ip ospf [vrf <NAME|all>] database <asbr-summary|external|network|router|summary|nssa-external|opaque-link|opaque-area|opaque-as> <adv-router A.B.C.D|self-originate> [json]",
+DEFPY (show_ip_ospf_database,
+       show_ip_ospf_database_cmd,
+       "show ip ospf [(1-65535)$instance_id] [vrf <NAME|all>$vrf_name] database\
+         [<\
+	   max-age$maxage\
+	   |self-originate$selforig\
+           |<asbr-summary|external|network|router|summary|nssa-external|opaque-link|opaque-area|opaque-as>$type_name\
+	     [A.B.C.D$lsid]\
+	     [<adv-router A.B.C.D$adv_router|self-originate$adv_router_self>]\
+	 >]\
+	 [json]",
        SHOW_STR
        IP_STR
        "OSPF information\n"
+       "Instance ID\n"
        VRF_CMD_HELP_STR
        "All VRFs\n"
        "Database summary\n"
+       "LSAs in MaxAge list\n"
+       "Self-originated link states\n"
        OSPF_LSA_TYPES_DESC
+       "Link State ID (as an IP address)\n"
        "Advertising Router link states\n"
        "Advertising Router (as an IP address)\n"
        "Self-originated link states\n"
        JSON_STR)
 {
-	struct ospf *ospf = NULL;
-	struct listnode *node = NULL;
-	char *vrf_name = NULL;
-	bool all_vrf = false;
+	struct ospf *ospf;
 	int ret = CMD_SUCCESS;
-	int inst = 0;
-	int idx_vrf = 0;
-	uint8_t use_vrf = 0;
+	bool use_vrf = !!vrf_name;
 	bool uj = use_json(argc, argv);
+	struct in_addr *lsid_p = NULL;
+	struct in_addr *adv_router_p = NULL;
 	json_object *json = NULL;
 
 	if (uj)
 		json = json_object_new_object();
+	if (lsid_str)
+		lsid_p = &lsid;
+	if (adv_router_str)
+		adv_router_p = &adv_router;
 
-	OSPF_FIND_VRF_ARGS(argv, argc, idx_vrf, vrf_name, all_vrf);
-
-	if (vrf_name) {
+	if (vrf_name && strmatch(vrf_name, "all")) {
+		struct listnode *node;
 		bool ospf_output = false;
 
-		use_vrf = 1;
+		for (ALL_LIST_ELEMENTS_RO(om->ospf, node, ospf)) {
+			if (!ospf->oi_running)
+				continue;
+			if (ospf->instance != instance_id)
+				continue;
 
-		if (all_vrf) {
-			for (ALL_LIST_ELEMENTS_RO(om->ospf, node, ospf)) {
-				if (!ospf->oi_running)
-					continue;
-				ospf_output = true;
-				ret = show_ip_ospf_database_type_adv_router_common(
-					vty, ospf, 2, argc, argv, use_vrf, json,
-					uj);
-			}
-			if (!ospf_output)
-				vty_out(vty, "%% OSPF instance not found\n");
-		} else {
-			ospf = ospf_lookup_by_inst_name(inst, vrf_name);
-			if ((ospf == NULL) || !ospf->oi_running) {
-				vty_out(vty, "%% OSPF instance not found\n");
-				return CMD_SUCCESS;
-			}
+			if (adv_router_self)
+				adv_router_p = &ospf->router_id;
 
-			ret = show_ip_ospf_database_type_adv_router_common(
-				vty, ospf, 2, argc, argv, use_vrf, json, uj);
+			ospf_output = true;
+			ret = show_ip_ospf_database_common(
+				vty, ospf, !!maxage, !!selforig, type_name,
+				lsid_p, adv_router_p, use_vrf, json, uj);
 		}
+
+		if (!ospf_output)
+			vty_out(vty, "%% OSPF instance not found\n");
 	} else {
-		/* Display default ospf (instance 0) info */
-		ospf = ospf_lookup_by_vrf_id(VRF_DEFAULT);
+		ospf = ospf_lookup_by_inst_name(instance_id, vrf_name);
 		if (ospf == NULL || !ospf->oi_running) {
 			vty_out(vty, "%% OSPF instance not found\n");
 			return CMD_SUCCESS;
 		}
+		if (adv_router_self)
+			adv_router_p = &ospf->router_id;
 
-		ret = show_ip_ospf_database_type_adv_router_common(
-			vty, ospf, 0, argc, argv, use_vrf, json, uj);
+		ret = (show_ip_ospf_database_common(
+			vty, ospf, !!maxage, !!selforig, type_name, lsid_p,
+			adv_router_p, use_vrf, json, uj));
 	}
 
 	if (uj) {
@@ -7567,50 +7306,6 @@ DEFUN (show_ip_ospf_database_type_adv_router,
 	}
 
 	return ret;
-}
-
-DEFUN (show_ip_ospf_instance_database_type_adv_router,
-       show_ip_ospf_instance_database_type_adv_router_cmd,
-       "show ip ospf (1-65535) database <asbr-summary|external|network|router|summary|nssa-external|opaque-link|opaque-area|opaque-as> <adv-router A.B.C.D|self-originate> [json]",
-       SHOW_STR
-       IP_STR
-       "OSPF information\n"
-       "Instance ID\n"
-       "Database summary\n"
-       OSPF_LSA_TYPES_DESC
-       "Advertising Router link states\n"
-       "Advertising Router (as an IP address)\n"
-       "Self-originated link states\n"
-       JSON_STR)
-{
-	int idx_number = 3;
-	struct ospf *ospf;
-	unsigned short instance = 0;
-	bool uj = use_json(argc, argv);
-	json_object *json = NULL;
-
-	if (uj)
-		json = json_object_new_object();
-
-	instance = strtoul(argv[idx_number]->arg, NULL, 10);
-	if (instance != ospf_instance)
-		return CMD_NOT_MY_INSTANCE;
-
-	ospf = ospf_lookup_instance(instance);
-	if (!ospf || !ospf->oi_running)
-		return CMD_SUCCESS;
-
-	show_ip_ospf_database_type_adv_router_common(vty, ospf, 1, argc, argv,
-						     0, json, uj);
-
-	if (uj) {
-		vty_out(vty, "%s\n",
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
-	}
-
-	return CMD_SUCCESS;
 }
 
 DEFUN (ip_ospf_authentication_args,
@@ -12777,13 +12472,6 @@ void ospf_vty_show_init(void)
 
 	/* "show ip ospf database" commands. */
 	install_element(VIEW_NODE, &show_ip_ospf_database_cmd);
-	install_element(VIEW_NODE, &show_ip_ospf_database_max_cmd);
-	install_element(VIEW_NODE,
-			&show_ip_ospf_database_type_adv_router_cmd);
-	install_element(VIEW_NODE,
-			&show_ip_ospf_instance_database_type_adv_router_cmd);
-	install_element(VIEW_NODE, &show_ip_ospf_instance_database_cmd);
-	install_element(VIEW_NODE, &show_ip_ospf_instance_database_max_cmd);
 
 	/* "show ip ospf interface" commands. */
 	install_element(VIEW_NODE, &show_ip_ospf_interface_cmd);
