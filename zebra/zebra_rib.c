@@ -531,9 +531,11 @@ void rib_install_kernel(struct route_node *rn, struct route_entry *re,
 		SET_FLAG(re->status, ROUTE_ENTRY_INSTALLED);
 		for (ALL_NEXTHOPS(re->nhe->nhg, nexthop))
 			SET_FLAG(nexthop->flags, NEXTHOP_FLAG_FIB);
+
+		zebra_rib_evaluate_rn_nexthops(rn,
+					zebra_router_get_next_sequence());
 		return;
 	}
-
 
 	/*
 	 * Install the resolved nexthop object first.
@@ -608,9 +610,16 @@ void rib_uninstall_kernel(struct route_node *rn, struct route_entry *re)
 	struct zebra_vrf *zvrf = vrf_info_lookup(re->vrf_id);
 
 	if (info->safi != SAFI_UNICAST) {
+		const struct prefix *p, *src_p;
+
+		srcdest_rnode_prefixes(rn, &p, &src_p);
+
 		UNSET_FLAG(re->status, ROUTE_ENTRY_INSTALLED);
 		for (ALL_NEXTHOPS(re->nhe->nhg, nexthop))
 			UNSET_FLAG(nexthop->flags, NEXTHOP_FLAG_FIB);
+
+		zebra_rib_evaluate_rn_nexthops(rn,
+					zebra_router_get_next_sequence());
 		return;
 	}
 
@@ -1301,14 +1310,6 @@ static void rib_process(struct route_node *rn)
 	bool selected_changed = new_selected && CHECK_FLAG(new_selected->status,
 							   ROUTE_ENTRY_CHANGED);
 
-	/* Update fib according to selection results */
-	if (new_fib && old_fib)
-		rib_process_update_fib(zvrf, rn, old_fib, new_fib);
-	else if (new_fib)
-		rib_process_add_fib(zvrf, rn, new_fib);
-	else if (old_fib)
-		rib_process_del_fib(zvrf, rn, old_fib);
-
 	/* Update SELECTED entry */
 	if (old_selected != new_selected || selected_changed) {
 
@@ -1335,6 +1336,14 @@ static void rib_process(struct route_node *rn)
 					   ZEBRA_FLAG_SELECTED);
 		}
 	}
+
+	/* Update fib according to selection results */
+	if (new_fib && old_fib)
+		rib_process_update_fib(zvrf, rn, old_fib, new_fib);
+	else if (new_fib)
+		rib_process_add_fib(zvrf, rn, new_fib);
+	else if (old_fib)
+		rib_process_del_fib(zvrf, rn, old_fib);
 
 	/* Remove all RE entries queued for removal */
 	RNODE_FOREACH_RE_SAFE (rn, re, next) {
