@@ -1704,6 +1704,10 @@ static void pim_rp_show_info_list(struct list *list, struct vty *vty,
 					json_object_string_add(json_row,
 							       "prefixList",
 							       rp_info->plist);
+				else if (rp_info->alist)
+					json_object_string_add(json_row,
+							       "accessList",
+							       rp_info->alist);
 				else
 					json_object_string_add(
 						json_row, "group",
@@ -1722,6 +1726,8 @@ static void pim_rp_show_info_list(struct list *list, struct vty *vty,
 
 				if (rp_info->plist)
 					vty_out(vty, "%-18s  ", rp_info->plist);
+				else if (rp_info->alist)
+					vty_out(vty, "%-18s  ", rp_info->alist);
 				else
 					vty_out(vty, "%-18pFX  ",
 						&rp_info->group);
