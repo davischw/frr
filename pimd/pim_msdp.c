@@ -43,6 +43,7 @@
 #include "pim_msdp.h"
 #include "pim_msdp_packet.h"
 #include "pim_msdp_socket.h"
+#include "pim_nht.h"
 
 // struct pim_msdp pim_msdp, *msdp = &pim_msdp;
 
