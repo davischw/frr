@@ -86,6 +86,9 @@ struct zclient *zclient_new(struct thread_master *master,
 	zclient->synchronous = opt->synchronous;
 	zclient->supplemental = opt->supplemental;
 
+	if (opt->can_wait)
+		zclient->wait_master = thread_master_create("zclient");
+
 	return zclient;
 }
 
@@ -96,6 +99,9 @@ struct zclient *zclient_new(struct thread_master *master,
    Free zclient structure. */
 void zclient_free(struct zclient *zclient)
 {
+	if (zclient->wait_master)
+		thread_master_free(zclient->wait_master);
+
 	if (zclient->ibuf)
 		stream_free(zclient->ibuf);
 	if (zclient->obuf)
@@ -3719,9 +3725,56 @@ static int zclient_read(struct thread *thread)
 
 	/* Register read thread. */
 	stream_reset(zclient->ibuf);
-	zclient_event(ZCLIENT_READ, zclient);
+	if (!zclient->t_wait_timeout)
+		zclient_event(ZCLIENT_READ, zclient);
 
 	return 0;
+}
+
+static int zclient_wait_timer(struct thread *thread)
+{
+	/* nothing to do here, just breaking out of thread_fetch */
+	return 0;
+}
+
+bool zclient_wait(struct zclient *zclient, const struct timeval *deadline)
+{
+	struct timeval remain;
+	struct thread thread;
+	bool rv;
+
+	assert(zclient->wait_master);
+	assert(!zclient->t_wait_read && !zclient->t_wait_timeout);
+
+	if (zclient->sock < 0)
+		return false;
+	if (monotime_until(deadline, &remain) < 0)
+		return false;
+
+	if (zclient_debug)
+		zlog_debug("zclient_wait(%p) start", zclient);
+
+	thread_add_read(zclient->wait_master, zclient_read, zclient,
+			zclient->sock, &zclient->t_wait_read);
+	thread_add_timer_tv(zclient->wait_master, zclient_wait_timer, zclient,
+			    &remain, &zclient->t_wait_timeout);
+
+	/* only process one event, return to caller to decide whether to
+	 * continue wait or condition is fulfilled now
+	 */
+	thread_fetch(zclient->wait_master, &thread);
+	thread_call(&thread);
+
+	rv = (zclient->t_wait_timeout != NULL);
+
+	if (zclient_debug)
+		zlog_debug("zclient_wait(%p) end (%s)", zclient,
+			   rv ? "update processed" : "timed out");
+
+	THREAD_OFF(zclient->t_wait_read);
+	THREAD_OFF(zclient->t_wait_timeout);
+
+	return rv;
 }
 
 void zclient_redistribute(int command, struct zclient *zclient, afi_t afi,
