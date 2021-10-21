@@ -1731,6 +1731,7 @@ static int pim_cand_rp_adv(struct thread *t)
 	struct cand_rp_msg *msg;
 #define MAX_GROUP_BYTE_SIZE (/* prefix_cnt max */ 255 * /* group length */ 20)
 	uint8_t buf[PIM_MSG_HEADER_LEN + sizeof(*msg) + MAX_GROUP_BYTE_SIZE];
+	size_t msg_size;
 
 	msg = (struct cand_rp_msg *)(&buf[PIM_MSG_HEADER_LEN]);
 	msg->prefix_cnt = pim_cand_rp_packet_groups(scope, &msg->groups[0],
@@ -1740,6 +1741,8 @@ static int pim_cand_rp_adv(struct thread *t)
 	msg->rp_addr.family = IANA_AFI_IPV4;
 	msg->rp_addr.reserved = 0;
 	msg->rp_addr.addr = scope->cand_rp_addrsel.run_addr;
+	msg_size = PIM_MSG_HEADER_LEN + sizeof(*msg) +
+		msg->prefix_cnt * sizeof(struct pim_encoded_group_ipv4);
 
 	scope->cand_rp_prev_addr = scope->cand_rp_addrsel.run_addr;
 
@@ -1747,10 +1750,10 @@ static int pim_cand_rp_adv(struct thread *t)
 		   scope->cand_rp_prio, &scope->cand_rp_addrsel.run_addr,
 		   msg->prefix_cnt, &scope->current_bsr);
 
-	pim_msg_build_header(buf, sizeof(buf), PIM_MSG_TYPE_CANDIDATE, false);
+	pim_msg_build_header(buf, msg_size, PIM_MSG_TYPE_CANDIDATE, false);
 
 	if (pim_msg_send(scope->unicast_sock, scope->cand_rp_addrsel.run_addr,
-			 scope->current_bsr, buf, sizeof(buf), NULL)) {
+			 scope->current_bsr, buf, msg_size, NULL)) {
 		zlog_warn("failed to send Cand-RP message: %m");
 	}
 
