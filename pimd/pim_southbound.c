@@ -46,6 +46,7 @@
 #include "pimd/pim_southbound.h"
 #include "pimd/pim_static.h"
 #include "pimd/pim_time.h"
+#include "pimd/pim_nht.h"
 
 static struct zclient *zclient;
 static const struct in_addr ia_zero;

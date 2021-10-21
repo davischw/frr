@@ -89,6 +89,8 @@ struct pim_nexthop_cache *pim_nexthop_cache_find(struct pim_instance *pim,
 bool pim_nexthop_cache_wait(struct pim_instance *pim,
 			    struct pim_nexthop_cache *pnc, unsigned timeout_ms);
 
+bool pim_nexthop_lookup(struct pim_instance *pim, struct pim_nexthop *nexthop,
+			struct in_addr addr, int neighbor_needed);
 uint32_t pim_compute_ecmp_hash(struct prefix *src, struct prefix *grp);
 int pim_ecmp_nexthop_lookup(struct pim_instance *pim,
 			    struct pim_nexthop *nexthop, struct prefix *src,

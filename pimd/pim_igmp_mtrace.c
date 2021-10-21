@@ -29,6 +29,7 @@
 #include "pim_ifchannel.h"
 #include "pim_macro.h"
 #include "pim_igmp_mtrace.h"
+#include "pim_nht.h"
 
 static struct in_addr mtrace_primary_address(struct interface *ifp)
 {

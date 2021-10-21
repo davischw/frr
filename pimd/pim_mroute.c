@@ -46,6 +46,7 @@
 #include "pim_vxlan.h"
 #include "pim_southbound.h"
 #include "pim_routemap.h"
+#include "pim_nht.h"
 
 #ifndef PIM_SOUTHBOUND
 static void mroute_read_on(struct pim_instance *pim);
