@@ -84,6 +84,7 @@ struct zclient *zclient_new(struct thread_master *master,
 
 	zclient->receive_notify = opt->receive_notify;
 	zclient->synchronous = opt->synchronous;
+	zclient->supplemental = opt->supplemental;
 
 	return zclient;
 }
@@ -3609,6 +3610,7 @@ static int zclient_read(struct thread *thread)
 	uint8_t marker, version;
 	vrf_id_t vrf_id;
 	struct zclient *zclient;
+	bool call_lib;
 
 	/* Get socket to zebra. */
 	zclient = THREAD_ARG(thread);
@@ -3700,7 +3702,13 @@ static int zclient_read(struct thread *thread)
 		zlog_debug("zclient %p command %s VRF %u", zclient,
 			   zserv_command_string(command), vrf_id);
 
-	if (command < array_size(lib_handlers) && lib_handlers[command])
+	if (command == ZEBRA_CAPABILITIES || command == ZEBRA_ERROR)
+		call_lib = true;
+	else
+		call_lib = !zclient->supplemental;
+
+	if (call_lib && command < array_size(lib_handlers) &&
+	    lib_handlers[command])
 		lib_handlers[command](command, zclient, length, vrf_id);
 	if (command < zclient->n_handlers && zclient->handlers[command])
 		zclient->handlers[command](command, zclient, length, vrf_id);

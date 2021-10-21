@@ -304,6 +304,9 @@ struct zclient {
 	/* Is this a synchronous client? */
 	bool synchronous;
 
+	/* supplemental zclient = no default iface/addr handlers */
+	bool supplemental;
+
 	/* BFD enabled with bfd_protocol_integration_init() */
 	bool bfd_integration;
 
@@ -805,6 +808,12 @@ enum zebra_neigh_state { ZEBRA_NEIGH_INACTIVE = 0, ZEBRA_NEIGH_ACTIVE = 1 };
 struct zclient_options {
 	bool receive_notify;
 	bool synchronous;
+
+	/* client-side only option, disable default lib handlers for iface
+	 * and address updates.  Use when a daemon uses additional (i.e.
+	 * supplemental) zclients for specific purposes.
+	 */
+	bool supplemental;
 };
 
 extern struct zclient_options zclient_options_default;
