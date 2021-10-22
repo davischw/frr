@@ -266,6 +266,9 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 	     node = route_next(node)) {
 		struct spt_thresh_config *cfg = node->info;
 
+		if (!cfg)
+			continue;
+
 		switch (cfg->spt_threshold) {
 		case PIM_SPT_THRESH_IMMEDIATE:
 			vty_out(vty, "%sip pim spt-switchover %pFX immediate\n",
