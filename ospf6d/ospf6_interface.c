@@ -1100,7 +1100,9 @@ static int ospf6_interface_show(struct vty *vty, struct interface *ifp,
 		if (if_is_operative(ifp) && oi->type != default_iftype)
 			json_object_string_add(json_obj, "operatingAsType",
 					       ospf6_iftype_str(oi->type));
-
+		json_object_boolean_add(
+			json_obj, "passive",
+			!!CHECK_FLAG(oi->flag, OSPF6_INTERFACE_PASSIVE));
 	} else {
 		vty_out(vty, "%s is %s, type %s\n", ifp->name,
 			(if_is_operative(ifp) ? "up" : "down"),
@@ -1116,6 +1118,8 @@ static int ospf6_interface_show(struct vty *vty, struct interface *ifp,
 		if (if_is_operative(ifp) && oi->type != default_iftype)
 			vty_out(vty, "  Operating as type %s\n",
 				ospf6_iftype_str(oi->type));
+		if (CHECK_FLAG(oi->flag, OSPF6_INTERFACE_PASSIVE))
+			vty_out(vty, "  Passive interface\n");
 	}
 
 	if (use_json) {
