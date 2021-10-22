@@ -1090,7 +1090,9 @@ static int ospf6_interface_show(struct vty *vty, struct interface *ifp,
 		if (if_is_operative(ifp) && oi->type != default_iftype)
 			json_object_string_add(json_obj, "operatingAsType",
 					       ospf6_iftype_str(oi->type));
-
+		json_object_boolean_add(
+			json_obj, "passive",
+			!!CHECK_FLAG(oi->flag, OSPF6_INTERFACE_PASSIVE));
 	} else {
 		vty_out(vty, "%s is %s, type %s\n", ifp->name,
 			(if_is_operative(ifp) ? "up" : "down"),
@@ -1106,6 +1108,8 @@ static int ospf6_interface_show(struct vty *vty, struct interface *ifp,
 		if (if_is_operative(ifp) && oi->type != default_iftype)
 			vty_out(vty, "  Operating as type %s\n",
 				ospf6_iftype_str(oi->type));
+		if (CHECK_FLAG(oi->flag, OSPF6_INTERFACE_PASSIVE))
+			vty_out(vty, "  Passive interface\n");
 	}
 
 	if (use_json) {
@@ -1280,6 +1284,9 @@ static int ospf6_interface_show(struct vty *vty, struct interface *ifp,
 				json_arr, json_object_new_string(lsa->name));
 		json_object_object_add(json_obj, "pendingLsaLsAck", json_arr);
 
+		if (oi->gr.hello_delay.interval != 0)
+			json_object_int_add(json_obj, "grHelloDelaySecs",
+					    oi->gr.hello_delay.interval);
 	} else {
 		timerclear(&res);
 		if (oi->thread_send_lsupdate)
@@ -1303,6 +1310,10 @@ static int ospf6_interface_show(struct vty *vty, struct interface *ifp,
 			(oi->thread_send_lsack ? "on" : "off"));
 		for (ALL_LSDB(oi->lsack_list, lsa, lsanext))
 			vty_out(vty, "      %s\n", lsa->name);
+
+		if (oi->gr.hello_delay.interval != 0)
+			vty_out(vty, "  Graceful Restart hello delay: %us\n",
+				oi->gr.hello_delay.interval);
 	}
 
 	/* BFD specific. */

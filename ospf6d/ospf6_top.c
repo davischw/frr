@@ -1456,6 +1456,8 @@ static void ospf6_show(struct vty *vty, struct ospf6 *o, json_object *json,
 
 		/* Redistribute configuration */
 		/* XXX */
+		json_object_int_add(json, "lsaRefreshIntervalSecs",
+				    OSPF_LS_REFRESH_TIME);
 		json_object_int_add(json, "lsaMinimumArrivalMsecs",
 				    o->lsa_minarrival);
 
@@ -1548,6 +1550,8 @@ static void ospf6_show(struct vty *vty, struct ospf6 *o, json_object *json,
 
 		/* Redistribute configuration */
 		/* XXX */
+		vty_out(vty, " LSA refresh interval %u secs\n",
+			OSPF_LS_REFRESH_TIME);
 		vty_out(vty, " LSA minimum arrival %d msecs\n",
 			o->lsa_minarrival);
 
