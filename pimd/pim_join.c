@@ -307,8 +307,13 @@ int pim_joinprune_recv(struct interface *ifp, struct pim_neighbor *neigh,
 				continue;
 
 			if (!pim_filter_match(&pim->join_filter, &sg, ifp,
-					      NULL))
+					      NULL)) {
+				if (PIM_DEBUG_PIM_TRACE || PIM_DEBUG_PIM_J_P)
+					zlog_debug(
+						"PIM JOIN %pSG4 on %s filtered by route-map",
+						&sg, ifp->name);
 				continue;
+			}
 
 			recv_join(ifp, neigh, msg_holdtime,
 				  msg_upstream_addr.u.prefix4, &sg,

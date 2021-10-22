@@ -490,8 +490,13 @@ struct igmp_source *igmp_get_source_by_addr(struct igmp_group *group,
 		*new = false;
 
 	if (!pim_filter_match(&pim_ifp->igmp_filter, &sg, group->interface,
-			      NULL))
+			      NULL)) {
+		if (PIM_DEBUG_IGMP_TRACE)
+			zlog_debug(
+				"rejected join source %pSG4 on %s due to route-map",
+				&sg, group->interface->name);
 		return NULL;
+	}
 
 	src = igmp_find_source_by_addr(group, src_addr);
 	if (src)
