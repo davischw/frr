@@ -3655,6 +3655,7 @@ static void show_ip_ospf_interface_sub(struct vty *vty, struct ospf *ospf,
 	struct route_node *rn;
 	char buf[PREFIX_STRLEN];
 	uint32_t bandwidth = ifp->bandwidth ? ifp->bandwidth : ifp->speed;
+	struct ospf_if_params *params;
 
 	/* Is interface up? */
 	if (use_json) {
@@ -3955,6 +3956,9 @@ static void show_ip_ospf_interface_sub(struct vty *vty, struct ospf *ospf,
 			char timebuf[OSPF_TIME_DUMP_SIZE];
 			if (use_json) {
 				long time_store = 0;
+
+				json_object_boolean_false_add(
+					json_interface_sub, "passive");
 				if (oi->t_hello)
 					time_store =
 						monotime_until(
@@ -3970,11 +3974,15 @@ static void show_ip_ospf_interface_sub(struct vty *vty, struct ospf *ospf,
 							sizeof(timebuf)));
 		} else /* passive-interface is set */
 		{
-			if (use_json)
+			if (use_json) {
+				/* deprecated */
 				json_object_boolean_true_add(
 					json_interface_sub,
 					"timerPassiveIface");
-			else
+
+				json_object_boolean_true_add(json_interface_sub,
+							     "passive");
+			} else
 				vty_out(vty,
 					"    No Hellos (Passive interface)\n");
 		}
@@ -3990,6 +3998,20 @@ static void show_ip_ospf_interface_sub(struct vty *vty, struct ospf *ospf,
 				"  Neighbor Count is %d, Adjacent neighbor count is %d\n",
 				ospf_nbr_count(oi, 0),
 				ospf_nbr_count(oi, NSM_Full));
+
+
+		params = IF_DEF_PARAMS(ifp);
+		if (params
+		    && OSPF_IF_PARAM_CONFIGURED(params, v_gr_hello_delay)) {
+			if (use_json) {
+				json_object_int_add(json_interface_sub,
+						    "grHelloDelaySecs",
+						    params->v_gr_hello_delay);
+			} else
+				vty_out(vty,
+					"  Graceful Restart hello delay: %us\n",
+					params->v_gr_hello_delay);
+		}
 
 		ospf_interface_bfd_show(vty, ifp, json_interface_sub);
 
