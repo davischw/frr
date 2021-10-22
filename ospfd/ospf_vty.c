@@ -5471,8 +5471,10 @@ static void show_ip_ospf_neighbor_detail_sub(struct vty *vty,
 				"      Graceful Restart HELPER Status : Inprogress.\n");
 
 			vty_out(vty,
-				"      Graceful Restart grace period time: %d (seconds).\n",
-				nbr->gr_helper_info.recvd_grace_period);
+				"      Graceful Restart grace period time: %ds (due in %lus).\n",
+				nbr->gr_helper_info.recvd_grace_period,
+				thread_timer_remain_second(
+					nbr->gr_helper_info.t_grace_timer));
 			vty_out(vty, "      Graceful Restart reason: %s.\n",
 				ospf_restart_reason2str(
 					nbr->gr_helper_info.gr_restart_reason));
@@ -5500,9 +5502,18 @@ static void show_ip_ospf_neighbor_detail_sub(struct vty *vty,
 							"Inprogress"
 							: "None");
 		if (OSPF_GR_IS_ACTIVE_HELPER(nbr)) {
+			/* deprecated */
 			json_object_int_add(
 				json_neigh, "graceInterval",
 				nbr->gr_helper_info.recvd_grace_period);
+
+			json_object_int_add(
+				json_neigh, "grGraceInterval",
+				nbr->gr_helper_info.recvd_grace_period);
+			json_object_int_add(
+				json_neigh, "grRemainingTimeSecs",
+				thread_timer_remain_second(
+					nbr->gr_helper_info.t_grace_timer));
 			json_object_string_add(
 				json_neigh, "grRestartReason",
 				ospf_restart_reason2str(
@@ -5510,19 +5521,34 @@ static void show_ip_ospf_neighbor_detail_sub(struct vty *vty,
 		}
 
 		if (nbr->gr_helper_info.rejected_reason
-		    != OSPF_HELPER_REJECTED_NONE)
+		    != OSPF_HELPER_REJECTED_NONE) {
+			/* deprecated */
 			json_object_string_add(
 				json_neigh, "helperRejectReason",
 				ospf_rejected_reason2str(
 					nbr->gr_helper_info.rejected_reason));
 
+			json_object_string_add(
+				json_neigh, "grHelperRejectReason",
+				ospf_rejected_reason2str(
+					nbr->gr_helper_info.rejected_reason));
+		}
+
 		if (nbr->gr_helper_info.helper_exit_reason
-		    != OSPF_GR_HELPER_EXIT_NONE)
+		    != OSPF_GR_HELPER_EXIT_NONE) {
+			/* deprecated */
 			json_object_string_add(
 				json_neigh, "helperExitReason",
 				ospf_exit_reason2str(
 					nbr->gr_helper_info
 						 .helper_exit_reason));
+
+			json_object_string_add(
+				json_neigh, "grHelperExitReason",
+				ospf_exit_reason2str(
+					nbr->gr_helper_info
+						 .helper_exit_reason));
+		}
 	}
 
 	bfd_sess_show(vty, json_neigh, nbr->bfd_session);
