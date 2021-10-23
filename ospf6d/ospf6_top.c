@@ -146,6 +146,80 @@ uint32_t ospf6_vif_unref(struct ospf6 *o, ifindex_t vif,
 
 static void ospf6_disable(struct ospf6 *o);
 
+static const char *ospf6_timeval_dump(struct timeval *t, char *buf, size_t size)
+{
+/* Making formatted timer strings. */
+#define MINUTE_IN_SECONDS	60
+#define HOUR_IN_SECONDS		(60*MINUTE_IN_SECONDS)
+
+	unsigned long w, d, h, m, ms, us;
+
+	if (!t)
+		return "inactive";
+
+	w = d = h = m = ms = 0;
+	memset(buf, 0, size);
+
+	us = t->tv_usec;
+	if (us >= 1000) {
+		ms = us / 1000;
+		us %= 1000;
+		(void)us; /* unused */
+	}
+
+	if (ms >= 1000) {
+		t->tv_sec += ms / 1000;
+		ms %= 1000;
+	}
+
+	if (t->tv_sec > ONE_WEEK_SECOND) {
+		w = t->tv_sec / ONE_WEEK_SECOND;
+		t->tv_sec -= w * ONE_WEEK_SECOND;
+	}
+
+	if (t->tv_sec > ONE_DAY_SECOND) {
+		d = t->tv_sec / ONE_DAY_SECOND;
+		t->tv_sec -= d * ONE_DAY_SECOND;
+	}
+
+	if (t->tv_sec >= HOUR_IN_SECONDS) {
+		h = t->tv_sec / HOUR_IN_SECONDS;
+		t->tv_sec -= h * HOUR_IN_SECONDS;
+	}
+
+	if (t->tv_sec >= MINUTE_IN_SECONDS) {
+		m = t->tv_sec / MINUTE_IN_SECONDS;
+		t->tv_sec -= m * MINUTE_IN_SECONDS;
+	}
+
+	if (w > 99)
+		snprintf(buf, size, "%luw%1lud", w, d);
+	else if (w)
+		snprintf(buf, size, "%luw%1lud%02luh", w, d, h);
+	else if (d)
+		snprintf(buf, size, "%1lud%02luh%02lum", d, h, m);
+	else if (h)
+		snprintf(buf, size, "%luh%02lum%02lds", h, m, (long)t->tv_sec);
+	else if (m)
+		snprintf(buf, size, "%lum%02lds", m, (long)t->tv_sec);
+	else if (t->tv_sec > 0 || ms > 0)
+		snprintf(buf, size, "%ld.%03lus", (long)t->tv_sec, ms);
+	else
+		snprintf(buf, size, "%ld usecs", (long)t->tv_usec);
+
+	return buf;
+}
+
+const char *ospf6_timer_dump(struct thread *t, char *buf, size_t size)
+{
+	struct timeval result;
+	if (!t)
+		return "inactive";
+
+	monotime_until(&t->u.sands, &result);
+	return ospf6_timeval_dump(&result, buf, size);
+}
+
 static void ospf6_add(struct ospf6 *ospf6)
 {
 	listnode_add(om6->ospf6, ospf6);

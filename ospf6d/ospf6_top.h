@@ -268,7 +268,11 @@ DECLARE_QOBJ_TYPE(ospf6);
 extern struct ospf6 *ospf6;
 extern struct ospf6_master *om6;
 
+/* Appropriate buffer size to use with ospf6_timer_dump */
+#define OSPF6_TIME_DUMP_SIZE	16
+
 /* prototypes */
+extern const char *ospf6_timer_dump(struct thread *t, char *buf, size_t size);
 extern void ospf6_master_init(struct thread_master *master);
 extern void install_element_ospf6_clear_process(void);
 extern void ospf6_top_init(void);

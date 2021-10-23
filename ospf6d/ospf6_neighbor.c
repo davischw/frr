@@ -1092,14 +1092,15 @@ static void ospf6_neighbor_show_detail(struct vty *vty,
 				       struct ospf6_neighbor *on,
 				       json_object *json, bool use_json)
 {
+	struct ospf6 *ospf6 = on->ospf6_if->area->ospf6;
 	char drouter[16], bdrouter[16];
+	char options[32];
 	char linklocal_addr[64], duration[32];
 	struct timeval now, res;
 	struct ospf6_lsa *lsa, *lsanext;
 	json_object *json_neighbor;
 	json_object *json_array;
 	char db_desc_str[20];
-	char options[16];
 
 	inet_ntop(AF_INET6, &on->linklocal_addr, linklocal_addr,
 		  sizeof(linklocal_addr));
@@ -1110,7 +1111,7 @@ static void ospf6_neighbor_show_detail(struct vty *vty,
 	timersub(&now, &on->last_changed, &res);
 	timerstring(&res, duration, sizeof(duration));
 
-	ospf6_options_printbuf((uint8_t *)(on->options), options,
+	ospf6_options_printbuf((uint8_t *)on->options, options,
 			       sizeof(options));
 
 	if (use_json) {
@@ -1129,15 +1130,23 @@ static void ospf6_neighbor_show_detail(struct vty *vty,
 				       ospf6_neighbor_state_str[on->state]);
 		json_object_string_add(json_neighbor, "neighborStateDuration",
 				       duration);
+		json_object_int_add(json_neighbor, "stateChangeCounter",
+				    on->state_change);
+		if (on->inactivity_timer) {
+			long time_store;
+			time_store =
+				monotime_until(&on->inactivity_timer->u.sands,
+					       NULL)
+				/ 1000LL;
+			json_object_int_add(json_neighbor,
+					    "routerDeadIntervalTimerDueMsec",
+					    time_store);
+		}
 		json_object_string_add(json_neighbor, "neighborDRouter",
 				       drouter);
 		json_object_string_add(json_neighbor, "neighborBdRouter",
 				       bdrouter);
-
-		/* Option Bits (Capabilities) */
-		json_object_string_add(json_neighbor, "optionBits", options);
-		ospf6_options_json((uint8_t *)(on->options), json_neighbor);
-
+		json_object_string_add(json_neighbor, "optionsList", options);
 		snprintf(db_desc_str, sizeof(db_desc_str), "%s%s%s",
 			 (CHECK_FLAG(on->dbdesc_bits, OSPF6_DBDESC_IBIT)
 				  ? "Initial "
@@ -1253,26 +1262,51 @@ static void ospf6_neighbor_show_detail(struct vty *vty,
 		json_object_object_add(json_neighbor, "pendingLsaLsAck",
 				       json_array);
 
+		if (ospf6->ospf6_helper_cfg.is_helper_supported) {
+			json_object_string_add(json_neighbor, "grHelperStatus",
+					       OSPF6_GR_IS_ACTIVE_HELPER(on)
+						       ? "active"
+						       : "not helping");
+			if (OSPF6_GR_IS_ACTIVE_HELPER(on))
+				json_object_int_add(
+					json_neighbor,
+					"grHelperRemainingTimeSecs",
+					thread_timer_remain_second(
+						on->gr_helper_info
+							.t_grace_timer));
+			if (on->gr_helper_info.helper_exit_reason
+			    != OSPF6_GR_HELPER_EXIT_NONE)
+				json_object_string_add(
+					json_neighbor, "grHelperExitReason",
+					ospf6_exit_reason_desc
+						[on->gr_helper_info
+							 .helper_exit_reason]);
+		}
+
 		bfd_sess_show(vty, json_neighbor, on->bfd_session);
 
 		json_object_object_add(json, on->name, json_neighbor);
 
 
 	} else {
+		char timebuf[OSPF6_TIME_DUMP_SIZE];
+
 		vty_out(vty, " Neighbor %s\n", on->name);
 		vty_out(vty, "    Area %s via interface %pOI (ifindex %d)\n",
 			on->ospf6_if->area->name, on->ospf6_if,
 			on->ospf6_if->interface->ifindex);
 		vty_out(vty, "    His IfIndex: %d Link-local address: %s\n",
 			on->ifindex, linklocal_addr);
-		vty_out(vty, "    State %s for a duration of %s\n",
-			ospf6_neighbor_state_str[on->state], duration);
-
-		/* Option Bits (Capabilities) */
-		vty_out(vty, "    Options: %s\n", options);
-
+		vty_out(vty,
+			"    State %s for a duration of %s (%u state changes)\n",
+			ospf6_neighbor_state_str[on->state], duration,
+			on->state_change);
+		vty_out(vty, "    Dead timer due in %s\n",
+			ospf6_timer_dump(on->inactivity_timer, timebuf,
+					sizeof(timebuf)));
 		vty_out(vty, "    His choice of DR/BDR %s/%s, Priority %d\n",
 			drouter, bdrouter, on->priority);
+		vty_out(vty, "    Options %s\n", options);
 		vty_out(vty, "    DbDesc status: %s%s%s SeqNum: %#lx\n",
 			(CHECK_FLAG(on->dbdesc_bits, OSPF6_DBDESC_IBIT)
 				 ? "Initial "
@@ -1344,6 +1378,25 @@ static void ospf6_neighbor_show_detail(struct vty *vty,
 			(on->thread_send_lsack ? "on" : "off"));
 		for (ALL_LSDB(on->lsack_list, lsa, lsanext))
 			vty_out(vty, "      %s\n", lsa->name);
+
+		if (ospf6->ospf6_helper_cfg.is_helper_supported) {
+			vty_out(vty, "    Graceful Restart helper status: %s\n",
+				OSPF6_GR_IS_ACTIVE_HELPER(on) ? "active"
+							      : "not helping");
+			if (OSPF6_GR_IS_ACTIVE_HELPER(on))
+				vty_out(vty,
+					"    Graceful Restart helper remaining time: %lus\n",
+					thread_timer_remain_second(
+						on->gr_helper_info
+							.t_grace_timer));
+			if (on->gr_helper_info.helper_exit_reason
+			    != OSPF6_GR_HELPER_EXIT_NONE)
+				vty_out(vty,
+					"    Graceful Restart helper exit reason: %s\n",
+					ospf6_exit_reason_desc
+						[on->gr_helper_info
+							 .helper_exit_reason]);
+		}
 
 		bfd_sess_show(vty, NULL, on->bfd_session);
 	}
