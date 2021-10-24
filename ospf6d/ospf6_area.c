@@ -451,12 +451,14 @@ void ospf6_area_disable(struct ospf6_area *oa)
 void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 		     json_object *json_areas, bool use_json)
 {
+	struct ospf6 *ospf6 = oa->ospf6;
 	struct listnode *i;
 	struct ospf6_interface *oi;
+	struct ospf6_route *range;
 	unsigned long result;
 	json_object *json_area;
-	json_object *json_lsa_stats;
 	json_object *array_interfaces;
+	json_object *json_ranges;
 
 	if (use_json) {
 		json_area = json_object_new_object();
@@ -464,18 +466,95 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 					IS_AREA_STUB(oa));
 		json_object_boolean_add(json_area, "areaIsNSSA",
 					IS_AREA_NSSA(oa));
-		if (IS_AREA_STUB(oa) || IS_AREA_NSSA(oa)) {
+
+		if (oa->area_id == OSPF_AREA_BACKBONE) {
+			json_object_string_add(json_area, "type", "backbone");
+			json_object_boolean_false_add(json_area,
+						      "areaNoSummary");
+		} else if (IS_AREA_STUB(oa)) {
+			json_object_string_add(json_area, "type", "stub");
 			json_object_boolean_add(json_area, "areaNoSummary",
 						oa->no_summary);
+		} else if (IS_AREA_NSSA(oa)) {
+			json_object_string_add(json_area, "type", "nssa");
+			json_object_boolean_add(json_area, "areaNoSummary",
+						oa->no_summary);
+
+			if (CHECK_FLAG(ospf6->flag, OSPF6_FLAG_ABR)) {
+				const char *translator_role;
+				const char *translator_status;
+
+				switch (oa->NSSATranslatorRole) {
+				case OSPF6_NSSA_ROLE_NEVER:
+					translator_role = "never";
+					break;
+				case OSPF6_NSSA_ROLE_CANDIDATE:
+					translator_role = "candidate";
+					break;
+				case OSPF6_NSSA_ROLE_ALWAYS:
+					translator_role = "always";
+					break;
+				default:
+					translator_role = "unknown";
+					break;
+				}
+				json_object_string_add(json_area,
+						       "nssaTranslatorRole",
+						       translator_role);
+
+				switch (oa->NSSATranslatorState) {
+				case OSPF6_NSSA_TRANSLATE_DISABLED:
+					translator_status = "active";
+					break;
+				case OSPF6_NSSA_TRANSLATE_ENABLED:
+					translator_status = "inactive";
+					break;
+				default:
+					translator_status = "unknown";
+					break;
+				}
+				json_object_string_add(json_area,
+						       "nssaTranslatorStatus",
+						       translator_status);
+				json_object_int_add(
+					json_area, "nssaTranslatorStateChanges",
+					oa->nssa_translator_state_changes);
+			}
+		} else {
+			json_object_string_add(json_area, "type", "normal");
+			json_object_boolean_false_add(json_area,
+						      "areaNoSummary");
 		}
 
-		json_object_int_add(json_area, "numberOfAreaScopedLsa",
-				    oa->lsdb->count);
 		json_object_object_add(
 			json_area, "lsaStatistics",
 			JSON_OBJECT_NEW_ARRAY(json_object_new_int,
 					      oa->lsdb->stats,
 					      OSPF6_LSTYPE_SIZE));
+
+		/* LSA counters. */
+		json_object_int_add(
+			json_area, "lsaRouterNumber",
+			ospf6_lsdb_count(oa->lsdb, htons(OSPF6_LSTYPE_ROUTER)));
+		json_object_int_add(
+			json_area, "lsaNetworkNumber",
+			ospf6_lsdb_count(oa->lsdb,
+					 htons(OSPF6_LSTYPE_NETWORK)));
+		json_object_int_add(
+			json_area, "lsaInterAreaPrefixNumber",
+			ospf6_lsdb_count(oa->lsdb,
+					 htons(OSPF6_LSTYPE_INTER_PREFIX)));
+		json_object_int_add(
+			json_area, "lsaInterAreaRouterNumber",
+			ospf6_lsdb_count(oa->lsdb,
+					 htons(OSPF6_LSTYPE_INTER_ROUTER)));
+		json_object_int_add(
+			json_area, "lsaNssaNumber",
+			ospf6_lsdb_count(oa->lsdb, htons(OSPF6_LSTYPE_TYPE_7)));
+		json_object_int_add(
+			json_area, "lsaIntraAreaPrefixNumber",
+			ospf6_lsdb_count(oa->lsdb,
+					 htons(OSPF6_LSTYPE_INTRA_PREFIX)));
 
 		/* Interfaces Attached */
 		array_interfaces = json_object_new_array();
@@ -490,6 +569,41 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 		/* SPF Calculations */
 		json_object_int_add(json_area, "spfExecutedCounter",
 				    oa->spf_calculation);
+
+		/* Reachable ABRs/ASBRs. */
+		{
+			struct ospf6_route *ro;
+			uint32_t count = 0;
+
+			for (ro = ospf6_route_head(ospf6->brouter_table); ro;
+			     ro = ospf6_route_next(ro)) {
+				if (ntohl(ro->path.area_id)
+				    != ntohl(oa->area_id))
+					continue;
+				if (CHECK_FLAG(ro->path.router_bits,
+					       OSPF6_ROUTER_BIT_B))
+					count++;
+			}
+			json_object_int_add(json_area, "numReachableAbr",
+					    count);
+		}
+		{
+			struct ospf6_route *ro;
+			uint32_t count = 0;
+
+			for (ro = ospf6_route_head(ospf6->brouter_table); ro;
+			     ro = ospf6_route_next(ro)) {
+				if (ntohl(ro->path.area_id)
+				    != ntohl(oa->area_id))
+					continue;
+				if (CHECK_FLAG(ro->path.router_bits,
+					       OSPF6_ROUTER_BIT_E))
+					count++;
+			}
+			json_object_int_add(json_area, "numReachableAsbr",
+					    count);
+		}
+
 		if (oa->ts_spf.tv_sec || oa->ts_spf.tv_usec) {
 			json_object_boolean_true_add(json_area, "spfHasRun");
 			result = monotime_since(&oa->ts_spf, NULL);
@@ -511,6 +625,33 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 		} else
 			json_object_boolean_false_add(json_area, "spfHasRun");
 
+		json_object_int_add(json_area, "spfExecutedCounter",
+				    oa->spf_calculation);
+		json_object_boolean_add(json_area, "transitCapability",
+					IS_AREA_TRANSIT(oa));
+
+		/* Show ranges */
+		json_ranges = json_object_new_object();
+		json_object_object_add(json_area, "ranges", json_ranges);
+		for (range = ospf6_route_head(oa->range_table); range;
+		     range = ospf6_route_next(range)) {
+			json_object *json_range = NULL;
+			char buf[PREFIX_STRLEN];
+
+			prefix2str(&range->rnode->p, buf, sizeof(buf));
+			json_range = json_object_new_object();
+			json_object_object_add(json_ranges, buf, json_range);
+
+			if (range->path.u.cost_config
+			    != OSPF_AREA_RANGE_COST_UNSPEC)
+				json_object_int_add(json_range, "cost",
+						    range->path.u.cost_config);
+
+			json_object_boolean_add(
+				json_range, "advertise",
+				!CHECK_FLAG(range->flag,
+					    OSPF6_ROUTE_DO_NOT_ADVERTISE));
+		}
 
 		json_object_object_add(json_areas, oa->name, json_area);
 

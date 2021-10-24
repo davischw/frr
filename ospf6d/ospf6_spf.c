@@ -698,6 +698,7 @@ static void ospf6_spf_calculation_thread(struct thread *t)
 
 	ospf6->last_spf_reason = ospf6->spf_reason;
 	ospf6_reset_spf_reason(ospf6);
+	ospf6->lsa_update_merged = 0;
 }
 
 /* Add schedule for SPF calculation.  To avoid frequenst SPF calc, we
@@ -1299,6 +1300,8 @@ static void ospf6_ase_calculate_timer(struct thread *t)
 		ospf6_zebra_gr_enable(ospf6, ospf6->gr_info.grace_period);
 		ospf6->gr_info.finishing_restart = false;
 	}
+
+	ospf6->lsa_update_merged = 0;
 }
 
 void ospf6_ase_calculate_timer_add(struct ospf6 *ospf6)
