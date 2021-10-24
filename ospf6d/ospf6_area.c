@@ -442,6 +442,7 @@ void ospf6_area_disable(struct ospf6_area *oa)
 void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 		     json_object *json_areas, bool use_json)
 {
+	struct ospf6 *ospf6 = oa->ospf6;
 	struct listnode *i;
 	struct ospf6_interface *oi;
 	unsigned long result;
@@ -458,8 +459,71 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 						oa->no_summary);
 		}
 
-		json_object_int_add(json_area, "numberOfAreaScopedLsa",
-				    oa->lsdb->count);
+		/* NSSA ABR translator data */
+		if (IS_AREA_NSSA(oa)
+		    && CHECK_FLAG(ospf6->flag, OSPF6_FLAG_ABR)) {
+			const char *translator_role;
+			const char *translator_status;
+
+			switch (oa->NSSATranslatorRole) {
+			case OSPF6_NSSA_ROLE_NEVER:
+				translator_role = "never";
+				break;
+			case OSPF6_NSSA_ROLE_CANDIDATE:
+				translator_role = "candidate";
+				break;
+			case OSPF6_NSSA_ROLE_ALWAYS:
+				translator_role = "always";
+				break;
+			default:
+				translator_role = "unknown";
+				break;
+			}
+			json_object_string_add(json_area, "nssaTranslatorRole",
+					       translator_role);
+
+			switch (oa->NSSATranslatorState) {
+			case OSPF6_NSSA_TRANSLATE_DISABLED:
+				translator_status = "active";
+				break;
+			case OSPF6_NSSA_TRANSLATE_ENABLED:
+				translator_status = "inactive";
+				break;
+			default:
+				translator_status = "unknown";
+				break;
+			}
+			json_object_string_add(json_area,
+					       "nssaTranslatorStatus",
+					       translator_status);
+			json_object_int_add(json_area,
+					    "nssaTranslatorStateChanges",
+					    oa->nssa_translator_state_changes);
+		}
+
+		/* LSA counters. */
+		json_object_int_add(
+			json_area, "lsaRouterNumber",
+			ospf6_lsdb_count(oa->lsdb, htons(OSPF6_LSTYPE_ROUTER)));
+		json_object_int_add(
+			json_area, "lsaNetworkNumber",
+			ospf6_lsdb_count(oa->lsdb,
+					 htons(OSPF6_LSTYPE_NETWORK)));
+		json_object_int_add(
+			json_area, "lsaInterAreaPrefixNumber",
+			ospf6_lsdb_count(oa->lsdb,
+					 htons(OSPF6_LSTYPE_INTER_PREFIX)));
+		json_object_int_add(
+			json_area, "lsaInterAreaRouterNumber",
+			ospf6_lsdb_count(oa->lsdb,
+					 htons(OSPF6_LSTYPE_INTER_ROUTER)));
+		json_object_int_add(
+			json_area, "lsaNssaNumber",
+			ospf6_lsdb_count(oa->lsdb, htons(OSPF6_LSTYPE_TYPE_7)));
+		json_object_int_add(
+			json_area, "lsaIntraAreaPrefixNumber",
+			ospf6_lsdb_count(oa->lsdb,
+					 htons(OSPF6_LSTYPE_INTRA_PREFIX)));
 
 		/* LSA Statistics */
 		json_lsa_stats = json_object_new_object();
@@ -500,6 +564,41 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 		/* SPF Calculations */
 		json_object_int_add(json_area, "spfExecutedCounter",
 				    oa->spf_calculation);
+
+		/* Reachable ABRs/ASBRs. */
+		{
+			struct ospf6_route *ro;
+			uint32_t count = 0;
+
+			for (ro = ospf6_route_head(ospf6->brouter_table); ro;
+			     ro = ospf6_route_next(ro)) {
+				if (ntohl(ro->path.area_id)
+				    != ntohl(oa->area_id))
+					continue;
+				if (CHECK_FLAG(ro->path.router_bits,
+					       OSPF6_ROUTER_BIT_B))
+					count++;
+			}
+			json_object_int_add(json_area, "numReachableAbr",
+					    count);
+		}
+		{
+			struct ospf6_route *ro;
+			uint32_t count = 0;
+
+			for (ro = ospf6_route_head(ospf6->brouter_table); ro;
+			     ro = ospf6_route_next(ro)) {
+				if (ntohl(ro->path.area_id)
+				    != ntohl(oa->area_id))
+					continue;
+				if (CHECK_FLAG(ro->path.router_bits,
+					       OSPF6_ROUTER_BIT_E))
+					count++;
+			}
+			json_object_int_add(json_area, "numReachableAsbr",
+					    count);
+		}
+
 		if (oa->ts_spf.tv_sec || oa->ts_spf.tv_usec) {
 			json_object_boolean_true_add(json_area, "spfHasRun");
 			result = monotime_since(&oa->ts_spf, NULL);
@@ -521,6 +620,10 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 		} else
 			json_object_boolean_false_add(json_area, "spfHasRun");
 
+		json_object_int_add(json_area, "spfExecutedCounter",
+				    oa->spf_calculation);
+		/* TODO: get from vlink code. */
+		json_object_boolean_add(json_area, "transitCapability", false);
 
 		json_object_object_add(json_areas, oa->name, json_area);
 
@@ -550,11 +653,13 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 		if (oa->ts_spf.tv_sec || oa->ts_spf.tv_usec) {
 			result = monotime_since(&oa->ts_spf, NULL);
 			if (result / TIMER_SECOND_MICRO > 0) {
-				vty_out(vty, "SPF last executed %ld.%lds ago\n",
+				vty_out(vty,
+					"     SPF last executed %ld.%lds ago\n",
 					result / TIMER_SECOND_MICRO,
 					result % TIMER_SECOND_MICRO);
 			} else {
-				vty_out(vty, "SPF last executed %ldus ago\n",
+				vty_out(vty,
+					"     SPF last executed %ldus ago\n",
 					result);
 			}
 		} else

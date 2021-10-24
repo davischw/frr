@@ -188,6 +188,7 @@ void ospf6_abr_nssa_check_status(struct ospf6 *ospf6)
 		 * when they are not translating.
 		 */
 		if (old_state != area->NSSATranslatorState) {
+			area->nssa_translator_state_changes++;
 			if (old_state == OSPF6_NSSA_TRANSLATE_DISABLED)
 				ospf6_asbr_status_update(ospf6,
 							 ++ospf6->redist_count);
@@ -1090,6 +1091,7 @@ void ospf6_area_nssa_update(struct ospf6_area *area)
 		OSPF6_OPT_SET(area->options, OSPF6_OPT_E);
 		area->ospf6->anyNSSA--;
 		area->NSSATranslatorState = OSPF6_NSSA_TRANSLATE_DISABLED;
+		area->nssa_translator_state_changes++;
 	}
 
 	/* Refresh router LSA */

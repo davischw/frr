@@ -133,6 +133,8 @@ struct ospf6_area {
 
 	/* virtual links that are up & full (for setting V-bit) */
 	size_t virtual_link_full;
+
+	uint32_t nssa_translator_state_changes;
 };
 
 #define OSPF6_AREA_ENABLE     0x01

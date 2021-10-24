@@ -87,6 +87,7 @@ extern const struct route_node *ospf6_lsdb_head(struct ospf6_lsdb *lsdb,
 						struct ospf6_lsa **lsa);
 extern struct ospf6_lsa *ospf6_lsdb_next(const struct route_node *iterend,
 					 struct ospf6_lsa *lsa);
+extern unsigned long ospf6_lsdb_count(struct ospf6_lsdb *lsdb, int type);
 
 #define ALL_LSDB_TYPED_ADVRTR(lsdb, type, adv_router, lsa)                     \
 	const struct route_node *iterend =                                     \

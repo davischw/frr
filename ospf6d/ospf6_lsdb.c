@@ -380,6 +380,17 @@ struct ospf6_lsa *ospf6_lsdb_next(const struct route_node *iterend,
 	return NULL;
 }
 
+unsigned long ospf6_lsdb_count(struct ospf6_lsdb *lsdb, int type)
+{
+	struct ospf6_lsa *lsa;
+	unsigned long count = 0;
+
+	for (ALL_LSDB_TYPED(lsdb, type, lsa))
+		count++;
+
+	return count;
+}
+
 void ospf6_lsdb_remove_all(struct ospf6_lsdb *lsdb)
 {
 	struct ospf6_lsa *lsa, *lsanext;
