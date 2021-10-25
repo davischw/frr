@@ -518,6 +518,128 @@ void config_write_ospf6_debug_vlink(struct vty *vty)
 		vty_out(vty, "debug ospf6 virtual-link\n");
 }
 
+static void ospf6_show_vlinks(struct vty *vty, struct ospf6 *ospf6,
+			      json_object *json, bool uj)
+{
+	struct ospf6_area *oa;
+	struct listnode *node;
+	struct ospf6_virtual_link *vlink;
+
+	for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, node, oa)) {
+		frr_each (ospf6_area_vlinks, oa->vlinks, vlink) {
+			const char *state;
+
+			state = (vlink->nbr->state == OSPF6_NEIGHBOR_FULL)
+					? "up"
+					: "down";
+			if (uj) {
+				json_object *json_vl;
+				char buf[INET_ADDRSTRLEN];
+
+				inet_ntop(AF_INET, &vlink->remote, buf,
+					  sizeof(buf));
+				json_vl = json_object_new_object();
+				json_object_object_add(json, buf, json_vl);
+				json_object_string_add(json_vl, "state", state);
+				json_object_int_add(json_vl, "interfaceId",
+						    vlink->v_ifindex);
+				inet_ntop(AF_INET6, &vlink->transport, buf,
+					  sizeof(buf));
+				json_object_string_add(json_vl, "ipv6Address",
+						       buf);
+				json_object_int_add(json_vl, "cost",
+						    vlink->spf_cost);
+				inet_ntop(AF_INET, &vlink->area->area_id, buf,
+					  sizeof(buf));
+				json_object_string_add(json_vl, "transitArea",
+						       buf);
+				json_object_int_add(json_vl, "transmitDelay",
+						    vlink->transmit_delay);
+				json_object_int_add(json_vl,
+						    "timerIntervalsConfigHello",
+						    vlink->hello_interval);
+				json_object_int_add(json_vl,
+						    "timerIntervalsConfigDead",
+						    vlink->dead_interval);
+				json_object_int_add(
+					json_vl,
+					"timerIntervalsConfigRetransmit",
+					vlink->retransmit_interval);
+				/* TODO: do vlinks have I/F scoped LSAs? */
+				json_object_int_add(
+					json_vl, "numberOfInterfaceScopedLsa",
+					0);
+			} else {
+				vty_out(vty,
+					"Virtual Link to router %pI4 is %s\n",
+					&vlink->remote, state);
+				vty_out(vty, "  Interface ID: %u\n",
+					vlink->v_ifindex);
+				vty_out(vty, "  IPv6 address: %pI6\n",
+					&vlink->transport);
+				vty_out(vty, "  Cost: %u\n", vlink->spf_cost);
+				vty_out(vty, "  Transit area: %pI4\n",
+					&vlink->area->area_id);
+				vty_out(vty, "  Transmit delay: %u\n",
+					vlink->transmit_delay);
+				vty_out(vty, "  Timer intervals configured:\n");
+				vty_out(vty,
+					"   Hello %u, Dead %u, Retransmit %u\n",
+					vlink->hello_interval,
+					vlink->dead_interval,
+					vlink->retransmit_interval);
+				/* TODO: do vlinks have I/F scoped LSAs? */
+				vty_out(vty,
+					"  Number of I/F scoped LSAs: %u\n", 0);
+				vty_out(vty, "\n");
+			}
+		}
+	}
+}
+
+DEFPY (ospf6_vlink_show,
+       ospf6_vlink_show_cmd,
+       "show ipv6 ospf6 [vrf <NAME|all>] virtual-links [json]",
+       SHOW_STR
+       IP6_STR
+       OSPF6_STR
+       VRF_CMD_HELP_STR
+       "All VRFs\n"
+       "Virtual link information\n"
+       JSON_STR)
+{
+	bool uj = use_json(argc, argv);
+	struct ospf6 *ospf6;
+	json_object *json = NULL;
+	const char *vrf_name = NULL;
+	struct listnode *node;
+	bool all_vrf = false;
+	int idx_vrf = 0;
+
+	if (uj)
+		json = json_object_new_object();
+
+	OSPF6_FIND_VRF_ARGS(argv, argc, idx_vrf, vrf_name, all_vrf);
+
+	for (ALL_LIST_ELEMENTS_RO(om6->ospf6, node, ospf6)) {
+		if (all_vrf || strcmp(ospf6->name, vrf_name) == 0) {
+
+			ospf6_show_vlinks(vty, ospf6, json, uj);
+			if (!all_vrf)
+				break;
+		}
+	}
+
+	if (uj) {
+		vty_out(vty, "%s\n",
+			json_object_to_json_string_ext(
+				json, JSON_C_TO_STRING_PRETTY));
+		json_object_free(json);
+	}
+
+	return CMD_WARNING;
+}
+
 DEFPY(ospf6_vlink_config, ospf6_vlink_config_cmd,
       "[no] area <A.B.C.D$area_dot|(0-4294967295)$area_num> virtual-link A.B.C.D$peer "
       "[{hello-interval (1-65535)$hello|retransmit-interval (1-65535)$retx"
@@ -633,6 +755,8 @@ void ospf6_virtual_link_init(void)
 
 	install_element(ENABLE_NODE, &debug_ospf6_vlink_cmd);
 	install_element(CONFIG_NODE, &debug_ospf6_vlink_cmd);
+
+	install_element(VIEW_NODE, &ospf6_vlink_show_cmd);
 
 	install_element(OSPF6_NODE, &ospf6_vlink_config_cmd);
 }
