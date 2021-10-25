@@ -1575,6 +1575,8 @@ static void ospf6_show(struct vty *vty, struct ospf6 *o, json_object *json,
 			adjacency = "NotLogged";
 		json_object_string_add(json, "adjacencyChanges", adjacency);
 
+		ospf6_gr_show(vty, o, json);
+
 		for (ALL_LIST_ELEMENTS_RO(o->area_list, n, oa))
 			ospf6_area_show(vty, oa, json_areas, use_json);
 
@@ -1662,6 +1664,7 @@ static void ospf6_show(struct vty *vty, struct ospf6 *o, json_object *json,
 				vty_out(vty, " Adjacency changes are logged\n");
 		}
 
+		ospf6_gr_show(vty, o, NULL);
 
 		vty_out(vty, "\n");
 

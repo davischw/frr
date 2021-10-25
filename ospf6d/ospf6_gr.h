@@ -24,6 +24,8 @@
 #ifndef OSPF6_GR_H
 #define OSPF6_GR_H
 
+#include "lib/json.h"
+
 #define OSPF6_GR_NOT_HELPER 0
 #define OSPF6_GR_ACTIVE_HELPER 1
 
@@ -179,6 +181,8 @@ extern void ospf6_gr_check_lsdb_consistency(struct ospf6 *ospf,
 extern void ospf6_gr_nvm_read(struct ospf6 *ospf);
 extern void ospf6_gr_nvm_delete(struct ospf6 *ospf6);
 extern void ospf6_gr_unplanned_start_interface(struct ospf6_interface *oi);
+extern void ospf6_gr_show(struct vty *vty, struct ospf6 *ospf6,
+			  json_object *json);
 extern void ospf6_gr_init(void);
 
 #endif /* OSPF6_GR_H */

@@ -783,6 +783,58 @@ static int ospf6_gr_neighbor_change(struct ospf6_neighbor *on, int next_state,
 	return 0;
 }
 
+
+void ospf6_gr_show(struct vty *vty, struct ospf6 *ospf6, json_object *json)
+{
+	const char *status;
+
+	status = (ospf6->gr_info.prepare_in_progress
+		  || ospf6->gr_info.restart_in_progress)
+			 ? "in progress"
+			 : "not started";
+
+	if (json) {
+		json_object_boolean_add(json, "grEnabled",
+					ospf6->gr_info.restart_support);
+		if (ospf6->gr_info.restart_support) {
+			json_object_string_add(json, "grStatus", status);
+			if (ospf6->gr_info.reason != OSPF6_GR_UNKNOWN_RESTART)
+				json_object_string_add(
+					json, "grReason",
+					ospf6_restart_reason_desc
+						[ospf6->gr_info.reason]);
+			if (ospf6->gr_info.t_grace_period)
+				json_object_int_add(
+					json, "grRemainingTimeSecs",
+					thread_timer_remain_second(
+						ospf6->gr_info.t_grace_period));
+			if (ospf6->gr_info.exit_reason)
+				json_object_string_add(
+					json, "grExitReason",
+					ospf6->gr_info.exit_reason);
+		}
+	} else {
+		vty_out(vty, " Graceful Restart: %s\n",
+			ospf6->gr_info.restart_support ? "enabled"
+						       : "disabled");
+		if (ospf6->gr_info.restart_support) {
+			vty_out(vty, "     Status: %s\n", status);
+			if (ospf6->gr_info.reason != OSPF6_GR_UNKNOWN_RESTART)
+				vty_out(vty, "     Restart reason: %s\n",
+					ospf6_restart_reason_desc
+						[ospf6->gr_info.reason]);
+			if (ospf6->gr_info.t_grace_period)
+				vty_out(vty,
+					"     Restart remaining time: %lus\n",
+					thread_timer_remain_second(
+						ospf6->gr_info.t_grace_period));
+			if (ospf6->gr_info.exit_reason)
+				vty_out(vty, "     Restart exit reason: %s\n",
+					ospf6->gr_info.exit_reason);
+		}
+	}
+}
+
 int config_write_ospf6_gr(struct vty *vty, struct ospf6 *ospf6)
 {
 	if (!ospf6->gr_info.restart_support)
