@@ -180,8 +180,9 @@ static int ospfv3_instance_shutdown_modify(struct nb_cb_modify_args *args)
 		}
 
 		/* Reenable routing instance in the GR mode. */
-		ospf6_gr_restart_enter(
-			ospf6, time(NULL) + ospf6->gr_info.grace_period);
+		ospf6_gr_restart_enter(ospf6, OSPF6_GR_SWITCH_CONTROL_PROCESSOR,
+				       time(NULL)
+					       + ospf6->gr_info.grace_period);
 		ospf6_shutdown(ospf6, false, false);
 	} else
 		ospf6_shutdown(ospf6, true, true);
