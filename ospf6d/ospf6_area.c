@@ -445,60 +445,75 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 	struct ospf6 *ospf6 = oa->ospf6;
 	struct listnode *i;
 	struct ospf6_interface *oi;
+	struct ospf6_route *range;
 	unsigned long result;
 	json_object *json_area;
 	json_object *json_lsa_stats;
 	json_object *array_interfaces;
+	json_object *json_ranges;
 
 	if (use_json) {
 		json_area = json_object_new_object();
 		json_object_boolean_add(json_area, "areaIsStub",
 					IS_AREA_STUB(oa));
-		if (IS_AREA_STUB(oa)) {
+
+		if (oa->area_id == OSPF_AREA_BACKBONE) {
+			json_object_string_add(json_area, "type", "backbone");
+			json_object_boolean_false_add(json_area,
+						      "areaNoSummary");
+		} else if (IS_AREA_STUB(oa)) {
+			json_object_string_add(json_area, "type", "stub");
 			json_object_boolean_add(json_area, "areaNoSummary",
 						oa->no_summary);
-		}
+		} else if (IS_AREA_NSSA(oa)) {
+			json_object_string_add(json_area, "type", "nssa");
+			json_object_boolean_add(json_area, "areaNoSummary",
+						oa->no_summary);
 
-		/* NSSA ABR translator data */
-		if (IS_AREA_NSSA(oa)
-		    && CHECK_FLAG(ospf6->flag, OSPF6_FLAG_ABR)) {
-			const char *translator_role;
-			const char *translator_status;
+			if (CHECK_FLAG(ospf6->flag, OSPF6_FLAG_ABR)) {
+				const char *translator_role;
+				const char *translator_status;
 
-			switch (oa->NSSATranslatorRole) {
-			case OSPF6_NSSA_ROLE_NEVER:
-				translator_role = "never";
-				break;
-			case OSPF6_NSSA_ROLE_CANDIDATE:
-				translator_role = "candidate";
-				break;
-			case OSPF6_NSSA_ROLE_ALWAYS:
-				translator_role = "always";
-				break;
-			default:
-				translator_role = "unknown";
-				break;
+				switch (oa->NSSATranslatorRole) {
+				case OSPF6_NSSA_ROLE_NEVER:
+					translator_role = "never";
+					break;
+				case OSPF6_NSSA_ROLE_CANDIDATE:
+					translator_role = "candidate";
+					break;
+				case OSPF6_NSSA_ROLE_ALWAYS:
+					translator_role = "always";
+					break;
+				default:
+					translator_role = "unknown";
+					break;
+				}
+				json_object_string_add(json_area,
+						       "nssaTranslatorRole",
+						       translator_role);
+
+				switch (oa->NSSATranslatorState) {
+				case OSPF6_NSSA_TRANSLATE_DISABLED:
+					translator_status = "active";
+					break;
+				case OSPF6_NSSA_TRANSLATE_ENABLED:
+					translator_status = "inactive";
+					break;
+				default:
+					translator_status = "unknown";
+					break;
+				}
+				json_object_string_add(json_area,
+						       "nssaTranslatorStatus",
+						       translator_status);
+				json_object_int_add(
+					json_area, "nssaTranslatorStateChanges",
+					oa->nssa_translator_state_changes);
 			}
-			json_object_string_add(json_area, "nssaTranslatorRole",
-					       translator_role);
-
-			switch (oa->NSSATranslatorState) {
-			case OSPF6_NSSA_TRANSLATE_DISABLED:
-				translator_status = "active";
-				break;
-			case OSPF6_NSSA_TRANSLATE_ENABLED:
-				translator_status = "inactive";
-				break;
-			default:
-				translator_status = "unknown";
-				break;
-			}
-			json_object_string_add(json_area,
-					       "nssaTranslatorStatus",
-					       translator_status);
-			json_object_int_add(json_area,
-					    "nssaTranslatorStateChanges",
-					    oa->nssa_translator_state_changes);
+		} else {
+			json_object_string_add(json_area, "type", "normal");
+			json_object_boolean_false_add(json_area,
+						      "areaNoSummary");
 		}
 
 		/* LSA counters. */
@@ -622,8 +637,31 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 
 		json_object_int_add(json_area, "spfExecutedCounter",
 				    oa->spf_calculation);
-		/* TODO: get from vlink code. */
-		json_object_boolean_add(json_area, "transitCapability", false);
+		json_object_boolean_add(json_area, "transitCapability",
+					IS_AREA_TRANSIT(oa));
+
+		/* Show ranges */
+		json_ranges = json_object_new_object();
+		json_object_object_add(json_area, "ranges", json_ranges);
+		for (range = ospf6_route_head(oa->range_table); range;
+		     range = ospf6_route_next(range)) {
+			json_object *json_range = NULL;
+			char buf[PREFIX_STRLEN];
+
+			prefix2str(&range->rnode->p, buf, sizeof(buf));
+			json_range = json_object_new_object();
+			json_object_object_add(json_ranges, buf, json_range);
+
+			if (range->path.u.cost_config
+			    != OSPF_AREA_RANGE_COST_UNSPEC)
+				json_object_int_add(json_range, "cost",
+						    range->path.u.cost_config);
+
+			json_object_boolean_add(
+				json_range, "advertise",
+				!CHECK_FLAG(range->flag,
+					    OSPF6_ROUTE_DO_NOT_ADVERTISE));
+		}
 
 		json_object_object_add(json_areas, oa->name, json_area);
 

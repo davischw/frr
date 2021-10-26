@@ -687,6 +687,8 @@ static int ospf6_spf_calculation_thread(struct thread *t)
 
 	ospf6->last_spf_reason = ospf6->spf_reason;
 	ospf6_reset_spf_reason(ospf6);
+	ospf6->lsa_update_merged = 0;
+
 	return 0;
 }
 
@@ -1289,6 +1291,8 @@ static int ospf6_ase_calculate_timer(struct thread *t)
 		ospf6_zebra_gr_disable(ospf6);
 		ospf6->gr_info.finishing_restart = false;
 	}
+
+	ospf6->lsa_update_merged = 0;
 
 	return 0;
 }

@@ -129,6 +129,7 @@ void ospf6_lsa_originate(struct ospf6 *ospf6, struct ospf6_lsa *lsa)
 		ospf6_lsa_header_print(lsa);
 	}
 
+	ospf6->lsa_originate_count++;
 	ospf6_install_lsa(lsa);
 	ospf6_flood(NULL, lsa);
 }
@@ -325,6 +326,7 @@ void ospf6_install_lsa(struct ospf6_lsa *lsa)
 	}
 
 	ospf6_lsdb_add(lsa, lsa->lsdb);
+	ospf6->lsa_update_merged++;
 
 	if (ntohs(lsa->header->type) == OSPF6_LSTYPE_TYPE_7
 	    && lsa->header->adv_router != ospf6->router_id) {
@@ -1046,8 +1048,10 @@ void ospf6_receive_lsa(struct ospf6_neighbor *from,
 		due to MinLSArrival. */
 		self_originated = (new->header->adv_router
 				   == from->ospf6_if->area->ospf6->router_id);
-		if (!self_originated)
+		if (!self_originated) {
+			from->ospf6_if->area->ospf6->rx_lsa_count++;
 			ospf6_flood(from, new);
+		}
 
 		/* Received non-self-originated Grace LSA. */
 		if (IS_GRACE_LSA(new) && !self_originated) {

@@ -2905,6 +2905,11 @@ static void show_ip_ospf_area(struct vty *vty, struct ospf_area *area,
 				if (area->shortcut_configured)
 					json_object_boolean_true_add(
 						json_area, "nssaShortcut");
+			} else {
+				json_object_string_add(json_area, "type",
+						       "normal");
+				json_object_boolean_true_add(json_area,
+							     "acceptSummary");
 			}
 
 			json_object_string_add(

@@ -1541,6 +1541,7 @@ static void ospf6_show(struct vty *vty, struct ospf6 *o, json_object *json,
 
 		/* process id, router id */
 		inet_ntop(AF_INET, &o->router_id, router_id, sizeof(router_id));
+		json_object_int_add(json, "instanceId", 0);
 		json_object_string_add(json, "routerId", router_id);
 
 		/* running time */
@@ -1606,8 +1607,21 @@ static void ospf6_show(struct vty *vty, struct ospf6 *o, json_object *json,
 					CHECK_FLAG(o->flag, OSPF6_STUB_ROUTER));
 
 		/* LSAs */
+		json_object_int_add(json, "numUpdatePending",
+				    o->lsa_update_pending);
+		json_object_int_add(json, "numUpdateMerged",
+				    o->lsa_update_merged);
+		json_object_int_add(json, "originatedLsaCounter",
+				    o->lsa_originate_count);
+		json_object_int_add(json, "receivedLsaCounter",
+				    o->rx_lsa_count);
 		json_object_int_add(json, "numberOfAsScopedLsa",
 				    o->lsdb->count);
+		json_object_int_add(
+			json, "lsaAsExternalNumber",
+			ospf6_lsdb_count(o->lsdb,
+					 htons(OSPF6_LSTYPE_AS_EXTERNAL)));
+
 		/* Areas */
 		json_object_int_add(json, "numberOfAreaInRouter",
 				    listcount(o->area_list));
@@ -1620,6 +1634,9 @@ static void ospf6_show(struct vty *vty, struct ospf6 *o, json_object *json,
 				adjacency = "Logged";
 		} else
 			adjacency = "NotLogged";
+
+		json_object_boolean_add(json, "isAsbr", IS_OSPF6_ASBR(o));
+
 		json_object_string_add(json, "adjacencyChanges", adjacency);
 
 		ospf6_gr_show(vty, o, json);

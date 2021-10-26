@@ -238,6 +238,21 @@ struct ospf6 {
 	uint8_t anyNSSA;
 	struct thread *t_abr_task; /* ABR task timer. */
 
+	/* Statistics for LSA origination. */
+	uint32_t lsa_originate_count;
+
+	/* Statistics for LSA used for new instantiation. */
+	uint32_t rx_lsa_count;
+
+	/* The number of updates that are pending addition to the LSDB. */
+	uint32_t lsa_update_pending;
+
+	/*
+	 * The number of updates that have been merged into the LSDB since the
+	 * last routing calculation.
+	 */
+	uint32_t lsa_update_merged;
+
 	uint32_t redist_count;
 
 	/* Action for aggregation of external LSAs */
