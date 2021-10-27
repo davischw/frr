@@ -406,7 +406,11 @@ static int ospf_make_md5_digest(struct ospf_interface *oi,
 	else
 		oi->crypt_seqnum++;
 #else
-	oi->crypt_seqnum += 1;
+	t = (time(NULL) & 0xFFFFFFFF) + oi->ospf->auth_seq_num_offset;
+	if (t > oi->crypt_seqnum)
+		oi->crypt_seqnum = t;
+	else
+		oi->crypt_seqnum++;
 #endif
 
 	ospfh->u.crypt.crypt_seqnum = htonl(oi->crypt_seqnum);

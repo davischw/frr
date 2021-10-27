@@ -172,7 +172,7 @@ void ospf_if_reset_variables(struct ospf_interface *oi)
 
 	oi->state = ISM_Down;
 
-	oi->crypt_seqnum = 0;
+	oi->crypt_seqnum = time(NULL) & 0xFFFFFFFF;
 
 	/* This must be short, (less than RxmtInterval)
 	   - RFC 2328 Section 13.5 para 3.  Set to 1 second to avoid Acks being
@@ -328,7 +328,7 @@ void ospf_if_cleanup(struct ospf_interface *oi)
 		ospf_lsa_unlock(&lsa); /* oi->ls_ack */
 	list_delete_all_node(oi->ls_ack);
 
-	oi->crypt_seqnum = 0;
+	oi->crypt_seqnum = time(NULL) & 0xFFFFFFFF;
 
 	/* Empty link state update queue */
 	ospf_ls_upd_queue_empty(oi);

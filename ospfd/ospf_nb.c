@@ -223,7 +223,7 @@ static int ospf_instance_create(struct nb_cb_create_args *args)
 				continue;
 
 			/* Set sequence number default value. */
-			o->auth_seq_num = 0;
+			o->auth_seq_num_offset = 0;
 
 			nb_running_set_entry(args->dnode, o);
 			return NB_OK;
@@ -315,11 +315,27 @@ static int ospf_instance_auth_sequence_number(struct nb_cb_modify_args *args)
 		return NB_OK;
 
 	ospf = nb_running_get_entry(args->dnode, NULL, true);
-	ospf->auth_seq_num = htonl(yang_dnode_get_uint32(args->dnode, NULL));
+	ospf->auth_seq_num_offset =
+		yang_dnode_get_uint32(args->dnode, NULL) -
+		(time(NULL) & 0xFFFFFFFF);
 	for (ALL_LIST_ELEMENTS_RO(ospf->oiflist, node, oif))
-		oif->crypt_seqnum = ntohl(ospf->auth_seq_num);
+		oif->crypt_seqnum = ospf->auth_seq_num_offset +
+			 (time(NULL) & 0xFFFFFFFF);
 
 	return NB_OK;
+}
+
+/*
+ * XPath: /frr-ospf:ospf/instance/auth-sequence-number-current
+ */
+static struct yang_data *ospf_instance_auth_sequence_number_current_get_elem(
+	struct nb_cb_get_elem_args *args)
+{
+	const struct listnode *node = args->list_entry;
+	const struct ospf *ospf = listgetdata(node);
+
+	return yang_data_new_uint32(args->xpath, ospf->auth_seq_num_offset +
+			 (time(NULL) & 0xFFFFFFFF));
 }
 
 /*
@@ -795,6 +811,12 @@ const struct frr_yang_module_info frr_ospf_info = {
 			.xpath = "/frr-ospf:ospf/instance/auth-sequence-number",
 			.cbs = {
 				.modify = ospf_instance_auth_sequence_number,
+			}
+		},
+		{
+			.xpath = "/frr-ospf:ospf/instance/auth-sequence-number-current",
+			.cbs = {
+				.get_elem = ospf_instance_auth_sequence_number_current_get_elem,
 			}
 		},
 		{

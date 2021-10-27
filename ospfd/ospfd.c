@@ -397,6 +397,8 @@ struct ospf *ospf_new_alloc(unsigned short instance, const char *name)
 
 	new->fd = -1;
 
+	new->auth_seq_num_offset = 0;
+
 	return new;
 }
 

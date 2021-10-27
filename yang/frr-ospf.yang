@@ -83,6 +83,13 @@ module frr-ospf {
           "Authentication sequence number starting point.";
       }
 
+      leaf auth-sequence-number-current {
+        type uint32;
+        config false;
+        description
+          "Current authentication sequence number.";
+      }
+
       leaf shutdown {
         type boolean;
         default false;
