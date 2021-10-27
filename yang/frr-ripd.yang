@@ -376,6 +376,22 @@ module frr-ripd {
                 "IP address that a RIP neighbor is using as its
                  source address.";
             }
+            leaf version {
+              type enumeration {
+                enum "1" {
+                  value 1;
+                  description
+                    "RIPv1.";
+                }
+                enum "2" {
+                  value 2;
+                  description
+                    "RIPv2.";
+                }
+              }
+              description
+                "RIP version used by this neighbor.";
+            }
             leaf last-update {
               type yang:date-and-time;
               description
@@ -438,7 +454,7 @@ module frr-ripd {
   }
 
   /*
-   * Per-interface configuration data
+   * Per-interface data
    */
   augment "/frr-interface:lib/frr-interface:interface" {
     container rip {
@@ -607,6 +623,68 @@ module frr-ripd {
           type frr-bfdd:profile-ref;
           description
             "BFD profile to use.";
+        }
+      }
+
+      /*
+       * Operational data.
+       */
+      container state {
+        config false;
+        description
+          "Operational data.";
+
+        leaf version-receive {
+          type enumeration {
+            enum "1" {
+              value 1;
+              description
+                "Accept RIPv1 updates only.";
+            }
+            enum "2" {
+              value 2;
+              description
+                "Accept RIPv2 updates only.";
+            }
+            enum "both" {
+              value 3;
+              description
+                "Accept both RIPv1 and RIPv2 updates.";
+            }
+            enum "none" {
+              value 4;
+              description
+                "Do not accept neither RIPv1 nor RIPv2 updates.";
+            }
+          }
+          description
+            "Advertisement reception - Version control.";
+        }
+        leaf version-send {
+          type enumeration {
+            enum "1" {
+              value 1;
+              description
+                "Send RIPv1 updates only.";
+            }
+            enum "2" {
+              value 2;
+              description
+                "Send RIPv2 updates only.";
+            }
+            enum "both" {
+              value 3;
+              description
+                "Send both RIPv1 and RIPv2 updates.";
+            }
+            enum "none" {
+              value 4;
+              description
+                "Do not send neither RIPv1 nor RIPv2 updates.";
+            }
+          }
+          description
+            "Advertisement transmission - Version control.";
         }
       }
     }

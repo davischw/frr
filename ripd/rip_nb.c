@@ -285,6 +285,18 @@ const struct frr_yang_module_info frr_ripd_info = {
 			},
 		},
 		{
+			.xpath = "/frr-interface:lib/interface/frr-ripd:rip/state/version-receive",
+			.cbs = {
+				.get_elem = lib_interface_rip_state_version_receive_get_elem,
+			},
+		},
+		{
+			.xpath = "/frr-interface:lib/interface/frr-ripd:rip/state/version-send",
+			.cbs = {
+				.get_elem = lib_interface_rip_state_version_send_get_elem,
+			},
+		},
+		{
 			.xpath = "/frr-interface:lib/interface/frr-ripd:rip/authentication-scheme/md5-auth-length",
 			.cbs = {
 				.destroy = lib_interface_rip_authentication_scheme_md5_auth_length_destroy,
@@ -336,6 +348,12 @@ const struct frr_yang_module_info frr_ripd_info = {
 			.cbs = {
 				.get_elem = ripd_instance_state_neighbors_neighbor_address_get_elem,
 			},
+		},
+		{
+			.xpath = "/frr-ripd:ripd/instance/state/neighbors/neighbor/version",
+			.cbs = {
+				.get_elem = ripd_instance_state_neighbors_neighbor_version_get_elem,
+			}
 		},
 		{
 			.xpath = "/frr-ripd:ripd/instance/state/neighbors/neighbor/last-update",

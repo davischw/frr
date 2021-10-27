@@ -106,6 +106,7 @@ static struct rip_peer *rip_peer_get(struct rip *rip, struct rip_interface *ri,
 
 	/* Last update time set. */
 	time(&peer->uptime);
+	peer->uptime_monotonic = monotime(NULL);
 
 	return peer;
 }
