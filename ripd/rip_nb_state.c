@@ -127,13 +127,34 @@ struct yang_data *ripd_instance_state_neighbors_neighbor_address_get_elem(
 }
 
 /*
+ * XPath: /frr-ripd:ripd/instance/state/neighbors/neighbor/version
+ */
+struct yang_data *ripd_instance_state_neighbors_neighbor_version_get_elem(
+	struct nb_cb_get_elem_args *args)
+{
+	const struct listnode *node = args->list_entry;
+	const struct rip_peer *peer = listgetdata(node);
+	uint8_t version = peer->version;
+
+	/* Don't leak invalid value. */
+	if (version < RI_RIP_VERSION_1)
+		version = RI_RIP_VERSION_1;
+	else if (version > RI_RIP_VERSION_2)
+		version = RI_RIP_VERSION_2;
+
+	return yang_data_new_enum(args->xpath, version);
+}
+
+/*
  * XPath: /frr-ripd:ripd/instance/state/neighbors/neighbor/last-update
  */
 struct yang_data *ripd_instance_state_neighbors_neighbor_last_update_get_elem(
 	struct nb_cb_get_elem_args *args)
 {
-	/* TODO: yang:date-and-time is tricky */
-	return NULL;
+	const struct listnode *node = args->list_entry;
+	const struct rip_peer *peer = listgetdata(node);
+
+	return yang_data_new_date_and_time(args->xpath, peer->uptime_monotonic);
 }
 
 /*
@@ -272,4 +293,45 @@ struct yang_data *ripd_instance_state_routes_route_metric_get_elem(
 	const struct rip_info *rinfo = listnode_head(rn->info);
 
 	return yang_data_new_uint8(args->xpath, rinfo->metric);
+}
+
+
+/*
+ * XPath: /frr-interface:lib/interface/frr-ripd:rip/state/version-receive
+ */
+struct yang_data *lib_interface_rip_state_version_receive_get_elem(
+	struct nb_cb_get_elem_args *args)
+{
+	const struct interface *ifp = args->list_entry;
+	struct rip_interface *ri = ifp->info;
+	int version;
+
+	if (ri->rip)
+		version = ((ri->ri_receive == RI_RIP_UNSPEC)
+				   ? ri->rip->version_recv
+				   : ri->ri_receive);
+	else
+		version = RI_RIP_VERSION_NONE;
+
+	return yang_data_new_enum(args->xpath, version);
+}
+
+/*
+ * XPath: /frr-interface:lib/interface/frr-ripd:rip/state/version-send
+ */
+struct yang_data *
+lib_interface_rip_state_version_send_get_elem(struct nb_cb_get_elem_args *args)
+{
+	const struct interface *ifp = args->list_entry;
+	struct rip_interface *ri = ifp->info;
+	int version;
+
+	if (ri->rip)
+		version =
+			((ri->ri_send == RI_RIP_UNSPEC) ? ri->rip->version_send
+							: ri->ri_send);
+	else
+		version = RI_RIP_VERSION_NONE;
+
+	return yang_data_new_enum(args->xpath, version);
 }

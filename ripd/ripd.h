@@ -370,6 +370,7 @@ struct rip_peer {
 
 	/* Last update time. */
 	time_t uptime;
+	time_t uptime_monotonic;
 
 	/* Peer RIP version. */
 	uint8_t version;

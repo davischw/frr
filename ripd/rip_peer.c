@@ -91,6 +91,7 @@ static struct rip_peer *rip_peer_get(struct rip *rip, struct rip_interface *ri,
 		THREAD_OFF(peer->t_timeout);
 	} else {
 		peer = rip_peer_new();
+		peer->version = RI_RIP_VERSION_1_AND_2;
 		peer->rip = rip;
 		peer->ri = ri;
 		peer->addr = *addr;
@@ -104,6 +105,7 @@ static struct rip_peer *rip_peer_get(struct rip *rip, struct rip_interface *ri,
 
 	/* Last update time set. */
 	time(&peer->uptime);
+	peer->uptime_monotonic = monotime(NULL);
 
 	return peer;
 }

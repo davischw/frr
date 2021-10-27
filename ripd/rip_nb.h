@@ -84,6 +84,8 @@ const void *ripd_instance_state_neighbors_neighbor_lookup_entry(
 	struct nb_cb_lookup_entry_args *args);
 struct yang_data *ripd_instance_state_neighbors_neighbor_address_get_elem(
 	struct nb_cb_get_elem_args *args);
+struct yang_data *ripd_instance_state_neighbors_neighbor_version_get_elem(
+	struct nb_cb_get_elem_args *args);
 struct yang_data *ripd_instance_state_neighbors_neighbor_last_update_get_elem(
 	struct nb_cb_get_elem_args *args);
 struct yang_data *
@@ -112,6 +114,10 @@ int lib_interface_rip_version_receive_modify(struct nb_cb_modify_args *args);
 int lib_interface_rip_version_send_modify(struct nb_cb_modify_args *args);
 int lib_interface_rip_authentication_scheme_mode_modify(
 	struct nb_cb_modify_args *args);
+struct yang_data *lib_interface_rip_state_version_receive_get_elem(
+	struct nb_cb_get_elem_args *args);
+struct yang_data *
+lib_interface_rip_state_version_send_get_elem(struct nb_cb_get_elem_args *args);
 int lib_interface_rip_authentication_scheme_md5_auth_length_modify(
 	struct nb_cb_modify_args *args);
 int lib_interface_rip_authentication_scheme_md5_auth_length_destroy(
