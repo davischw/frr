@@ -1131,6 +1131,16 @@ struct ospf_interface *add_ospf_interface(struct connected *co,
 
 	ospf_nb_add_interface(oi);
 
+	/*
+	 * RFC 3623 - Section 5 ("Unplanned Outages"):
+	 * "The grace-LSAs are encapsulated in Link State Update Packets
+	 * and sent out to all interfaces, even though the restarted
+	 * router has no adjacencies and no knowledge of previous
+	 * adjacencies".
+	 */
+	if (oi->ospf->gr_info.restart_in_progress)
+		ospf_gr_unplanned_start_interface(oi, OSPF_GR_UNKNOWN_RESTART);
+
 	return oi;
 }
 

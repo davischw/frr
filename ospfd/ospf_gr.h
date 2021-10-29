@@ -195,6 +195,9 @@ extern void ospf_gr_check_lsdb_consistency(struct ospf *ospf,
 extern void ospf_gr_check_adjs(struct ospf *ospf);
 extern void ospf_gr_nvm_read(struct ospf *ospf);
 extern void ospf_gr_show(struct vty *vty, struct ospf *ospf, json_object *json);
+extern void
+ospf_gr_unplanned_start_interface(struct ospf_interface *oi,
+				  enum ospf_gr_restart_reason reason);
 extern void ospf_gr_init(void);
 
 #endif /* _ZEBRA_OSPF_GR_H */

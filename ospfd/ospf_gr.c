@@ -156,7 +156,8 @@ void ospf_gr_lsa_originate(struct ospf_interface *oi,
 {
 	struct ospf_lsa *lsa, *old;
 
-	if (reason != OSPF_GR_SWITCH_CONTROL_PROCESSOR
+	if (reason != OSPF_GR_UNKNOWN_RESTART
+	    && reason != OSPF_GR_SWITCH_CONTROL_PROCESSOR
 	    && ospf_interface_neighbor_count(oi) == 0)
 		return;
 
@@ -175,7 +176,8 @@ void ospf_gr_lsa_originate(struct ospf_interface *oi,
 	if (old)
 		lsa->data->ls_seqnum = lsa_seqnum_increment(old);
 
-	if (reason == OSPF_GR_SWITCH_CONTROL_PROCESSOR) {
+	if (reason == OSPF_GR_UNKNOWN_RESTART
+	    || reason == OSPF_GR_SWITCH_CONTROL_PROCESSOR) {
 		ospf_lsa_checksum(lsa->data);
 		ospf_lsa_lock(lsa);
 		ospf_grace_lsa_send(oi, lsa, htonl(OSPF_ALLSPFROUTERS));
@@ -227,9 +229,6 @@ static void ospf_gr_restart_exit(struct ospf *ospf, const char *reason)
 
 	ospf->gr_info.restart_in_progress = false;
 	OSPF_TIMER_OFF(ospf->gr_info.t_grace_period);
-
-	/* Record in non-volatile memory that the restart is complete. */
-	ospf_gr_nvm_delete(ospf);
 
 	for (ALL_LIST_ELEMENTS_RO(ospf->areas, onode, area)) {
 		struct ospf_interface *oi;
@@ -584,7 +583,7 @@ int ospf_gr_iface_send_grace_lsa(struct thread *thread)
 
 	oi->gr.hello_delay.t_grace_send = NULL;
 
-	ospf_gr_lsa_originate(oi, OSPF_GR_SWITCH_CONTROL_PROCESSOR, false);
+	ospf_gr_lsa_originate(oi, oi->ospf->gr_info.reason, false);
 
 	if (++oi->gr.hello_delay.elapsed_seconds < params->v_gr_hello_delay)
 		thread_add_timer(master, ospf_gr_iface_send_grace_lsa, oi, 1,
@@ -599,7 +598,7 @@ int ospf_gr_iface_send_grace_lsa(struct thread *thread)
  * Record in non-volatile memory that the given OSPF instance is attempting to
  * perform a graceful restart.
  */
-static void ospf_gr_nvm_update(struct ospf *ospf)
+static void ospf_gr_nvm_update(struct ospf *ospf, bool prepare)
 {
 	char *filepath;
 	const char *inst_name;
@@ -627,16 +626,18 @@ static void ospf_gr_nvm_update(struct ospf *ospf)
 				       json_instance);
 	}
 
+	json_object_int_add(json_instance, "gracePeriod",
+			    ospf->gr_info.grace_period);
+
 	/*
 	 * Record not only the grace period, but also a UNIX timestamp
 	 * corresponding to the end of that period. That way, once ospfd is
 	 * restarted, it will be possible to take into account the time that
 	 * passed while ospfd wasn't running.
 	 */
-	json_object_int_add(json_instance, "gracePeriod",
-			    ospf->gr_info.grace_period);
-	json_object_int_add(json_instance, "timestamp",
-			    time(NULL) + ospf->gr_info.grace_period);
+	if (prepare)
+		json_object_int_add(json_instance, "timestamp",
+				    time(NULL) + ospf->gr_info.grace_period);
 
 	json_object_to_file_ext(filepath, json, JSON_C_TO_STRING_PRETTY);
 	json_object_free(json);
@@ -684,6 +685,7 @@ void ospf_gr_nvm_read(struct ospf *ospf)
 	json_object *json_instances;
 	json_object *json_instance;
 	json_object *json_timestamp;
+	json_object *json_grace_period;
 	time_t timestamp = 0;
 
 	filepath = ospf_gr_nvm_filepath(ospf);
@@ -706,11 +708,14 @@ void ospf_gr_nvm_read(struct ospf *ospf)
 				       json_instance);
 	}
 
+	json_object_object_get_ex(json_instance, "gracePeriod",
+				  &json_grace_period);
 	json_object_object_get_ex(json_instance, "timestamp", &json_timestamp);
+
 	if (json_timestamp) {
 		time_t now;
 
-		/* Check if the grace period has already expired. */
+		/* Planned GR: check if the grace period has already expired. */
 		now = time(NULL);
 		timestamp = json_object_get_int(json_timestamp);
 		if (now > timestamp) {
@@ -719,12 +724,45 @@ void ospf_gr_nvm_read(struct ospf *ospf)
 		} else
 			ospf_gr_restart_enter(ospf, OSPF_GR_SW_RESTART,
 					      timestamp);
+	} else if (json_grace_period) {
+		uint32_t grace_period;
+
+		/*
+		 * Unplanned GR: the Grace-LSAs will be sent later as soon as
+		 * the interfaces are operational.
+		 */
+		grace_period = json_object_get_int(json_grace_period);
+		ospf->gr_info.grace_period = grace_period;
+		ospf_gr_restart_enter(ospf, OSPF_GR_UNKNOWN_RESTART,
+				      time(NULL) + ospf->gr_info.grace_period);
 	}
 
 	json_object_object_del(json_instances, inst_name);
 
 	json_object_to_file_ext(filepath, json, JSON_C_TO_STRING_PRETTY);
 	json_object_free(json);
+}
+
+void ospf_gr_unplanned_start_interface(struct ospf_interface *oi,
+				       enum ospf_gr_restart_reason reason)
+{
+	/*
+	 * Can't check OSPF interface state as the OSPF instance might not be
+	 * enabled yet.
+	 */
+	if (!if_is_operative(oi->ifp) || if_is_loopback(oi->ifp))
+		return;
+
+	/* Send Grace-LSA. */
+	ospf_gr_lsa_originate(oi, reason, false);
+
+	/* Start GR hello-delay interval. */
+	if (OSPF_IF_PARAM_CONFIGURED(IF_DEF_PARAMS(oi->ifp),
+				     v_gr_hello_delay)) {
+		oi->gr.hello_delay.elapsed_seconds = 0;
+		thread_add_timer(master, ospf_gr_iface_send_grace_lsa, oi, 1,
+				 &oi->gr.hello_delay.t_grace_send);
+	}
 }
 
 /* Prepare to start a Graceful Restart. */
@@ -754,20 +792,12 @@ static void ospf_gr_prepare(void)
 			continue;
 		}
 
-		/* Freeze OSPF routes in the RIB. */
-		if (ospf_zebra_gr_enable(ospf, ospf->gr_info.grace_period)) {
-			zlog_warn(
-				"%s: failed to activate graceful restart: not connected to zebra",
-				__func__);
-			continue;
-		}
-
 		/* Send a Grace-LSA to all neighbors. */
 		for (ALL_LIST_ELEMENTS_RO(ospf->oiflist, inode, oi))
 			ospf_gr_lsa_originate(oi, OSPF_GR_SW_RESTART, false);
 
 		/* Record end of the grace period in non-volatile memory. */
-		ospf_gr_nvm_update(ospf);
+		ospf_gr_nvm_update(ospf, true);
 
 		/*
 		 * Mark that a Graceful Restart preparation is in progress, to
@@ -854,6 +884,12 @@ DEFPY(graceful_restart, graceful_restart_cmd,
 	ospf->gr_info.restart_support = true;
 	ospf->gr_info.grace_period = grace_period;
 
+	/* Freeze OSPF routes in the RIB. */
+	(void)ospf_zebra_gr_enable(ospf, ospf->gr_info.grace_period);
+
+	/* Record that GR is enabled in non-volatile memory. */
+	ospf_gr_nvm_update(ospf, false);
+
 	return CMD_SUCCESS;
 }
 
@@ -876,6 +912,7 @@ DEFPY(no_graceful_restart, no_graceful_restart_cmd,
 
 	ospf->gr_info.restart_support = false;
 	ospf->gr_info.grace_period = OSPF_DFLT_GRACE_INTERVAL;
+	ospf_gr_nvm_delete(ospf);
 
 	return CMD_SUCCESS;
 }
