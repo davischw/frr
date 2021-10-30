@@ -49,6 +49,13 @@ void ospf_nb_init(void)
 	ospf_nb_vty->candidate_config = vty_shared_candidate_config;
 }
 
+static void vty_clear_enqueued_changes(struct vty *vty)
+{
+	/* Clear array of enqueued configuration changes. */
+	vty->num_cfg_changes = 0;
+	memset(&vty->cfg_changes, 0, sizeof(vty->cfg_changes));
+}
+
 void ospf_nb_add_instance(struct ospf *o)
 {
 	char xpath[XPATH_MAXLEN];
@@ -58,6 +65,7 @@ void ospf_nb_add_instance(struct ospf *o)
 		 o->instance);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_CREATE, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
+	vty_clear_enqueued_changes(ospf_nb_vty);
 }
 
 void ospf_nb_del_instance(struct ospf *o)
@@ -69,6 +77,7 @@ void ospf_nb_del_instance(struct ospf *o)
 		 o->instance);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_DESTROY, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
+	vty_clear_enqueued_changes(ospf_nb_vty);
 }
 
 void ospf_nb_add_area(struct ospf_area *area)
@@ -81,6 +90,7 @@ void ospf_nb_add_area(struct ospf_area *area)
 		   area->ospf->instance, &area->area_id);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_CREATE, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
+	vty_clear_enqueued_changes(ospf_nb_vty);
 }
 
 void ospf_nb_del_area(struct ospf_area *area)
@@ -93,6 +103,7 @@ void ospf_nb_del_area(struct ospf_area *area)
 		   area->ospf->instance, &area->area_id);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_DESTROY, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
+	vty_clear_enqueued_changes(ospf_nb_vty);
 }
 
 void ospf_nb_add_interface(struct ospf_interface *oif)
@@ -105,6 +116,7 @@ void ospf_nb_add_interface(struct ospf_interface *oif)
 		   oif->ospf->instance, &oif->area->area_id, oif->ifp->name);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_CREATE, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
+	vty_clear_enqueued_changes(ospf_nb_vty);
 }
 
 void ospf_nb_del_interface(struct ospf_interface *oif)
@@ -117,6 +129,7 @@ void ospf_nb_del_interface(struct ospf_interface *oif)
 		   oif->ospf->instance, &oif->area->area_id, oif->ifp->name);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_DESTROY, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
+	vty_clear_enqueued_changes(ospf_nb_vty);
 }
 
 void ospf_nb_add_neighbor(struct ospf_neighbor *on)
@@ -134,6 +147,7 @@ void ospf_nb_add_neighbor(struct ospf_neighbor *on)
 	nb_cli_enqueue_change(ospf_nb_vty, "./source", NB_OP_CREATE,
 			      source_str);
 	nb_cli_apply_changes(ospf_nb_vty, xpath);
+	vty_clear_enqueued_changes(ospf_nb_vty);
 }
 
 void ospf_nb_del_neighbor(struct ospf_neighbor *on)
@@ -147,6 +161,7 @@ void ospf_nb_del_neighbor(struct ospf_neighbor *on)
 		   on->oi->ifp->name, &on->router_id);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_DESTROY, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
+	vty_clear_enqueued_changes(ospf_nb_vty);
 }
 
 static struct route_node *
