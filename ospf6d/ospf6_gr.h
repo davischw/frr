@@ -181,6 +181,9 @@ extern void ospf6_gr_restart_enter(struct ospf6 *ospf6,
 extern void ospf6_gr_check_lsdb_consistency(struct ospf6 *ospf,
 					    struct ospf6_area *area);
 extern void ospf6_gr_nvm_read(struct ospf6 *ospf);
+extern void
+ospf6_gr_unplanned_start_interface(struct ospf6_interface *oi,
+				   enum ospf6_gr_restart_reason reason);
 extern void ospf6_gr_show(struct vty *vty, struct ospf6 *ospf6,
 			  json_object *json);
 extern void ospf6_gr_init(void);

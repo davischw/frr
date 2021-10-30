@@ -608,6 +608,13 @@ struct ospf6 *ospf6_instance_create(const char *name)
 	if (ospf6->router_id == 0)
 		ospf6_router_id_update(ospf6);
 	ospf6_add(ospf6);
+
+	/*
+	 * Read from non-volatile memory whether this instance is performing a
+	 * graceful restart or not.
+	 */
+	ospf6_gr_nvm_read(ospf6);
+
 	if (ospf6->vrf_id != VRF_UNKNOWN) {
 		vrf = vrf_lookup_by_id(ospf6->vrf_id);
 		FOR_ALL_INTERFACES (vrf, ifp) {
@@ -617,12 +624,6 @@ struct ospf6 *ospf6_instance_create(const char *name)
 	}
 	if (ospf6->fd < 0)
 		return ospf6;
-
-	/*
-	 * Read from non-volatile memory whether this instance is performing a
-	 * graceful restart or not.
-	 */
-	ospf6_gr_nvm_read(ospf6);
 
 	thread_add_read(master, ospf6_receive, ospf6, ospf6->fd,
 			&ospf6->t_ospf6_receive);
@@ -1480,6 +1481,11 @@ DEFPY(ospf6_instance_shutdown_graceful, ospf6_instance_shutdown_graceful_cmd,
 	struct listnode *anode, *inode;
 
 	if (no) {
+		/* Reenable routing instance in the GR mode. */
+		ospf6_gr_restart_enter(ospf6, OSPF6_GR_SWITCH_CONTROL_PROCESSOR,
+				       time(NULL)
+					       + ospf6->gr_info.grace_period);
+
 		/*
 		 * RFC 3623 - Section 5 ("Unplanned Outages"):
 		 * "The grace-LSAs are encapsulated in Link State Update Packets
@@ -1487,37 +1493,11 @@ DEFPY(ospf6_instance_shutdown_graceful, ospf6_instance_shutdown_graceful_cmd,
 		 * router has no adjacencies and no knowledge of previous
 		 * adjacencies".
 		 */
-		for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, anode, area)) {
-			for (ALL_LIST_ELEMENTS_RO(area->if_list, inode, oi)) {
-				/*
-				 * Can't check OSPF interface state as the OSPF
-				 * instance wasn't enabled yet.
-				 */
-				if (!if_is_operative(oi->interface)
-				    || if_is_loopback(oi->interface))
-					continue;
-
-				/* Send Grace-LSA. */
-				ospf6_gr_lsa_originate(
+		for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, anode, area))
+			for (ALL_LIST_ELEMENTS_RO(area->if_list, inode, oi))
+				ospf6_gr_unplanned_start_interface(
 					oi, OSPF6_GR_SWITCH_CONTROL_PROCESSOR);
 
-				/* Start GR hello-delay interval. */
-				if (oi->gr.hello_delay.interval) {
-					oi->gr.hello_delay.elapsed_seconds = 0;
-					thread_add_timer(
-						master,
-						ospf6_gr_iface_send_grace_lsa,
-						oi, 1,
-						&oi->gr.hello_delay
-							 .t_grace_send);
-				}
-			}
-		}
-
-		/* Reenable routing instance in the GR mode. */
-		ospf6_gr_restart_enter(ospf6, OSPF6_GR_SWITCH_CONTROL_PROCESSOR,
-				       time(NULL)
-					       + ospf6->gr_info.grace_period);
 		ospf6_shutdown(ospf6, false, false);
 	} else
 		ospf6_shutdown(ospf6, true, true);
