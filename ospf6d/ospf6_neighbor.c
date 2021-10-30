@@ -1142,6 +1142,7 @@ static void ospf6_neighbor_show_detail(struct vty *vty,
 					    "routerDeadIntervalTimerDueMsec",
 					    time_store);
 		}
+		json_object_int_add(json_neighbor, "priority", on->priority);
 		json_object_string_add(json_neighbor, "neighborDRouter",
 				       drouter);
 		json_object_string_add(json_neighbor, "neighborBdRouter",
