@@ -534,7 +534,7 @@ static void ospf6_show_vlinks(struct vty *vty, struct ospf6 *ospf6,
 					: "down";
 			if (uj) {
 				json_object *json_vl;
-				char buf[INET_ADDRSTRLEN];
+				char buf[INET6_ADDRSTRLEN];
 
 				inet_ntop(AF_INET, &vlink->remote, buf,
 					  sizeof(buf));
