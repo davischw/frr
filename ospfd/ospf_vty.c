@@ -2676,7 +2676,7 @@ DEFPY(ospf_instance_shutdown_graceful, ospf_instance_shutdown_graceful_cmd,
 		}
 
 		/* Reenable routing instance in the GR mode. */
-		ospf_gr_restart_enter(ospf,
+		ospf_gr_restart_enter(ospf, OSPF_GR_SWITCH_CONTROL_PROCESSOR,
 				      time(NULL) + ospf->gr_info.grace_period);
 		ospf_shutdown(ospf, false, false);
 	} else
@@ -3481,6 +3481,8 @@ static int show_ip_ospf_common(struct vty *vty, struct ospf *ospf,
 				vty_out(vty, " Adjacency changes are logged\n");
 		}
 	}
+
+	ospf_gr_show(vty, ospf, json);
 
 	/* show LDP-Sync status */
 	ospf_ldp_sync_show_info(vty, ospf, json_vrf, json ? 1 : 0);

@@ -408,7 +408,7 @@ static int ospf_instance_shutdown(struct nb_cb_modify_args *args)
 		}
 
 		/* Reenable routing instance in the GR mode. */
-		ospf_gr_restart_enter(ospf,
+		ospf_gr_restart_enter(ospf, OSPF_GR_SWITCH_CONTROL_PROCESSOR,
 				      time(NULL) + OSPF_DFLT_GRACE_INTERVAL);
 		ospf_shutdown(ospf, false, false);
 	} else

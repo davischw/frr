@@ -276,6 +276,8 @@ static void ospf_gr_restart_exit(struct ospf *ospf, const char *reason)
 	 *    should be removed.
 	 */
 	ospf->gr_info.finishing_restart = true;
+	XFREE(MTYPE_TMP, ospf->gr_info.exit_reason);
+	ospf->gr_info.exit_reason = XSTRDUP(MTYPE_TMP, reason);
 	ospf_spf_calculate_schedule(ospf, SPF_FLAG_GR_FINISH);
 
 	/* 6) Any grace-LSAs that the router originated should be flushed. */
@@ -283,11 +285,13 @@ static void ospf_gr_restart_exit(struct ospf *ospf, const char *reason)
 }
 
 /* Enter the Graceful Restart mode. */
-void ospf_gr_restart_enter(struct ospf *ospf, int timestamp)
+void ospf_gr_restart_enter(struct ospf *ospf,
+			   enum ospf_gr_restart_reason reason, int timestamp)
 {
 	unsigned long remaining_time;
 
 	ospf->gr_info.restart_in_progress = true;
+	ospf->gr_info.reason = reason;
 
 	/* Schedule grace period timeout. */
 	remaining_time = timestamp - time(NULL);
@@ -713,7 +717,8 @@ void ospf_gr_nvm_read(struct ospf *ospf)
 			ospf_gr_restart_exit(
 				ospf, "grace period has expired already");
 		} else
-			ospf_gr_restart_enter(ospf, timestamp);
+			ospf_gr_restart_enter(ospf, OSPF_GR_SW_RESTART,
+					      timestamp);
 	}
 
 	json_object_object_del(json_instances, inst_name);
@@ -769,6 +774,56 @@ static void ospf_gr_prepare(void)
 		 * prevent ospfd from flushing its self-originated LSAs on exit.
 		 */
 		ospf->gr_info.prepare_in_progress = true;
+	}
+}
+
+void ospf_gr_show(struct vty *vty, struct ospf *ospf, json_object *json)
+{
+	const char *status;
+
+	status = (ospf->gr_info.prepare_in_progress
+		  || ospf->gr_info.restart_in_progress)
+			 ? "in progress"
+			 : "not started";
+
+	if (json) {
+		json_object_boolean_add(json, "grEnabled",
+					ospf->gr_info.restart_support);
+		if (ospf->gr_info.restart_support) {
+			json_object_string_add(json, "grStatus", status);
+			if (ospf->gr_info.reason != OSPF_GR_UNKNOWN_RESTART)
+				json_object_string_add(
+					json, "grReason",
+					ospf_restart_reason2str(
+						ospf->gr_info.reason));
+			if (ospf->gr_info.t_grace_period)
+				json_object_int_add(
+					json, "grRemainingTimeSecs",
+					thread_timer_remain_second(
+						ospf->gr_info.t_grace_period));
+			if (ospf->gr_info.exit_reason)
+				json_object_string_add(
+					json, "grExitReason",
+					ospf->gr_info.exit_reason);
+		}
+	} else {
+		vty_out(vty, " Graceful Restart: %s\n",
+			ospf->gr_info.restart_support ? "enabled" : "disabled");
+		if (ospf->gr_info.restart_support) {
+			vty_out(vty, "     Status: %s\n", status);
+			if (ospf->gr_info.reason != OSPF_GR_UNKNOWN_RESTART)
+				vty_out(vty, "     Restart reason: %s\n",
+					ospf_restart_reason2str(
+						ospf->gr_info.reason));
+			if (ospf->gr_info.t_grace_period)
+				vty_out(vty,
+					"     Restart remaining time: %lus\n",
+					thread_timer_remain_second(
+						ospf->gr_info.t_grace_period));
+			if (ospf->gr_info.exit_reason)
+				vty_out(vty, "     Restart exit reason: %s\n",
+					ospf->gr_info.exit_reason);
+		}
 	}
 }
 

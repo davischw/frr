@@ -24,6 +24,8 @@
 #ifndef _ZEBRA_OSPF_GR_H
 #define _ZEBRA_OSPF_GR_H
 
+#include "lib/json.h"
+
 #define OSPF_GR_NOT_HELPER 0
 #define OSPF_GR_ACTIVE_HELPER 1
 
@@ -185,11 +187,14 @@ extern void ospf_gr_lsa_originate(struct ospf_interface *oi,
 				  enum ospf_gr_restart_reason reason,
 				  bool maxage);
 extern int ospf_gr_iface_send_grace_lsa(struct thread *thread);
-extern void ospf_gr_restart_enter(struct ospf *ospf, int timestamp);
+extern void ospf_gr_restart_enter(struct ospf *ospf,
+				  enum ospf_gr_restart_reason reason,
+				  int timestamp);
 extern void ospf_gr_check_lsdb_consistency(struct ospf *ospf,
 						  struct ospf_area *area);
 extern void ospf_gr_check_adjs(struct ospf *ospf);
 extern void ospf_gr_nvm_read(struct ospf *ospf);
+extern void ospf_gr_show(struct vty *vty, struct ospf *ospf, json_object *json);
 extern void ospf_gr_init(void);
 
 #endif /* _ZEBRA_OSPF_GR_H */

@@ -731,6 +731,7 @@ static void ospf_finish_final(struct ospf *ospf)
 
 	if (!ospf->gr_info.prepare_in_progress)
 		ospf_flush_self_originated_lsas_now(ospf);
+	XFREE(MTYPE_TMP, ospf->gr_info.exit_reason);
 
 	/* Unregister redistribution */
 	for (i = 0; i < ZEBRA_ROUTE_MAX; i++) {
