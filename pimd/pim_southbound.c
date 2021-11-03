@@ -840,8 +840,10 @@ static void pimsb_client_data_stop(const struct mroute_event *me)
 		return;
 	}
 
-	if (pim_upstream_del(pim_ifp->pim, up, __func__))
-		pimsb_mroute_do(up->channel_oil, false);
+	/* HACK: make sure reference count is low so it gets deleted. */
+	up->ref_count = 1;
+
+	pim_upstream_del(pim_ifp->pim, up, __func__);
 }
 
 static void pimsb_client_wrong_if(const struct mroute_event *me)
