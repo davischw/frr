@@ -211,7 +211,8 @@ static void ospf6_gr_restart_exit(struct ospf6 *ospf6, const char *reason)
 			}
 
 			/* Update Link-LSA. */
-			OSPF6_LINK_LSA_EXECUTE(oi);
+			if (oi->type != OSPF_IFTYPE_VIRTUALLINK)
+				OSPF6_LINK_LSA_EXECUTE(oi);
 
 			/*
 			 * 2) The router should reoriginate network-LSAs on all
