@@ -377,6 +377,27 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 		i_am_lhr = true;
 	i_am_fhr = !i_am_lhr && !i_am_rp;
 
+	/*
+	 * Don't install FHR routes if DATA_START has not been set.
+	 *
+	 * How can this happen? When a PIM router is restarted during a
+	 * multicast transmission and the source goes away before it is
+	 * started, the other routers in the topology still remember the
+	 * source/group and they will send PIM join to this FHR router
+	 * causing it to install a multicast route even though multicast
+	 * data has never been seen.
+	 */
+	if (i_am_fhr && install) {
+		if (upstream == NULL
+		    || !(upstream->flags & PIM_UPSTREAM_FLAG_MASK_DATA_START)) {
+			if (PIM_DEBUG_MROUTE)
+				zlog_debug(
+					"%s: data hasn't started, don't install FHR mroute",
+					__func__);
+			return;
+		}
+	}
+
 	/* Figure out RP information. */
 	p.family = AF_INET;
 	p.prefixlen = 32;
