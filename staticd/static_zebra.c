@@ -439,6 +439,10 @@ extern void static_zebra_route_add(struct static_path *pn, bool install)
 		SET_FLAG(api.message, ZAPI_MESSAGE_TAG);
 		api.tag = pn->tag;
 	}
+	if (pn->metric != 1) {
+		SET_FLAG(api.message, ZAPI_MESSAGE_METRIC);
+		api.metric = pn->metric;
+	}
 	if (pn->table_id != 0) {
 		SET_FLAG(api.message, ZAPI_MESSAGE_TABLEID);
 		api.tableid = pn->table_id;

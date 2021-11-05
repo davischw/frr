@@ -68,6 +68,8 @@ struct static_route_args {
 	const char *table;
 	const char *color;
 
+	const char *metric;
+
 	bool bfd;
 	bool bfd_multi_hop;
 	const char *bfd_source;
@@ -237,7 +239,8 @@ static int static_route_nb_run(struct vty *vty, struct static_route_args *args)
 				 buf_prefix,
 				 yang_afi_safi_value2identity(args->afi,
 							      args->safi),
-				 table_id, distance);
+				 table_id, args->metric ? args->metric : "1",
+				 distance);
 
 		nb_cli_enqueue_change(vty, xpath_prefix, NB_OP_CREATE, NULL);
 
@@ -466,6 +469,7 @@ DEFPY_YANG(ip_route_blackhole,
 	[{                                                                    \
 	  tag (1-4294967295)                                                  \
 	  |(1-255)$distance                                                   \
+	  |metric (1-4294967295)$metric                                       \
 	  |vrf NAME                                                           \
 	  |label WORD                                                         \
           |table (1-4294967295)                                               \
@@ -480,6 +484,8 @@ DEFPY_YANG(ip_route_blackhole,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -497,6 +503,7 @@ DEFPY_YANG(ip_route_blackhole,
 		.label = label,
 		.table = table_str,
 		.vrf = vrf,
+		.metric = metric_str,
 	};
 
 	return static_route_nb_run(vty, &args);
@@ -510,6 +517,7 @@ DEFPY_YANG(ip_route_blackhole_vrf,
 	[{                                                                    \
 	  tag (1-4294967295)                                                  \
 	  |(1-255)$distance                                                   \
+	  |metric (1-4294967295)$metric                                       \
 	  |label WORD                                                         \
 	  |table (1-4294967295)                                               \
           }]",
@@ -523,6 +531,8 @@ DEFPY_YANG(ip_route_blackhole_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n")
@@ -539,6 +549,7 @@ DEFPY_YANG(ip_route_blackhole_vrf,
 		.label = label,
 		.table = table_str,
 		.xpath_vrf = true,
+		.metric = metric_str,
 	};
 
 	/*
@@ -560,6 +571,7 @@ DEFPY_YANG(ip_route_address_interface,
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
+          |metric (1-4294967295)$metric                \
 	  |vrf NAME                                    \
 	  |label WORD                                  \
 	  |table (1-4294967295)                        \
@@ -581,6 +593,8 @@ DEFPY_YANG(ip_route_address_interface,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -616,6 +630,7 @@ DEFPY_YANG(ip_route_address_interface,
 		.bfd_multi_hop = !!bfd_multi_hop,
 		.bfd_source = bfd_source_str,
 		.bfd_profile = bfd_profile,
+		.metric = metric_str,
 	};
 
 	return static_route_nb_run(vty, &args);
@@ -630,6 +645,7 @@ DEFPY_YANG(ip_route_address_interface_vrf,
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
+	  |metric (1-4294967295)$metric                \
 	  |label WORD                                  \
 	  |table (1-4294967295)                        \
 	  |nexthop-vrf NAME                            \
@@ -650,6 +666,8 @@ DEFPY_YANG(ip_route_address_interface_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n"
@@ -684,6 +702,7 @@ DEFPY_YANG(ip_route_address_interface_vrf,
 		.bfd_multi_hop = !!bfd_multi_hop,
 		.bfd_source = bfd_source_str,
 		.bfd_profile = bfd_profile,
+		.metric = metric_str,
 	};
 
 	return static_route_nb_run(vty, &args);
@@ -697,6 +716,7 @@ DEFPY_YANG(ip_route,
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
+	  |metric (1-4294967295)$metric                \
 	  |vrf NAME                                    \
 	  |label WORD                                  \
 	  |table (1-4294967295)                        \
@@ -717,6 +737,8 @@ DEFPY_YANG(ip_route,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -750,6 +772,7 @@ DEFPY_YANG(ip_route,
 		.bfd_multi_hop = !!bfd_multi_hop,
 		.bfd_source = bfd_source_str,
 		.bfd_profile = bfd_profile,
+		.metric = metric_str,
 	};
 
 	return static_route_nb_run(vty, &args);
@@ -763,6 +786,7 @@ DEFPY_YANG(ip_route_vrf,
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
+	  |metric (1-4294967295)$metric                \
 	  |label WORD                                  \
 	  |table (1-4294967295)                        \
 	  |nexthop-vrf NAME                            \
@@ -782,6 +806,8 @@ DEFPY_YANG(ip_route_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n"
@@ -814,6 +840,7 @@ DEFPY_YANG(ip_route_vrf,
 		.bfd_multi_hop = !!bfd_multi_hop,
 		.bfd_source = bfd_source_str,
 		.bfd_profile = bfd_profile,
+		.metric = metric_str,
 	};
 
 	return static_route_nb_run(vty, &args);
@@ -826,6 +853,7 @@ DEFPY_YANG(ipv6_route_blackhole,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |vrf NAME                                      \
             |label WORD                                    \
             |table (1-4294967295)                          \
@@ -841,6 +869,8 @@ DEFPY_YANG(ipv6_route_blackhole,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -858,6 +888,7 @@ DEFPY_YANG(ipv6_route_blackhole,
 		.label = label,
 		.table = table_str,
 		.vrf = vrf,
+		.metric = metric_str,
 	};
 
 	return static_route_nb_run(vty, &args);
@@ -870,6 +901,7 @@ DEFPY_YANG(ipv6_route_blackhole_vrf,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |label WORD                                    \
             |table (1-4294967295)                          \
           }]",
@@ -884,6 +916,8 @@ DEFPY_YANG(ipv6_route_blackhole_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n")
@@ -900,6 +934,7 @@ DEFPY_YANG(ipv6_route_blackhole_vrf,
 		.label = label,
 		.table = table_str,
 		.xpath_vrf = true,
+		.metric = metric_str,
 	};
 
 	/*
@@ -920,6 +955,7 @@ DEFPY_YANG(ipv6_route_address_interface,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |vrf NAME                                      \
             |label WORD                                    \
 	    |table (1-4294967295)                          \
@@ -942,6 +978,8 @@ DEFPY_YANG(ipv6_route_address_interface,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -977,6 +1015,7 @@ DEFPY_YANG(ipv6_route_address_interface,
 		.bfd_multi_hop = !!bfd_multi_hop,
 		.bfd_source = bfd_source_str,
 		.bfd_profile = bfd_profile,
+		.metric = metric_str,
 	};
 
 	return static_route_nb_run(vty, &args);
@@ -990,6 +1029,7 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |label WORD                                    \
 	    |table (1-4294967295)                          \
             |nexthop-vrf NAME                              \
@@ -1011,6 +1051,8 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n"
@@ -1045,6 +1087,7 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
 		.bfd_multi_hop = !!bfd_multi_hop,
 		.bfd_source = bfd_source_str,
 		.bfd_profile = bfd_profile,
+		.metric = metric_str,
 	};
 
 	return static_route_nb_run(vty, &args);
@@ -1057,6 +1100,7 @@ DEFPY_YANG(ipv6_route,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |vrf NAME                                      \
             |label WORD                                    \
 	    |table (1-4294967295)                          \
@@ -1078,6 +1122,8 @@ DEFPY_YANG(ipv6_route,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -1111,6 +1157,7 @@ DEFPY_YANG(ipv6_route,
 		.bfd_multi_hop = !!bfd_multi_hop,
 		.bfd_source = bfd_source_str,
 		.bfd_profile = bfd_profile,
+		.metric = metric_str,
 	};
 
 	return static_route_nb_run(vty, &args);
@@ -1123,6 +1170,7 @@ DEFPY_YANG(ipv6_route_vrf,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |label WORD                                    \
 	    |table (1-4294967295)                          \
             |nexthop-vrf NAME                              \
@@ -1143,6 +1191,8 @@ DEFPY_YANG(ipv6_route_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n"
@@ -1305,6 +1355,10 @@ static void nexthop_cli_show(struct vty *vty, const struct lyd_node *route,
 	distance = yang_dnode_get_uint8(path, "./distance");
 	if (distance != ZEBRA_STATIC_DISTANCE_DEFAULT || show_defaults)
 		vty_out(vty, " %" PRIu8, distance);
+
+	uint32_t metric = yang_dnode_get_uint32(path, "./metric");
+	if (metric != 1)
+		vty_out(vty, "%" PRIu32, metric);
 
 	iter.vty = vty;
 	iter.first = true;
