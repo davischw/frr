@@ -2169,6 +2169,10 @@ static void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		json_oil = NULL;
 
 		for (oif_idx = 0; oif_idx < MAXVIFS; ++oif_idx) {
+			/* Don't show any output interface if filtered. */
+			if (oil->filtered)
+				break;
+
 			if (oil->oil.mfcc_ttls[oif_idx] < 1)
 				continue;
 
@@ -2399,6 +2403,10 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 				now - oil->mroute_creation);
 
 		for (oif_idx = 0; oif_idx < MAXVIFS; ++oif_idx) {
+			/* Don't show any output interface if filtered. */
+			if (oil->filtered)
+				break;
+
 			if (oil->oil.mfcc_ttls[oif_idx] < 1)
 				continue;
 
