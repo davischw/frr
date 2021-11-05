@@ -49,7 +49,7 @@ static int static_route_leak(struct vty *vty, const char *svrf,
 			     const char *mask_str, const char *src_str,
 			     const char *gate_str, const char *ifname,
 			     const char *flag_str, const char *tag_str,
-			     const char *distance_str, const char *label_str,
+			     const char *distance_str, const char *metric, const char *label_str,
 			     const char *table_str, bool onlink,
 			     const char *color_str, bool bfd, bool bfd_mhop,
 			     const char *bfd_profile, const char *route_group,
@@ -231,6 +231,14 @@ static int static_route_leak(struct vty *vty, const char *svrf,
 		strlcat(ab_xpath, FRR_STATIC_ROUTE_PATH_TAG_XPATH,
 			sizeof(ab_xpath));
 		nb_cli_enqueue_change(vty, ab_xpath, NB_OP_MODIFY, buf_tag);
+
+		/* Metric processing. */
+		if (metric) {
+			strlcpy(ab_xpath, xpath_prefix, sizeof(ab_xpath));
+			strlcat(ab_xpath, "/metric", sizeof(ab_xpath));
+			nb_cli_enqueue_change(vty, ab_xpath, NB_OP_MODIFY,
+					      metric);
+		}
 
 		/* nexthop processing */
 
@@ -423,7 +431,7 @@ static int static_route(struct vty *vty, afi_t afi, safi_t safi,
 			const char *mask_str, const char *src_str,
 			const char *gate_str, const char *ifname,
 			const char *flag_str, const char *tag_str,
-			const char *distance_str, const char *vrf_name,
+			const char *distance_str, const char *metric, const char *vrf_name,
 			const char *label_str, const char *table_str, bool bfd,
 			bool bfd_mhop, const char *bfd_profile,
 			const char *route_group, const char *address_list_name)
@@ -433,7 +441,7 @@ static int static_route(struct vty *vty, afi_t afi, safi_t safi,
 
 	return static_route_leak(vty, vrf_name, vrf_name, afi, safi, negate,
 				 dest_str, mask_str, src_str, gate_str, ifname,
-				 flag_str, tag_str, distance_str, label_str,
+				 flag_str, tag_str, distance_str, metric, label_str,
 				 table_str, false, NULL, bfd, bfd_mhop,
 				 bfd_profile, route_group, address_list_name);
 }
@@ -538,6 +546,9 @@ int static_config(struct vty *vty, struct static_vrf *svrf, afi_t afi,
 				    != ZEBRA_STATIC_DISTANCE_DEFAULT)
 					vty_out(vty, " %u", pn->distance);
 
+				if (pn->metric)
+					vty_out(vty, " metric %u", pn->metric);
+
 				/* Label information */
 				if (nh->snh_label.num_labels)
 					vty_out(vty, " label %s",
@@ -620,7 +631,7 @@ DEFPY_YANG (ip_mroute_dist,
 {
 	return static_route(vty, AFI_IP, SAFI_MULTICAST, no, prefix_str, NULL,
 			    NULL, gate_str, ifname, NULL, NULL, distance_str,
-			    NULL, NULL, NULL, !!bfd, !!bfd_mhop, bfd_profile,
+			    NULL, NULL, NULL, NULL, !!bfd, !!bfd_mhop, bfd_profile,
 			    route_group, NULL);
 }
 
@@ -633,6 +644,7 @@ DEFPY_YANG(ip_route_blackhole,
 	[{                                                                    \
 	  tag (1-4294967295)                                                  \
 	  |(1-255)$distance                                                   \
+	  |metric (1-4294967295)$metric                                       \
 	  |vrf NAME                                                           \
 	  |label WORD                                                         \
           |table (1-4294967295)                                               \
@@ -648,6 +660,8 @@ DEFPY_YANG(ip_route_blackhole,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -656,7 +670,7 @@ DEFPY_YANG(ip_route_blackhole,
       STATIC_ROUTE_GROUP_NAME_STR)
 {
 	return static_route(vty, AFI_IP, SAFI_UNICAST, no, prefix, mask_str,
-			    NULL, NULL, NULL, flag, tag_str, distance_str, vrf,
+			    NULL, NULL, NULL, flag, tag_str, distance_str, metric_str, vrf,
 			    label, table_str, false, false, NULL, route_group,
 			    NULL);
 }
@@ -669,6 +683,7 @@ DEFPY_YANG(ip_route_blackhole_vrf,
 	[{                                                                    \
 	  tag (1-4294967295)                                                  \
 	  |(1-255)$distance                                                   \
+	  |metric (1-4294967295)$metric                                       \
 	  |label WORD                                                         \
 	  |table (1-4294967295)                                               \
           |group STRGRP$route_group                                            \
@@ -683,6 +698,8 @@ DEFPY_YANG(ip_route_blackhole_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n"
@@ -707,7 +724,7 @@ DEFPY_YANG(ip_route_blackhole_vrf,
 	assert(prefix);
 	return static_route_leak(vty, vrfname, vrfname, AFI_IP, SAFI_UNICAST,
 				 no, prefix, mask_str, NULL, NULL, NULL, flag,
-				 tag_str, distance_str, label, table_str, false,
+				 tag_str, distance_str, metric_str, label, table_str, false,
 				 NULL, false, false, NULL, route_group, NULL);
 }
 
@@ -719,6 +736,7 @@ DEFPY_YANG(ip_route_address_interface, ip_route_address_interface_cmd,
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
+          |metric (1-4294967295)$metric                \
 	  |vrf NAME                                    \
 	  |label WORD                                  \
 	  |table (1-4294967295)                        \
@@ -741,6 +759,8 @@ DEFPY_YANG(ip_route_address_interface, ip_route_address_interface_cmd,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -773,7 +793,7 @@ DEFPY_YANG(ip_route_address_interface, ip_route_address_interface_cmd,
 
 	return static_route_leak(vty, vrf, nh_vrf, AFI_IP, SAFI_UNICAST, no,
 				 prefix, mask_str, NULL, gate_str, ifname, flag,
-				 tag_str, distance_str, label, table_str,
+				 tag_str, distance_str, metric_str, label, table_str,
 				 !!onlink, color_str, !!bfd, !!bfd_mhop,
 				 bfd_profile, route_group, address_list);
 }
@@ -787,6 +807,7 @@ DEFPY_YANG(ip_route_address_interface_vrf,
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
+	  |metric (1-4294967295)$metric                \
 	  |label WORD                                  \
 	  |table (1-4294967295)                        \
 	  |nexthop-vrf NAME                            \
@@ -808,6 +829,8 @@ DEFPY_YANG(ip_route_address_interface_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n"
@@ -846,7 +869,7 @@ DEFPY_YANG(ip_route_address_interface_vrf,
 
 	return static_route_leak(vty, vrfname, nh_vrf, AFI_IP, SAFI_UNICAST, no,
 				 prefix, mask_str, NULL, gate_str, ifname, flag,
-				 tag_str, distance_str, label, table_str,
+				 tag_str, distance_str, metric_str, label, table_str,
 				 !!onlink, color_str, !!bfd, !!bfd_mhop,
 				 bfd_profile, route_group, address_list);
 }
@@ -859,6 +882,7 @@ DEFPY_YANG(ip_route,
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
+	  |metric (1-4294967295)$metric                \
 	  |vrf NAME                                    \
 	  |label WORD                                  \
 	  |table (1-4294967295)                        \
@@ -880,6 +904,8 @@ DEFPY_YANG(ip_route,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -912,7 +938,7 @@ DEFPY_YANG(ip_route,
 
 	return static_route_leak(vty, vrf, nh_vrf, AFI_IP, SAFI_UNICAST, no,
 				 prefix, mask_str, NULL, gate_str, ifname, flag,
-				 tag_str, distance_str, label, table_str, false,
+				 tag_str, distance_str, metric_str, label, table_str, false,
 				 color_str, !!bfd, !!bfd_mhop, bfd_profile,
 				 route_group, address_list);
 }
@@ -925,6 +951,7 @@ DEFPY_YANG(ip_route_vrf,
 	[{                                             \
 	  tag (1-4294967295)                           \
 	  |(1-255)$distance                            \
+	  |metric (1-4294967295)$metric                \
 	  |label WORD                                  \
 	  |table (1-4294967295)                        \
 	  |nexthop-vrf NAME                            \
@@ -945,6 +972,8 @@ DEFPY_YANG(ip_route_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this route\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n"
@@ -983,7 +1012,7 @@ DEFPY_YANG(ip_route_vrf,
 
 	return static_route_leak(vty, vrfname, nh_vrf, AFI_IP, SAFI_UNICAST, no,
 				 prefix, mask_str, NULL, gate_str, ifname, flag,
-				 tag_str, distance_str, label, table_str, false,
+				 tag_str, distance_str, metric_str, label, table_str, false,
 				 color_str, !!bfd, !!bfd_mhop, bfd_profile,
 				 route_group, address_list);
 }
@@ -995,6 +1024,7 @@ DEFPY_YANG(ipv6_route_blackhole,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |vrf NAME                                      \
             |label WORD                                    \
             |table (1-4294967295)                          \
@@ -1011,6 +1041,8 @@ DEFPY_YANG(ipv6_route_blackhole,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -1019,7 +1051,7 @@ DEFPY_YANG(ipv6_route_blackhole,
       STATIC_ROUTE_GROUP_NAME_STR)
 {
 	return static_route(vty, AFI_IP6, SAFI_UNICAST, no, prefix_str, NULL,
-			    from_str, NULL, NULL, flag, tag_str, distance_str,
+			    from_str, NULL, NULL, flag, tag_str, distance_str, metric_str,
 			    vrf, label, table_str, false, false, NULL,
 			    route_group, NULL);
 }
@@ -1031,6 +1063,7 @@ DEFPY_YANG(ipv6_route_blackhole_vrf,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |label WORD                                    \
             |table (1-4294967295)                          \
             |group STRGRP$route_group			   \
@@ -1046,6 +1079,8 @@ DEFPY_YANG(ipv6_route_blackhole_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n"
@@ -1072,7 +1107,7 @@ DEFPY_YANG(ipv6_route_blackhole_vrf,
 
 	return static_route_leak(vty, vrfname, vrfname, AFI_IP6, SAFI_UNICAST,
 				 no, prefix_str, NULL, from_str, NULL, NULL,
-				 flag, tag_str, distance_str, label, table_str,
+				 flag, tag_str, distance_str, metric_str, label, table_str,
 				 false, NULL, false, false, NULL, route_group,
 				 NULL);
 }
@@ -1085,6 +1120,7 @@ DEFPY_YANG(ipv6_route_address_interface,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |vrf NAME                                      \
             |label WORD                                    \
 	    |table (1-4294967295)                          \
@@ -1108,6 +1144,8 @@ DEFPY_YANG(ipv6_route_address_interface,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -1141,7 +1179,7 @@ DEFPY_YANG(ipv6_route_address_interface,
 
 	return static_route_leak(vty, vrf, nh_vrf, AFI_IP6, SAFI_UNICAST, no,
 				 prefix_str, NULL, from_str, gate_str, ifname,
-				 flag, tag_str, distance_str, label, table_str,
+				 flag, tag_str, distance_str, metric_str, label, table_str,
 				 !!onlink, color_str, !!bfd, !!bfd_mhop,
 				 bfd_profile, route_group, address_list);
 }
@@ -1154,6 +1192,7 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |label WORD                                    \
 	    |table (1-4294967295)                          \
             |nexthop-vrf NAME                              \
@@ -1176,6 +1215,8 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n"
@@ -1214,7 +1255,7 @@ DEFPY_YANG(ipv6_route_address_interface_vrf,
 	}
 	return static_route_leak(vty, vrfname, nh_vrf, AFI_IP6, SAFI_UNICAST,
 				 no, prefix_str, NULL, from_str, gate_str,
-				 ifname, flag, tag_str, distance_str, label,
+				 ifname, flag, tag_str, distance_str, metric_str, label,
 				 table_str, !!onlink, color_str, !!bfd,
 				 !!bfd_mhop, bfd_profile, route_group,
 				 address_list);
@@ -1227,6 +1268,7 @@ DEFPY_YANG(ipv6_route,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |vrf NAME                                      \
             |label WORD                                    \
 	    |table (1-4294967295)                          \
@@ -1249,6 +1291,8 @@ DEFPY_YANG(ipv6_route,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       VRF_CMD_HELP_STR
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
@@ -1280,7 +1324,7 @@ DEFPY_YANG(ipv6_route,
 	}
 	return static_route_leak(vty, vrf, nh_vrf, AFI_IP6, SAFI_UNICAST, no,
 				 prefix_str, NULL, from_str, gate_str, ifname,
-				 flag, tag_str, distance_str, label, table_str,
+				 flag, tag_str, distance_str, metric_str, label, table_str,
 				 false, color_str, !!bfd, !!bfd_mhop,
 				 bfd_profile, route_group, address_list);
 }
@@ -1292,6 +1336,7 @@ DEFPY_YANG(ipv6_route_vrf,
           [{                                               \
             tag (1-4294967295)                             \
             |(1-255)$distance                              \
+	    |metric (1-4294967295)$metric                  \
             |label WORD                                    \
 	    |table (1-4294967295)                          \
             |nexthop-vrf NAME                              \
@@ -1313,6 +1358,8 @@ DEFPY_YANG(ipv6_route_vrf,
       "Set tag for this route\n"
       "Tag value\n"
       "Distance value for this prefix\n"
+      "Route metric\n"
+      "Route metric value\n"
       MPLS_LABEL_HELPSTR
       "Table to configure\n"
       "The table number to configure\n"
@@ -1350,7 +1397,7 @@ DEFPY_YANG(ipv6_route_vrf,
 	}
 	return static_route_leak(vty, vrfname, nh_vrf, AFI_IP6, SAFI_UNICAST,
 				 no, prefix_str, NULL, from_str, gate_str,
-				 ifname, flag, tag_str, distance_str, label,
+				 ifname, flag, tag_str, distance_str, metric_str, label,
 				 table_str, false, color_str, !!bfd, !!bfd_mhop,
 				 bfd_profile, route_group, address_list);
 }

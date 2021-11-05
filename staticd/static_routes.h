@@ -96,6 +96,8 @@ struct static_path {
 	struct static_path_list_item list;
 	/* Administrative distance. */
 	uint8_t distance;
+	/* Metric */
+	uint32_t metric;
 	/* Tag */
 	route_tag_t tag;
 	/* Table-id */

@@ -131,6 +131,14 @@ module frr-staticd {
         }
 
         uses staticd-prefix-attributes {
+          augment "path-list" {
+            leaf metric {
+              type uint32;
+              description
+                "Route metric.";
+            }
+          }
+
           augment "path-list/frr-nexthops/nexthop" {
             container bfd-monitoring {
               description "Next hop BFD monitoring options.";

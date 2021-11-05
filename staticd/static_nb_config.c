@@ -602,6 +602,64 @@ int routing_control_plane_protocols_control_plane_protocol_staticd_route_list_pa
 
 /*
  * XPath:
+ * /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-staticd:staticd/route-list/path-list/metric
+ */
+int routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_metric_modify(
+	struct nb_cb_modify_args *args)
+{
+	const struct lyd_node *rn_dnode;
+	struct stable_info *info;
+	struct static_path *pn;
+	struct route_node *rn;
+	uint32_t metric;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		rn_dnode = yang_dnode_get_parent(args->dnode, "route-list");
+		rn = nb_running_get_entry(rn_dnode, NULL, true);
+		info = route_table_get_info(rn->table);
+		pn = nb_running_get_entry(args->dnode, NULL, true);
+		metric = yang_dnode_get_uint32(args->dnode, NULL);
+		pn->metric = metric;
+		static_install_path(rn, pn, info->safi, info->svrf);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_metric_destroy(
+	struct nb_cb_destroy_args *args)
+{
+	const struct lyd_node *rn_dnode;
+	struct stable_info *info;
+	struct static_path *pn;
+	struct route_node *rn;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		rn_dnode = yang_dnode_get_parent(args->dnode, "route-list");
+		rn = nb_running_get_entry(rn_dnode, NULL, true);
+		info = route_table_get_info(rn->table);
+		pn = nb_running_get_entry(args->dnode, NULL, true);
+		pn->metric = 0;
+		static_install_path(rn, pn, info->safi, info->svrf);
+		break;
+	}
+
+	return NB_OK;
+}
+
+/*
+ * XPath:
  * /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-staticd:staticd/route-list/path-list/tag
  */
 int routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_tag_modify(
