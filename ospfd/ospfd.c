@@ -815,6 +815,9 @@ static void ospf_finish_final(struct ospf *ospf)
 	/* Cancel all timers. */
 	OSPF_TIMER_OFF(ospf->t_read);
 	OSPF_TIMER_OFF(ospf->t_write);
+	OSPF_TIMER_OFF(ospf->ie_spf_ev);
+	OSPF_TIMER_OFF(ospf->ie_dr_ev);
+	OSPF_TIMER_OFF(ospf->ie_other_ev);
 	OSPF_TIMER_OFF(ospf->t_spf_calc);
 	OSPF_TIMER_OFF(ospf->t_ase_calc);
 	OSPF_TIMER_OFF(ospf->t_maxage);
@@ -923,8 +926,15 @@ static void ospf_finish_final(struct ospf *ospf)
 	ospf_gr_helper_instance_stop(ospf);
 
 	close(ospf->fd);
-	stream_free(ospf->ibuf);
 	ospf->fd = -1;
+	close(ospf->ie_spf_sock);
+	ospf->ie_spf_sock = -1;
+	close(ospf->ie_dr_sock);
+	ospf->ie_dr_sock = -1;
+	close(ospf->ie_other_sock);
+	ospf->ie_other_sock = -1;
+
+	stream_free(ospf->ibuf);
 	ospf->max_multipath = MULTIPATH_NUM;
 	ospf_delete(ospf);
 
