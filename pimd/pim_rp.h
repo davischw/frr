@@ -41,9 +41,7 @@ struct rp_info {
 	enum rp_source rp_src;
 	int i_am_rp;
 	char *plist;
-	char *fallback_plist;
 	char *alist;
-	char *fallback_alist;
 };
 
 void pim_rp_init(struct pim_instance *pim);
