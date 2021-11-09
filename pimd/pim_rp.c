@@ -634,6 +634,93 @@ void pim_upstream_update(struct pim_instance *pim, struct pim_upstream *up)
 	pim_zebra_update_all_interfaces(pim);
 }
 
+int pim_rp_valid(struct pim_instance *pim, struct in_addr rp_addr,
+		 struct prefix group, const char *plist, const char *alist,
+		 enum rp_source rp_src_flag)
+{
+	struct rp_info *rp_all;
+	struct rp_info *tmp_rp_info;
+	struct prefix group_all;
+
+	if (rp_addr.s_addr == INADDR_ANY ||
+	    rp_addr.s_addr == INADDR_NONE)
+		return PIM_RP_BAD_ADDRESS;
+
+	/* These are mutually exclusive and can't be set at the same time. */
+	assert(!(plist && alist));
+
+	if (plist) {
+		/*
+		 * Return if the prefix-list is already configured for this RP
+		 */
+		if (pim_rp_find_prefix_list(pim, rp_src_flag, rp_addr, plist))
+			return PIM_SUCCESS;
+
+		/*
+		 * Barf if the prefix-list is already configured for an RP
+		 */
+		if (pim_rp_prefix_list_used(pim, plist))
+			return PIM_RP_PFXLIST_IN_USE;
+
+	} else if (alist) {
+		/*
+		 * Return if the prefix-list is already configured for this RP
+		 */
+		if (pim_rp_find_access_list(pim, rp_src_flag, rp_addr, alist))
+			return PIM_SUCCESS;
+
+		/*
+		 * Barf if the prefix-list is already configured for an RP
+		 */
+		if (pim_rp_access_list_used(pim, alist))
+			return PIM_RP_ACLIST_IN_USE;
+
+	} else {
+		if (!str2prefix("224.0.0.0/4", &group_all))
+			return PIM_GROUP_BAD_ADDRESS;
+		rp_all = pim_rp_find_match_group(pim, &group_all);
+
+		/*
+		 * Barf if group is a non-multicast subnet
+		 */
+		if (!prefix_match(&rp_all->group, &group))
+			return PIM_GROUP_BAD_ADDRESS;
+
+		/*
+		 * Barf if this group is already covered by some other RP
+		 */
+		tmp_rp_info = pim_rp_find_match_group(pim, &group);
+
+		bool new_is_fb = (rp_src_flag == RP_SRC_FALLBACK);
+		bool tmp_is_fb = tmp_rp_info && (tmp_rp_info->rp_src
+						 == RP_SRC_FALLBACK);
+
+		if (tmp_rp_info && (tmp_is_fb == new_is_fb)) {
+			if (tmp_rp_info->plist)
+				return PIM_GROUP_PFXLIST_OVERLAP;
+			else if (tmp_rp_info->alist)
+				return PIM_GROUP_ACLIST_OVERLAP;
+			else {
+				/*
+				 * If the only RP that covers this group is an
+				 * RP configured for
+				 * 224.0.0.0/4 that is fine, ignore that one.
+				 * For all others
+				 * though we must return PIM_GROUP_OVERLAP
+				 */
+				if (prefix_same(&group, &tmp_rp_info->group)) {
+					if ((rp_src_flag != RP_SRC_BSR)
+					    && (tmp_rp_info->rp_src
+						== rp_src_flag))
+						return PIM_GROUP_OVERLAP;
+				}
+			}
+		}
+	}
+
+	return PIM_SUCCESS;
+}
+
 int pim_rp_new(struct pim_instance *pim, struct in_addr rp_addr,
 	       struct prefix group, const char *plist, const char *alist,
 	       enum rp_source rp_src_flag)
