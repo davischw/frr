@@ -169,7 +169,8 @@ static struct rp_info *pim_rp_find_rpaddr(struct pim_instance *pim,
 	list = (rp_src != RP_SRC_FALLBACK) ? pim->rp_list : pim->fb_rp_list;
 
 	for (ALL_LIST_ELEMENTS_RO(list, node, rp_info))
-		if (pim_addr_cmp(rp, rp_info->rp.rpf_addr) == 0)
+		if (pim_addr_cmp(rp, rp_info->rp.rpf_addr) == 0 &&
+		    rp_info->rp_src == rp_src)
 			return rp_info;
 	return NULL;
 }
@@ -189,7 +190,8 @@ static struct rp_info *pim_rp_find_prefix_list(struct pim_instance *pim,
 
 	for (ALL_LIST_ELEMENTS_RO(list, node, rp_info)) {
 		if ((!pim_addr_cmp(rp, rp_info->rp.rpf_addr)) &&
-		    rp_info->plist && strcmp(rp_info->plist, plist) == 0) {
+		    rp_info->rp_src == rp_src && rp_info->plist &&
+		    strcmp(rp_info->plist, plist) == 0) {
 			return rp_info;
 		}
 	}
@@ -212,7 +214,8 @@ static struct rp_info *pim_rp_find_access_list(struct pim_instance *pim,
 
 	for (ALL_LIST_ELEMENTS_RO(list, node, rp_info)) {
 		if (pim_addr_cmp(rp, rp_info->rp.rpf_addr) == 0 &&
-		    rp_info->alist && strcmp(rp_info->alist, alist) == 0) {
+		    rp_info->rp_src == rp_src && rp_info->alist &&
+		    strcmp(rp_info->alist, alist) == 0) {
 			return rp_info;
 		}
 	}
@@ -280,6 +283,7 @@ static struct rp_info *pim_rp_find_exact(struct pim_instance *pim,
 
 	for (ALL_LIST_ELEMENTS_RO(list, node, rp_info)) {
 		if ((!pim_addr_cmp(rp, rp_info->rp.rpf_addr)) &&
+		    rp_info->rp_src == rp_src &&
 		    prefix_same(&rp_info->group, group))
 			return rp_info;
 	}
