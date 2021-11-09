@@ -419,9 +419,8 @@ static int pim_rp_errmsg(int result, char *errmsg, size_t errmsg_len,
 		return NB_OK;
 
 	case PIM_RP_NO_PATH:
-		snprintfrr(errmsg, errmsg_len,
-			 "No Path to RP address specified: %pI4", rp_addr);
-		return NB_ERR_VALIDATION;
+		/* this isn't an error. */
+		return NB_OK;
 
 	case PIM_GROUP_OVERLAP:
 		snprintfrr(errmsg, errmsg_len,
