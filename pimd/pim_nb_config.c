@@ -239,9 +239,8 @@ static int pim_rp_errmsg(int result, char *errmsg, size_t errmsg_len,
 	case PIM_SUCCESS:
 		return NB_OK;
 	case PIM_RP_NO_PATH:
-		snprintfrr(errmsg, errmsg_len,
-			   "No Path to RP address specified: %pPA", rp_addr);
-		return NB_ERR_VALIDATION;
+		/* This is not an error. */
+		return NB_OK;
 	case PIM_GROUP_OVERLAP:
 		snprintfrr(errmsg, errmsg_len,
 			   "Group range specified cannot exact match another");
