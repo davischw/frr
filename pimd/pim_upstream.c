@@ -1544,8 +1544,7 @@ void pim_upstream_keep_alive_timer_start(struct pim_upstream *up, uint32_t time)
 {
 	if (!PIM_UPSTREAM_FLAG_TEST_SRC_STREAM(up->flags)) {
 		if (PIM_DEBUG_PIM_TRACE)
-			zlog_debug("kat start on %s with no stream reference",
-				   up->sg_str);
+			zlog_debug("KAT start on %s for non-FHR", up->sg_str);
 	}
 	if (up->t_ka_holders) {
 		assertf(!up->t_ka_timer, "%s flags %u holders %u", up->sg_str,
@@ -2146,24 +2145,27 @@ static bool pim_upstream_sg_running_proc(struct pim_upstream *up)
 	}
 
 	if (pim_upstream_kat_start_ok(up)) {
-		/* Add a source reference to the stream if
-		 * one doesn't already exist */
-		if (!PIM_UPSTREAM_FLAG_TEST_SRC_STREAM(up->flags)) {
-			if (PIM_DEBUG_PIM_TRACE)
-				zlog_debug(
-					"source reference created on kat restart %s[%s]",
-					up->sg_str, pim->vrf->name);
-
-			pim_upstream_ref(up, PIM_UPSTREAM_FLAG_MASK_SRC_STREAM,
-					 __func__);
-			PIM_UPSTREAM_FLAG_SET_SRC_STREAM(up->flags);
-			pim_upstream_fhr_kat_start(up);
-		}
 		pim_upstream_keep_alive_timer_start(up, pim->keep_alive_time);
 		rv = true;
 	} else if (PIM_UPSTREAM_FLAG_TEST_SRC_LHR(up->flags)) {
+		zlog_warn("KAT restart for %s[%s]: LHR set but kat_start_ok is false",
+			  up->sg_str, pim->vrf->name);
+
 		pim_upstream_keep_alive_timer_start(up, pim->keep_alive_time);
 		rv = true;
+	}
+
+	if (rv && up->rpf.source_nexthop.interface
+	    && pim_if_connected_to_source(up->rpf.source_nexthop.interface, up->sg.src)
+	    && !PIM_UPSTREAM_FLAG_TEST_SRC_STREAM(up->flags)) {
+		/* Add a source reference to the stream if
+		 * one doesn't already exist */
+		zlog_warn("KAT restart for %s[%s]: SRC_STREAM missing, how did we get here?",
+			  up->sg_str, pim->vrf->name);
+
+		pim_upstream_ref(up, PIM_UPSTREAM_FLAG_MASK_SRC_STREAM, __func__);
+		PIM_UPSTREAM_FLAG_SET_SRC_STREAM(up->flags);
+		pim_upstream_fhr_kat_start(up);
 	}
 
 	if ((up->sptbit != PIM_UPSTREAM_SPTBIT_TRUE) &&
