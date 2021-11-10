@@ -803,6 +803,13 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 			      : "no upstream");
 
 	if (up && (up->flags & PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED)) {
+		/* SPT_DESIRED is holding 1 ref, "transfer" that to SRC_LHR */
+		up->flags &= ~PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED;
+		up->flags |= PIM_UPSTREAM_FLAG_MASK_SRC_LHR;
+		if (PIM_DEBUG_MROUTE_DETAIL)
+			zlog_debug("%pSG4: -SPT_DESIRED +SRC_LHR rc=%d",
+				   &up->sg, up->ref_count);
+
 		pim_upstream_switch(pim_ifp->pim, up, PIM_UPSTREAM_JOINED);
 		pim_upstream_inherited_olist_decide(pim_ifp->pim, up);
 		pim_upstream_keep_alive_timer_start(
