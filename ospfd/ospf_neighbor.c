@@ -113,8 +113,6 @@ struct ospf_neighbor *ospf_nbr_new(struct ospf_interface *oi)
 
 void ospf_nbr_free(struct ospf_neighbor *nbr)
 {
-	ospf_nb_del_neighbor(nbr);
-
 	/* Free DB summary list. */
 	if (ospf_db_summary_count(nbr))
 		ospf_db_summary_clear(nbr);
@@ -505,10 +503,6 @@ struct ospf_neighbor *ospf_nbr_get(struct ospf_interface *oi,
 	} else {
 		rn->info = nbr = ospf_nbr_add(oi, ospfh, p);
 		nbr->router_id = ospfh->router_id;
-
-		/* Register all peers except self. */
-		if (!IPV4_ADDR_SAME(&oi->nbr_self->router_id, &nbr->router_id))
-			ospf_nb_add_neighbor(nbr);
 	}
 
 	return nbr;

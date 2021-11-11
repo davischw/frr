@@ -116,6 +116,7 @@ module frr-ospf {
           }
 
           list neighbor {
+            config false;
             key "router-id";
 
             leaf router-id {
@@ -132,7 +133,6 @@ module frr-ospf {
 
             leaf auth-sequence-number-current {
               type uint32;
-              config false;
               description
                 "Current authentication sequence number.";
             }

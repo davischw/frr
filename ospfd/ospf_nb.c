@@ -132,72 +132,6 @@ void ospf_nb_del_interface(struct ospf_interface *oif)
 	vty_clear_enqueued_changes(ospf_nb_vty);
 }
 
-void ospf_nb_add_neighbor(struct ospf_neighbor *on)
-{
-	const char *vrf_name =
-		on->oi->ospf->name ? on->oi->ospf->name : VRF_DEFAULT_NAME;
-	char xpath[XPATH_MAXLEN];
-	char source_str[INET6_ADDRSTRLEN];
-
-	snprintfrr(xpath, sizeof(xpath), OSPF_NB_NEIGHBOR_XPATH, vrf_name,
-		   on->oi->ospf->instance, &on->oi->area->area_id,
-		   on->oi->ifp->name, &on->router_id);
-	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_CREATE, NULL);
-	snprintfrr(source_str, sizeof(source_str), "%pI4", &on->src);
-	nb_cli_enqueue_change(ospf_nb_vty, "./source", NB_OP_CREATE,
-			      source_str);
-	nb_cli_apply_changes(ospf_nb_vty, xpath);
-	vty_clear_enqueued_changes(ospf_nb_vty);
-}
-
-void ospf_nb_del_neighbor(struct ospf_neighbor *on)
-{
-	char xpath[XPATH_MAXLEN];
-	const char *vrf_name =
-		on->oi->ospf->name ? on->oi->ospf->name : VRF_DEFAULT_NAME;
-
-	snprintfrr(xpath, sizeof(xpath), OSPF_NB_NEIGHBOR_XPATH, vrf_name,
-		   on->oi->ospf->instance, &on->oi->area->area_id,
-		   on->oi->ifp->name, &on->router_id);
-	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_DESTROY, NULL);
-	nb_cli_apply_changes(ospf_nb_vty, NULL);
-	vty_clear_enqueued_changes(ospf_nb_vty);
-}
-
-static struct route_node *
-ospf_neighbor_lookup(const struct ospf_interface *oi,
-		     const struct in_addr *source,
-		     const struct in_addr *router_id)
-{
-	struct route_node *rn;
-	struct ospf_neighbor *nbr;
-
-	for (rn = route_top(oi->nbrs); rn; rn = route_next(rn)) {
-		if (rn->info == NULL)
-			continue;
-
-		nbr = rn->info;
-
-		/* Virtual link and P2P uses router-id as index. */
-		if (oi->type == OSPF_IFTYPE_VIRTUALLINK
-		    || oi->type == OSPF_IFTYPE_POINTOPOINT) {
-			if (!IPV4_ADDR_SAME(&nbr->router_id, router_id))
-				continue;
-
-			route_unlock_node(rn);
-			return rn;
-		}
-
-		/* Regular peer. */
-		if (!IPV4_ADDR_SAME(&nbr->src, source)) {
-			route_unlock_node(rn);
-			return rn;
-		}
-	}
-
-	return NULL;
-}
-
 /*
  * XPath: /frr-ospf:ospf/instance
  */
@@ -631,88 +565,6 @@ ospf_instance_area_interface_lookup_entry(struct nb_cb_lookup_entry_args *args)
 	return NULL;
 }
 
-/*
- * XPath: /frr-ospf:ospf/instance/area/interface/neighbor
- */
-static int
-ospf_instance_area_interface_neighbor_create(struct nb_cb_create_args *args)
-{
-	struct ospf_interface *oi;
-	struct route_node *rn;
-	const char *ifname;
-	struct ospf *o;
-	struct in_addr source;
-	struct in_addr router_id;
-
-	switch (args->event) {
-	case NB_EV_VALIDATE:
-		o = ospf_lookup(
-			yang_dnode_get_uint16(args->dnode, "../../../id"),
-			yang_dnode_get_string(args->dnode, "../../../vrf"));
-		if (o == NULL) {
-			snprintf(args->errmsg, args->errmsg_len,
-				 "OSPF instance %d VRF %s doesn't exist",
-				 yang_dnode_get_uint16(args->dnode,
-						       "../../../id"),
-				 yang_dnode_get_string(args->dnode,
-						       "../../../vrf"));
-			return NB_ERR_VALIDATION;
-		}
-
-		{
-			struct listnode *node;
-
-			ifname = yang_dnode_get_string(args->dnode, "../name");
-			for (ALL_LIST_ELEMENTS_RO(o->oiflist, node, oi))
-				if (strcmp(oi->ifp->name, ifname) == 0)
-					break;
-		}
-
-		if (oi == NULL) {
-			snprintf(args->errmsg, args->errmsg_len,
-				 "OSPF interface %s doesn't exist", ifname);
-			return NB_ERR_VALIDATION;
-		}
-
-		yang_dnode_get_ipv4(&router_id, args->dnode, "./router-id");
-		yang_dnode_get_ipv4(&source, args->dnode, "./source");
-
-		rn = ospf_neighbor_lookup(oi, &source, &router_id);
-		if (rn == NULL) {
-			snprintfrr(args->errmsg, args->errmsg_len,
-				   "OSPF neighbor %pI4 doesn't exist",
-				   &router_id);
-			return NB_ERR_VALIDATION;
-		}
-		break;
-
-	case NB_EV_PREPARE:
-	case NB_EV_ABORT:
-		break;
-
-	case NB_EV_APPLY:
-		oi = nb_running_get_entry(args->dnode, NULL, true);
-		yang_dnode_get_ipv4(&router_id, args->dnode, "./router-id");
-		yang_dnode_get_ipv4(&source, args->dnode, "./source");
-		rn = ospf_neighbor_lookup(oi, &source, &router_id);
-		nb_running_set_entry(args->dnode, rn);
-		break;
-	}
-
-	return NB_OK;
-}
-
-static int
-ospf_instance_area_interface_neighbor_destroy(struct nb_cb_destroy_args *args)
-{
-	if (args->event != NB_EV_APPLY)
-		return NB_OK;
-
-	(void)nb_running_unset_entry(args->dnode);
-
-	return NB_OK;
-}
-
 static const void *
 ospf_instance_area_interface_neighbor_get_next(struct nb_cb_get_next_args *args)
 {
@@ -778,20 +630,28 @@ static const void *ospf_instance_area_interface_neighbor_lookup_entry(
 }
 
 /*
- * XPath: /frr-ospf:ospf/instance/area/interface/neighbor/source
+ * XPath: /frr-ospf:ospf/instance/area/interface/neighbor/router-id
  */
-static int ospf_instance_area_interface_neighbor_source_modify(
-	struct nb_cb_modify_args *args)
+static struct yang_data *
+ospf_instance_area_interface_neighbor_router_id_get_elem(
+	struct nb_cb_get_elem_args *args)
 {
-	/* NOTHING */
-	return NB_OK;
+	const struct route_node *rn = args->list_entry;
+	struct ospf_neighbor *on = rn->info;
+
+	return yang_data_new_ipv4(args->xpath, &on->router_id);
 }
 
-static int ospf_instance_area_interface_neighbor_source_destroy(
-	struct nb_cb_destroy_args *args)
+/*
+ * XPath: /frr-ospf:ospf/instance/area/interface/neighbor/source
+ */
+static struct yang_data *ospf_instance_area_interface_neighbor_source_get_elem(
+	struct nb_cb_get_elem_args *args)
 {
-	/* NOTHING */
-	return NB_OK;
+	const struct route_node *rn = args->list_entry;
+	struct ospf_neighbor *on = rn->info;
+
+	return yang_data_new_ipv4(args->xpath, &on->src);
 }
 
 /*
@@ -863,18 +723,21 @@ const struct frr_yang_module_info frr_ospf_info = {
 		{
 			.xpath = "/frr-ospf:ospf/instance/area/interface/neighbor",
 			.cbs = {
-				.create = ospf_instance_area_interface_neighbor_create,
-				.destroy = ospf_instance_area_interface_neighbor_destroy,
 				.get_next = ospf_instance_area_interface_neighbor_get_next,
 				.get_keys = ospf_instance_area_interface_neighbor_get_keys,
 				.lookup_entry = ospf_instance_area_interface_neighbor_lookup_entry,
 			}
 		},
 		{
+			.xpath = "/frr-ospf:ospf/instance/area/interface/neighbor/router-id",
+			.cbs = {
+				.get_elem = ospf_instance_area_interface_neighbor_router_id_get_elem,
+			}
+		},
+		{
 			.xpath = "/frr-ospf:ospf/instance/area/interface/neighbor/source",
 			.cbs = {
-				.modify = ospf_instance_area_interface_neighbor_source_modify,
-				.destroy = ospf_instance_area_interface_neighbor_source_destroy,
+				.get_elem = ospf_instance_area_interface_neighbor_source_get_elem,
 			}
 		},
 		{

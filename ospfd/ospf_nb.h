@@ -36,8 +36,6 @@ void ospf_nb_add_area(struct ospf_area *area);
 void ospf_nb_del_area(struct ospf_area *area);
 void ospf_nb_add_interface(struct ospf_interface *oif);
 void ospf_nb_del_interface(struct ospf_interface *oif);
-void ospf_nb_add_neighbor(struct ospf_neighbor *on);
-void ospf_nb_del_neighbor(struct ospf_neighbor *on);
 
 void ospf_nb_init(void);
 
