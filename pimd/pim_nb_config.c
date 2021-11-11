@@ -33,6 +33,7 @@
 #include "pim_vxlan.h"
 #include "log.h"
 #include "lib_errors.h"
+#include "printfrr.h"
 
 static void pim_if_membership_clear(struct interface *ifp)
 {
