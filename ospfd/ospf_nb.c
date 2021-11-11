@@ -674,7 +674,7 @@ ospf_instance_area_interface_neighbor_create(struct nb_cb_create_args *args)
 			return NB_ERR_VALIDATION;
 		}
 
-		yang_dnode_get_ipv4(&source, args->dnode, "./router-id");
+		yang_dnode_get_ipv4(&router_id, args->dnode, "./router-id");
 		yang_dnode_get_ipv4(&source, args->dnode, "./source");
 
 		rn = ospf_neighbor_lookup(oi, &source, &router_id);
