@@ -1433,6 +1433,7 @@ int rip_create_socket(struct vrf *vrf)
  * by connected argument. NULL to argument denotes destination should be
  * should be RIP multicast group
  */
+__attribute__((unused))
 static int _rip_send_packet(uint8_t *buf, int size, struct sockaddr_in *to,
 			    struct connected *ifc)
 {
@@ -1738,6 +1739,7 @@ static void rip_request_process(struct rip_packet *packet, int size,
 }
 
 /* First entry point of RIP packet. */
+__attribute__((unused))
 static int _rip_read(struct thread *t)
 {
 	struct rip *rip = THREAD_ARG(t);
