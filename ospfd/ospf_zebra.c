@@ -1512,8 +1512,8 @@ void ospf_zebra_import_default_route(struct ospf *ospf, bool unreg)
 			   zserv_command_string(command), &prefix,
 			   ospf->vrf_id);
 
-	if (zclient_send_rnh(zclient, command, &prefix, false, ospf->vrf_id)
-	    == ZCLIENT_SEND_FAILURE)
+	if (zclient_send_rnh(zclient, command, &prefix, SAFI_UNICAST, false,
+			     true, ospf->vrf_id) == ZCLIENT_SEND_FAILURE)
 		flog_err(EC_LIB_ZAPI_SOCKET, "%s: zclient_send_rnh() failed",
 			 __func__);
 }
