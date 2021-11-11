@@ -811,7 +811,8 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 			zlog_debug("%pSG4: -SPT_DESIRED +SRC_LHR rc=%d",
 				   &up->sg, up->ref_count);
 
-		pim_upstream_switch(pim_ifp->pim, up, PIM_UPSTREAM_JOINED);
+		pim_upstream_set_sptbit(up, ifp);
+		pim_upstream_update_use_rpt(up, true);
 		pim_upstream_inherited_olist_decide(pim_ifp->pim, up);
 		pim_upstream_keep_alive_timer_start(
 			up, pim_ifp->pim->keep_alive_time);
@@ -928,11 +929,11 @@ static void pimsb_client_spt_join(const struct mroute_event *me)
 			      PIM_UPSTREAM_FLAG_MASK_SRC_PIM
 				      | PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED,
 			      __func__, NULL);
-	if (up) {
-		/* Send join before the switch. */
-		pim_upstream_send_join(up);
-		join_timer_start(up);
-	}
+	if (!up)
+		return;
+
+	pim_upstream_keep_alive_timer_start(up, pim_ifp->pim->keep_alive_time);
+	pim_upstream_inherited_olist(pim_ifp->pim, up);
 }
 
 static void pimsb_client_msg_parse(struct pimsb_client *client)

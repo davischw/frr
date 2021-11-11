@@ -684,7 +684,10 @@ void pim_upstream_update_use_rpt(struct pim_upstream *up,
 	 * In all other cases the source will stay along the RPT and
 	 * IIF=RPF_interface(RP).
 	 */
-	if (up->join_state == PIM_UPSTREAM_JOINED ||
+	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED)
+		/* switching RPT->SPT, but still on RPT */
+		PIM_UPSTREAM_FLAG_SET_USE_RPT(up->flags);
+	else if (up->join_state == PIM_UPSTREAM_JOINED ||
 			PIM_UPSTREAM_FLAG_TEST_FHR(up->flags) ||
 			pim_if_connected_to_source(
 				up->rpf.source_nexthop.interface,
