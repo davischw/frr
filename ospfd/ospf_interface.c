@@ -851,18 +851,20 @@ int ospf_if_down(struct ospf_interface *oi)
 	/* Shutdown packet reception and sending */
 	ospf_if_stream_unset(oi);
 
-	for (rn = route_top(ospf->new_table); rn; rn = route_next(rn)) {
-		or = rn->info;
+	if (ospf->new_table) {
+		for (rn = route_top(ospf->new_table); rn; rn = route_next(rn)) {
+			or = rn->info;
 
-		if (!or)
-			continue;
+			if (! or)
+				continue;
 
-		for (nh = listhead(or->paths); nh;
-		     nh = listnextnode_unchecked(nh)) {
-			op = listgetdata(nh);
-			if (op->ifindex == oi->ifp->ifindex) {
-				or->changed = true;
-				break;
+			for (nh = listhead(or->paths); nh;
+			     nh = listnextnode_unchecked(nh)) {
+				op = listgetdata(nh);
+				if (op->ifindex == oi->ifp->ifindex) {
+					or->changed = true;
+					break;
+				}
 			}
 		}
 	}
