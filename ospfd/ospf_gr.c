@@ -214,7 +214,7 @@ static void ospf_gr_flush_grace_lsas(struct ospf *ospf)
 				&area->area_id);
 
 		for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode, oi))
-			ospf_gr_lsa_originate(oi, OSPF_GR_SW_RESTART, true);
+			ospf_gr_lsa_originate(oi, ospf->gr_info.reason, true);
 	}
 }
 
