@@ -42,11 +42,13 @@
 #include "lib/network.h"
 #include "lib/ns.h"
 #include "lib/frr_pthread.h"
+#include "lib/openbsd-tree.h"
 #include "zebra/debug.h"
 #include "zebra/interface.h"
 #include "zebra/zebra_dplane.h"
 #include "zebra/zebra_mpls.h"
 #include "zebra/zebra_router.h"
+#include "zebra/zebra_mroute.h"
 #include "zebra/zebra_evpn.h"
 #include "zebra/zebra_evpn_mac.h"
 #include "zebra/zebra_vxlan_private.h"
@@ -1145,6 +1147,15 @@ static int fpm_rib_send(struct thread *t)
 
 	/* Free the temporary allocated context. */
 	dplane_ctx_fini(&ctx);
+
+	/* Ask for multicast routes. */
+	{
+		struct vrf *vrf;
+
+		RB_FOREACH (vrf, vrf_id_head, &vrfs_by_id) {
+			zmroute_sync(vrf->vrf_id);
+		}
+	}
 
 	/* All RIB routes sent! */
 	WALK_FINISH(fnc, FNE_RIB_FINISHED);

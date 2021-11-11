@@ -443,6 +443,24 @@ static void pim_zebra_capabilities(struct zclient_capabilities *cap)
 	router->mlag_role = cap->role;
 }
 
+static int pim_zebra_fpm_sync(ZAPI_CALLBACK_ARGS)
+{
+	struct pim_instance *pim;
+	struct channel_oil *oil;
+
+	pim = pim_get_pim_instance(vrf_id);
+	if (pim == NULL)
+		return 0;
+
+	frr_each (rb_pim_oil, &pim->channel_oil_head, oil) {
+#ifdef PIM_SOUTHBOUND
+		pimsb_mroute_do(oil, true);
+#endif /* PIM_SOUTHBOUND */
+	}
+
+	return 0;
+}
+
 static zclient_handler *const pim_handlers[] = {
 	[ZEBRA_ROUTER_ID_UPDATE] = pim_router_id_update_zebra,
 	[ZEBRA_INTERFACE_ADDRESS_ADD] = pim_zebra_if_address_add,
@@ -456,6 +474,7 @@ static zclient_handler *const pim_handlers[] = {
 	[ZEBRA_MLAG_PROCESS_UP] = pim_zebra_mlag_process_up,
 	[ZEBRA_MLAG_PROCESS_DOWN] = pim_zebra_mlag_process_down,
 	[ZEBRA_MLAG_FORWARD_MSG] = pim_zebra_mlag_handle_msg,
+	[ZEBRA_PIM_FPM_SYNC] = pim_zebra_fpm_sync,
 };
 
 void pim_zebra_init(void)

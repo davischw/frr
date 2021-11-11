@@ -235,6 +235,7 @@ typedef enum {
 	ZEBRA_GRE_GET,
 	ZEBRA_GRE_UPDATE,
 	ZEBRA_GRE_SOURCE_SET,
+	ZEBRA_PIM_FPM_SYNC,
 } zebra_message_types_t;
 
 enum zebra_error_types {

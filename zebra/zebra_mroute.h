@@ -88,6 +88,7 @@ struct mroute_args {
 };
 
 void zmroute_event(ZAPI_HANDLER_ARGS);
+void zmroute_sync(vrf_id_t vrf_id);
 
 #ifdef __cplusplus
 }

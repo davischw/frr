@@ -29,6 +29,7 @@
 #include "zebra/zserv.h"
 #include "zebra/zebra_vrf.h"
 #include "zebra/zebra_mroute.h"
+#include "zebra/zebra_router.h"
 #include "zebra/rt.h"
 #include "zebra/debug.h"
 
@@ -124,4 +125,26 @@ stream_failure:
 	if (IS_ZEBRA_DEBUG_KERNEL)
 		zlog_debug("%s: message parse failure", __func__);
 	return;
+}
+
+void zmroute_sync(vrf_id_t vrf_id)
+{
+	struct listnode *node;
+	struct zserv *client;
+	struct stream *stream;
+
+	/* Create message. */
+	stream = stream_new(ZEBRA_MAX_PACKET_SIZ);
+	zclient_create_header(stream, ZEBRA_PIM_FPM_SYNC, vrf_id);
+	stream_putw_at(stream, 0, (uint16_t)stream_get_endp(stream));
+
+	/* Send message to all running client daemons. */
+	for (ALL_LIST_ELEMENTS_RO(zrouter.client_list, node, client)) {
+		if (client->proto != ZEBRA_ROUTE_PIM)
+			continue;
+
+		zserv_send_message(client, stream_dup(stream));
+	}
+
+	stream_free(stream);
 }
