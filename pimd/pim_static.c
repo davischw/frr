@@ -256,12 +256,6 @@ int pim_static_del(struct pim_instance *pim, struct interface *iif,
 			s_route->c_oil.oil.mfcc_ttls[oif_index] = 0;
 			--s_route->c_oil.oil_ref_count;
 
-			/* If there are no more outputs then delete the whole
-			 * route, otherwise set the route with the new outputs
-			 */
-			if (s_route->c_oil.oil_ref_count <= 0)
-				s_route->c_oil.is_static = false;
-
 			if (s_route->c_oil.oil_ref_count <= 0
 				    ? pim_mroute_del(&s_route->c_oil, __func__)
 				    : pim_static_mroute_add(&s_route->c_oil,
@@ -283,6 +277,13 @@ int pim_static_del(struct pim_instance *pim, struct interface *iif,
 
 				return -1;
 			}
+
+			/*
+			 * If there are no more outputs then delete the whole
+			 * route, otherwise set the route with the new outputs
+			 */
+			if (s_route->c_oil.oil_ref_count <= 0)
+				s_route->c_oil.is_static = false;
 
 			s_route->c_oil.oif_creation[oif_index] = 0;
 
