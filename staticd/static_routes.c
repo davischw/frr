@@ -412,6 +412,8 @@ int static_delete_nexthop(struct route_node *rn, struct static_path *pn,
 			  struct static_nexthop *nh)
 {
 	static_nexthop_list_del(&(pn->nexthop_list), nh);
+	/* Remove BFD session/configuration if any. */
+	bfd_sess_free(&nh->bsp);
 
 	if (nh->nh_vrf_id == VRF_UNKNOWN)
 		goto EXIT;
