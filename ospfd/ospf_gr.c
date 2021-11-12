@@ -208,13 +208,18 @@ static void ospf_gr_flush_grace_lsas(struct ospf *ospf)
 		struct ospf_interface *oi;
 		struct listnode *inode;
 
-		if (IS_DEBUG_OSPF_GR)
-			zlog_debug(
-				"GR: flushing self-originated Grace-LSAs [area %pI4]",
-				&area->area_id);
+		for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode, oi)) {
+			if (!if_is_operative(oi->ifp)
+			    || if_is_loopback(oi->ifp))
+				continue;
 
-		for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode, oi))
+			if (IS_DEBUG_OSPF_GR)
+				zlog_debug(
+					"GR: flushing self-originated Grace-LSAs [area %pI4] [interface %s]",
+					&area->area_id, oi->ifp->name);
+
 			ospf_gr_lsa_originate(oi, ospf->gr_info.reason, true);
+		}
 	}
 }
 
