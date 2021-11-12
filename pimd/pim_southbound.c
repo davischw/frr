@@ -208,6 +208,52 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 		oil->notifif.ifindex = 0;
 }
 
+static bool pimsb_mroute_is_static(const struct interface *interface,
+				   const struct in_addr *source,
+				   const struct in_addr *group)
+{
+	struct pim_interface *pim_if = interface->info;
+	struct listnode *node;
+	struct igmp_join *ij;
+
+	if (pim_if == NULL || pim_if->igmp_join_list == NULL)
+		return false;
+
+	/* Look up for statically configured join. */
+	for (ALL_LIST_ELEMENTS_RO(pim_if->igmp_join_list, node, ij)) {
+		if (group->s_addr != ij->group_addr.s_addr)
+			continue;
+		if (source->s_addr != ij->source_addr.s_addr)
+			continue;
+
+		return true;
+	}
+
+	return false;
+}
+
+
+static bool pimsb_oil_static(const struct channel_oil *oil)
+{
+	struct channel_if *oif;
+
+	/* Quick case: `ip mroute` was configured. */
+	if (oil->is_static)
+		return true;
+
+	/* Check for `ip igmp join` configurations. */
+	SLIST_FOREACH (oif, &oil->oif_list, entry) {
+		struct interface *interface =
+			if_lookup_by_index_all_vrf(oif->ifindex);
+		if (pimsb_mroute_is_static(interface,
+					   &oil->oil.mfcc_origin,
+					   &oil->oil.mfcc_mcastgrp))
+		    return true;
+	}
+
+	return false;
+}
+
 static void pimsb_debug_oil(const struct channel_oil *oil)
 {
 	struct interface *ifp;
@@ -217,7 +263,7 @@ static void pimsb_debug_oil(const struct channel_oil *oil)
 
 	zlog_debug("OIL[installed:%d rescan:%d size:%d refcount:%d static:%s]",
 		   oil->installed, oil->oil_inherited_rescan, oil->oil_size,
-		   oil->oil_ref_count, oil->is_static ? "Y" : "N");
+		   oil->oil_ref_count, pimsb_oil_static(oil) ? "Y" : "N");
 	for (index = 0; index < MAXVIFS; index++) {
 		if (oil->oif_flags[index] == 0)
 			continue;
@@ -353,6 +399,7 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 	bool i_am_fhr = false;
 	bool i_am_lhr = false;
 	bool has_rp_if = false;
+	bool is_static = pimsb_oil_static(oil);
 	bool has_pimreg = false;
 	bool star_source = false;
 	uint32_t route_flags = 0;
@@ -408,14 +455,14 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 		has_rp_if = true;
 
 	/* Generate flags based on detected information. */
-	if (!oil->is_static && !star_source)
+	if (!is_static && !star_source)
 		route_flags |= MRT_FLAG_RESTART_DL_TIMER;
 	if (i_am_lhr && star_source
 	    && oil->spt_threshold < PIM_SPT_THRESH_NEVER) {
 		route_flags |= MRT_FLAG_JOIN_SPT_ALLOWED;
 		spt_threshold = oil->spt_threshold;
 	}
-	if (oil->oif_list_count == 0 || oil->filtered)
+	if (!is_static && (oil->oif_list_count == 0 || oil->filtered))
 		route_flags |= MRT_FLAG_DUMMY | MRT_FLAG_DL_TIMER;
 
 	/*
@@ -867,6 +914,13 @@ static void pimsb_client_data_stop(const struct mroute_event *me)
 		if (PIM_DEBUG_MROUTE)
 			zlog_debug("%s:   upstream %pSG4 not found", __func__,
 				   &sg);
+		return;
+	}
+
+	/* Handle exception of configured routes. */
+	if (pimsb_oil_static(up->channel_oil)) {
+		zlog_debug("%s:   no routes removed due configuration",
+			   __func__);
 		return;
 	}
 
@@ -1434,22 +1488,8 @@ void pimsb_igmp_leave(struct interface *ifp, struct in_addr *source,
 bool pimsb_igmp_sg_is_static(const struct igmp_source *source,
 			     const struct igmp_group *group)
 {
-	struct interface *ifp = group->interface;
-	struct pim_interface *pim_ifp = ifp->info;
-	struct listnode *node;
-	struct igmp_join *ij;
-
-	/* We don't even have configurations so its not static. */
-	if (pim_ifp->igmp_join_list == NULL)
-		return false;
-
-	/* Look up for statically configured join. */
-	for (ALL_LIST_ELEMENTS_RO(pim_ifp->igmp_join_list, node, ij))
-		if (group->group_addr.s_addr == ij->group_addr.s_addr
-		    && source->source_addr.s_addr == ij->source_addr.s_addr)
-			return true;
-
-	return false;
+	return pimsb_mroute_is_static(group->interface, &source->source_addr,
+				      &group->group_addr);
 }
 
 int pimsb_msg_send_frame(const struct pimsb_pim_args *args)
