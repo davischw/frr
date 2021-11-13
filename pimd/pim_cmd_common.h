@@ -186,6 +186,13 @@ void pim_show_interface_traffic(struct pim_instance *pim, struct vty *vty,
 int pim_show_interface_traffic_helper(const char *vrf, const char *if_name,
 				      struct vty *vty, bool uj);
 void clear_pim_interfaces(struct pim_instance *pim);
+
+struct pim_interface;
+struct ttable;
+void pim_show_join_helper(struct pim_interface *pim_ifp,
+			  struct pim_ifchannel *ch, json_object *json,
+			  time_t now, struct ttable *tt);
+
 /*
  * Special Macro to allow us to get the correct pim_instance;
  */
