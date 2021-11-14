@@ -419,6 +419,11 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 			pimsb_debug_upstream(upstream);
 	}
 
+	/* Treat IGMP joined routes as static. */
+	if (is_static == false && upstream != NULL
+	    && (upstream->flags & PIM_UPSTREAM_FLAG_MASK_SRC_IGMP))
+		is_static = true;
+
 	/* Figure out what part of the topology we are. */
 	star_source = oil->oil.mfcc_origin.s_addr == INADDR_ANY;
 	i_am_rp = pim_rp_i_am_rp(oil->pim, oil->oil.mfcc_mcastgrp);
@@ -918,6 +923,13 @@ static void pimsb_client_data_stop(const struct mroute_event *me)
 		if (PIM_DEBUG_MROUTE)
 			zlog_debug("%s:   upstream %pSG4 not found", __func__,
 				   &sg);
+		return;
+	}
+
+	/* Don't remove routes created by IGMP joins. */
+	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SRC_IGMP) {
+		zlog_debug("%s:  route not removed due to IGMP join",
+			   __func__);
 		return;
 	}
 
