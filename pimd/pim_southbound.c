@@ -212,10 +212,14 @@ static bool pimsb_mroute_is_static(const struct interface *interface,
 				   const struct in_addr *source,
 				   const struct in_addr *group)
 {
-	struct pim_interface *pim_if = interface->info;
+	struct pim_interface *pim_if;
 	struct listnode *node;
 	struct igmp_join *ij;
 
+	if (interface == NULL)
+		return false;
+
+	pim_if = interface->info;
 	if (pim_if == NULL || pim_if->igmp_join_list == NULL)
 		return false;
 
