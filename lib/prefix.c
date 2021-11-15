@@ -177,11 +177,13 @@ const char *safi2str(safi_t safi)
 }
 
 /* If n includes p prefix then return 1 else return 0. */
-int prefix_match(const struct prefix *n, const struct prefix *p)
+int prefix_match(union prefixconstptr nu, union prefixconstptr pu)
 {
 	int offset;
 	int shift;
 	const uint8_t *np, *pp;
+	const struct prefix *n = nu.p;
+	const struct prefix *p = pu.p;
 
 	/* If n's prefix is longer than p's one return 0. */
 	if (n->prefixlen > p->prefixlen)

@@ -25,6 +25,7 @@
 #include "prefix.h"
 #include "zclient.h"
 #include "plist.h"
+#include "plist_int.h"
 #include "hash.h"
 #include "nexthop.h"
 #include "vrf.h"
@@ -8341,6 +8342,174 @@ DEFUN (show_ip_pim_group_type,
 	return CMD_SUCCESS;
 }
 
+struct ssm_table_item {
+	int64_t plist_seq;
+	bool is_ssm;
+};
+
+DEFPY (show_ip_pim_group_type_prefix,
+       show_ip_pim_group_type_prefix_cmd,
+       "show ip pim [vrf NAME$vrfname] group-type A.B.C.D/M$prefix [json]",
+       SHOW_STR
+       IP_STR
+       PIM_STR
+       VRF_CMD_HELP_STR
+       "multicast group type\n"
+       "group address\n"
+       JSON_STR)
+{
+	int idx = 2;
+	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
+	bool uj = use_json(argc, argv);
+	json_object *json = NULL;
+	const char *err = NULL;
+	struct pim_instance *pim;
+	struct pim_ssm *ssm;
+	struct route_table *table;
+	struct route_node *rn, *rn_next;
+	struct ssm_table_item *item;
+
+	if (uj)
+		json = json_object_new_object();
+
+	if (!vrf) {
+		err = "VRF not found";
+		goto out;
+	}
+	pim = vrf->info;
+	if (!pim) {
+		err = "PIM not enabled on this VRF";
+		goto out;
+	}
+	ssm = pim->ssm_info;
+
+	if (prefix->prefixlen < 4) {
+		err = "prefix covers non-multicast ranges";
+		goto out;
+	}
+	if (!pim_is_group_224_4(prefix->prefix)) {
+		err = "not a multicast group";
+		goto out;
+	}
+
+	table = route_table_init();
+
+	if (!ssm->plist_name) {
+		struct prefix_ipv4 ssm_std;
+
+		str2prefix_ipv4(PIM_SSM_STANDARD_RANGE, &ssm_std);
+		if (prefix_match(&ssm_std, prefix)) {
+			rn = route_node_get(table, prefix);
+			rn->info = item = XCALLOC(MTYPE_TMP, sizeof(*item));
+			item->is_ssm = true;
+		} else if (prefix_match(prefix, &ssm_std)) {
+			rn = route_node_get(table, prefix);
+			rn->info = item = XCALLOC(MTYPE_TMP, sizeof(*item));
+			item->is_ssm = false;
+			rn = route_node_get(table, &ssm_std);
+			rn->info = item = XCALLOC(MTYPE_TMP, sizeof(*item));
+			item->is_ssm = true;
+		} else {
+			rn = route_node_get(table, prefix);
+			rn->info = item = XCALLOC(MTYPE_TMP, sizeof(*item));
+			item->is_ssm = false;
+		}
+	} else {
+		struct prefix_list *plist;
+		struct prefix_list_entry *pitem;
+
+		plist = prefix_list_lookup(AFI_IP, ssm->plist_name);
+
+		rn = route_node_get(table, prefix);
+		rn->info = item = XCALLOC(MTYPE_TMP, sizeof(*item));
+		item->is_ssm = false;
+		item->plist_seq = INT64_MAX;
+
+		for (pitem = plist ? plist->head : NULL; pitem;
+		     pitem = pitem->next) {
+			struct prefix *table_p;
+
+			if (pitem->le < 32)
+				continue;
+
+			if (prefix_match(&pitem->prefix, prefix))
+				table_p = (struct prefix *)prefix;
+			else if (prefix_match(prefix, &pitem->prefix))
+				table_p = &pitem->prefix;
+			else
+				continue;
+
+			rn = route_node_get(table, table_p);
+			if (rn->info) {
+				route_unlock_node(rn);
+				item = rn->info;
+
+				if (item->plist_seq < pitem->seq)
+					continue;
+			} else {
+				item = XCALLOC(MTYPE_TMP, sizeof(*item));
+				rn->info = item;
+			}
+
+			item->is_ssm = (pitem->type == PREFIX_PERMIT);
+			item->plist_seq = pitem->seq;
+		}
+	}
+
+	for (rn = route_top(table); rn; rn = route_next(rn)) {
+		char buf[PREFIX_STRLEN];
+		const char *grptype;
+		struct ssm_table_item *up_item = NULL;
+
+		if (!rn->info)
+			continue;
+
+		item = rn->info;
+		for (rn_next = rn->parent; rn_next; rn_next = rn_next->parent) {
+			if (!rn_next->info)
+				continue;
+
+			up_item = rn_next->info;
+			if (up_item->plist_seq < item->plist_seq)
+				break;
+			up_item = NULL;
+		}
+		if (up_item)
+			continue;
+
+		prefix2str(&rn->p, buf, sizeof(buf));
+		grptype = item->is_ssm ? "SSM" : "ASM";
+		if (json)
+			json_object_string_add(json, buf, grptype);
+		else
+			vty_out(vty, "%s: %s\n", buf, grptype);
+	}
+
+	for (rn = route_top(table); rn; rn = rn_next) {
+		rn_next = route_next(rn);
+
+		if (!rn->info)
+			continue;
+		XFREE(MTYPE_TMP, rn->info);
+		route_unlock_node(rn);
+	}
+	route_table_finish(table);
+
+out:
+	if (err) {
+		if (json)
+			json_object_string_add(json, "error", err);
+		else
+			vty_out(vty, "%% %s\n", err);
+	}
+	if (json) {
+		vty_out(vty, "%s\n", json_object_to_json_string_ext(
+				json, JSON_C_TO_STRING_PRETTY));
+		json_object_free(json);
+	}
+	return err ? CMD_WARNING : CMD_SUCCESS;
+}
+
 DEFUN (show_ip_pim_bsr,
        show_ip_pim_bsr_cmd,
        "show ip pim bsr [json]",
@@ -12282,6 +12451,7 @@ void pim_cmd_init(void)
 	install_element(VIEW_NODE, &show_ip_msdp_mesh_group_vrf_all_cmd);
 	install_element(VIEW_NODE, &show_ip_pim_ssm_range_cmd);
 	install_element(VIEW_NODE, &show_ip_pim_group_type_cmd);
+	install_element(VIEW_NODE, &show_ip_pim_group_type_prefix_cmd);
 	install_element(VIEW_NODE, &show_ip_pim_vxlan_sg_cmd);
 	install_element(VIEW_NODE, &show_ip_pim_vxlan_sg_work_cmd);
 	install_element(INTERFACE_NODE, &interface_pim_use_source_cmd);
