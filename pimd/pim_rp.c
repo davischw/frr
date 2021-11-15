@@ -1705,14 +1705,15 @@ void pim_rp_show_information(struct pim_instance *pim, struct prefix *range,
 	}
 }
 
-static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info)
+static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
+				  json_object *json)
 {
 	struct filter *item;
 	struct filter_cisco *cfilter;
 	struct access_list *acl;
 
 	acl = access_list_lookup(AFI_IP, rp_info->alist);
-	if (!acl) {
+	if (!acl && !json) {
 		vty_out(vty, "\t-- access list does not exist\n");
 		return;
 	}
@@ -1722,6 +1723,9 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info)
 		struct in_addr mask;
 
 		if (!item->cisco || !item->u.cfilter.extended) {
+			if (json)
+				continue;
+
 			vty_out(vty,
 				"\t-- INVALID ENTRY: seq %" PRId64
 				" is not an extended access-list item!\n",
@@ -1736,7 +1740,12 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info)
 		mask.s_addr = ~mask.s_addr;
 		p.prefixlen = ip_masklen(mask);
 		p.prefix = cfilter->sadr.dst;
-		vty_out(vty, "\t%pFX\n", &p);
+		if (json) {
+			char buf[PREFIX_STRLEN];
+			prefix2str(&p, buf, sizeof(buf));
+			json_object_array_add(json, json_object_new_string(buf));
+		} else
+			vty_out(vty, "\t%pFX\n", &p);
 	}
 }
 
@@ -1746,7 +1755,6 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 				  json_object *json)
 {
 	struct rp_info *rp_info;
-	struct rp_info *prev_rp_info = NULL;
 	struct listnode *node;
 	char *table = NULL;
 	char source[9];
@@ -1778,26 +1786,19 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 			strlcpy(source, "Fallback", sizeof(source));
 		else
 			strlcpy(source, "None", sizeof(source));
+
+		char buf[PREFIX_STRLEN];
+		inet_ntop(PIM_AF, &group, buf, sizeof(buf));
+
 		if (json) {
-			/*
-			 * If we have moved on to a new RP then add the
-			 * entry for the previous RP
-			 */
-			if (prev_rp_info &&
-			    (pim_addr_cmp(prev_rp_info->rp.rpf_addr,
-					  rp_info->rp.rpf_addr))) {
-				json_object_object_addf(
-					json, json_rp_rows, "%pPA",
-					&prev_rp_info->rp.rpf_addr);
-				json_rp_rows = NULL;
+			json_rp_rows = json_object_object_get(json, buf);
+			if (!json_rp_rows) {
+				json_rp_rows = json_object_new_array();
+				json_object_object_add(json_rp_rows, buf, json_rp_rows);
 			}
 
-			if (!json_rp_rows)
-				json_rp_rows = json_object_new_array();
-
 			json_row = json_object_new_object();
-			json_object_string_addf(json_row, "rpAddress", "%pPA",
-						&rp_info->rp.rpf_addr);
+			json_object_string_add(json_row, "rpAddress", buf);
 			if (rp_info->rp.source_nexthop.interface)
 				json_object_string_add(
 					json_row, "outboundInterface",
@@ -1807,26 +1808,30 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 				json_object_string_add(json_row,
 						       "outboundInterface",
 						       "Unknown");
-			if (rp_info->i_am_rp)
-				json_object_boolean_true_add(json_row, "iAmRP");
-			else
-				json_object_boolean_false_add(json_row,
-							      "iAmRP");
+			json_object_boolean_add(json_row, "iAmRP",
+						rp_info->i_am_rp);
 
 			if (rp_info->plist)
 				json_object_string_add(json_row, "prefixList",
 						       rp_info->plist);
-			else if (rp_info->alist)
+			else if (rp_info->alist) {
+				json_object *json_aclrules;
+
 				json_object_string_add(json_row, "accessList",
 						       rp_info->alist);
-			else
-				json_object_string_addf(json_row, "group",
-							"%pFX",
-							&rp_info->group);
-			json_object_string_add(json_row, "source", source);
-			json_object_string_add(json_row, "groupType",
-					       group_type);
+				json_aclrules = json_object_new_array();
+				json_object_object_add(json_row,
+						       "accessListContents",
+						       json_aclrules);
 
+				pim_rpinfo_show_alist(vty, rp_info,
+						      json_aclrules);
+			} else
+				json_object_string_add(
+					json_row, "group",
+					prefix2str(&rp_info->group, buf, 48));
+
+			json_object_string_add(json_row, "source", source);
 			json_object_array_add(json_rp_rows, json_row);
 		} else {
 			prefix2str(&rp_info->group, grp, sizeof(grp));
@@ -1845,9 +1850,8 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 					  source, group_type);
 
 			if (rp_info->alist)
-				pim_rpinfo_show_alist(vty, rp_info);
+				pim_rpinfo_show_alist(vty, rp_info, json);
 		}
-		prev_rp_info = rp_info;
 	}
 
 	/* Dump the generated table. */
@@ -1856,10 +1860,6 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 		vty_out(vty, "%s\n", table);
 		XFREE(MTYPE_TMP, table);
 		ttable_del(tt);
-	} else {
-		if (prev_rp_info && json_rp_rows)
-			json_object_object_addf(json, json_rp_rows, "%pPA",
-						&prev_rp_info->rp.rpf_addr);
 	}
 }
 
