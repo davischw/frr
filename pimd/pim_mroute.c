@@ -245,6 +245,11 @@ int pim_mroute_msg_nocache(int fd, struct interface *ifp,
 	/* if we have receiver, inherit from parent */
 	pim_upstream_inherited_olist_decide(pim_ifp->pim, up);
 
+#ifdef PIM_SOUTHBOUND
+	/* Make sure route is installed. */
+	pimsb_mroute_do(up->channel_oil, true);
+#endif /* PIM_SOUTHBOUND */
+
 	return 0;
 }
 
