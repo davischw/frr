@@ -1725,14 +1725,15 @@ void pim_rp_show_information(struct pim_instance *pim, struct vty *vty, bool uj)
 	}
 }
 
-static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info)
+static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
+				  json_object *json)
 {
 	struct filter *item;
 	struct filter_cisco *cfilter;
 	struct access_list *acl;
 
 	acl = access_list_lookup(AFI_IP, rp_info->alist);
-	if (!acl) {
+	if (!acl && !json) {
 		vty_out(vty, "\t-- access list does not exist\n");
 		return;
 	}
@@ -1742,6 +1743,9 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info)
 		struct in_addr mask;
 
 		if (!item->cisco || !item->u.cfilter.extended) {
+			if (json)
+				continue;
+
 			vty_out(vty,
 				"\t-- INVALID ENTRY: seq %"PRId64" is not an extended access-list item!\n",
 				item->seq);
@@ -1755,7 +1759,15 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info)
 		mask.s_addr = ~mask.s_addr;
 		p.prefixlen = ip_masklen(mask);
 		p.prefix = cfilter->sadr.dst;
-		vty_out(vty, "\t%pFX\n", &p);
+
+		if (json) {
+			char buf[PREFIX_STRLEN];
+
+			prefix2str(&p, buf, sizeof(buf));
+			json_object_array_add(json,
+					      json_object_new_string(buf));
+		} else
+			vty_out(vty, "\t%pFX\n", &p);
 	}
 }
 
@@ -1764,7 +1776,6 @@ static void pim_rp_show_info_list(struct list *list, struct vty *vty,
 {
 	bool uj = json != NULL;
 	struct rp_info *rp_info;
-	struct rp_info *prev_rp_info = NULL;
 	struct listnode *node;
 	char source[9];
 	char buf[PREFIX_STRLEN];
@@ -1773,121 +1784,95 @@ static void pim_rp_show_info_list(struct list *list, struct vty *vty,
 	json_object *json_row = NULL;
 
 	for (ALL_LIST_ELEMENTS_RO(list, node, rp_info)) {
-		if (!pim_rpf_addr_is_inaddr_none(&rp_info->rp)) {
-			char buf[48];
+		if (pim_rpf_addr_is_inaddr_none(&rp_info->rp))
+			continue;
 
-			if (rp_info->rp_src == RP_SRC_STATIC)
-				strlcpy(source, "Static", sizeof(source));
-			else if (rp_info->rp_src == RP_SRC_BSR)
-				strlcpy(source, "BSR", sizeof(source));
-			else if (rp_info->rp_src == RP_SRC_FALLBACK)
-				strlcpy(source, "Fallback", sizeof(source));
-			else
-				strlcpy(source, "None", sizeof(source));
-			if (uj) {
-				/*
-				 * If we have moved on to a new RP then add the
-				 * entry for the previous RP
-				 */
-				if (prev_rp_info
-				    && prev_rp_info->rp.rpf_addr.u.prefix4
-						       .s_addr
-					       != rp_info->rp.rpf_addr.u.prefix4
-							  .s_addr) {
-					json_object_object_add(
-						json,
-						inet_ntop(AF_INET,
-							  &prev_rp_info->rp
-								  .rpf_addr.u
-								  .prefix4,
-							  buf, sizeof(buf)),
-						json_rp_rows);
-					json_rp_rows = NULL;
-				}
+		if (rp_info->rp_src == RP_SRC_STATIC)
+			strlcpy(source, "Static", sizeof(source));
+		else if (rp_info->rp_src == RP_SRC_BSR)
+			strlcpy(source, "BSR", sizeof(source));
+		else if (rp_info->rp_src == RP_SRC_FALLBACK)
+			strlcpy(source, "Fallback", sizeof(source));
+		else
+			strlcpy(source, "None", sizeof(source));
 
-				if (!json_rp_rows)
-					json_rp_rows = json_object_new_array();
+		inet_ntop(AF_INET, &rp_info->rp.rpf_addr.u.prefix4, buf,
+			  sizeof(buf));
 
-				json_row = json_object_new_object();
-				json_object_string_add(
-					json_row, "rpAddress",
-					inet_ntop(AF_INET,
-						  &rp_info->rp.rpf_addr.u
-						      .prefix4,
-						  buf, sizeof(buf)));
-				if (rp_info->rp.source_nexthop.interface)
-					json_object_string_add(
-						json_row, "outboundInterface",
-						rp_info->rp.source_nexthop
-							.interface->name);
-				else
-					json_object_string_add(
-						json_row, "outboundInterface",
-						"Unknown");
-				if (rp_info->i_am_rp)
-					json_object_boolean_true_add(json_row,
-								     "iAmRP");
-				else
-					json_object_boolean_false_add(json_row,
-								      "iAmRP");
-
-				if (rp_info->plist)
-					json_object_string_add(json_row,
-							       "prefixList",
-							       rp_info->plist);
-				else if (rp_info->alist)
-					json_object_string_add(json_row,
-							       "accessList",
-							       rp_info->alist);
-				else
-					json_object_string_add(
-						json_row, "group",
-						prefix2str(&rp_info->group, buf,
-							   48));
-				json_object_string_add(json_row, "source",
-						       source);
-
-				json_object_array_add(json_rp_rows, json_row);
-			} else {
-				vty_out(vty, "%-15s  ",
-					inet_ntop(AF_INET,
-						  &rp_info->rp.rpf_addr.u
-							  .prefix4,
-						  buf, sizeof(buf)));
-
-				if (rp_info->plist)
-					vty_out(vty, "%-18s  ", rp_info->plist);
-				else if (rp_info->alist)
-					vty_out(vty, "%-18s  ", rp_info->alist);
-				else
-					vty_out(vty, "%-18pFX  ",
-						&rp_info->group);
-
-				if (rp_info->rp.source_nexthop.interface)
-					vty_out(vty, "%-16s  ",
-						rp_info->rp.source_nexthop
-							.interface->name);
-				else
-					vty_out(vty, "%-16s  ", "(Unknown)");
-
-				vty_out(vty, "%-16s ",
-					rp_info->i_am_rp ? "yes" : "no");
-
-				vty_out(vty, "%s\n", source);
-
-				if (rp_info->alist)
-					pim_rpinfo_show_alist(vty, rp_info);
+		if (uj) {
+			json_rp_rows = json_object_object_get(json, buf);
+			if (!json_rp_rows) {
+				json_rp_rows = json_object_new_array();
+				json_object_object_add(json, buf, json_rp_rows);
 			}
-			prev_rp_info = rp_info;
+
+			json_row = json_object_new_object();
+			json_object_string_add(json_row, "rpAddress", buf);
+			if (rp_info->rp.source_nexthop.interface)
+				json_object_string_add(
+					json_row, "outboundInterface",
+					rp_info->rp.source_nexthop
+						.interface->name);
+			else
+				json_object_string_add(
+					json_row, "outboundInterface",
+					"Unknown");
+			json_object_boolean_add(json_row, "iAmRP",
+						rp_info->i_am_rp);
+
+			if (rp_info->plist)
+				json_object_string_add(json_row, "prefixList",
+						       rp_info->plist);
+			else if (rp_info->alist) {
+				json_object *json_aclrules;
+
+				json_object_string_add(json_row, "accessList",
+						       rp_info->alist);
+				json_aclrules = json_object_new_array();
+				json_object_object_add(json_row,
+						       "accessListContents",
+						       json_aclrules);
+
+				pim_rpinfo_show_alist(vty, rp_info,
+						      json_aclrules);
+			} else
+				json_object_string_add(
+					json_row, "group",
+					prefix2str(&rp_info->group, buf,
+						   48));
+			json_object_string_add(json_row, "source", source);
+			json_object_array_add(json_rp_rows, json_row);
+		} else {
+			vty_out(vty, "%-15s  ",
+				inet_ntop(AF_INET,
+					  &rp_info->rp.rpf_addr.u
+						  .prefix4,
+					  buf, sizeof(buf)));
+
+			if (rp_info->plist)
+				vty_out(vty, "%-18s  ", rp_info->plist);
+			else if (rp_info->alist)
+				vty_out(vty, "%-18s  ", rp_info->alist);
+			else
+				vty_out(vty, "%-18pFX  ",
+					&rp_info->group);
+
+			if (rp_info->rp.source_nexthop.interface)
+				vty_out(vty, "%-16s  ",
+					rp_info->rp.source_nexthop
+						.interface->name);
+			else
+				vty_out(vty, "%-16s  ", "(Unknown)");
+
+			vty_out(vty, "%-16s ",
+				rp_info->i_am_rp ? "yes" : "no");
+
+			vty_out(vty, "%s\n", source);
+
+			if (rp_info->alist)
+				pim_rpinfo_show_alist(vty, rp_info, NULL);
 		}
 	}
-
-	if (json && prev_rp_info && json_rp_rows)
-		json_object_object_add(json,
-				inet_ntop(AF_INET,
-					  &prev_rp_info->rp.rpf_addr.u.prefix4,
-					  buf, sizeof(buf)),
-				json_rp_rows);
 }
 
 void pim_resolve_rp_nh(struct pim_instance *pim, struct pim_neighbor *nbr)
