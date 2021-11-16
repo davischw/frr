@@ -133,7 +133,8 @@ static void debug_printbpc(const struct bfd_peer_cfg *bpc, const char *fmt, ...)
 	vsnprintf(msgbuf, sizeof(msgbuf), fmt, vl);
 	va_end(vl);
 
-	zlog_debug("%s [mhop:%s %s%s%s%s%s%s%s%s%s]", msgbuf,
+	zlog_debug("%s (daemon: %s) [mhop:%s %s%s%s%s%s%s%s%s%s]", msgbuf,
+		   zebra_route_string(bpc->bpc_origin_daemon),
 		   bpc->bpc_mhop ? "yes" : "no", addr[0], addr[1], addr[2],
 		   timers[0], timers[1], timers[2], cbit_str, minttl_str,
 		   profile);
@@ -371,6 +372,9 @@ static int _ptm_msg_read(struct stream *msg, int command, vrf_id_t vrf_id,
 	/* Initialize parameters return values. */
 	memset(bpc, 0, sizeof(*bpc));
 	*pc = NULL;
+
+	/* Find or allocate process context data. */
+	STREAM_GETL(msg, bpc->bpc_origin_daemon);
 
 	/* Find or allocate process context data. */
 	STREAM_GETL(msg, pid);
