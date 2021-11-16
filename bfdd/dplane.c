@@ -729,10 +729,10 @@ free_resources:
 static void _bfd_dplane_session_fill(const struct bfd_session *bs,
 				     struct bfddp_message *msg)
 {
-	uint16_t msglen = sizeof(msg->header) + sizeof(msg->data.session);
+	uint16_t msglen = sizeof(msg->header) + sizeof(msg->data.session_v2);
 
 	/* Message header. */
-	msg->header.version = BFD_DP_VERSION;
+	msg->header.version = BFD_DP_VERSION_V2;
 	msg->header.length = ntohs(msglen);
 	msg->header.type = ntohs(DP_ADD_SESSION);
 
@@ -770,6 +770,13 @@ static void _bfd_dplane_session_fill(const struct bfd_session *bs,
 	msg->data.session.min_echo_tx = htonl(bs->timers.desired_min_echo_tx);
 	msg->data.session.min_echo_rx = htonl(bs->timers.required_min_echo_rx);
 	msg->data.session.hold_time = htonl(bs->hold_time);
+
+	strlcpy(msg->data.session_v2.daemon,
+		zebra_route_string(bs->origin_daemon),
+		sizeof(msg->data.session_v2.daemon));
+	if (bs->profile_name)
+		strlcpy(msg->data.session_v2.profile, bs->profile_name,
+			sizeof(msg->data.session_v2.profile));
 }
 
 static int _bfd_dplane_add_session(struct bfd_dplane_ctx *bdc,

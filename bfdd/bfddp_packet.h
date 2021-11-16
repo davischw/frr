@@ -71,6 +71,9 @@
 /** BFD data plane protocol version. */
 #define BFD_DP_VERSION 1
 
+/** BFD data plane protocol version. */
+#define BFD_DP_VERSION_V2 2
+
 /** BFD data plane message types. */
 enum bfddp_message_type {
 	/** Ask for BFD daemon or data plane for echo packet. */
@@ -188,6 +191,15 @@ struct bfddp_session {
 	char ifname[64];
 
 	/* TODO: missing authentication. */
+};
+
+struct bfddp_session_v2 {
+	struct bfddp_session session;
+
+	/** BFD session profile name in use. */
+	char profile[64];
+	/** FRR daemon that created this session. */
+	char daemon[64];
 };
 
 /** BFD packet state values as defined in RFC 5880, Section 4.1. */
@@ -380,6 +392,9 @@ struct bfddp_message {
 		struct bfddp_control_packet control;
 		struct bfddp_request_counters counters_req;
 		struct bfddp_session_counters session_counters;
+
+		/* BFD data plane protocol version 2. */
+		struct bfddp_session_v2 session_v2;
 	} data;
 };
 

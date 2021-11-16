@@ -266,6 +266,9 @@ struct bfd_session {
 	uint8_t remote_cbit;
 	uint32_t hold_time;
 
+	/** Daemon that originated this. */
+	uint32_t origin_daemon;
+
 	/** BFD profile name. */
 	char *profile_name;
 	/** BFD pre configured profile. */

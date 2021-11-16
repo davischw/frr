@@ -1413,8 +1413,9 @@ static void _zebra_ptm_reroute(struct zserv *zs, struct zebra_vrf *zvrf,
 		goto stream_failure;
 	}
 
-	/* Copy original message, excluding header, into new message */
+	/* Prepend daemon protocol identification and copy original message. */
 	stream_get_from(buf, msg, stream_get_getp(msg), STREAM_READABLE(msg));
+	stream_putl(msgc, zs->proto);
 	stream_put(msgc, buf, STREAM_READABLE(msg));
 
 	/* Update length field */

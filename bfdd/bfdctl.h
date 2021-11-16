@@ -112,6 +112,7 @@ struct bfd_peer_cfg {
 	uint64_t bpc_remote_txinterval;
 	uint64_t bpc_remote_echointerval;
 	uint64_t bpc_lastevent;
+	uint32_t bpc_origin_daemon;
 };
 
 
