@@ -11570,20 +11570,20 @@ static void bgp_show_peer_afi(struct vty *vty, struct peer *p, afi_t afi,
 
 			json_advmap = json_object_new_object();
 			json_object_int_add(json_advmap, "sequenceNumber",
-					       advmap->seqno);
+					       now->seqno);
 			if (from_pg)
 				json_object_boolean_true_add(json_advmap,
 							     "inheritedFromPeerGroup");
 
 			json_object_string_add(json_advmap, "conditionMap",
-					       advmap->cname);
+					       now->cname);
 			json_object_string_add(json_advmap, "conditionType",
-					       advmap->cond == CONDITION_EXIST ?
+					       now->cond == CONDITION_EXIST ?
 							"exist" : "non-exist");
 			json_object_string_add(json_advmap, "advertiseMap",
-					       advmap->aname);
+					       now->aname);
 			json_object_boolean_add(json_advmap, "conditionStatus",
-						advmap->status);
+						now->status);
 			json_object_array_add(json_advmaps, json_advmap);
 		}
 		json_object_object_add(json_addr, "advertiseMaps",
