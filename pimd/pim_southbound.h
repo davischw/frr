@@ -151,6 +151,6 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 		       struct prefix_sg *sg, bool fill, bool json);
 
 void pimsb_set_input_interface(struct channel_oil *oil);
-void pimsb_mroute_do(const struct channel_oil *oil, bool install);
+void pimsb_mroute_do(struct channel_oil *oil, bool install);
 
 #endif /* _PIM_SOUTHBOUND_ */

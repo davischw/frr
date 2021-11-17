@@ -389,7 +389,7 @@ static void pimsb_debug_upstream(const struct pim_upstream *up)
 	}
 }
 
-void pimsb_mroute_do(const struct channel_oil *oil, bool install)
+void pimsb_mroute_do(struct channel_oil *oil, bool install)
 {
 	struct pim_upstream *upstream = oil->up;
 	struct pim_interface *pim_ifp;
@@ -577,6 +577,15 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 			i_am_rp ? "yes" : "no", i_am_fhr ? "yes" : "no",
 			i_am_lhr ? "yes" : "no");
 	}
+
+	/* Update route installation status.  */
+	if (install) {
+		if (!oil->installed)
+			oil->mroute_creation = pim_time_monotonic_sec();
+
+		oil->installed = 1;
+	} else
+		oil->installed = 0;
 }
 
 /*
