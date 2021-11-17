@@ -57,4 +57,8 @@ extern void pim_filter_ref_set_alist(struct pim_filter_ref *ref,
 				     const char *alistname);
 extern void pim_filter_ref_update(void);
 
+struct json_object;
+extern void pim_filter_json(struct json_object *json, const char *key,
+			    struct pim_filter_ref *ref);
+
 #endif /* _PIM_ROUTEMAP_H */

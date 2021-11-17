@@ -1163,6 +1163,9 @@ static void pim_show_interfaces_single(struct pim_instance *pim,
 						       sec_list);
 			}
 
+			pim_filter_json(json_row, "igmpFilter",
+					&pim_ifp->igmp_filter);
+
 			// PIM neighbors
 			if (pim_ifp->pim_neighbor_list->count) {
 				json_pim_neighbors = json_object_new_object();
@@ -1584,6 +1587,8 @@ static void pim_show_interfaces(struct pim_instance *pim, struct vty *vty,
 				       inet_ntop(AF_INET,
 						 &pim_ifp->pim_dr_addr, buf,
 						 sizeof(buf)));
+
+		pim_filter_json(json_row, "igmpFilter", &pim_ifp->igmp_filter);
 
 		if (pim_ifp->pim_dr_addr.s_addr
 		    == pim_ifp->primary_address.s_addr)
@@ -6102,7 +6107,7 @@ static void show_multicast_interfaces(struct pim_instance *pim, struct vty *vty,
 }
 
 static void pim_cmd_show_ip_multicast_helper(struct pim_instance *pim,
-					     struct vty *vty)
+					     struct vty *vty, bool uj)
 {
 	struct vrf *vrf = pim->vrf;
 	time_t now = pim_time_monotonic_sec();
@@ -6110,6 +6115,25 @@ static void pim_cmd_show_ip_multicast_helper(struct pim_instance *pim,
 	char mlag_role[80];
 
 	pim = vrf->info;
+
+	if (uj) {
+		struct json_object *json;
+
+		json = json_object_new_object();
+
+		pim_filter_json(json, "mfibFilter", &pim->mfib_filter);
+		pim_filter_json(json, "joinFilter", &pim->join_filter);
+
+		json_object_boolean_add(json, "ecmpEnabled", pim->ecmp_enable);
+		json_object_boolean_add(json, "ecmpRebalance",
+					pim->ecmp_rebalance_enable);
+
+		vty_out(vty, "%s\n",
+			json_object_to_json_string_ext(
+				json, JSON_C_TO_STRING_PRETTY));
+		json_object_free(json);
+		return;
+	}
 
 	vty_out(vty, "Router MLAG Role: %s\n",
 		mlag_role2str(router->mlag_role, mlag_role, sizeof(mlag_role)));
@@ -6150,30 +6174,33 @@ static void pim_cmd_show_ip_multicast_helper(struct pim_instance *pim,
 
 DEFUN (show_ip_multicast,
        show_ip_multicast_cmd,
-       "show ip multicast [vrf NAME]",
+       "show ip multicast [vrf NAME] [json]",
        SHOW_STR
        IP_STR
        VRF_CMD_HELP_STR
-       "Multicast global information\n")
+       "Multicast global information\n"
+       JSON_STR)
 {
+	bool uj = use_json(argc, argv);
 	int idx = 2;
 	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
 
 	if (!vrf)
 		return CMD_WARNING;
 
-	pim_cmd_show_ip_multicast_helper(vrf->info, vty);
+	pim_cmd_show_ip_multicast_helper(vrf->info, vty, uj);
 
 	return CMD_SUCCESS;
 }
 
 DEFUN (show_ip_multicast_vrf_all,
        show_ip_multicast_vrf_all_cmd,
-       "show ip multicast vrf all",
+       "show ip multicast vrf all [json]",
        SHOW_STR
        IP_STR
        VRF_CMD_HELP_STR
-       "Multicast global information\n")
+       "Multicast global information\n"
+       JSON_STR)
 {
 	bool uj = use_json(argc, argv);
 	struct vrf *vrf;
@@ -6189,7 +6216,7 @@ DEFUN (show_ip_multicast_vrf_all,
 			first = false;
 		} else
 			vty_out(vty, "VRF: %s\n", vrf->name);
-		pim_cmd_show_ip_multicast_helper(vrf->info, vty);
+		pim_cmd_show_ip_multicast_helper(vrf->info, vty, uj);
 	}
 	if (uj)
 		vty_out(vty, "}\n");

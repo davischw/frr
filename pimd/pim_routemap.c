@@ -24,6 +24,8 @@
 #include "vty.h"
 #include "routemap.h"
 #include "filter.h"
+#include "json.h"
+#include "printfrr.h"
 
 #include "pimd.h"
 #include "pim_routemap.h"
@@ -432,6 +434,87 @@ int pim_nb_rmap_match_plist_modify(struct nb_cb_modify_args *args)
 }
 
 /* CLI */
+
+static bool access_list_json_fill(struct json_object *json,
+				  struct access_list *acl)
+{
+	bool valid = true;
+	struct filter *item;
+	struct filter_cisco *cfilter;
+
+	for (item = acl->head; item; item = item->next) {
+		struct prefix_ipv4 p;
+		struct in_addr mask;
+		char buf[PREFIX_STRLEN];
+		struct json_object *jsonitem;
+
+		if (!item->cisco || !item->u.cfilter.extended) {
+			valid = false;
+			continue;
+		}
+
+		cfilter = &item->u.cfilter;
+
+		jsonitem = json_object_new_object();
+		json_object_array_add(json, jsonitem);
+		json_object_boolean_add(jsonitem, "permit",
+					(item->type == FILTER_PERMIT));
+
+		p.family = AF_INET;
+		mask = cfilter->sadr.dst_mask;
+		mask.s_addr = ~mask.s_addr;
+		p.prefixlen = ip_masklen(mask);
+		p.prefix = cfilter->sadr.dst;
+		prefix2str(&p, buf, sizeof(buf));
+		json_object_string_add(jsonitem, "group", buf);
+
+		p.family = AF_INET;
+		mask = cfilter->sadr.src_mask;
+		mask.s_addr = ~mask.s_addr;
+		p.prefixlen = ip_masklen(mask);
+		p.prefix = cfilter->sadr.src;
+		prefix2str(&p, buf, sizeof(buf));
+		json_object_string_add(jsonitem, "source", buf);
+	}
+
+	return valid;
+}
+
+void pim_filter_json(struct json_object *json, const char *key,
+		     struct pim_filter_ref *ref)
+{
+	char buf[256];
+
+	if (ref->alistname) {
+		bool valid;
+
+		snprintfrr(buf, sizeof(buf), "%sAccessList", key);
+		json_object_string_add(json, buf, ref->alistname);
+
+		if (ref->alist) {
+			struct json_object *items;
+
+			snprintfrr(buf, sizeof(buf), "%sAccessListContents",
+				   key);
+			items = json_object_new_array();
+			json_object_object_add(json, buf, items);
+
+			valid = access_list_json_fill(items, ref->alist);
+		} else
+			valid = false;
+
+		snprintfrr(buf, sizeof(buf), "%sAccessListValid", key);
+		json_object_boolean_add(json, buf, valid);
+	}
+
+	if (ref->rmapname) {
+		snprintfrr(buf, sizeof(buf), "%sRouteMap", key);
+		json_object_string_add(json, buf, ref->rmapname);
+
+		snprintfrr(buf, sizeof(buf), "%sRouteMapValid", key);
+		json_object_boolean_add(json, buf, ref->rmap != NULL);
+	}
+}
 
 #include "northbound_cli.h"
 
