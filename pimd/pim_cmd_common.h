@@ -125,8 +125,8 @@ int gm_process_last_member_query_interval_cmd(struct vty *vty,
 int gm_process_no_last_member_query_interval_cmd(struct vty *vty);
 int pim_process_ssmpingd_cmd(struct vty *vty, enum nb_operation operation,
 			     const char *src_str);
-void pim_cmd_show_ip_multicast_helper(struct pim_instance *pim,
-				      struct vty *vty);
+void pim_cmd_show_ip_multicast_helper(struct pim_instance *pim, struct vty *vty,
+				      struct json_object *json);
 void show_multicast_interfaces(struct pim_instance *pim, struct vty *vty,
 			       json_object *json);
 void show_mroute(struct pim_instance *pim, struct vty *vty, pim_sgaddr *sg,
@@ -165,8 +165,8 @@ int pim_show_state_helper(const char *vrf, struct vty *vty,
 			  const char *s_or_g_str, const char *g_str, bool json);
 int pim_show_state_vrf_all_helper(struct vty *vty, const char *s_or_g_str,
 				  const char *g_str, bool json);
-int pim_show_multicast_helper(const char *vrf, struct vty *vty);
-int pim_show_multicast_vrf_all_helper(struct vty *vty);
+int pim_show_multicast_helper(const char *vrf, struct vty *vty, bool use_json);
+int pim_show_multicast_vrf_all_helper(struct vty *vty, bool use_json);
 int pim_show_multicast_count_helper(const char *vrf, struct vty *vty,
 				    bool json);
 int pim_show_multicast_count_vrf_all_helper(struct vty *vty, bool json);

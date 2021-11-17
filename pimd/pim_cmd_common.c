@@ -2473,6 +2473,9 @@ void pim_show_interfaces_single(struct pim_instance *pim, struct vty *vty,
 				json_object_boolean_true_add(json_row,
 							     "passive");
 
+			pim_filter_json(json_row, "igmpFilter",
+					&pim_ifp->igmp_filter);
+
 			/* PIM neighbors */
 			if (pim_ifp->pim_neighbor_list->count) {
 				json_pim_neighbors = json_object_new_object();
@@ -2520,6 +2523,9 @@ void pim_show_interfaces_single(struct pim_instance *pim, struct vty *vty,
 					    pim_ifp->pim_dr_election_count);
 			json_object_int_add(json_row, "drChanges",
 					    pim_ifp->pim_dr_election_changes);
+
+			pim_filter_json(json_row, "igmpFilter",
+					&pim_ifp->igmp_filter);
 
 			/* FHR */
 			frr_each (rb_pim_upstream, &pim->upstream_head, up) {
@@ -3638,7 +3644,8 @@ void show_multicast_interfaces(struct pim_instance *pim, struct vty *vty,
 	}
 }
 
-void pim_cmd_show_ip_multicast_helper(struct pim_instance *pim, struct vty *vty)
+void pim_cmd_show_ip_multicast_helper(struct pim_instance *pim, struct vty *vty,
+				      struct json_object *json)
 {
 	struct vrf *vrf = pim->vrf;
 	time_t now = pim_time_monotonic_sec();
@@ -3646,6 +3653,16 @@ void pim_cmd_show_ip_multicast_helper(struct pim_instance *pim, struct vty *vty)
 	char mlag_role[80];
 
 	pim = vrf->info;
+
+	if (json) {
+		pim_filter_json(json, "mfibFilter", &pim->mfib_filter);
+		pim_filter_json(json, "joinFilter", &pim->join_filter);
+
+		json_object_boolean_add(json, "ecmpEnabled", pim->ecmp_enable);
+		json_object_boolean_add(json, "ecmpRebalance",
+					pim->ecmp_rebalance_enable);
+		return;
+	}
 
 	vty_out(vty, "Router MLAG Role: %s\n",
 		mlag_role2str(router->mlag_role, mlag_role, sizeof(mlag_role)));
@@ -4808,8 +4825,9 @@ int pim_show_state_vrf_all_helper(struct vty *vty, const char *s_or_g_str,
 	return CMD_SUCCESS;
 }
 
-int pim_show_multicast_helper(const char *vrf, struct vty *vty)
+int pim_show_multicast_helper(const char *vrf, struct vty *vty, bool use_json)
 {
+	struct json_object *json = NULL;
 	struct vrf *v;
 	struct pim_instance *pim;
 
@@ -4821,22 +4839,52 @@ int pim_show_multicast_helper(const char *vrf, struct vty *vty)
 	pim = v->info;
 
 	if (!pim) {
-		vty_out(vty, "%% Unable to find pim instance\n");
+		if (use_json)
+			vty_out(vty,
+				"{\"error\": \"Unable to find pim instance\"}\n");
+		else
+			vty_out(vty, "%% Unable to find pim instance\n");
 		return CMD_WARNING;
 	}
 
-	pim_cmd_show_ip_multicast_helper(pim, vty);
+	if (use_json)
+		json = json_object_new_object();
+
+	pim_cmd_show_ip_multicast_helper(pim, vty, json);
+
+	if (use_json) {
+		vty_out(vty, "%s\n",
+			json_object_to_json_string_ext(
+				json, JSON_C_TO_STRING_PRETTY));
+		json_object_free(json);
+	}
 
 	return CMD_SUCCESS;
 }
 
-int pim_show_multicast_vrf_all_helper(struct vty *vty)
+int pim_show_multicast_vrf_all_helper(struct vty *vty, bool use_json)
 {
+	struct json_object *json_root = NULL;
+	struct json_object *json = NULL;
 	struct vrf *vrf;
 
+	json_root = json_object_new_object();
+
 	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-		vty_out(vty, "VRF: %s\n", vrf->name);
-		pim_cmd_show_ip_multicast_helper(vrf->info, vty);
+		if (use_json) {
+			json = json_object_new_object();
+			json_object_object_add(json_root, vrf->name, json);
+		} else
+			vty_out(vty, "VRF: %s\n", vrf->name);
+
+		pim_cmd_show_ip_multicast_helper(vrf->info, vty, json);
+	}
+
+	if (use_json) {
+		vty_out(vty, "%s\n",
+			json_object_to_json_string_ext(
+				json_root, JSON_C_TO_STRING_PRETTY));
+		json_object_free(json_root);
 	}
 
 	return CMD_SUCCESS;

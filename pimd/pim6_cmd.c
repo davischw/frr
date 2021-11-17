@@ -1099,24 +1099,26 @@ DEFPY (show_ipv6_pim_nexthop_lookup,
 
 DEFPY (show_ipv6_multicast,
        show_ipv6_multicast_cmd,
-       "show ipv6 multicast [vrf NAME]",
+       "show ipv6 multicast [vrf NAME] [json]",
        SHOW_STR
        IPV6_STR
        "Multicast global information\n"
-       VRF_CMD_HELP_STR)
+       VRF_CMD_HELP_STR
+       JSON_STR)
 {
-	return pim_show_multicast_helper(vrf, vty);
+	return pim_show_multicast_helper(vrf, vty, use_json(argc, argv));
 }
 
 DEFPY (show_ipv6_multicast_vrf_all,
        show_ipv6_multicast_vrf_all_cmd,
-       "show ipv6 multicast vrf all",
+       "show ipv6 multicast vrf all [json]",
        SHOW_STR
        IPV6_STR
        "Multicast global information\n"
-       VRF_CMD_HELP_STR)
+       VRF_CMD_HELP_STR
+       JSON_STR)
 {
-	return pim_show_multicast_vrf_all_helper(vty);
+	return pim_show_multicast_vrf_all_helper(vty, use_json(argc, argv));
 }
 
 DEFPY (show_ipv6_multicast_count,

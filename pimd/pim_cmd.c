@@ -3435,24 +3435,26 @@ DEFPY (show_ip_pim_statistics,
 
 DEFPY (show_ip_multicast,
        show_ip_multicast_cmd,
-       "show ip multicast [vrf NAME]",
+       "show ip multicast [vrf NAME] [json]",
        SHOW_STR
        IP_STR
        "Multicast global information\n"
-       VRF_CMD_HELP_STR)
+       VRF_CMD_HELP_STR
+       JSON_STR)
 {
-	return pim_show_multicast_helper(vrf, vty);
+	return pim_show_multicast_helper(vrf, vty, use_json(argc, argv));
 }
 
 DEFPY (show_ip_multicast_vrf_all,
        show_ip_multicast_vrf_all_cmd,
-       "show ip multicast vrf all",
+       "show ip multicast vrf all [json]",
        SHOW_STR
        IP_STR
        "Multicast global information\n"
-       VRF_CMD_HELP_STR)
+       VRF_CMD_HELP_STR
+       JSON_STR)
 {
-	return pim_show_multicast_vrf_all_helper(vty);
+	return pim_show_multicast_vrf_all_helper(vty, use_json(argc, argv));
 }
 
 DEFPY (show_ip_multicast_count,
