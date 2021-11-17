@@ -122,12 +122,9 @@ int pim_if_dr_election(struct interface *ifp)
 
 	/* DR changed ? */
 	if (pim_addr_cmp(old_dr_addr, pim_ifp->pim_dr_addr)) {
-
-		if (PIM_DEBUG_PIM_EVENTS)
-			zlog_debug(
-				"%s: DR was %pPA now is %pPA on interface %s",
-				__func__, &old_dr_addr, &pim_ifp->pim_dr_addr,
-				ifp->name);
+		zlog_info("%s: DR was %pPA now is %pPA on interface %s",
+			  __func__, &old_dr_addr, &pim_ifp->pim_dr_addr,
+			  ifp->name);
 
 		pim_ifp->pim_dr_election_last =
 			pim_time_monotonic_sec(); /* timestamp */
