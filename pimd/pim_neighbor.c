@@ -124,17 +124,8 @@ int pim_if_dr_election(struct interface *ifp)
 
 	/* DR changed ? */
 	if (old_dr_addr.s_addr != pim_ifp->pim_dr_addr.s_addr) {
-
-		if (PIM_DEBUG_PIM_EVENTS) {
-			char dr_old_str[INET_ADDRSTRLEN];
-			char dr_new_str[INET_ADDRSTRLEN];
-			pim_inet4_dump("<old_dr?>", old_dr_addr, dr_old_str,
-				       sizeof(dr_old_str));
-			pim_inet4_dump("<new_dr?>", pim_ifp->pim_dr_addr,
-				       dr_new_str, sizeof(dr_new_str));
-			zlog_debug("%s: DR was %s now is %s on interface %s",
-				   __func__, dr_old_str, dr_new_str, ifp->name);
-		}
+		zlog_info("DR was %pI4 now is %pI4 on interface %s",
+			  &old_dr_addr, &pim_ifp->pim_dr_addr, ifp->name);
 
 		pim_ifp->pim_dr_election_last =
 			pim_time_monotonic_sec(); /* timestamp */
