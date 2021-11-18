@@ -912,15 +912,32 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 		pim_upstream_inherited_olist_decide(pim_ifp->pim, up);
 		pim_upstream_keep_alive_timer_start(
 			up, pim_ifp->pim->keep_alive_time);
-	} else if (up) {
-		up->flags |= PIM_UPSTREAM_FLAG_MASK_DATA_START;
-		pimsb_set_input_interface(up->channel_oil);
-		pimsb_mroute_do(up->channel_oil, true);
-		pim_upstream_switch(pim_ifp->pim, up, PIM_UPSTREAM_NOTJOINED);
-	} else
-		pim_upstream_add(pim_ifp->pim, &sg_p, ifp,
-				 PIM_UPSTREAM_FLAG_MASK_SRC_PIM, __func__,
-				 NULL);
+		return;
+	}
+
+	if (up && (up->flags & PIM_UPSTREAM_FLAG_MASK_SRC_LHR)) {
+		if (PIM_DEBUG_MROUTE_DETAIL)
+			zlog_debug("%pSG4: extra DATA_START after SPT switch",
+				   &up->sg);
+		if (up->sptbit != PIM_UPSTREAM_SPTBIT_TRUE)
+			zlog_warn(
+				"%pSG4: LHR DATA_START without SPT_DESIRED, and we're not on SPT?",
+				&up->sg);
+		return;
+	}
+
+	if (!up)
+		up = pim_upstream_add(pim_ifp->pim, &sg_p, ifp,
+				      PIM_UPSTREAM_FLAG_MASK_SRC_PIM, __func__,
+				      NULL);
+	if (!up)
+		return;
+
+	up->flags |= PIM_UPSTREAM_FLAG_MASK_DATA_START;
+	up->flags |= PIM_UPSTREAM_FLAG_MASK_USE_RPT;
+	pimsb_set_input_interface(up->channel_oil);
+	pimsb_mroute_do(up->channel_oil, true);
+	pim_upstream_switch(pim_ifp->pim, up, PIM_UPSTREAM_NOTJOINED);
 }
 
 static void pimsb_client_data_stop(const struct mroute_event *me)
@@ -1036,11 +1053,20 @@ static void pimsb_client_spt_join(const struct mroute_event *me)
 	sg_p.src.s_addr = me->source.v4.s_addr;
 	sg_p.grp.s_addr = me->group.v4.s_addr;
 	up = pim_upstream_add(pim_ifp->pim, &sg_p, NULL,
-			      PIM_UPSTREAM_FLAG_MASK_SRC_PIM
-				      | PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED,
-			      __func__, NULL);
+			      PIM_UPSTREAM_FLAG_MASK_SRC_PIM, __func__, NULL);
 	if (!up)
 		return;
+
+	/*
+	 * pim_upstream_add unconditionally added a ref above.  but the ref
+	 * we track here is bound to the SPT_DESIRED flag (otherwise we leak
+	 * later)
+	 */
+	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED) {
+		assert(up->ref_count >= 2);
+		pim_upstream_del(pim_ifp->pim, up, __func__);
+	} else
+		up->flags |= PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED;
 
 	pim_upstream_keep_alive_timer_start(up, pim_ifp->pim->keep_alive_time);
 	pim_upstream_inherited_olist(pim_ifp->pim, up);

@@ -80,14 +80,20 @@ static void pim_upstream_remove_children(struct pim_instance *pim,
 		if (PIM_UPSTREAM_FLAG_TEST_SRC_LHR(child->flags)) {
 			PIM_UPSTREAM_FLAG_UNSET_SRC_LHR(child->flags);
 			child = pim_upstream_del(pim, child, __func__);
+			if (!child)
+				continue;
 		}
-		if (child) {
-			child->parent = NULL;
-			if (PIM_UPSTREAM_FLAG_TEST_USE_RPT(child->flags))
-				pim_upstream_mroute_iif_update(
-						child->channel_oil,
-						__func__);
+		if (child->flags & PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED) {
+			child->flags &= ~PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED;
+			child = pim_upstream_del(pim, child, __func__);
+			if (!child)
+				continue;
 		}
+
+		child->parent = NULL;
+		if (PIM_UPSTREAM_FLAG_TEST_USE_RPT(child->flags))
+			pim_upstream_mroute_iif_update(child->channel_oil,
+						       __func__);
 	}
 	list_delete(&up->sources);
 }
