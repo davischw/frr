@@ -402,6 +402,7 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 	bool i_am_rp = false;
 	bool i_am_fhr = false;
 	bool i_am_lhr = false;
+	bool i_am_mhr = false;
 	bool has_rp_if = false;
 	bool is_static = pimsb_oil_static(oil);
 	bool has_pimreg = false;
@@ -427,12 +428,14 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 	/* Figure out what part of the topology we are. */
 	star_source = oil->oil.mfcc_origin.s_addr == INADDR_ANY;
 	i_am_rp = pim_rp_i_am_rp(oil->pim, oil->oil.mfcc_mcastgrp);
-	if (upstream)
+	if (upstream) {
 		i_am_lhr = !PIM_UPSTREAM_FLAG_TEST_FHR(upstream->flags)
 			   && !i_am_rp;
-	else
+		i_am_fhr = PIM_UPSTREAM_FLAG_TEST_FHR(upstream->flags);
+	} else
 		i_am_lhr = true;
-	i_am_fhr = !i_am_lhr && !i_am_rp;
+
+	i_am_mhr = !i_am_lhr && !i_am_rp && !i_am_fhr;
 
 	/*
 	 * Don't install FHR routes if DATA_START has not been set.
@@ -464,7 +467,7 @@ void pimsb_mroute_do(const struct channel_oil *oil, bool install)
 		has_rp_if = true;
 
 	/* Generate flags based on detected information. */
-	if (!is_static && !star_source)
+	if (!is_static && !star_source && !i_am_mhr)
 		route_flags |= MRT_FLAG_RESTART_DL_TIMER;
 	if (i_am_lhr && star_source
 	    && oil->spt_threshold < PIM_SPT_THRESH_NEVER) {
