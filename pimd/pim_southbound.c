@@ -42,6 +42,7 @@
 #include "pimd/pim_igmpv3.h"
 #include "pimd/pim_neighbor.h"
 #include "pimd/pim_pim.h"
+#include "pimd/pim_register.h"
 #include "pimd/pim_sock.h"
 #include "pimd/pim_southbound.h"
 #include "pimd/pim_static.h"
@@ -857,7 +858,34 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 			zlog_debug("%s: source connected (%s, %pI4)", __func__,
 				   ifp->name, &sg_p.src);
 
-		pim_mroute_msg_nocache(pim_ifp->pim->mroute_socket, ifp, &im);
+		if (!(PIM_I_am_DR(pim_ifp))) {
+			if (PIM_DEBUG_MROUTE_DETAIL)
+				zlog_debug("%s: '%s' is not the DR for %pSG4",
+					   __func__, ifp->name, &sg_p);
+
+			up = pim_upstream_find_or_add(
+				&sg_p, ifp, PIM_UPSTREAM_FLAG_MASK_SRC_NOCACHE,
+				__func__);
+			pim_upstream_mroute_add(up->channel_oil, __func__);
+			return;
+		}
+
+		up = pim_upstream_find_or_add(
+			&sg_p, ifp, PIM_UPSTREAM_FLAG_MASK_FHR, __func__);
+		PIM_UPSTREAM_FLAG_SET_SRC_STREAM(up->flags);
+		up->flags |= PIM_UPSTREAM_FLAG_MASK_DATA_START;
+		pim_upstream_keep_alive_timer_start(
+			up, pim_ifp->pim->keep_alive_time);
+
+		up->channel_oil->cc.pktcnt++;
+		if (up->rpf.source_nexthop.interface != NULL
+		    && up->channel_oil->oil.mfcc_parent >= MAXVIFS)
+			pim_upstream_mroute_iif_update(up->channel_oil,
+						       __func__);
+
+		pim_register_join(up);
+		pim_upstream_inherited_olist_decide(pim_ifp->pim, up);
+		pimsb_mroute_do(up->channel_oil, true);
 		return;
 	}
 

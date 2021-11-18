@@ -229,10 +229,6 @@ int pim_mroute_msg_nocache(int fd, struct interface *ifp,
 	}
 
 	PIM_UPSTREAM_FLAG_SET_SRC_STREAM(up->flags);
-#ifdef PIM_SOUTHBOUND
-	/* Mark as traffic started so we can install the route. */
-	up->flags |= PIM_UPSTREAM_FLAG_MASK_DATA_START;
-#endif /* PIM_SOUTHBOUND */
 	pim_upstream_keep_alive_timer_start(up, pim_ifp->pim->keep_alive_time);
 
 	up->channel_oil->cc.pktcnt++;
@@ -244,11 +240,6 @@ int pim_mroute_msg_nocache(int fd, struct interface *ifp,
 	pim_register_join(up);
 	/* if we have receiver, inherit from parent */
 	pim_upstream_inherited_olist_decide(pim_ifp->pim, up);
-
-#ifdef PIM_SOUTHBOUND
-	/* Make sure route is installed. */
-	pimsb_mroute_do(up->channel_oil, true);
-#endif /* PIM_SOUTHBOUND */
 
 	return 0;
 }
