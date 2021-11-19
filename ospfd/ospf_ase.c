@@ -616,6 +616,7 @@ static int ospf_ase_calculate_timer(struct thread *t)
 	 */
 	if (ospf->gr_info.finishing_restart) {
 		ospf_zebra_gr_disable(ospf);
+		(void)ospf_zebra_gr_enable(ospf, ospf->gr_info.grace_period);
 		ospf->gr_info.finishing_restart = false;
 	}
 

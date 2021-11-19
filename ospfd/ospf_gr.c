@@ -919,6 +919,7 @@ DEFPY(no_graceful_restart, no_graceful_restart_cmd,
 	ospf->gr_info.restart_support = false;
 	ospf->gr_info.grace_period = OSPF_DFLT_GRACE_INTERVAL;
 	ospf_gr_nvm_delete(ospf);
+	ospf_zebra_gr_disable(ospf);
 
 	return CMD_SUCCESS;
 }

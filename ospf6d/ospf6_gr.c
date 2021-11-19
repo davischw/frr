@@ -903,6 +903,7 @@ DEFPY(ospf6_no_graceful_restart, ospf6_no_graceful_restart_cmd,
 	ospf6->gr_info.restart_support = false;
 	ospf6->gr_info.grace_period = OSPF6_DFLT_GRACE_INTERVAL;
 	ospf6_gr_nvm_delete(ospf6);
+	ospf6_zebra_gr_disable(ospf6);
 
 	return CMD_SUCCESS;
 }
