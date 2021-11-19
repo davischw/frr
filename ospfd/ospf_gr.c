@@ -176,8 +176,9 @@ void ospf_gr_lsa_originate(struct ospf_interface *oi,
 	if (old)
 		lsa->data->ls_seqnum = lsa_seqnum_increment(old);
 
-	if (reason == OSPF_GR_UNKNOWN_RESTART
-	    || reason == OSPF_GR_SWITCH_CONTROL_PROCESSOR) {
+	if (!maxage
+	    && (reason == OSPF_GR_UNKNOWN_RESTART
+		|| reason == OSPF_GR_SWITCH_CONTROL_PROCESSOR)) {
 		ospf_lsa_checksum(lsa->data);
 		ospf_lsa_lock(lsa);
 		ospf_grace_lsa_send(oi, lsa, htonl(OSPF_ALLSPFROUTERS));
