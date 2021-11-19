@@ -21,11 +21,13 @@
 
 #include <zebra.h>
 
+#include "lib/bfd.h"
 #include "lib/memory.h"
 #include "lib/command.h"
 #include "lib/address_list.h"
 
 #include "bgpd/bgpd.h"
+#include "bgpd/bgp_bfd.h"
 #include "bgpd/bgp_debug.h"
 #include "bgpd/bgp_fsm.h"
 #include "bgpd/bgp_memory.h"
@@ -77,6 +79,10 @@ static void address_list_peer_toggle(struct bgp_named_peer *np,
 	if (np->peer->su.sa.sa_family != AF_UNSPEC) {
 		/* Remove peer registration before throwing away the address. */
 		hash_release(np->peer->bgp->peerhash, np->peer);
+
+		/* Remove BFD session if any. */
+		if (np->peer->bfd_config)
+			bfd_sess_uninstall(np->peer->bfd_config->session);
 
 		peer_notify_unconfig(np->peer);
 		BGP_EVENT_ADD(np->peer, BGP_Stop);
@@ -149,6 +155,18 @@ static void address_list_peer_toggle(struct bgp_named_peer *np,
 	bgp_peer_su_update(np->peer, &su);
 	if (peer_active(np->peer))
 		bgp_timer_set(np->peer);
+
+	/* Reconfigure BFD session if configuration is present. */
+	if (np->peer->bfd_config) {
+		const struct in_addr source = {}, destination = {};
+
+		/* Set empty addresses so `update_source` detects change. */
+		bfd_sess_set_ipv4_addrs(np->peer->bfd_config->session, &source,
+					&destination);
+
+		/* Call the BFD session parameter update function. */
+		bgp_peer_bfd_update_source(np->peer);
+	}
 }
 
 struct bgp_named_peer *address_list_lookup_by_name(struct bgp *bgp,
