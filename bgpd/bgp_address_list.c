@@ -75,6 +75,9 @@ static void address_list_peer_toggle(struct bgp_named_peer *np,
 
 	/* Only disable peer if address was configured. */
 	if (np->peer->su.sa.sa_family != AF_UNSPEC) {
+		/* Remove peer registration before throwing away the address. */
+		hash_release(np->peer->bgp->peerhash, np->peer);
+
 		peer_notify_unconfig(np->peer);
 		BGP_EVENT_ADD(np->peer, BGP_Stop);
 
@@ -202,7 +205,6 @@ static struct peer *_address_list_peer_new(struct bgp *bgp, const char *name)
 	peer = peer_lock(peer); /* bgp peer list reference */
 	peer->group = NULL;
 	listnode_add_sort(bgp->peer, peer);
-	hash_get(bgp->peerhash, peer, hash_alloc_intern);
 
 	/* Adjust update-group coalesce timer heuristics for # peers. */
 	if (bgp->heuristic_coalesce) {
