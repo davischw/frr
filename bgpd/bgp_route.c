@@ -15199,6 +15199,897 @@ DEFUN (show_bgp_peerhash,
        return CMD_SUCCESS;
 }
 
+struct route_parameters {
+	/** Route prefix. */
+	const struct prefix *prefix;
+	/** BGP route data structure pointer. */
+	struct bgp_dest *dest;
+	/** BGP instance pointer. */
+	struct bgp *bgp;
+	/** Route AFI. */
+	afi_t afi;
+	/** Route SAFI. */
+	safi_t safi;
+	/** Route attributes. */
+	struct attr attr;
+	/** Received from peer. */
+	struct peer *peer;
+};
+
+static bool bgp_route_belongs_to_aggregate(const struct route_parameters *args)
+{
+	struct bgp_dest *child;
+	struct bgp_dest *dest;
+	struct bgp_table *table;
+	const struct prefix *route_prefix = &args->dest->p;
+	bool belongs = false;
+
+	table = args->bgp->aggregate[args->afi][args->safi];
+
+	/* No aggregates configured. */
+	if (bgp_table_top_nolock(table) == NULL)
+		return false;
+	if (route_prefix->prefixlen == 0)
+		return false;
+
+	child = bgp_node_get(table, route_prefix);
+
+	/* Aggregate address configuration check. */
+	for (dest = child; dest; dest = bgp_dest_parent_nolock(dest)) {
+		const struct prefix *dest_p = bgp_dest_get_prefix(dest);
+		const struct bgp_aggregate *aggregate =
+			bgp_dest_get_bgp_aggregate_info(dest);
+
+		if (aggregate != NULL
+		    && dest_p->prefixlen < route_prefix->prefixlen) {
+			belongs = true;
+			break;
+		}
+	}
+	bgp_dest_unlock_node(child);
+
+	return belongs;
+}
+
+static void print_route_detailed(struct vty *vty, struct route_parameters *args)
+{
+	struct bgp_path_info *path = bgp_dest_get_bgp_path_info(args->dest);
+	/* Ugly hack so we can use BGP_ATTR_NEXTHOP_AFI_IP6() macro. */
+	struct attr *attr = &args->attr;
+
+	vty_out(vty, "\"%pFX\":{", args->prefix);
+	if (BGP_ATTR_NEXTHOP_AFI_IP6(attr))
+		vty_out(vty, "\"nextHop\":\"%pI6\",", &attr->mp_nexthop_global);
+	else
+		vty_out(vty, "\"nextHop\":\"%pI4\",", &attr->nexthop);
+
+	if (attr->aspath)
+		vty_out(vty, "\"path\":\"%s\",", attr->aspath->str);
+	else
+		vty_out(vty, "\"path\":\"unavailable\",");
+
+	if (path && path->peer)
+		vty_out(vty, "\"receivedFrom\":\"%s\",", path->peer->host);
+	else
+		vty_out(vty, "\"receivedFrom\":\"unknown\",");
+
+	if (CHECK_FLAG(args->dest->flags, BGP_NODE_PROCESS_SCHEDULED)) {
+		if (path == NULL || (!CHECK_FLAG(path->flags, BGP_PATH_VALID))
+		    || CHECK_FLAG(path->flags, BGP_PATH_REMOVED))
+			vty_out(vty,
+				"\"advertiseStatus\":\"pendingWithdrawal\",");
+		else
+			vty_out(vty, "\"advertiseStatus\":\"suppressed\",");
+	} else {
+		if (path == NULL || (!CHECK_FLAG(path->flags, BGP_PATH_VALID))
+		    || CHECK_FLAG(path->flags, BGP_PATH_REMOVED))
+			vty_out(vty, "\"advertiseStatus\":\"withdrawn\",");
+		else
+			vty_out(vty, "\"advertiseStatus\":\"advertised\",");
+	}
+
+	if (path) {
+		if (path->type == ZEBRA_ROUTE_BGP
+		    && path->sub_type == BGP_ROUTE_AGGREGATE)
+			vty_out(vty,
+				"\"aggregationStatus\":\"aggregateRoute\",");
+		else if (bgp_path_suppressed(path))
+			vty_out(vty,
+				"\"suppressedAggregatedRoute\":\"suppressedAggregatedRoute\",");
+		else if (bgp_route_belongs_to_aggregate(args))
+			vty_out(vty,
+				"\"aggregationStatus\":\"unsuppAggregatedRoute\",");
+		else
+			vty_out(vty,
+				"\"aggregationStatus\":\"noAggregation\",");
+	} else
+		vty_out(vty, "\"aggregationStatus\":\"noAggregation\",");
+
+	if (args->peer) {
+		if (args->peer->np)
+			vty_out(vty, "\"receivedFrom\":\"%s\",",
+				args->peer->host);
+		else {
+			switch (args->peer->su.sa.sa_family) {
+			case AF_INET:
+				vty_out(vty, "\"receivedFrom\":\"%pI4\",",
+					&args->peer->su.sin.sin_addr);
+				break;
+			case AF_INET6:
+				vty_out(vty, "\"receivedFrom\":\"%pI6\",",
+					&args->peer->su.sin6.sin6_addr);
+				break;
+			}
+		}
+	}
+
+	vty_out(vty, "\"originatorId\":\"%pI4\",", &attr->originator_id);
+	vty_out(vty, "\"bgpOriginCode\":\"%s\",", bgp_origin_str[attr->origin]);
+	vty_out(vty, "\"metric\":%u,", attr->med);
+	vty_out(vty, "\"locPrf\":%u,",
+		(attr->flag & ATTR_FLAG_BIT(BGP_ATTR_LOCAL_PREF))
+			? attr->local_pref
+			: args->bgp->default_local_pref);
+
+	if (attr->flag & ATTR_FLAG_BIT(BGP_ATTR_ATOMIC_AGGREGATE))
+		vty_out(vty, "\"atomicAggregate\":true,");
+	else
+		vty_out(vty, "\"atomicAggregate\":false,");
+	vty_out(vty, "\"aggregatorAs\":%u,", attr->aggregator_as);
+	vty_out(vty, "\"aggregatorId\":\"%pI4\",", &attr->aggregator_addr);
+
+	if (path && path->extra && path->extra->damp_info) {
+		struct bgp_damp_config *bdc;
+		struct bgp_damp_info *bdi;
+		time_t diff, now, reuse_time, uptime;
+		struct tm tm;
+
+		bdi = path->extra->damp_info;
+
+		vty_out(vty, "\"dampening\":true,");
+		vty_out(vty, "\"flaps\":%u,", bdi->flap);
+
+		/* Calculate uptime. */
+		now = monotime(NULL);
+		uptime = now - bdi->start_time;
+		gmtime_r(&uptime, &tm);
+
+		if (bdi->start_time == 0)
+			vty_out(vty, "\"peerUptime\":\"never\",");
+		else if (uptime < ONE_DAY_SECOND)
+			vty_out(vty, "\"peerUptime\":\"%02d:%02d:%02d\",",
+				tm.tm_hour, tm.tm_min, tm.tm_sec);
+		else if (uptime < ONE_WEEK_SECOND)
+			vty_out(vty, "\"peerUptime\":\"%dd%02dh%02dm\",",
+				tm.tm_yday, tm.tm_hour, tm.tm_min);
+		else if (uptime < ONE_YEAR_SECOND)
+			vty_out(vty, "\"peerUptime\":\"%02dw%dd%02dh\",",
+				tm.tm_yday / 7,
+				tm.tm_yday - ((tm.tm_yday / 7) * 7),
+				tm.tm_hour);
+		else
+			vty_out(vty, "\"peerUptime\":\"%02dy%02dw%dd\",",
+				tm.tm_year - 70, tm.tm_yday / 7,
+				tm.tm_yday - ((tm.tm_yday / 7) * 7));
+
+		/* bgp_damp_reuse_time_vty + bgp_get_reuse_time */
+		bdc = get_active_bdc_from_pi(path, args->afi, args->safi);
+		if (bdc != NULL && CHECK_FLAG(path->flags, BGP_PATH_DAMPED)
+		    && !CHECK_FLAG(path->flags, BGP_PATH_HISTORY)) {
+			unsigned int penalty;
+
+			/* Calculate new penalty.  */
+			diff = now - bdi->t_updated;
+			penalty = bgp_damp_decay(diff, bdi->penalty, bdc);
+			if (penalty > bdc->reuse_limit) {
+				reuse_time =
+					(int)(DELTA_T
+					      * ((log((double)bdc->reuse_limit
+						      / penalty))
+						 / (log(bdc->decay_array[1]))));
+
+				if (reuse_time > bdc->max_suppress_time)
+					reuse_time = bdc->max_suppress_time;
+
+				gmtime_r(&reuse_time, &tm);
+			} else
+				reuse_time = 0;
+
+			if (reuse_time == 0)
+				vty_out(vty, "\"reuseTimer\":\"00:00:00\",");
+			else if (reuse_time < ONE_DAY_SECOND)
+				vty_out(vty,
+					"\"reuseTimer\":\"%02d:%02d:%02d\",",
+					tm.tm_hour, tm.tm_min, tm.tm_sec);
+			else if (reuse_time < ONE_WEEK_SECOND)
+				vty_out(vty,
+					"\"reuseTimer\":\"%dd%02dh%02dm\",",
+					tm.tm_yday, tm.tm_yday, tm.tm_hour);
+			else
+				vty_out(vty,
+					"\"reuseTimer\":\"%02dw%dd%02dh\",",
+					tm.tm_yday / 7,
+					tm.tm_yday - ((tm.tm_yday / 7) * 7),
+					tm.tm_hour);
+		}
+	} else
+		vty_out(vty, "\"dampening\":false,");
+
+	if (attr->flag & ATTR_FLAG_BIT(BGP_ATTR_COMMUNITIES))
+		vty_out(vty, "\"community\":\"%s\",", attr->community->str);
+	else
+		vty_out(vty, "\"community\":\"none\",");
+
+	if (attr->flag & ATTR_FLAG_BIT(BGP_ATTR_EXT_COMMUNITIES))
+		vty_out(vty, "\"extendedCommunity\":\"%s\",",
+			attr->ecommunity->str);
+	else
+		vty_out(vty, "\"extendedCommunity\":\"none\",");
+
+	if (attr->flag & ATTR_FLAG_BIT(BGP_ATTR_LARGE_COMMUNITIES))
+		vty_out(vty, "\"largeCommunity\":\"%s\",",
+			attr->lcommunity->str);
+	else
+		vty_out(vty, "\"largeCommunity\":\"none\",");
+
+	vty_out(vty, "\"weight\":%u", attr->weight);
+	vty_out(vty, "}");
+}
+
+union address_storage {
+	struct in_addr ipv4;
+	struct in6_addr ipv6;
+	char address_list[ADDRESS_LIST_NAME_LONGEST];
+};
+
+enum address_type {
+	AT_NONE = 0,
+	AT_IPV4 = 1,
+	AT_IPV6 = 2,
+	AT_ADDRESS_LIST = 3,
+};
+
+struct bgp_rib_args {
+	/** BGP instance pointer. */
+	struct bgp *bgp;
+	/** AFI type (`AFI_UNSPEC` means all). */
+	afi_t afi;
+	/** SAFI type (`SAFI_UNSPEC` means all). */
+	safi_t safi;
+	/** Maximum amount of routes to display. */
+	size_t maximum;
+	/** Next hop information. */
+	struct {
+		afi_t afi;
+		union address_storage address;
+	} next_hop;
+	/** Peer information. */
+	struct {
+		enum address_type type;
+		union address_storage address;
+	} peer;
+	/** Prefix information. */
+	struct prefix prefix;
+
+	/** Total amount of routes. */
+	size_t total;
+};
+
+static void bgp_rib_parse_args(struct bgp_rib_args *args, const char *afi_str,
+			       const char *safi_str, size_t maximum,
+			       const char *next_hop_str, const char *peer_str,
+			       const char *prefix_str)
+{
+	/* Set default BGP instance to reduce mistakes. */
+	args->bgp = bgp_get_default();
+
+	/* Zero total to avoid mistakes. */
+	args->total = 0;
+
+	if (afi_str == NULL)
+		args->afi = AFI_UNSPEC;
+	else if (strcmp(afi_str, "ipv4") == 0)
+		args->afi = AFI_IP;
+	else if (strcmp(afi_str, "ipv6") == 0)
+		args->afi = AFI_IP6;
+	else
+		assertf(0, "invalid family type: %s", afi_str);
+
+	if (safi_str == NULL)
+		args->safi = SAFI_UNSPEC;
+	else if (strcmp(safi_str, "unicast") == 0)
+		args->safi = SAFI_UNICAST;
+	else if (strcmp(safi_str, "multicast") == 0)
+		args->safi = SAFI_MULTICAST;
+	else
+		assertf(0, "invalid safi type: %s", safi_str);
+
+	if (maximum)
+		args->maximum = maximum;
+	else
+		args->maximum = 262144;
+
+	if (next_hop_str == NULL)
+		args->next_hop.afi = AFI_UNSPEC;
+	else if (inet_pton(AF_INET, next_hop_str, &args->next_hop.address.ipv4)
+		 == 1)
+		args->next_hop.afi = AFI_IP;
+	else if (inet_pton(AF_INET6, next_hop_str, &args->next_hop.address.ipv6)
+		 == 1)
+		args->next_hop.afi = AFI_IP6;
+	else
+		assertf(0, "invalid next hop address format: %s", next_hop_str);
+
+	if (peer_str == NULL)
+		args->peer.type = AT_NONE;
+	else if (inet_pton(AF_INET, peer_str, &args->peer.address.ipv4) == 1)
+		args->peer.type = AT_IPV4;
+	else if (inet_pton(AF_INET6, peer_str, &args->peer.address.ipv6) == 1)
+		args->peer.type = AT_IPV6;
+	else {
+		args->peer.type = AT_ADDRESS_LIST;
+		strlcpy(args->peer.address.address_list, peer_str,
+			sizeof(args->peer.address.address_list));
+	}
+
+	if (prefix_str == NULL)
+		args->prefix.family = AF_UNSPEC;
+	else
+		assertf(str2prefix(prefix_str, &args->prefix),
+			"invalid prefix address format: %s", prefix_str);
+}
+
+static bool bgp_rib_filter_entry(const struct bgp_rib_args *args,
+				 const struct bgp_dest *dest,
+				 const struct bgp_adj_in *adj_in,
+				 const struct bgp_adj_out *adj_out,
+				 const struct peer_af *paf)
+{
+	const struct prefix *prefix = bgp_dest_get_prefix(dest);
+	const struct attr *attr = NULL;
+	const struct peer *peer = NULL;
+
+	if (adj_in) {
+		attr = adj_in->attr;
+		peer = adj_in->peer;
+	} else if (adj_out) {
+		attr = adj_out->attr;
+		peer = paf->peer;
+	}
+
+	/* Print selected peers. */
+	switch (args->peer.type) {
+	case AT_IPV4:
+		if (peer == NULL || peer->su.sa.sa_family != AF_INET)
+			return true;
+		if (args->peer.address.ipv4.s_addr
+		    != peer->su.sin.sin_addr.s_addr)
+			return true;
+		break;
+
+	case AT_IPV6:
+		if (peer == NULL || peer->su.sa.sa_family != AF_INET6)
+			return true;
+		if (memcmp(&args->peer.address.ipv6, &peer->su.sin6.sin6_addr,
+			   sizeof(args->peer.address.ipv6)))
+			return true;
+		break;
+
+	case AT_ADDRESS_LIST:
+		if (peer == NULL
+		    || strcmp(args->peer.address.address_list, peer->host))
+			return true;
+		break;
+
+	case AT_NONE:
+		/* NOTHING: we want to visit all peers. */
+		break;
+	}
+
+	/* Print prefixes with selected next hop. */
+	if (args->next_hop.afi == AFI_IP) {
+		if (attr == NULL)
+			return true;
+		if (BGP_ATTR_NEXTHOP_AFI_IP6(attr))
+			return true;
+		if (args->next_hop.address.ipv4.s_addr != attr->nexthop.s_addr)
+			return true;
+	} else if (args->next_hop.afi == AFI_IP6) {
+		if (attr == NULL)
+			return true;
+		if (!BGP_ATTR_NEXTHOP_AFI_IP6(attr))
+			return true;
+		if (memcmp(&args->next_hop.address.ipv6,
+			   &attr->mp_nexthop_global,
+			   sizeof(args->next_hop.address.ipv6)))
+			return true;
+	}
+
+	/* Filter prefix. */
+	if (args->prefix.family != AF_UNSPEC
+	    && prefix_cmp(&args->prefix, prefix) != 0)
+		return true;
+
+	return false;
+}
+
+static inline bool bgp_rib_out_filter_entry(const struct bgp_rib_args *args,
+					    const struct bgp_dest *dest,
+					    const struct bgp_adj_out *adj_out,
+					    const struct peer_af *paf)
+{
+	return bgp_rib_filter_entry(args, dest, NULL, adj_out, paf);
+}
+
+static inline bool bgp_rib_in_filter_entry(const struct bgp_rib_args *args,
+					   const struct bgp_dest *dest,
+					   const struct bgp_adj_in *adj_in)
+{
+	return bgp_rib_filter_entry(args, dest, adj_in, NULL, NULL);
+}
+
+static void print_peer_out_route(struct vty *vty, struct bgp *bgp,
+				 struct peer *peer, struct bgp_dest *dest,
+				 struct bgp_adj_out *adj_out)
+{
+	const struct bgp_path_info *path = bgp_dest_get_bgp_path_info(dest);
+	struct attr *attr = NULL;
+	int result;
+	struct route_parameters args = {
+		.dest = dest,
+		.prefix = bgp_dest_get_prefix(dest),
+		.bgp = bgp,
+		.afi = AFI_IP,
+		.safi = SAFI_UNICAST,
+		.attr = *adj_out->attr,
+	};
+
+	if (adj_out != NULL)
+		attr = adj_out->attr;
+	else if (path != NULL)
+		attr = path->attr;
+
+	args.attr = *attr;
+	result = bgp_output_modifier(peer, args.prefix, &args.attr, args.afi,
+				     args.safi, NULL);
+	if (result == RMAP_DENY) {
+		bgp_attr_flush(&args.attr);
+		return;
+	}
+
+	print_route_detailed(vty, &args);
+	bgp_attr_flush(&args.attr);
+}
+
+struct peer_rib_out_args {
+	/** BGP RIB parameters. */
+	struct bgp_rib_args *rib_args;
+	/** Pointer to output data. */
+	struct vty *vty;
+	/** First peer being printed? */
+	bool first_peer;
+};
+
+static void bgp_peer_rib_out_print_aggregated(struct peer_rib_out_args *args,
+					      struct bgp_dest *dest_start,
+					      struct peer *peer,
+					      struct bgp_adj_out *adj_out)
+{
+	const struct bgp_rib_args *rib_args = args->rib_args;
+	const struct bgp_path_info *path =
+		bgp_dest_get_bgp_path_info(dest_start);
+	struct bgp_dest *dest;
+
+	/* Skip non aggregated routes. */
+	if (path->type != ZEBRA_ROUTE_BGP
+	    || path->sub_type != BGP_ROUTE_AGGREGATE)
+		return;
+
+	/* Aggregate address walk. */
+	dest = bgp_dest_lock_node(dest_start);
+	for (; dest; dest = bgp_route_next(dest)) {
+		/* Print only more specific networks. */
+		if (prefix_cmp(&dest_start->p, &dest->p) >= 0)
+			continue;
+
+		path = bgp_dest_get_bgp_path_info(dest);
+		if (path == NULL)
+			continue;
+
+		vty_out(args->vty, ",");
+		print_peer_out_route(args->vty, rib_args->bgp, peer, dest,
+				     adj_out);
+
+		args->rib_args->total++;
+		/* Enough routes, quit. */
+		if (args->rib_args->total == args->rib_args->maximum)
+			return;
+	}
+}
+
+static void bgp_peer_rib_out_print(struct peer_rib_out_args *args,
+				   const struct bgp_table *table,
+				   struct peer *peer)
+{
+	struct bgp_adj_out *adj_out;
+	struct bgp_dest *dest;
+	struct peer_af *paf;
+	bool first_route;
+
+	first_route = true;
+
+	for (dest = bgp_table_top(table); dest; dest = bgp_route_next(dest)) {
+		RB_FOREACH (adj_out, bgp_adj_out_rb, &dest->adj_out) {
+			SUBGRP_FOREACH_PEER (adj_out->subgroup, paf) {
+				if (paf->peer != peer || adj_out->attr == NULL)
+					continue;
+
+				if (bgp_rib_out_filter_entry(
+					    args->rib_args, dest, adj_out, paf))
+					continue;
+
+				if (first_route)
+					first_route = false;
+				else
+					vty_out(args->vty, ",");
+
+				print_peer_out_route(args->vty, table->bgp,
+						     peer, dest, adj_out);
+
+				args->rib_args->total++;
+				/* Enough routes, quit. */
+				if (args->rib_args->total
+				    == args->rib_args->maximum)
+					return;
+
+				bgp_peer_rib_out_print_aggregated(
+					args, dest, peer, adj_out);
+				/* Enough routes, quit. */
+				if (args->rib_args->total
+				    == args->rib_args->maximum)
+					return;
+			}
+		}
+	}
+}
+
+static int bgp_peer_rib_out(struct hash_bucket *bucket, void *arg)
+{
+	struct bgp_rib_args *rib_args;
+	struct peer_rib_out_args *args;
+	struct peer *peer;
+	safi_t safi;
+	afi_t afi;
+
+	args = arg;
+	peer = bucket->data;
+	rib_args = args->rib_args;
+
+	if (args->first_peer)
+		args->first_peer = false;
+	else
+		vty_out(args->vty, ",");
+
+	vty_out(args->vty, "\"%s\":{", peer->host);
+	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
+		/* Skip non configured AFIs. */
+		if (rib_args->afi != AF_UNSPEC && rib_args->afi != afi)
+			continue;
+
+		for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++) {
+			/* Skip non configured SAFIs. */
+			if (rib_args->safi != SAFI_UNSPEC
+			    && rib_args->safi != safi)
+				continue;
+
+			bgp_peer_rib_out_print(
+				args, rib_args->bgp->rib[afi][safi], peer);
+
+			/* Stop iterating as soon as possible. */
+			if (args->rib_args->total == args->rib_args->maximum) {
+				vty_out(args->vty, "}");
+				return HASHWALK_ABORT;
+			}
+		}
+	}
+	vty_out(args->vty, "}");
+
+	return HASHWALK_CONTINUE;
+}
+
+struct bgp_rib_count_arg {
+	/** BGP RIB instance pointer. */
+	struct bgp_table *table;
+	/** BGP RIB parameters. */
+	const struct bgp_rib_args *rib_args;
+	/** Total amount of routes. */
+	size_t total;
+};
+
+static int bgp_rib_out_peer_count(struct hash_bucket *bucket, void *arg)
+{
+	struct bgp_rib_count_arg *args = arg;
+	struct peer *peer = bucket->data;
+	struct bgp_dest *dest;
+
+	for (dest = bgp_table_top(args->table); dest;
+	     dest = bgp_route_next(dest)) {
+		struct bgp_adj_out *adj_out;
+
+		RB_FOREACH (adj_out, bgp_adj_out_rb, &dest->adj_out) {
+			struct peer_af *paf;
+
+			SUBGRP_FOREACH_PEER (adj_out->subgroup, paf) {
+				if (paf->peer != peer || adj_out->attr == NULL)
+					continue;
+
+				if (bgp_rib_out_filter_entry(
+					    args->rib_args, dest, adj_out, paf))
+					continue;
+
+				args->total++;
+			}
+		}
+	}
+
+	return HASHWALK_CONTINUE;
+}
+
+static size_t bgp_rib_out_count(const struct bgp_rib_args *args)
+{
+	afi_t afi;
+	safi_t safi;
+	size_t total = 0;
+	struct bgp_rib_count_arg peer_args = {};
+
+	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
+		/* Skip non configured AFIs. */
+		if (args->afi != AF_UNSPEC && args->afi != afi)
+			continue;
+
+		for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++) {
+			/* Skip non configured SAFIs. */
+			if (args->safi != SAFI_UNSPEC && args->safi != safi)
+				continue;
+
+			/* Walk the peer table and count. */
+			peer_args.table = args->bgp->rib[afi][safi];
+			peer_args.rib_args = args;
+			peer_args.total = 0;
+			hash_walk(args->bgp->peerhash, bgp_rib_out_peer_count,
+				  &peer_args);
+
+			total += peer_args.total;
+		}
+	}
+
+	return total;
+}
+
+DEFPY(show_bgp_rib_out, show_bgp_rib_out_cmd,
+      "show bgp rib-out [{"
+      "<ipv4|ipv6>$afi"
+      "|<unicast|multicast>$safi"
+      "|limit (1-2147483648)$count"
+      "|next-hop <A.B.C.D|X:X::X:X>$next_hop"
+      "|peer <A.B.C.D|X:X::X:X|WORD>$peer"
+      "|prefix <A.B.C.D/M|X:X::X:X/M>$prefix"
+      "}] json",
+      SHOW_STR
+      BGP_STR
+      "Output Routing Information Base\n"
+      "IPv4 address family\n"
+      "IPv6 address family\n"
+      "Unicast routes\n"
+      "Multicast routes\n"
+      "Limit amount of displayed routes\n"
+      "Maximum amount of routes to display\n"
+      "Filter by route next hop address\n"
+      "Next hop IPv4 address\n"
+      "Next hop IPv6 address\n"
+      "Filter by peer address\n"
+      "Peer IPv4 address\n"
+      "Peer IPv6 address\n"
+      "Peer address list name\n"
+      "Filter by prefix\n"
+      "IPv4 prefix\n"
+      "IPv6 prefix\n"
+      JSON_STR)
+{
+	struct bgp *bgp;
+	struct listnode *node;
+	size_t routes_total = 0;
+	struct bgp_rib_args args = {};
+	struct peer_rib_out_args out_args = {.first_peer = true, .vty = vty};
+
+	bgp_rib_parse_args(&args, afi, safi, count, next_hop_str, peer,
+			   prefix_str);
+
+	/* Count the routes to avoid insufficient memory for output. */
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		args.bgp = bgp;
+		routes_total += bgp_rib_out_count(&args);
+	}
+
+	/* No routes mean quit immediately. */
+	if (args.maximum == 0) {
+		vty_out(vty, "{}\n");
+		return CMD_SUCCESS;
+	}
+
+	/* Print the result. */
+	vty_out(vty, "{");
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		out_args.rib_args = &args;
+		args.bgp = bgp;
+		hash_walk(bgp->peerhash, bgp_peer_rib_out, &out_args);
+	}
+	vty_out(vty, "}\n");
+
+	return CMD_SUCCESS;
+}
+
+static size_t bgp_local_rib_count(const struct bgp_rib_args *args)
+{
+	afi_t afi;
+	safi_t safi;
+	struct bgp_dest *dest;
+	size_t total = 0;
+
+	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
+		/* Skip non configured AFIs. */
+		if (args->afi != AF_UNSPEC && args->afi != afi)
+			continue;
+
+		for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++) {
+			const struct bgp_table *table;
+
+			/* Skip non configured SAFIs. */
+			if (args->safi != SAFI_UNSPEC && args->safi != safi)
+				continue;
+
+			table = args->bgp->rib[afi][safi];
+			for (dest = bgp_table_top(table); dest;
+			     dest = bgp_route_next(dest)) {
+				if (dest->adj_in == NULL)
+					continue;
+
+				total++;
+			}
+		}
+	}
+
+	return total;
+}
+
+DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
+      "show bgp rib-local [{"
+      "<ipv4|ipv6>$afi"
+      "|<unicast|multicast>$safi"
+      "|limit (1-2147483648)$count"
+      "|next-hop <A.B.C.D|X:X::X:X>$next_hop"
+      "|peer <A.B.C.D|X:X::X:X|WORD>$peer"
+      "|prefix <A.B.C.D/M|X:X::X:X/M>$prefix"
+      "}] json",
+      SHOW_STR
+      BGP_STR
+      "Local Routing Information Base\n"
+      "IPv4 address family\n"
+      "IPv6 address family\n"
+      "Unicast routes\n"
+      "Multicast routes\n"
+      "Limit amount of displayed routes\n"
+      "Maximum amount of routes to display\n"
+      "Filter by route next hop address\n"
+      "Next hop IPv4 address\n"
+      "Next hop IPv6 address\n"
+      "Filter by peer address\n"
+      "Peer IPv4 address\n"
+      "Peer IPv6 address\n"
+      "Peer address list name\n"
+      "Filter by prefix\n"
+      "IPv4 prefix\n"
+      "IPv6 prefix\n"
+      JSON_STR)
+{
+	struct bgp *bgp;
+	struct listnode *node;
+	struct bgp_dest *dest;
+	afi_t afi_i;
+	safi_t safi_i;
+	bool first_route = true;
+	size_t routes_total = 0;
+	struct bgp_rib_args args = {};
+
+	bgp_rib_parse_args(&args, afi, safi, count, next_hop_str, peer,
+			   prefix_str);
+
+	/* Don't display if route amount is bigger than 100k. */
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		args.bgp = bgp;
+		routes_total += bgp_local_rib_count(&args);
+	}
+
+	/* No routes mean quit immediately. */
+	if (args.maximum == 0) {
+		vty_out(vty, "{}\n");
+		return CMD_SUCCESS;
+	}
+
+	/* Display the local RIB routes. */
+	vty_out(vty, "{");
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		args.bgp = bgp;
+		for (afi_i = AFI_IP; afi_i < AFI_MAX; afi_i++) {
+			/* Skip non configured AFIs. */
+			if (args.afi != AF_UNSPEC && args.afi != afi_i)
+				continue;
+
+			for (safi_i = SAFI_UNICAST; safi_i < SAFI_MAX;
+			     safi_i++) {
+				const struct bgp_table *table = bgp->rib[afi_i][safi_i];
+
+				/* Skip non configured SAFIs. */
+				if (args.safi != SAFI_UNSPEC
+				    && args.safi != safi_i)
+					continue;
+
+				for (dest = bgp_table_top(table); dest;
+				     dest = bgp_route_next(dest)) {
+					const struct bgp_path_info *path =
+						bgp_dest_get_bgp_path_info(
+							dest);
+					struct attr *attr = NULL;
+					struct route_parameters route_args;
+
+					if (dest->adj_in != NULL)
+						attr = dest->adj_in->attr;
+					else if (path != NULL)
+						attr = path->attr;
+
+					/* Skip routes without attributes. */
+					if (attr == NULL)
+						continue;
+
+					if (bgp_rib_in_filter_entry(
+						    &args, dest, dest->adj_in))
+						continue;
+
+					route_args.dest = dest;
+					route_args.prefix =
+						bgp_dest_get_prefix(dest);
+					route_args.bgp = bgp;
+					route_args.afi = AFI_IP;
+					route_args.safi = SAFI_UNICAST;
+					route_args.attr = *attr;
+					route_args.peer =
+						dest->adj_in
+							? dest->adj_in->peer
+							: NULL;
+
+					/* Put the comma in the appropriated
+					 * place. */
+					if (first_route)
+						first_route = false;
+					else
+						vty_out(vty, ",");
+
+					print_route_detailed(vty, &route_args);
+
+					args.total++;
+					if (args.total >= args.maximum)
+						goto end_loop;
+				}
+			}
+		}
+	}
+
+end_loop:
+	vty_out(vty, "}\n");
+
+	return CMD_SUCCESS;
+}
+
 /* also used for encap safi */
 static void bgp_config_write_network_vpn(struct vty *vty, struct bgp *bgp,
 					 afi_t afi, safi_t safi)
@@ -15572,6 +16463,9 @@ void bgp_route_init(void)
 
 	install_element(VIEW_NODE, &show_bgp_listeners_cmd);
 	install_element(VIEW_NODE, &show_bgp_peerhash_cmd);
+
+	install_element(ENABLE_NODE, &show_bgp_rib_out_cmd);
+	install_element(ENABLE_NODE, &show_bgp_rib_local_cmd);
 }
 
 void bgp_route_finish(void)
