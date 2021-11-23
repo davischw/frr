@@ -14666,6 +14666,194 @@ static void print_route_detailed(struct vty *vty, struct route_parameters *args)
 	vty_out(vty, "}");
 }
 
+union address_storage {
+	struct in_addr ipv4;
+	struct in6_addr ipv6;
+	char address_list[ADDRESS_LIST_NAME_LONGEST];
+};
+
+enum address_type {
+	AT_NONE = 0,
+	AT_IPV4 = 1,
+	AT_IPV6 = 2,
+	AT_ADDRESS_LIST = 3,
+};
+
+struct bgp_rib_args {
+	/** BGP instance pointer. */
+	struct bgp *bgp;
+	/** AFI type (`AFI_UNSPEC` means all). */
+	afi_t afi;
+	/** SAFI type (`SAFI_UNSPEC` means all). */
+	safi_t safi;
+	/** Maximum amount of routes to display. */
+	size_t maximum;
+	/** Next hop information. */
+	struct {
+		afi_t afi;
+		union address_storage address;
+	} next_hop;
+	/** Peer information. */
+	struct {
+		enum address_type type;
+		union address_storage address;
+	} peer;
+	/** Prefix information. */
+	struct prefix prefix;
+
+	/** Total amount of routes. */
+	size_t total;
+};
+
+static void bgp_rib_parse_args(struct bgp_rib_args *args, const char *afi_str,
+			       const char *safi_str, size_t maximum,
+			       const char *next_hop_str, const char *peer_str,
+			       const char *prefix_str)
+{
+	/* Set default BGP instance to reduce mistakes. */
+	args->bgp = bgp_get_default();
+
+	/* Zero total to avoid mistakes. */
+	args->total = 0;
+
+	if (afi_str == NULL)
+		args->afi = AFI_UNSPEC;
+	else if (strcmp(afi_str, "ipv4") == 0)
+		args->afi = AFI_IP;
+	else if (strcmp(afi_str, "ipv6") == 0)
+		args->afi = AFI_IP6;
+	else
+		assertf(0, "invalid family type: %s", afi_str);
+
+	if (safi_str == NULL)
+		args->safi = SAFI_UNSPEC;
+	else if (strcmp(safi_str, "unicast") == 0)
+		args->safi = SAFI_UNICAST;
+	else if (strcmp(safi_str, "multicast") == 0)
+		args->safi = SAFI_MULTICAST;
+	else
+		assertf(0, "invalid safi type: %s", safi_str);
+
+	if (maximum)
+		args->maximum = maximum;
+	else
+		args->maximum = 262144;
+
+	if (next_hop_str == NULL)
+		args->next_hop.afi = AFI_UNSPEC;
+	else if (inet_pton(AF_INET, next_hop_str, &args->next_hop.address.ipv4)
+		 == 1)
+		args->next_hop.afi = AFI_IP;
+	else if (inet_pton(AF_INET6, next_hop_str, &args->next_hop.address.ipv6)
+		 == 1)
+		args->next_hop.afi = AFI_IP6;
+	else
+		assertf(0, "invalid next hop address format: %s", next_hop_str);
+
+	if (peer_str == NULL)
+		args->peer.type = AT_NONE;
+	else if (inet_pton(AF_INET, peer_str, &args->peer.address.ipv4) == 1)
+		args->peer.type = AT_IPV4;
+	else if (inet_pton(AF_INET6, peer_str, &args->peer.address.ipv6) == 1)
+		args->peer.type = AT_IPV6;
+	else {
+		args->peer.type = AT_ADDRESS_LIST;
+		strlcpy(args->peer.address.address_list, peer_str,
+			sizeof(args->peer.address.address_list));
+	}
+
+	if (prefix_str == NULL)
+		args->prefix.family = AF_UNSPEC;
+	else
+		assertf(str2prefix(prefix_str, &args->prefix),
+			"invalid prefix address format: %s", prefix_str);
+}
+
+static bool bgp_rib_filter_entry(const struct bgp_rib_args *args,
+				 const struct bgp_dest *dest,
+				 const struct bgp_adj_in *adj_in,
+				 const struct bgp_adj_out *adj_out,
+				 const struct peer_af *paf)
+{
+	const struct prefix *prefix = bgp_dest_get_prefix(dest);
+	const struct attr *attr;
+	const struct peer *peer;
+
+	if (adj_in) {
+		attr = adj_in->attr;
+		peer = NULL;
+	} else {
+		attr = adj_out->attr;
+		peer = paf->peer;
+	}
+
+	/* Print selected peers. */
+	switch (args->peer.type) {
+	case AT_IPV4:
+		if (peer == NULL || peer->su.sa.sa_family != AF_INET)
+			return true;
+		if (args->peer.address.ipv4.s_addr
+		    != peer->su.sin.sin_addr.s_addr)
+			return true;
+		break;
+
+	case AT_IPV6:
+		if (peer == NULL || peer->su.sa.sa_family != AF_INET6)
+			return true;
+		if (memcmp(&args->peer.address.ipv6, &peer->su.sin6.sin6_addr,
+			   sizeof(args->peer.address.ipv6)))
+			return true;
+		break;
+
+	case AT_ADDRESS_LIST:
+		if (peer == NULL
+		    || strcmp(args->peer.address.address_list, peer->host))
+			return true;
+		break;
+
+	case AT_NONE:
+		/* NOTHING: we want to visit all peers. */
+		break;
+	}
+
+	/* Print prefixes with selected next hop. */
+	if (args->next_hop.afi == AFI_IP) {
+		if (BGP_ATTR_NEXTHOP_AFI_IP6(attr))
+			return true;
+		if (args->next_hop.address.ipv4.s_addr != attr->nexthop.s_addr)
+			return true;
+	} else if (args->next_hop.afi == AFI_IP6) {
+		if (!BGP_ATTR_NEXTHOP_AFI_IP6(attr))
+			return true;
+		if (memcmp(&args->next_hop.address.ipv6,
+			   &attr->mp_nexthop_global,
+			   sizeof(args->next_hop.address.ipv6)))
+			return true;
+	}
+
+	/* Filter prefix. */
+	if (args->prefix.family != AF_UNSPEC
+	    && prefix_cmp(&args->prefix, prefix) != 0)
+		return true;
+
+	return false;
+}
+
+static inline bool bgp_rib_out_filter_entry(const struct bgp_rib_args *args,
+					    const struct bgp_dest *dest,
+					    const struct bgp_adj_out *adj_out,
+					    const struct peer_af *paf)
+{
+	return bgp_rib_filter_entry(args, dest, NULL, adj_out, paf);
+}
+
+static inline bool bgp_rib_in_filter_entry(const struct bgp_rib_args *args,
+					   const struct bgp_dest *dest,
+					   const struct bgp_adj_in *adj_in)
+{
+	return bgp_rib_filter_entry(args, dest, adj_in, NULL, NULL);
+}
+
 static void print_peer_out_route(struct vty *vty, struct peer *peer,
 				 struct bgp_dest *dest,
 				 struct bgp_adj_out *adj_out)
@@ -14691,35 +14879,33 @@ static void print_peer_out_route(struct vty *vty, struct peer *peer,
 }
 
 struct peer_rib_out_args {
-	/** First peer. */
-	bool first;
-	/** BGP AFI/SAFI table. */
-	struct bgp_table *table;
+	/** BGP RIB parameters. */
+	const struct bgp_rib_args *rib_args;
 	/** Pointer to output data. */
 	struct vty *vty;
+	/** First peer being printed? */
+	bool first_peer;
 };
 
-static int bgp_peer_rib_out(struct hash_bucket *bucket, void *arg)
+static void bgp_peer_rib_out_print(const struct peer_rib_out_args *args,
+				   const struct bgp_table *table,
+				   struct peer *peer)
 {
-	struct peer_rib_out_args *args = arg;
-	struct peer *peer = bucket->data;
 	struct bgp_adj_out *adj_out;
 	struct bgp_dest *dest;
 	struct peer_af *paf;
-	bool first_route = true;
+	bool first_route;
 
-	/* Add comma as necessary. */
-	if (args->first)
-		args->first = false;
-	else
-		vty_out(args->vty, ",");
+	first_route = true;
 
-	vty_out(args->vty, "\"%s\":{", peer->host);
-	for (dest = bgp_table_top(args->table); dest;
-	     dest = bgp_route_next(dest)) {
+	for (dest = bgp_table_top(table); dest; dest = bgp_route_next(dest)) {
 		RB_FOREACH (adj_out, bgp_adj_out_rb, &dest->adj_out) {
 			SUBGRP_FOREACH_PEER (adj_out->subgroup, paf) {
 				if (paf->peer != peer || adj_out->attr == NULL)
+					continue;
+
+				if (bgp_rib_out_filter_entry(
+					    args->rib_args, dest, adj_out, paf))
 					continue;
 
 				if (first_route)
@@ -14732,35 +14918,74 @@ static int bgp_peer_rib_out(struct hash_bucket *bucket, void *arg)
 			}
 		}
 	}
+}
+
+static int bgp_peer_rib_out(struct hash_bucket *bucket, void *arg)
+{
+	const struct bgp_rib_args *rib_args;
+	struct peer_rib_out_args *args;
+	struct peer *peer;
+	safi_t safi;
+	afi_t afi;
+
+	args = arg;
+	peer = bucket->data;
+	rib_args = args->rib_args;
+
+	if (args->first_peer)
+		args->first_peer = false;
+	else
+		vty_out(args->vty, ",");
+
+	vty_out(args->vty, "\"%s\":{", peer->host);
+	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
+		/* Skip non configured AFIs. */
+		if (rib_args->afi != AF_UNSPEC && rib_args->afi != afi)
+			continue;
+
+		for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++) {
+			/* Skip non configured SAFIs. */
+			if (rib_args->safi != SAFI_UNSPEC
+			    && rib_args->safi != safi)
+				continue;
+
+			bgp_peer_rib_out_print(
+				args, rib_args->bgp->rib[afi][safi], peer);
+		}
+	}
 	vty_out(args->vty, "}");
 
 	return HASHWALK_CONTINUE;
 }
 
 struct bgp_rib_count_arg {
-	/** BGP instance pointer. */
+	/** BGP RIB instance pointer. */
 	struct bgp_table *table;
+	/** BGP RIB parameters. */
+	const struct bgp_rib_args *rib_args;
 	/** Total amount of routes. */
 	size_t total;
-	/** AFI type. */
-	afi_t afi;
-	/** SAFI type. */
-	safi_t safi;
 };
 
 static int bgp_rib_out_peer_count(struct hash_bucket *bucket, void *arg)
 {
 	struct bgp_rib_count_arg *args = arg;
 	struct peer *peer = bucket->data;
-	struct bgp_adj_out *adj_out;
 	struct bgp_dest *dest;
-	struct peer_af *paf;
 
 	for (dest = bgp_table_top(args->table); dest;
 	     dest = bgp_route_next(dest)) {
+		struct bgp_adj_out *adj_out;
+
 		RB_FOREACH (adj_out, bgp_adj_out_rb, &dest->adj_out) {
+			struct peer_af *paf;
+
 			SUBGRP_FOREACH_PEER (adj_out->subgroup, paf) {
 				if (paf->peer != peer || adj_out->attr == NULL)
+					continue;
+
+				if (bgp_rib_out_filter_entry(
+					    args->rib_args, dest, adj_out, paf))
 					continue;
 
 				args->total++;
@@ -14771,36 +14996,83 @@ static int bgp_rib_out_peer_count(struct hash_bucket *bucket, void *arg)
 	return HASHWALK_CONTINUE;
 }
 
-static size_t bgp_rib_out_count(const struct bgp *bgp, afi_t afi, safi_t safi)
+static size_t bgp_rib_out_count(const struct bgp_rib_args *args)
 {
-	struct bgp_table *table = bgp->rib[afi][safi];
-	struct bgp_rib_count_arg args = {
-		.table = table,
-		.afi = afi,
-		.safi = safi,
-	};
+	afi_t afi;
+	safi_t safi;
+	size_t total = 0;
+	struct bgp_rib_count_arg peer_args = {};
 
-	hash_walk(bgp->peerhash, bgp_rib_out_peer_count, &args);
+	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
+		/* Skip non configured AFIs. */
+		if (args->afi != AF_UNSPEC && args->afi != afi)
+			continue;
 
-	return args.total;
+		for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++) {
+			/* Skip non configured SAFIs. */
+			if (args->safi != SAFI_UNSPEC && args->safi != safi)
+				continue;
+
+			/* Walk the peer table and count. */
+			peer_args.table = args->bgp->rib[afi][safi];
+			peer_args.rib_args = args;
+			peer_args.total = 0;
+			hash_walk(args->bgp->peerhash, bgp_rib_out_peer_count,
+				  &peer_args);
+
+			total += peer_args.total;
+		}
+	}
+
+	return total;
 }
 
 DEFPY(show_bgp_rib_out, show_bgp_rib_out_cmd,
-      "show bgp rib-out json",
+      "show bgp rib-out [{"
+      "<ipv4|ipv6>$afi"
+      "|<unicast|multicast>$safi"
+      "|limit (1-2147483648)$count"
+      "|next-hop <A.B.C.D|X:X::X:X>$next_hop"
+      "|peer <A.B.C.D|X:X::X:X|WORD>$peer"
+      "|prefix <A.B.C.D/M|X:X::X:X/M>$prefix"
+      "}] json",
       SHOW_STR
       BGP_STR
       "Output Routing Information Base\n"
+      "IPv4 address family\n"
+      "IPv6 address family\n"
+      "Unicast routes\n"
+      "Multicast routes\n"
+      "Limit amount of displayed routes\n"
+      "Maximum amount of routes to display\n"
+      "Filter by route next hop address\n"
+      "Next hop IPv4 address\n"
+      "Next hop IPv6 address\n"
+      "Filter by peer address\n"
+      "Peer IPv4 address\n"
+      "Peer IPv6 address\n"
+      "Peer address list name\n"
+      "Filter by prefix\n"
+      "IPv4 prefix\n"
+      "IPv6 prefix\n"
       JSON_STR)
 {
 	struct bgp *bgp;
 	struct listnode *node;
 	size_t routes_total = 0;
+	struct bgp_rib_args args = {};
+	struct peer_rib_out_args out_args = {.first_peer = true, .vty = vty};
 
-	/* Don't display if route amount is bigger than 100k. */
-	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp))
-		routes_total += bgp_rib_out_count(bgp, AFI_IP, SAFI_UNICAST);
+	bgp_rib_parse_args(&args, afi, safi, count, next_hop_str, peer,
+			   prefix_str);
 
-	if (routes_total > 100000) {
+	/* Count the routes to avoid insufficient memory for output. */
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		args.bgp = bgp;
+		routes_total += bgp_rib_out_count(&args);
+	}
+
+	if (routes_total > args.maximum) {
 		vty_out(vty, "{\"error\": \"unable to display %zu routes\"}",
 			routes_total);
 		return CMD_WARNING;
@@ -14809,14 +15081,9 @@ DEFPY(show_bgp_rib_out, show_bgp_rib_out_cmd,
 	/* Print the result. */
 	vty_out(vty, "{");
 	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
-		struct bgp_table *table = bgp->rib[AFI_IP][SAFI_UNICAST];
-		struct peer_rib_out_args args = {};
-
-		args.first = true;
-		args.table = table;
-		args.vty = vty;
-
-		hash_walk(bgp->peerhash, bgp_peer_rib_out, &args);
+		out_args.rib_args = &args;
+		args.bgp = bgp;
+		hash_walk(bgp->peerhash, bgp_peer_rib_out, &out_args);
 	}
 	vty_out(vty, "}\n");
 
