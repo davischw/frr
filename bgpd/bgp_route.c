@@ -14537,6 +14537,8 @@ struct route_parameters {
 	safi_t safi;
 	/** Route attributes. */
 	struct attr attr;
+	/** Received from peer. */
+	struct peer *peer;
 };
 
 static void print_route_detailed(struct vty *vty, struct route_parameters *args)
@@ -14556,6 +14558,25 @@ static void print_route_detailed(struct vty *vty, struct route_parameters *args)
 	else
 		vty_out(vty, "\"path\":\"unavailable\",");
 
+	if (args->peer) {
+		if (args->peer->np)
+			vty_out(vty, "\"receivedFrom\":\"%s\",",
+				args->peer->host);
+		else {
+			switch (args->peer->su.sa.sa_family) {
+			case AF_INET:
+				vty_out(vty, "\"receivedFrom\":\"%pI4\",",
+					&args->peer->su.sin.sin_addr);
+				break;
+			case AF_INET6:
+				vty_out(vty, "\"receivedFrom\":\"%pI6\",",
+					&args->peer->su.sin6.sin6_addr);
+				break;
+			}
+		}
+	}
+
+	vty_out(vty, "\"originatorId\":\"%pI4\",", &attr->originator_id);
 	vty_out(vty, "\"bgpOriginCode\":\"%s\",", bgp_origin_str[attr->origin]);
 	vty_out(vty, "\"metric\":%u,", attr->med);
 	vty_out(vty, "\"locPrf\":%u,", attr->local_pref);
@@ -14781,7 +14802,7 @@ static bool bgp_rib_filter_entry(const struct bgp_rib_args *args,
 
 	if (adj_in) {
 		attr = adj_in->attr;
-		peer = NULL;
+		peer = adj_in->peer;
 	} else {
 		attr = adj_out->attr;
 		peer = paf->peer;
@@ -15129,6 +15150,7 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
       "|<unicast|multicast>$safi"
       "|limit (1-2147483648)$count"
       "|next-hop <A.B.C.D|X:X::X:X>$next_hop"
+      "|peer <A.B.C.D|X:X::X:X|WORD>$peer"
       "|prefix <A.B.C.D/M|X:X::X:X/M>$prefix"
       "}] json",
       SHOW_STR
@@ -15143,6 +15165,10 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
       "Filter by route next hop address\n"
       "Next hop IPv4 address\n"
       "Next hop IPv6 address\n"
+      "Filter by peer address\n"
+      "Peer IPv4 address\n"
+      "Peer IPv6 address\n"
+      "Peer address list name\n"
       "Filter by prefix\n"
       "IPv4 prefix\n"
       "IPv6 prefix\n"
@@ -15206,6 +15232,7 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 					route_args.afi = AFI_IP;
 					route_args.safi = SAFI_UNICAST;
 					route_args.attr = *dest->adj_in->attr;
+					route_args.peer = dest->adj_in->peer;
 
 					/* Put the comma in the appropriated
 					 * place. */
