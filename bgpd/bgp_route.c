@@ -14763,6 +14763,48 @@ DEFPY(show_bgp_rib_out, show_bgp_rib_out_cmd,
 	return CMD_SUCCESS;
 }
 
+DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
+      "show bgp rib-local json",
+      SHOW_STR
+      BGP_STR
+      "Local Routing Information Base\n"
+      JSON_STR)
+{
+	struct bgp *bgp;
+	struct listnode *node;
+	struct bgp_dest *dest;
+	bool first_route = true;
+
+	vty_out(vty, "{");
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		struct bgp_table *table = bgp->rib[AFI_IP][SAFI_UNICAST];
+		for (dest = bgp_table_top(table); dest;
+		     dest = bgp_route_next(dest)) {
+			struct route_parameters args;
+
+			if (dest->adj_in == NULL)
+				continue;
+
+			args.dest = dest;
+			args.prefix = bgp_dest_get_prefix(dest);
+			args.afi = AFI_IP;
+			args.safi = SAFI_UNICAST;
+			args.attr = *dest->adj_in->attr;
+
+			/* Put the comma in the appropriated place. */
+			if (first_route)
+				first_route = false;
+			else
+				vty_out(vty, ",");
+
+			print_route_detailed(vty, &args);
+		}
+	}
+	vty_out(vty, "}\n");
+
+	return CMD_SUCCESS;
+}
+
 /* also used for encap safi */
 static void bgp_config_write_network_vpn(struct vty *vty, struct bgp *bgp,
 					 afi_t afi, safi_t safi)
@@ -15143,6 +15185,7 @@ void bgp_route_init(void)
 	install_element(VIEW_NODE, &show_bgp_peerhash_cmd);
 
 	install_element(ENABLE_NODE, &show_bgp_rib_out_cmd);
+	install_element(ENABLE_NODE, &show_bgp_rib_local_cmd);
 }
 
 void bgp_route_finish(void)
