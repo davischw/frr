@@ -14737,6 +14737,54 @@ static int bgp_peer_rib_out(struct hash_bucket *bucket, void *arg)
 	return HASHWALK_CONTINUE;
 }
 
+struct bgp_rib_count_arg {
+	/** BGP instance pointer. */
+	struct bgp_table *table;
+	/** Total amount of routes. */
+	size_t total;
+	/** AFI type. */
+	afi_t afi;
+	/** SAFI type. */
+	safi_t safi;
+};
+
+static int bgp_rib_out_peer_count(struct hash_bucket *bucket, void *arg)
+{
+	struct bgp_rib_count_arg *args = arg;
+	struct peer *peer = bucket->data;
+	struct bgp_adj_out *adj_out;
+	struct bgp_dest *dest;
+	struct peer_af *paf;
+
+	for (dest = bgp_table_top(args->table); dest;
+	     dest = bgp_route_next(dest)) {
+		RB_FOREACH (adj_out, bgp_adj_out_rb, &dest->adj_out) {
+			SUBGRP_FOREACH_PEER (adj_out->subgroup, paf) {
+				if (paf->peer != peer || adj_out->attr == NULL)
+					continue;
+
+				args->total++;
+			}
+		}
+	}
+
+	return HASHWALK_CONTINUE;
+}
+
+static size_t bgp_rib_out_count(const struct bgp *bgp, afi_t afi, safi_t safi)
+{
+	struct bgp_table *table = bgp->rib[afi][safi];
+	struct bgp_rib_count_arg args = {
+		.table = table,
+		.afi = afi,
+		.safi = safi,
+	};
+
+	hash_walk(bgp->peerhash, bgp_rib_out_peer_count, &args);
+
+	return args.total;
+}
+
 DEFPY(show_bgp_rib_out, show_bgp_rib_out_cmd,
       "show bgp rib-out json",
       SHOW_STR
@@ -14746,7 +14794,19 @@ DEFPY(show_bgp_rib_out, show_bgp_rib_out_cmd,
 {
 	struct bgp *bgp;
 	struct listnode *node;
+	size_t routes_total = 0;
 
+	/* Don't display if route amount is bigger than 100k. */
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp))
+		routes_total += bgp_rib_out_count(bgp, AFI_IP, SAFI_UNICAST);
+
+	if (routes_total > 100000) {
+		vty_out(vty, "{\"error\": \"unable to display %zu routes\"}",
+			routes_total);
+		return CMD_WARNING;
+	}
+
+	/* Print the result. */
 	vty_out(vty, "{");
 	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
 		struct bgp_table *table = bgp->rib[AFI_IP][SAFI_UNICAST];
@@ -14763,6 +14823,22 @@ DEFPY(show_bgp_rib_out, show_bgp_rib_out_cmd,
 	return CMD_SUCCESS;
 }
 
+static size_t bgp_local_rib_count(const struct bgp *bgp, afi_t afi, safi_t safi)
+{
+	const struct bgp_table *table = bgp->rib[afi][safi];
+	struct bgp_dest *dest;
+	size_t total = 0;
+
+	for (dest = bgp_table_top(table); dest; dest = bgp_route_next(dest)) {
+		if (dest->adj_in == NULL)
+			continue;
+
+		total++;
+	}
+
+	return total;
+}
+
 DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
       "show bgp rib-local json",
       SHOW_STR
@@ -14774,7 +14850,19 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 	struct listnode *node;
 	struct bgp_dest *dest;
 	bool first_route = true;
+	size_t routes_total = 0;
 
+	/* Don't display if route amount is bigger than 100k. */
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp))
+		routes_total += bgp_local_rib_count(bgp, AFI_IP, SAFI_UNICAST);
+
+	if (routes_total > 100000) {
+		vty_out(vty, "{\"error\": \"unable to display %zu routes\"}",
+			routes_total);
+		return CMD_WARNING;
+	}
+
+	/* Display the local RIB routes. */
 	vty_out(vty, "{");
 	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
 		struct bgp_table *table = bgp->rib[AFI_IP][SAFI_UNICAST];
