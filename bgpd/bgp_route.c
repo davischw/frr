@@ -15090,40 +15090,83 @@ DEFPY(show_bgp_rib_out, show_bgp_rib_out_cmd,
 	return CMD_SUCCESS;
 }
 
-static size_t bgp_local_rib_count(const struct bgp *bgp, afi_t afi, safi_t safi)
+static size_t bgp_local_rib_count(const struct bgp_rib_args *args)
 {
-	const struct bgp_table *table = bgp->rib[afi][safi];
+	afi_t afi;
+	safi_t safi;
 	struct bgp_dest *dest;
 	size_t total = 0;
 
-	for (dest = bgp_table_top(table); dest; dest = bgp_route_next(dest)) {
-		if (dest->adj_in == NULL)
+	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
+		/* Skip non configured AFIs. */
+		if (args->afi != AF_UNSPEC && args->afi != afi)
 			continue;
 
-		total++;
+		for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++) {
+			const struct bgp_table *table;
+
+			/* Skip non configured SAFIs. */
+			if (args->safi != SAFI_UNSPEC && args->safi != safi)
+				continue;
+
+			table = args->bgp->rib[afi][safi];
+			for (dest = bgp_table_top(table); dest;
+			     dest = bgp_route_next(dest)) {
+				if (dest->adj_in == NULL)
+					continue;
+
+				total++;
+			}
+		}
 	}
 
 	return total;
 }
 
 DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
-      "show bgp rib-local json",
+      "show bgp rib-local [{"
+      "<ipv4|ipv6>$afi"
+      "|<unicast|multicast>$safi"
+      "|limit (1-2147483648)$count"
+      "|next-hop <A.B.C.D|X:X::X:X>$next_hop"
+      "|prefix <A.B.C.D/M|X:X::X:X/M>$prefix"
+      "}] json",
       SHOW_STR
       BGP_STR
       "Local Routing Information Base\n"
+      "IPv4 address family\n"
+      "IPv6 address family\n"
+      "Unicast routes\n"
+      "Multicast routes\n"
+      "Limit amount of displayed routes\n"
+      "Maximum amount of routes to display\n"
+      "Filter by route next hop address\n"
+      "Next hop IPv4 address\n"
+      "Next hop IPv6 address\n"
+      "Filter by prefix\n"
+      "IPv4 prefix\n"
+      "IPv6 prefix\n"
       JSON_STR)
 {
 	struct bgp *bgp;
 	struct listnode *node;
 	struct bgp_dest *dest;
+	afi_t afi_i;
+	safi_t safi_i;
 	bool first_route = true;
 	size_t routes_total = 0;
+	struct bgp_rib_args args = {};
+
+	bgp_rib_parse_args(&args, afi, safi, count, next_hop_str, NULL,
+			   prefix_str);
 
 	/* Don't display if route amount is bigger than 100k. */
-	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp))
-		routes_total += bgp_local_rib_count(bgp, AFI_IP, SAFI_UNICAST);
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		args.bgp = bgp;
+		routes_total += bgp_local_rib_count(&args);
+	}
 
-	if (routes_total > 100000) {
+	if (routes_total > args.maximum) {
 		vty_out(vty, "{\"error\": \"unable to display %zu routes\"}",
 			routes_total);
 		return CMD_WARNING;
@@ -15132,27 +15175,48 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 	/* Display the local RIB routes. */
 	vty_out(vty, "{");
 	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
-		struct bgp_table *table = bgp->rib[AFI_IP][SAFI_UNICAST];
-		for (dest = bgp_table_top(table); dest;
-		     dest = bgp_route_next(dest)) {
-			struct route_parameters args;
-
-			if (dest->adj_in == NULL)
+		args.bgp = bgp;
+		for (afi_i = AFI_IP; afi_i < AFI_MAX; afi_i++) {
+			/* Skip non configured AFIs. */
+			if (args.afi != AF_UNSPEC && args.afi != afi_i)
 				continue;
 
-			args.dest = dest;
-			args.prefix = bgp_dest_get_prefix(dest);
-			args.afi = AFI_IP;
-			args.safi = SAFI_UNICAST;
-			args.attr = *dest->adj_in->attr;
+			for (safi_i = SAFI_UNICAST; safi_i < SAFI_MAX;
+			     safi_i++) {
+				const struct bgp_table *table = bgp->rib[afi_i][safi_i];
 
-			/* Put the comma in the appropriated place. */
-			if (first_route)
-				first_route = false;
-			else
-				vty_out(vty, ",");
+				/* Skip non configured SAFIs. */
+				if (args.safi != SAFI_UNSPEC
+				    && args.safi != safi_i)
+					continue;
 
-			print_route_detailed(vty, &args);
+				for (dest = bgp_table_top(table); dest;
+				     dest = bgp_route_next(dest)) {
+					struct route_parameters route_args;
+
+					if (dest->adj_in == NULL)
+						continue;
+					if (bgp_rib_in_filter_entry(
+						    &args, dest, dest->adj_in))
+						continue;
+
+					route_args.dest = dest;
+					route_args.prefix =
+						bgp_dest_get_prefix(dest);
+					route_args.afi = AFI_IP;
+					route_args.safi = SAFI_UNICAST;
+					route_args.attr = *dest->adj_in->attr;
+
+					/* Put the comma in the appropriated
+					 * place. */
+					if (first_route)
+						first_route = false;
+					else
+						vty_out(vty, ",");
+
+					print_route_detailed(vty, &route_args);
+				}
+			}
 		}
 	}
 	vty_out(vty, "}\n");
