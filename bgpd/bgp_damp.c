@@ -196,7 +196,7 @@ static void bgp_reuse_timer(struct thread *t)
 	assert(bdc->reuse_offset < bdc->reuse_list_size);
 
 	/* 3. if ( the saved list head pointer is non-empty ) */
-	while ((bdi = SLIST_FIRST(&plist)) != NULL) {
+	for (bdi = SLIST_FIRST(&plist); bdi; bdi = SLIST_NEXT(bdi, entry)) {
 		bgp = bdi->path->peer->bgp;
 
 		/* Set t-diff = t-now - t-updated.  */
