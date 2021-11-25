@@ -1046,27 +1046,48 @@ static void pimsb_client_spt_join(const struct mroute_event *me)
 	pim_upstream_inherited_olist(pim_ifp->pim, up);
 }
 
-static void pimsb_client_msg_parse(struct pimsb_client *client)
+/** Parses message buffer and returns whether it can be called again. */
+static bool pimsb_client_msg_parse(struct pimsb_client *client)
 {
 	const struct mroute_event_header *meheader;
 	size_t msglen;
 
 	/* Check for minimum amount of data. */
-	if (client->msgbuf_available < sizeof(*meheader))
-		return;
-
-	meheader = (const struct mroute_event_header *)client->msgbuf;
-	/* Basic version check. */
-	if (meheader->version != MRE_VERSION_V1) {
-		zlog_err("%s: invalid version %d", __func__, meheader->version);
-		return;
+	if (client->msgbuf_available < sizeof(*meheader)) {
+		if (PIM_DEBUG_MROUTE_DETAIL)
+			zlog_debug("%s: header incomplete (%zu of %zu byes)",
+				   __func__, sizeof(*meheader),
+				   client->msgbuf_available);
+		return false;
 	}
 
 	/* Basic header length check. */
+	meheader = (const struct mroute_event_header *)client->msgbuf;
 	msglen = ntohs(meheader->length);
 	if (msglen < sizeof(*meheader)) {
 		zlog_err("%s: invalid length %zu", __func__, msglen);
-		return;
+		/*
+		 * We've got an invalid message length so all other messages
+		 * in this stream will be unaligned or wrong.
+		 */
+		pimsb_client_restart(client);
+		return false;
+	}
+
+	/* Check if we've downloaded the whole message. */
+	if (msglen < client->msgbuf_available) {
+		if (PIM_DEBUG_MROUTE_DETAIL)
+			zlog_debug("%s: message incomplete (%zu of %zu byes)",
+				   __func__, msglen, client->msgbuf_available);
+		return false;
+	}
+
+	/* Basic version check. */
+	if (meheader->version != MRE_VERSION_V1) {
+		if (PIM_DEBUG_MROUTE_DETAIL)
+			zlog_debug("%s: invalid version %d (skipping message)",
+				   __func__, meheader->version);
+		goto prepare_next_message;
 	}
 
 	switch (meheader->type) {
@@ -1095,10 +1116,14 @@ static void pimsb_client_msg_parse(struct pimsb_client *client)
 		break;
 	}
 
+prepare_next_message:
 	/* Move data to the beginning of the buffer and account it. */
-	memmove(client->msgbuf, client->msgbuf + msglen,
-		client->msgbuf_available - msglen);
+	if ((client->msgbuf_available - msglen) > 0)
+		memmove(client->msgbuf, client->msgbuf + msglen,
+			client->msgbuf_available - msglen);
+
 	client->msgbuf_available -= msglen;
+	return client->msgbuf_available > 0;
 }
 
 static int pimsb_client_read_cb(struct thread *t)
@@ -1132,7 +1157,8 @@ static int pimsb_client_read_cb(struct thread *t)
 	client->msgbuf_available += bytes_read;
 
 	/* Handle data. */
-	pimsb_client_msg_parse(client);
+	while (pimsb_client_msg_parse(client))
+		/* NOTHING */;
 
 schedule_and_return:
 	thread_add_read(router->master, pimsb_client_read_cb, client,
