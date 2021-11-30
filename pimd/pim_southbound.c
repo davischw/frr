@@ -937,7 +937,6 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 	up->flags |= PIM_UPSTREAM_FLAG_MASK_USE_RPT;
 	pimsb_set_input_interface(up->channel_oil);
 	pimsb_mroute_do(up->channel_oil, true);
-	pim_upstream_switch(pim_ifp->pim, up, PIM_UPSTREAM_NOTJOINED);
 }
 
 static void pimsb_client_data_stop(const struct mroute_event *me)
