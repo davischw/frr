@@ -154,6 +154,11 @@ static int ospfv3_instance_shutdown_modify(struct nb_cb_modify_args *args)
 
 	/* On `no shutdown` perform graceful restart. */
 	if (!yang_dnode_get_bool(args->dnode, NULL)) {
+		/* Reenable routing instance in the GR mode. */
+		ospf6_gr_restart_enter(ospf6, OSPF6_GR_SWITCH_CONTROL_PROCESSOR,
+				       time(NULL)
+					       + ospf6->gr_info.grace_period);
+
 		/*
 		 * RFC 3623 - Section 5 ("Unplanned Outages"):
 		 * "The grace-LSAs are encapsulated in Link State Update Packets
@@ -161,37 +166,11 @@ static int ospfv3_instance_shutdown_modify(struct nb_cb_modify_args *args)
 		 * router has no adjacencies and no knowledge of previous
 		 * adjacencies".
 		 */
-		for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, anode, area)) {
-			for (ALL_LIST_ELEMENTS_RO(area->if_list, inode, oi)) {
-				/*
-				 * Can't check OSPF interface state as the OSPF
-				 * instance wasn't enabled yet.
-				 */
-				if (!if_is_operative(oi->interface)
-				    || if_is_loopback(oi->interface))
-					continue;
-
-				/* Send Grace-LSA. */
-				ospf6_gr_lsa_originate(
+		for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, anode, area))
+			for (ALL_LIST_ELEMENTS_RO(area->if_list, inode, oi))
+				ospf6_gr_unplanned_start_interface(
 					oi, OSPF6_GR_SWITCH_CONTROL_PROCESSOR);
 
-				/* Start GR hello-delay interval. */
-				if (oi->gr.hello_delay.interval) {
-					oi->gr.hello_delay.elapsed_seconds = 0;
-					thread_add_timer(
-						master,
-						ospf6_gr_iface_send_grace_lsa,
-						oi, 1,
-						&oi->gr.hello_delay
-							 .t_grace_send);
-				}
-			}
-		}
-
-		/* Reenable routing instance in the GR mode. */
-		ospf6_gr_restart_enter(ospf6, OSPF6_GR_SWITCH_CONTROL_PROCESSOR,
-				       time(NULL)
-					       + ospf6->gr_info.grace_period);
 		ospf6_shutdown(ospf6, false, false);
 	} else
 		ospf6_shutdown(ospf6, true, true);
