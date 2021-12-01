@@ -41,6 +41,7 @@
 #include "pimd/pim_igmp.h"
 #include "pimd/pim_igmpv3.h"
 #include "pimd/pim_neighbor.h"
+#include "pimd/pim_join.h"
 #include "pimd/pim_pim.h"
 #include "pimd/pim_register.h"
 #include "pimd/pim_sock.h"
@@ -900,6 +901,8 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 			      : "no upstream");
 
 	if (up && (up->flags & PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED)) {
+		struct pim_neighbor *nbr = NULL;
+
 		/* SPT_DESIRED is holding 1 ref, "transfer" that to SRC_LHR */
 		up->flags &= ~PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED;
 		up->flags |= PIM_UPSTREAM_FLAG_MASK_SRC_LHR;
@@ -912,6 +915,23 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 		pim_upstream_inherited_olist_decide(pim_ifp->pim, up);
 		pim_upstream_keep_alive_timer_start(
 			up, pim_ifp->pim->keep_alive_time);
+
+		/*
+		 * Generate the prune message immediately for SG(*,G)
+		 * so we only receive traffic from SG(S,G).
+		 */
+		if (up->parent && up->parent->rpf.source_nexthop.interface) {
+			nbr = pim_neighbor_find(
+				up->parent->rpf.source_nexthop.interface,
+				up->parent->rpf.rpf_addr.u.prefix4);
+			if (nbr) {
+				struct pim_rpf rpf = {};
+
+				rpf.source_nexthop.interface = nbr->interface;
+				rpf.rpf_addr.u.prefix4 = nbr->source_addr;
+				pim_joinprune_send(&rpf, nbr->upstream_jp_agg);
+			}
+		}
 		return;
 	}
 
