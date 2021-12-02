@@ -264,6 +264,7 @@ const struct frr_yang_module_info frr_address_list_info = {
 			.cbs = {
 				.create = lib_address_list_addresses_create,
 				.destroy = lib_address_list_addresses_destroy,
+				.cli_show = address_list_address_show,
 			}
 		},
 		{

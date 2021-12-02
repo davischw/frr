@@ -91,6 +91,8 @@ struct vty;
 struct lyd_node;
 void address_list_show(struct vty *vty, struct lyd_node *dnode,
 		       bool show_defaults);
+void address_list_address_show(struct vty *vty, struct lyd_node *dnode,
+			       bool show_defaults);
 
 void address_list_cli_init(void);
 

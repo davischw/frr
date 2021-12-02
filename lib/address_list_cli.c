@@ -128,6 +128,15 @@ DEFPY(address_list_append, address_list_append_cmd,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+void address_list_address_show(struct vty *vty, struct lyd_node *dnode,
+			       bool show_defaults)
+{
+	vty_out(vty, "address-list %s address %s sequence %s\n",
+		yang_dnode_get_string(dnode, "../name"),
+		yang_dnode_get_string(dnode, "./address"),
+		yang_dnode_get_string(dnode, "./sequence"));
+}
+
 DEFPY(address_list_remove_entry, address_list_remove_entry_cmd,
       "no address-list WORD$name address <A.B.C.D|X:X::X:X>$addr",
       NO_STR
