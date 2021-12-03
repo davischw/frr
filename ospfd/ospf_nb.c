@@ -304,25 +304,30 @@ static int ospf_instance_shutdown(struct nb_cb_modify_args *args)
 
 	/* On `no shutdown` perform graceful restart. */
 	if (!yang_dnode_get_bool(args->dnode, NULL)) {
-		/* Reenable routing instance in the GR mode. */
-		ospf_gr_restart_enter(ospf, OSPF_GR_SWITCH_CONTROL_PROCESSOR,
-				      time(NULL) + ospf->gr_info.grace_period);
+		if (ospf->gr_info.restart_support) {
+			/* Reenable routing instance in the GR mode. */
+			ospf_gr_restart_enter(
+				ospf, OSPF_GR_SWITCH_CONTROL_PROCESSOR,
+				time(NULL) + ospf->gr_info.grace_period);
 
-		/*
-		 * RFC 3623 - Section 5 ("Unplanned Outages"):
-		 * "The grace-LSAs are encapsulated in Link State Update Packets
-		 * and sent out to all interfaces, even though the restarted
-		 * router has no adjacencies and no knowledge of previous
-		 * adjacencies".
-		 */
-		for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area))
-			for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode, oi))
-				ospf_gr_unplanned_start_interface(
-					oi, OSPF_GR_SWITCH_CONTROL_PROCESSOR);
+			/*
+			 * RFC 3623 - Section 5 ("Unplanned Outages"):
+			 * "The grace-LSAs are encapsulated in Link State Update
+			 * Packets and sent out to all interfaces, even though
+			 * the restarted router has no adjacencies and no
+			 * knowledge of previous adjacencies".
+			 */
+			for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area))
+				for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode,
+							  oi))
+					ospf_gr_unplanned_start_interface(
+						oi,
+						OSPF_GR_SWITCH_CONTROL_PROCESSOR);
+		}
 
 		ospf_shutdown(ospf, false, false);
 	} else
-		ospf_shutdown(ospf, true, true);
+		ospf_shutdown(ospf, true, !!ospf->gr_info.restart_support);
 
 	return NB_OK;
 }

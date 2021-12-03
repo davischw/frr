@@ -2621,43 +2621,35 @@ DEFPY(ospf_instance_shutdown, ospf_instance_shutdown_cmd,
       "Administrative shutdown\n")
 {
 	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
-
-	ospf_shutdown(ospf, !no, false);
-
-	return CMD_SUCCESS;
-}
-
-DEFPY(ospf_instance_shutdown_graceful, ospf_instance_shutdown_graceful_cmd,
-      "[no] shutdown graceful",
-      NO_STR
-      "Administrative shutdown\n"
-      "Attempt to perform a graceful restart\n")
-{
-	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
 	struct ospf_area *area;
 	struct ospf_interface *oi;
 	struct listnode *anode, *inode;
 
 	if (no) {
-		/* Reenable routing instance in the GR mode. */
-		ospf_gr_restart_enter(ospf, OSPF_GR_SWITCH_CONTROL_PROCESSOR,
-				      time(NULL) + ospf->gr_info.grace_period);
+		if (ospf->gr_info.restart_support) {
+			/* Reenable routing instance in the GR mode. */
+			ospf_gr_restart_enter(
+				ospf, OSPF_GR_SWITCH_CONTROL_PROCESSOR,
+				time(NULL) + ospf->gr_info.grace_period);
 
-		/*
-		 * RFC 3623 - Section 5 ("Unplanned Outages"):
-		 * "The grace-LSAs are encapsulated in Link State Update Packets
-		 * and sent out to all interfaces, even though the restarted
-		 * router has no adjacencies and no knowledge of previous
-		 * adjacencies".
-		 */
-		for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area))
-			for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode, oi))
-				ospf_gr_unplanned_start_interface(
-					oi, OSPF_GR_SWITCH_CONTROL_PROCESSOR);
+			/*
+			 * RFC 3623 - Section 5 ("Unplanned Outages"):
+			 * "The grace-LSAs are encapsulated in Link State Update
+			 * Packets and sent out to all interfaces, even though
+			 * the restarted router has no adjacencies and no
+			 * knowledge of previous adjacencies".
+			 */
+			for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area))
+				for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode,
+							  oi))
+					ospf_gr_unplanned_start_interface(
+						oi,
+						OSPF_GR_SWITCH_CONTROL_PROCESSOR);
+		}
 
 		ospf_shutdown(ospf, false, false);
 	} else
-		ospf_shutdown(ospf, true, true);
+		ospf_shutdown(ospf, true, !!ospf->gr_info.restart_support);
 
 	return CMD_SUCCESS;
 }
@@ -12145,7 +12137,6 @@ void ospf_vty_init(void)
 
 	/* shutdown command */
 	install_element(OSPF_NODE, &ospf_instance_shutdown_cmd);
-	install_element(OSPF_NODE, &ospf_instance_shutdown_graceful_cmd);
 
 	/* TI-LFA commands */
 	install_element(OSPF_NODE, &ospf_ti_lfa_cmd);

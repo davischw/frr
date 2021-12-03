@@ -1463,44 +1463,36 @@ DEFPY(ospf6_instance_shutdown, ospf6_instance_shutdown_cmd,
       "Administrative shutdown\n")
 {
 	VTY_DECLVAR_CONTEXT(ospf6, ospf6);
-
-	ospf6_shutdown(ospf6, !no, false);
-
-	return CMD_SUCCESS;
-}
-
-DEFPY(ospf6_instance_shutdown_graceful, ospf6_instance_shutdown_graceful_cmd,
-      "[no] shutdown graceful",
-      NO_STR
-      "Administrative shutdown\n"
-      "Attempt to perform a graceful restart\n")
-{
-	VTY_DECLVAR_CONTEXT(ospf6, ospf6);
 	struct ospf6_area *area;
 	struct ospf6_interface *oi;
 	struct listnode *anode, *inode;
 
 	if (no) {
-		/* Reenable routing instance in the GR mode. */
-		ospf6_gr_restart_enter(ospf6, OSPF6_GR_SWITCH_CONTROL_PROCESSOR,
-				       time(NULL)
-					       + ospf6->gr_info.grace_period);
+		if (ospf6->gr_info.restart_support) {
+			/* Reenable routing instance in the GR mode. */
+			ospf6_gr_restart_enter(
+				ospf6, OSPF6_GR_SWITCH_CONTROL_PROCESSOR,
+				time(NULL) + ospf6->gr_info.grace_period);
 
-		/*
-		 * RFC 3623 - Section 5 ("Unplanned Outages"):
-		 * "The grace-LSAs are encapsulated in Link State Update Packets
-		 * and sent out to all interfaces, even though the restarted
-		 * router has no adjacencies and no knowledge of previous
-		 * adjacencies".
-		 */
-		for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, anode, area))
-			for (ALL_LIST_ELEMENTS_RO(area->if_list, inode, oi))
-				ospf6_gr_unplanned_start_interface(
-					oi, OSPF6_GR_SWITCH_CONTROL_PROCESSOR);
+			/*
+			 * RFC 3623 - Section 5 ("Unplanned Outages"):
+			 * "The grace-LSAs are encapsulated in Link State Update
+			 * Packets and sent out to all interfaces, even though
+			 * the restarted router has no adjacencies and no
+			 * knowledge of previous adjacencies".
+			 */
+			for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, anode,
+						  area))
+				for (ALL_LIST_ELEMENTS_RO(area->if_list, inode,
+							  oi))
+					ospf6_gr_unplanned_start_interface(
+						oi,
+						OSPF6_GR_SWITCH_CONTROL_PROCESSOR);
+		}
 
 		ospf6_shutdown(ospf6, false, false);
 	} else
-		ospf6_shutdown(ospf6, true, true);
+		ospf6_shutdown(ospf6, true, !!ospf6->gr_info.restart_support);
 
 	return CMD_SUCCESS;
 }
@@ -2587,5 +2579,4 @@ void ospf6_top_init(void)
 
 	/* shutdown command */
 	install_element(OSPF6_NODE, &ospf6_instance_shutdown_cmd);
-	install_element(OSPF6_NODE, &ospf6_instance_shutdown_graceful_cmd);
 }
