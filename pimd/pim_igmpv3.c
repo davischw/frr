@@ -1619,7 +1619,10 @@ void igmp_group_timer_lower_to_lmqt(struct igmp_group *group)
 	pim_ifp = ifp->info;
 	ifname = ifp->name;
 
-	lmqi_dsec = pim_ifp->igmp_specific_query_max_response_time_dsec;
+	lmqi_dsec =
+		pim_ifp->igmp_immediate_leave
+			? 0
+			: pim_ifp->igmp_specific_query_max_response_time_dsec;
 	lmqc = pim_ifp->igmp_last_member_query_count;
 	lmqt_msec = PIM_IGMP_LMQT_MSEC(
 		lmqi_dsec, lmqc); /* lmqt_msec = (100 * lmqi_dsec) * lmqc */
