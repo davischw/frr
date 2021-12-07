@@ -13890,7 +13890,9 @@ static int bgp_show_neighbor(struct vty *vty, struct bgp *bgp,
 				if ((peer->conf_if
 				     && !strcmp(peer->conf_if, conf_if))
 				    || (peer->hostname
-					&& !strcmp(peer->hostname, conf_if))) {
+					&& !strcmp(peer->hostname, conf_if))
+				    || (peer->np
+					&& strcmp(peer->host, conf_if) == 0)) {
 					find = 1;
 					bgp_show_peer(vty, peer, use_json,
 						      json);
@@ -13911,7 +13913,9 @@ static int bgp_show_neighbor(struct vty *vty, struct bgp *bgp,
 						if ((peer->conf_if
 						     && !strcmp(peer->conf_if, conf_if))
 						    || (peer->hostname
-							&& !strcmp(peer->hostname, conf_if))) {
+							&& !strcmp(peer->hostname, conf_if))
+						    || (peer->np
+							&& strcmp(peer->host, conf_if) == 0)) {
 							find = 1;
 							bgp_show_peer(vty, peer, use_json,
 								      json);
