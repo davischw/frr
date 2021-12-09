@@ -714,11 +714,9 @@ void ospf6_gr_unplanned_start_interface(struct ospf6_interface *oi,
 	ospf6_gr_lsa_originate(oi, reason);
 
 	/* Start GR hello-delay interval. */
-	if (oi->gr.hello_delay.interval) {
-		oi->gr.hello_delay.elapsed_seconds = 0;
-		thread_add_timer(master, ospf6_gr_iface_send_grace_lsa, oi, 1,
-				 &oi->gr.hello_delay.t_grace_send);
-	}
+	oi->gr.hello_delay.elapsed_seconds = 0;
+	thread_add_timer(master, ospf6_gr_iface_send_grace_lsa, oi, 1,
+			 &oi->gr.hello_delay.t_grace_send);
 }
 
 /* Prepare to start a Graceful Restart. */

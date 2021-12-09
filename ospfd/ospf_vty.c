@@ -7850,7 +7850,7 @@ DEFUN_HIDDEN (no_ospf_retransmit_interval,
 
 DEFPY (ip_ospf_gr_hdelay,
        ip_ospf_gr_hdelay_cmd,
-       "ip ospf graceful-restart hello-delay (1-1800)",
+       "ip ospf graceful-restart hello-delay (10-1800)",
        IP_STR
        "OSPF interface commands\n"
        "Graceful Restart parameters\n"
@@ -7871,7 +7871,7 @@ DEFPY (ip_ospf_gr_hdelay,
 
 DEFPY (no_ip_ospf_gr_hdelay,
        no_ip_ospf_gr_hdelay_cmd,
-       "no ip ospf graceful-restart hello-delay [(1-1800)]",
+       "no ip ospf graceful-restart hello-delay [(10-1800)]",
        NO_STR
        IP_STR
        "OSPF interface commands\n"
@@ -7885,7 +7885,7 @@ DEFPY (no_ip_ospf_gr_hdelay,
 
 	params = IF_DEF_PARAMS(ifp);
 	UNSET_IF_PARAM(params, v_gr_hello_delay);
-	params->v_gr_hello_delay = 0;
+	params->v_gr_hello_delay = OSPF_HELLO_DELAY_DEFAULT;
 
 	for (rn = route_top(IF_OIFS(ifp)); rn; rn = route_next(rn)) {
 		struct ospf_interface *oi;
@@ -11012,9 +11012,9 @@ static int config_write_interface_one(struct vty *vty, struct vrf *vrf)
 			}
 
 			/* Hello Graceful-Restart Delay print. */
-			if (params
-			    && OSPF_IF_PARAM_CONFIGURED(params,
-							v_gr_hello_delay))
+			if (OSPF_IF_PARAM_CONFIGURED(params, v_gr_hello_delay)
+			    && params->v_gr_hello_delay
+				       != OSPF_HELLO_DELAY_DEFAULT)
 				vty_out(vty,
 					" ip ospf graceful-restart hello-delay %u\n",
 					params->v_gr_hello_delay);

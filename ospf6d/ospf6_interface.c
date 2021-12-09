@@ -224,6 +224,7 @@ struct ospf6_interface *ospf6_interface_basic_create(struct interface *ifp)
 	oi->priority = OSPF6_INTERFACE_PRIORITY;
 
 	oi->hello_interval = OSPF_HELLO_INTERVAL_DEFAULT;
+	oi->gr.hello_delay.interval = OSPF_HELLO_DELAY_DEFAULT;
 	oi->dead_interval = OSPF_ROUTER_DEAD_INTERVAL_DEFAULT;
 	oi->rxmt_interval = OSPF_RETRANSMIT_INTERVAL_DEFAULT;
 	oi->type = ospf6_default_iftype(ifp);
@@ -874,7 +875,8 @@ int interface_up(struct thread *thread)
 	 * router has no adjacencies and no knowledge of previous
 	 * adjacencies".
 	 */
-	if (oi->area->ospf6->gr_info.restart_in_progress)
+	if (oi->area->ospf6->gr_info.restart_in_progress
+	    && oi->area->ospf6->gr_info.reason == OSPF6_GR_UNKNOWN_RESTART)
 		ospf6_gr_unplanned_start_interface(oi,
 						   OSPF6_GR_UNKNOWN_RESTART);
 
@@ -2204,7 +2206,7 @@ ALIAS (ipv6_ospf6_deadinterval,
        SECONDS_STR)
 
 DEFPY(ipv6_ospf6_gr_hdelay, ipv6_ospf6_gr_hdelay_cmd,
-      "ipv6 ospf6 graceful-restart hello-delay (1-1800)",
+      "ipv6 ospf6 graceful-restart hello-delay (10-1800)",
       IP6_STR
       OSPF6_STR
       "Graceful Restart parameters\n"
@@ -2225,7 +2227,7 @@ DEFPY(ipv6_ospf6_gr_hdelay, ipv6_ospf6_gr_hdelay_cmd,
 }
 
 DEFPY(no_ipv6_ospf6_gr_hdelay, no_ipv6_ospf6_gr_hdelay_cmd,
-      "no ipv6 ospf6 graceful-restart hello-delay [(1-1800)]",
+      "no ipv6 ospf6 graceful-restart hello-delay [(10-1800)]",
       NO_STR
       IP6_STR
       OSPF6_STR
@@ -2240,7 +2242,7 @@ DEFPY(no_ipv6_ospf6_gr_hdelay, no_ipv6_ospf6_gr_hdelay_cmd,
 	if (oi == NULL)
 		oi = ospf6_interface_create(ifp);
 
-	oi->gr.hello_delay.interval = 0;
+	oi->gr.hello_delay.interval = OSPF_HELLO_DELAY_DEFAULT;
 	oi->gr.hello_delay.elapsed_seconds = 0;
 	THREAD_OFF(oi->gr.hello_delay.t_grace_send);
 
@@ -2845,7 +2847,7 @@ static int config_write_ospf6_interface(struct vty *vty, struct vrf *vrf)
 
 		config_write_ospf6_p2xp_neighbor(vty, oi);
 
-		if (oi->gr.hello_delay.interval != 0)
+		if (oi->gr.hello_delay.interval != OSPF_HELLO_DELAY_DEFAULT)
 			vty_out(vty,
 				" ipv6 ospf6 graceful-restart hello-delay %u\n",
 				oi->gr.hello_delay.interval);

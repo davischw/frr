@@ -1148,7 +1148,8 @@ struct ospf_interface *add_ospf_interface(struct connected *co,
 	 * router has no adjacencies and no knowledge of previous
 	 * adjacencies".
 	 */
-	if (oi->ospf->gr_info.restart_in_progress)
+	if (oi->ospf->gr_info.restart_in_progress
+	    && oi->ospf->gr_info.reason == OSPF_GR_UNKNOWN_RESTART)
 		ospf_gr_unplanned_start_interface(oi, OSPF_GR_UNKNOWN_RESTART);
 
 	return oi;

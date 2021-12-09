@@ -591,6 +591,9 @@ int ospf_gr_iface_send_grace_lsa(struct thread *thread)
 
 	ospf_gr_lsa_originate(oi, oi->ospf->gr_info.reason, false);
 
+	zlog_debug("XXX %u %u reason %d",
+		   oi->gr.hello_delay.elapsed_seconds + 1,
+		   params->v_gr_hello_delay, oi->ospf->gr_info.reason);
 	if (++oi->gr.hello_delay.elapsed_seconds < params->v_gr_hello_delay)
 		thread_add_timer(master, ospf_gr_iface_send_grace_lsa, oi, 1,
 				 &oi->gr.hello_delay.t_grace_send);
@@ -763,12 +766,9 @@ void ospf_gr_unplanned_start_interface(struct ospf_interface *oi,
 	ospf_gr_lsa_originate(oi, reason, false);
 
 	/* Start GR hello-delay interval. */
-	if (OSPF_IF_PARAM_CONFIGURED(IF_DEF_PARAMS(oi->ifp),
-				     v_gr_hello_delay)) {
-		oi->gr.hello_delay.elapsed_seconds = 0;
-		thread_add_timer(master, ospf_gr_iface_send_grace_lsa, oi, 1,
-				 &oi->gr.hello_delay.t_grace_send);
-	}
+	oi->gr.hello_delay.elapsed_seconds = 0;
+	thread_add_timer(master, ospf_gr_iface_send_grace_lsa, oi, 1,
+			 &oi->gr.hello_delay.t_grace_send);
 }
 
 /* Prepare to start a Graceful Restart. */
