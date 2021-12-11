@@ -25,8 +25,6 @@
 #define OSPF6_OPTION_NP         0x08
 #define OSPF6_LS_INFINITY       0xffffff
 
-#define OSPF6_OPT_N             (1 << 3) /* Handling Type-7 LSA Capability */
-
 #define OSPF6_DEBUG_NSSA        0x09
 /* Debug option */
 extern unsigned char config_debug_ospf6_nssa;
