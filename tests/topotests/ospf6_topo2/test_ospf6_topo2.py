@@ -588,7 +588,7 @@ def test_nssa_range():
         "2001:db8:1000::/64": {
             "metricType": 2,
             "metricCost": 20,
-            "metricCostE2": 10,
+            "metricCostE2": 20,
         }
     }
     expect_ospfv3_routes("r3", routes, wait=30, type="external-2", detail=True)
@@ -605,7 +605,7 @@ def test_nssa_range():
         "2001:db8:1000::/64": {
             "metricType": 2,
             "metricCost": 20,
-            "metricCostE2": 1000,
+            "metricCostE2": 20,
         }
     }
     expect_ospfv3_routes("r3", routes, wait=30, type="external-2", detail=True)

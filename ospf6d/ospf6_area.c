@@ -193,7 +193,7 @@ static void ospf6_area_stub_update(struct ospf6_area *area)
 	OSPF6_ROUTER_LSA_SCHEDULE(area);
 }
 
-static int ospf6_area_stub_set(struct ospf6 *ospf6, struct ospf6_area *area)
+static void ospf6_area_stub_set(struct ospf6 *ospf6, struct ospf6_area *area)
 {
 	if (!IS_AREA_STUB(area)) {
 		/* Disable NSSA first. */
@@ -202,8 +202,6 @@ static int ospf6_area_stub_set(struct ospf6 *ospf6, struct ospf6_area *area)
 		SET_FLAG(area->flag, OSPF6_AREA_STUB);
 		ospf6_area_stub_update(area);
 	}
-
-	return 1;
 }
 
 void ospf6_area_stub_unset(struct ospf6 *ospf6, struct ospf6_area *area)
@@ -1450,12 +1448,13 @@ DEFUN (ospf6_area_stub,
 
 	OSPF6_CMD_AREA_GET(argv[idx_ipv4_number]->arg, area, ospf6);
 
-	if (!ospf6_area_stub_set(ospf6, area)) {
+	if (ospf6_vlink_area_vlcount(area)) {
 		vty_out(vty,
 			"First deconfigure all virtual link through this area\n");
 		return CMD_WARNING_CONFIG_FAILED;
 	}
 
+	ospf6_area_stub_set(ospf6, area);
 	ospf6_area_no_summary_unset(ospf6, area);
 
 	return CMD_SUCCESS;
@@ -1477,12 +1476,13 @@ DEFUN (ospf6_area_stub_no_summary,
 
 	OSPF6_CMD_AREA_GET(argv[idx_ipv4_number]->arg, area, ospf6);
 
-	if (!ospf6_area_stub_set(ospf6, area)) {
+	if (ospf6_vlink_area_vlcount(area)) {
 		vty_out(vty,
 			"First deconfigure all virtual link through this area\n");
 		return CMD_WARNING_CONFIG_FAILED;
 	}
 
+	ospf6_area_stub_set(ospf6, area);
 	ospf6_area_no_summary_set(ospf6, area);
 
 	return CMD_SUCCESS;
@@ -1555,11 +1555,13 @@ DEFPY(ospf6_area_nssa, ospf6_area_nssa_cmd,
 	VTY_DECLVAR_CONTEXT(ospf6, ospf6);
 	OSPF6_CMD_AREA_GET(area_str, area, ospf6);
 
-	if (!ospf6_area_nssa_set(ospf6, area)) {
+	if (ospf6_vlink_area_vlcount(area)) {
 		vty_out(vty,
 			"First deconfigure all virtual link through this area\n");
 		return CMD_WARNING_CONFIG_FAILED;
 	}
+
+	ospf6_area_nssa_set(ospf6, area);
 
 	if (dflt_originate) {
 		if (mval_str == NULL)
