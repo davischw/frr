@@ -46,13 +46,11 @@ int ospf6_area_nssa_no_summary_set(struct ospf6 *ospf6, struct in_addr area_id);
 int ospf6_area_nssa_unset(struct ospf6 *ospf6, struct ospf6_area *area);
 int ospf6_area_nssa_set(struct ospf6 *ospf6, struct ospf6_area *area);
 
+extern struct ospf6_lsa *
+ospf6_nssa_find_translated_type5(struct ospf6 *ospf6, struct ospf6_lsa *type7);
 extern void ospf6_nssa_lsa_flush(struct ospf6 *ospf6, struct prefix_ipv6 *p);
-extern struct ospf6_lsa *ospf6_translated_nssa_refresh(struct ospf6_area *oa,
-						       struct ospf6_lsa *type7,
-						       struct ospf6_lsa *type5);
 extern struct ospf6_lsa *ospf6_translated_nssa_originate(struct ospf6_area *,
 							 struct ospf6_lsa *);
-
 extern void ospf6_asbr_nssa_redist_task(struct ospf6 *ospf6);
 
 extern void ospf6_schedule_abr_task(struct ospf6 *ospf6);

@@ -52,7 +52,6 @@
 #include "ospf6_nssa.h"
 #include "ospf6d.h"
 #include "ospf6_spf.h"
-#include "ospf6_nssa.h"
 #include "ospf6_gr.h"
 #include "lib/json.h"
 
@@ -78,15 +77,23 @@ static struct ospf6_lsa *ospf6_originate_type5_type7_lsas(
 						struct ospf6_route *route,
 						struct ospf6 *ospf6)
 {
-	struct ospf6_lsa *lsa;
-	struct listnode *lnode;
-	struct ospf6_area *oa = NULL;
+	struct ospf6_lsa *lsa = NULL;
 
-	lsa = ospf6_as_external_lsa_originate(route, ospf6);
+	if (!ospf6->anyNSSA)
+		lsa = ospf6_as_external_lsa_originate(route, ospf6);
+	else {
+		struct ospf6_area *oa;
+		struct listnode *node;
 
-	for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, lnode, oa)) {
-		if (IS_AREA_NSSA(oa))
-			ospf6_nssa_lsa_originate(route, oa, true);
+		for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, node, oa))
+			if (IS_AREA_NSSA(oa))
+				ospf6_nssa_lsa_originate(route, oa, true);
+
+		/*
+		 * Schedule the translation of the newly originated Type-7 LSAs.
+		 */
+		if (ospf6_check_and_set_router_abr(ospf6))
+			ospf6_schedule_abr_task(ospf6);
 	}
 
 	return lsa;
@@ -1302,6 +1309,10 @@ void ospf6_asbr_status_update(struct ospf6 *ospf6, int status)
 	/* Reoriginate router LSA for all areas */
 	for (ALL_LIST_ELEMENTS(ospf6->area_list, lnode, lnnode, oa))
 		OSPF6_ROUTER_LSA_SCHEDULE(oa);
+
+	/* Redo NSSA summaries if required */
+	if (ospf6_check_and_set_router_abr(ospf6))
+		ospf6_schedule_abr_task(ospf6);
 }
 
 static void ospf6_asbr_redistribute_set(struct ospf6 *ospf6, int type)
@@ -1565,17 +1576,33 @@ void ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
 }
 
 static void ospf6_asbr_external_lsa_remove_by_id(struct ospf6 *ospf6,
-					 uint32_t id)
+						 uint32_t id)
 {
 	struct ospf6_lsa *lsa;
 
-	lsa = ospf6_lsdb_lookup(htons(OSPF6_LSTYPE_AS_EXTERNAL),
-				htonl(id), ospf6->router_id, ospf6->lsdb);
-	if (!lsa)
-		return;
+	if (!ospf6->anyNSSA) {
+		lsa = ospf6_lsdb_lookup(htons(OSPF6_LSTYPE_AS_EXTERNAL),
+					htonl(id), ospf6->router_id,
+					ospf6->lsdb);
+		if (!lsa)
+			return;
 
-	ospf6_external_lsa_purge(ospf6, lsa);
+		ospf6_external_lsa_purge(ospf6, lsa);
+	} else {
+		struct ospf6_area *oa;
+		struct listnode *node;
 
+		for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, node, oa)) {
+			if (!IS_AREA_NSSA(oa))
+				continue;
+
+			lsa = ospf6_lsdb_lookup(htons(OSPF6_LSTYPE_TYPE_7),
+						htonl(id), ospf6->router_id,
+						oa->lsdb);
+			if (lsa)
+				ospf6_lsa_premature_aging(lsa);
+		}
+	}
 }
 
 static void
@@ -2752,12 +2779,32 @@ void ospf6_fill_aggr_route_details(struct ospf6 *ospf6,
 	rt_aggr->path.origin.id = htonl(aggr->id);
 }
 
-static void
-ospf6_summary_add_aggr_route_and_blackhole(struct ospf6 *ospf6,
-					   struct ospf6_external_aggr_rt *aggr)
+static void ospf6_originate_new_aggr_lsa(struct ospf6 *ospf6,
+					 struct ospf6_external_aggr_rt *aggr)
 {
+
+	struct prefix prefix_id;
+	struct route_node *node;
+	struct ospf6_lsa *lsa = NULL;
 	struct ospf6_route *rt_aggr;
 	struct ospf6_external_info *info;
+
+	if (IS_OSPF6_DEBUG_AGGR)
+		zlog_debug("%s: Originate new aggregate route(%pFX)", __func__,
+			   &aggr->p);
+
+	aggr->id = ospf6->external_id++;
+	/* create/update binding in external_id_table */
+	prefix_id.family = AF_INET;
+	prefix_id.prefixlen = 32;
+	prefix_id.u.prefix4.s_addr = htonl(aggr->id);
+	node = route_node_get(ospf6->external_id_table, &prefix_id);
+	node->info = aggr;
+
+	if (IS_OSPF6_DEBUG_AGGR)
+		zlog_debug(
+			"Advertise AS-External Id:%pI4 prefix %pFX metric %u",
+			&prefix_id.u.prefix4, &aggr->p, aggr->metric);
 
 	/* Create summary route and save it. */
 	rt_aggr = ospf6_route_create(ospf6);
@@ -2778,37 +2825,9 @@ ospf6_summary_add_aggr_route_and_blackhole(struct ospf6 *ospf6,
 	ospf6_add_route_nexthop_blackhole(rt_aggr);
 
 	ospf6_zebra_route_update_add(rt_aggr, ospf6);
-}
-
-static void ospf6_originate_new_aggr_lsa(struct ospf6 *ospf6,
-					 struct ospf6_external_aggr_rt *aggr)
-{
-	struct prefix prefix_id;
-	struct route_node *node;
-	struct ospf6_lsa *lsa = NULL;
-
-	if (IS_OSPF6_DEBUG_AGGR)
-		zlog_debug("%s: Originate new aggregate route(%pFX)", __func__,
-			   &aggr->p);
-
-	aggr->id = ospf6->external_id++;
-
-	/* create/update binding in external_id_table */
-	prefix_id.family = AF_INET;
-	prefix_id.prefixlen = 32;
-	prefix_id.u.prefix4.s_addr = htonl(aggr->id);
-	node = route_node_get(ospf6->external_id_table, &prefix_id);
-	node->info = aggr;
-
-	if (IS_OSPF6_DEBUG_AGGR)
-		zlog_debug(
-			"Advertise AS-External Id:%pI4 prefix %pFX metric %u",
-			&prefix_id.u.prefix4, &aggr->p, aggr->metric);
-
-	ospf6_summary_add_aggr_route_and_blackhole(ospf6, aggr);
 
 	/* Originate summary LSA */
-	lsa = ospf6_originate_type5_type7_lsas(aggr->route, ospf6);
+	lsa = ospf6_originate_type5_type7_lsas(rt_aggr, ospf6);
 	if (lsa) {
 		if (IS_OSPF6_DEBUG_AGGR)
 			zlog_debug("%s: Set the origination bit for aggregator",
@@ -2887,10 +2906,12 @@ ospf6_originate_summary_lsa(struct ospf6 *ospf6,
 	/* The key for ID field is a running number and not prefix */
 	info = rt->route_option;
 	assert(info);
-	if (info->id)
+	if (info->id) {
 		lsa = ospf6_lsdb_lookup(htons(OSPF6_LSTYPE_AS_EXTERNAL),
 					htonl(info->id), ospf6->router_id,
 					ospf6->lsdb);
+		assert(lsa);
+	}
 
 	aggr_lsa = ospf6_lsdb_lookup(htons(OSPF6_LSTYPE_AS_EXTERNAL),
 				htonl(aggr->id), ospf6->router_id, ospf6->lsdb);
@@ -2982,22 +3003,20 @@ ospf6_originate_summary_lsa(struct ospf6 *ospf6,
 
 	/* If the external route prefix same as aggregate route
 	 * and if external route is already originated as TYPE-5
-	 * then just update the aggr info and remove the route info
+	 * then it need to be refreshed and originate bit should
+	 * be set.
 	 */
 	if (lsa && prefix_same(&aggr->p, &rt->prefix)) {
 		if (IS_OSPF6_DEBUG_AGGR)
-			zlog_debug(
-				"%s: Route prefix is same as aggr so no need to re-originate LSA(%pFX)",
-				__PRETTY_FUNCTION__, &aggr->p);
+			zlog_debug("%s: External route prefix is same as aggr so refreshing LSA(%pFX)",
+				__PRETTY_FUNCTION__,
+				&aggr->p);
 
+		THREAD_OFF(lsa->refresh);
+		thread_add_event(master, ospf6_lsa_refresh, lsa, 0,
+				 &lsa->refresh);
 		aggr->id = info->id;
-		info->id = 0;
-		rt->path.origin.id = 0;
-
-		ospf6_summary_add_aggr_route_and_blackhole(ospf6, aggr);
-
 		SET_FLAG(aggr->aggrflags, OSPF6_EXTERNAL_AGGRT_ORIGINATED);
-
 		return;
 	}
 

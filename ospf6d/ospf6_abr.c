@@ -604,26 +604,50 @@ void ospf6_abr_range_reset_cost(struct ospf6 *ospf6)
 }
 
 static inline uint32_t ospf6_abr_range_compute_cost(struct ospf6_route *range,
-						    struct ospf6 *o)
+						    struct ospf6 *o,
+						    struct ospf6_area *oa)
 {
-	struct ospf6_route *ro;
 	uint32_t cost = 0;
 
-	for (ro = ospf6_route_match_head(&range->prefix, o->route_table); ro;
-	     ro = ospf6_route_match_next(&range->prefix, ro)) {
-		if (CHECK_FLAG(ro->flag, OSPF6_ROUTE_REMOVE))
-			continue;
-		if (ro->path.area_id != range->path.area_id)
-			continue;
-		if (CHECK_FLAG(range->flag, OSPF6_ROUTE_NSSA_RANGE)
-		    && ro->path.type != OSPF6_PATH_TYPE_EXTERNAL1
-		    && ro->path.type != OSPF6_PATH_TYPE_EXTERNAL2)
-			continue;
-		if (!CHECK_FLAG(range->flag, OSPF6_ROUTE_NSSA_RANGE)
-		    && ro->path.type != OSPF6_PATH_TYPE_INTRA)
-			continue;
+	if (CHECK_FLAG(range->flag, OSPF6_ROUTE_NSSA_RANGE)) {
+		int type;
+		struct ospf6_lsa *lsa;
+		struct prefix prefix;
 
-		cost = MAX(cost, ro->path.cost);
+		type = htons(OSPF6_LSTYPE_TYPE_7);
+		for (ALL_LSDB_TYPED(oa->lsdb, type, lsa)) {
+			struct ospf6_as_external_lsa *ext_lsa;
+
+			if (OSPF6_LSA_IS_MAXAGE(lsa))
+				continue;
+
+			ext_lsa = (struct ospf6_as_external_lsa *)
+				OSPF6_LSA_HEADER_END(lsa->header);
+			memset(&prefix, 0, sizeof(struct prefix));
+			prefix.family = AF_INET6;
+			prefix.prefixlen = ext_lsa->prefix.prefix_length;
+			ospf6_prefix_in6_addr(&prefix.u.prefix6, ext_lsa,
+					      &ext_lsa->prefix);
+			if (!prefix_match(&range->prefix, &prefix))
+				continue;
+
+			cost = MAX(cost, OSPF6_ASBR_METRIC(ext_lsa));
+		}
+	} else {
+		struct ospf6_route *ro;
+
+		for (ro = ospf6_route_match_head(&range->prefix,
+						 o->route_table);
+		     ro; ro = ospf6_route_match_next(&range->prefix, ro)) {
+			if (CHECK_FLAG(ro->flag, OSPF6_ROUTE_REMOVE))
+				continue;
+			if (ro->path.area_id != range->path.area_id)
+				continue;
+			if (ro->path.type != OSPF6_PATH_TYPE_INTRA)
+				continue;
+
+			cost = MAX(cost, ro->path.cost);
+		}
 	}
 
 	return cost;
@@ -676,7 +700,7 @@ void ospf6_abr_range_update(struct ospf6_route *range, struct ospf6 *ospf6)
 	assert(oa);
 
 	/* update range's cost and active flag */
-	cost = ospf6_abr_range_compute_cost(range, ospf6);
+	cost = ospf6_abr_range_compute_cost(range, ospf6, oa);
 
 	if (IS_OSPF6_DEBUG_ABR)
 		zlog_debug("%s: range %pFX, cost %d", __func__, &range->prefix,
@@ -1378,8 +1402,13 @@ void ospf6_abr_prefix_resummarize(struct ospf6 *o)
 		zlog_debug("Re-examining Inter-Prefix Summaries");
 
 	for (route = ospf6_route_head(o->route_table); route;
-	     route = ospf6_route_next(route))
+	     route = ospf6_route_next(route)) {
+		if (route->path.type == OSPF6_PATH_TYPE_EXTERNAL1
+		    || route->path.type == OSPF6_PATH_TYPE_EXTERNAL2)
+			continue;
+
 		ospf6_abr_originate_summary(route, o);
+	}
 
 	if (IS_OSPF6_DEBUG_ABR)
 		zlog_debug("Finished re-examining Inter-Prefix Summaries");

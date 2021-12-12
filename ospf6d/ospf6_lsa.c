@@ -44,6 +44,7 @@
 #include "ospf6_neighbor.h"
 
 #include "ospf6_flood.h"
+#include "ospf6_nssa.h"
 #include "ospf6d.h"
 
 #ifndef VTYSH_EXTRACT_PL
@@ -348,6 +349,17 @@ void ospf6_lsa_premature_aging(struct ospf6_lsa *lsa)
 
 	lsa->header->age = htons(OSPF_LSA_MAXAGE);
 	thread_execute(master, ospf6_lsa_expire, lsa, 0);
+
+	if (lsa->header->type == htons(OSPF6_LSTYPE_TYPE_7)) {
+		struct ospf6 *ospf6;
+		struct ospf6_lsa *type5;
+
+		ospf6 = OSPF6_AREA(lsa->lsdb->data)->ospf6;
+		assert(ospf6);
+		type5 = ospf6_nssa_find_translated_type5(ospf6, lsa);
+		if (type5)
+			ospf6_lsa_premature_aging(type5);
+	}
 }
 
 /* check which is more recent. if a is more recent, return -1;
@@ -892,6 +904,8 @@ int ospf6_lsa_refresh(struct thread *thread)
 	new = ospf6_lsa_create(self->header);
 	new->lsdb = old->lsdb;
 	new->refresh = NULL;
+	if (CHECK_FLAG(old->flag, OSPF6_LSA_LOCAL_XLT))
+		SET_FLAG(new->flag, OSPF6_LSA_LOCAL_XLT);
 	thread_add_timer(master, ospf6_lsa_refresh, new, OSPF_LS_REFRESH_TIME,
 			 &new->refresh);
 

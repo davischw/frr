@@ -348,7 +348,6 @@ void ospf6_install_lsa(struct ospf6_lsa *lsa)
 	if (ntohs(lsa->header->type) == OSPF6_LSTYPE_TYPE_7
 	    && lsa->header->adv_router != ospf6->router_id) {
 		area = OSPF6_AREA(lsa->lsdb->data);
-		ospf6_translated_nssa_refresh(area, lsa, NULL);
 		ospf6_schedule_abr_task(area->ospf6);
 	}
 
@@ -608,7 +607,7 @@ static void ospf6_flood_process(struct ospf6_neighbor *from,
 
 		/* Check for NSSA LSA */
 		if (ntohs(lsa->header->type) == OSPF6_LSTYPE_TYPE_7
-		    && !IS_AREA_NSSA(oa) && !OSPF6_LSA_IS_MAXAGE(lsa))
+		    && !IS_AREA_NSSA(oa))
 			continue;
 
 		ospf6_flood_area(from, lsa, oa);
