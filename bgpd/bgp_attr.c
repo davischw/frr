@@ -1053,7 +1053,10 @@ struct attr *bgp_attr_aggregate_intern(
 		new = bgp_attr_intern(&attr);
 	}
 
-	aspath_unintern(&new->aspath);
+	/* Only free AS Path if empty, otherwise will causes crash later. */
+	if (new->aspath->str[0] == 0)
+		aspath_unintern(&new->aspath);
+
 	return new;
 }
 
