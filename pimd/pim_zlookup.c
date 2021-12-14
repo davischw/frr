@@ -58,6 +58,8 @@ static int zclient_lookup_connect(struct thread *t)
 		++zlookup->fail;
 		zlog_warn("%s: failure connecting zclient socket: failures=%d",
 			  __func__, zlookup->fail);
+		zclient_lookup_sched(zlookup, 10);
+		return -1;
 	} else {
 		zlookup->fail = 0; /* reset counter on connection */
 	}
