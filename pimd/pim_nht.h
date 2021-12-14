@@ -66,6 +66,12 @@ struct pim_nexthop_cache {
 	/* SAFI_UNSPEC = not reachable */
 	safi_t rib_sel;
 
+	/* PIM instance this entry belongs to. */
+	struct pim_instance *pim;
+
+	/* Delayed NHT installation. */
+	struct thread *nht_delay;
+
 	struct pending_pncs_item pending_itm;
 };
 

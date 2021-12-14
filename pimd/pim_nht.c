@@ -69,6 +69,13 @@ void pim_sendmsg_zebra_rnh(struct pim_instance *pim,
 	struct prefix *p;
 	int uret, mret;
 
+	if (nht_zclient->sock == -1) {
+		if (PIM_DEBUG_PIM_NHT)
+			zlog_debug("%s: nht_zclient not connected yet",
+				   __func__);
+		return;
+	}
+
 	p = &(pnc->rpf.rpf_addr);
 	uret = zclient_send_rnh(nht_zclient, command, p, SAFI_UNICAST, false,
 				false, pim->vrf->vrf_id);
@@ -122,6 +129,7 @@ static struct pim_nexthop_cache *pim_nexthop_cache_add(struct pim_instance *pim,
 
 	pnc->rp_list = list_new();
 	pnc->rp_list->cmp = pim_rp_list_cmp;
+	pnc->pim = pim;
 
 	snprintfrr(hash_name, sizeof(hash_name), "PNC %pFX(%s) Upstream Hash",
 		   &pnc->rpf.rpf_addr, pim->vrf->name);
@@ -213,6 +221,8 @@ static void pim_nht_drop_maybe(struct pim_instance *pim,
 
 	if (pnc->rp_list->count == 0 && pnc->upstream_hash->count == 0
 	    && pnc->bsr_count == 0) {
+		THREAD_OFF(pnc->nht_delay);
+
 		pim_sendmsg_zebra_rnh(pim, pnc, ZEBRA_NEXTHOP_UNREGISTER);
 
 		if (pending_pncs_anywhere(pnc))
@@ -792,6 +802,33 @@ static void pim_nht_reselect(struct pim_instance *pim,
 	}
 }
 
+static int pim_nht_late_register(struct thread *t)
+{
+	struct pim_nexthop_cache *pnc = THREAD_ARG(t);
+
+	if (PIM_DEBUG_PIM_NHT)
+		zlog_debug("%s: ask for %pFX NHT update", __func__,
+			   &pnc->rpf.rpf_addr);
+
+	pim_sendmsg_zebra_rnh(pnc->pim, pnc, ZEBRA_NEXTHOP_REGISTER);
+
+	return 0;
+}
+
+static void pim_nht_update_retry_later(struct pim_nexthop_cache *pnc)
+{
+	const int delay = 5000;
+
+	if (PIM_DEBUG_PIM_NHT)
+		zlog_debug("%s: delay %dms %pFX NHT update", __func__, delay,
+			   &pnc->rpf.rpf_addr);
+
+	pim_sendmsg_zebra_rnh(pnc->pim, pnc, ZEBRA_NEXTHOP_UNREGISTER);
+
+	thread_add_timer_msec(router->master, pim_nht_late_register, pnc, delay,
+			      &pnc->nht_delay);
+}
+
 /* This API is used to parse Registered address nexthop update coming from Zebra
  */
 static int pim_nht_update(ZAPI_CALLBACK_ARGS)
@@ -894,6 +931,23 @@ static int pim_nht_update(ZAPI_CALLBACK_ARGS)
 						nexthop2str(nexthop, buf,
 							    sizeof(buf)));
 				}
+
+				/*
+				 * Don't cache this answer: this response is
+				 * bogus at the moment probably due to a race.
+				 * Zebra would not send a next hop update with
+				 * a pointer to a non existing interface.
+				 *
+				 * Possibilities:
+				 * 1. We've got the NHT message before the
+				 *    interfaces announcement.
+				 * 2. The interface was removed before this
+				 *    NHT came (e.g. interface update came in
+				 *    from main zclient socket and this message
+				 *    was queued).
+				 */
+				pim_nht_update_retry_later(pnc);
+
 				nexthop_free(nexthop);
 				continue;
 			}
@@ -997,6 +1051,14 @@ bool pim_nexthop_cache_wait(struct pim_instance *pim,
 
 	if (pnc_answered(pnc))
 		return true;
+
+	if (nht_zclient->sock == -1) {
+		if (PIM_DEBUG_PIM_NHT)
+			zlog_debug("%s: zclient not connected, try again later",
+				   __func__);
+
+		return false;
+	}
 
 	if (PIM_DEBUG_PIM_NHT)
 		zlog_debug("NHT %pFX(%s) state needed immediately, waiting %ums",
@@ -1270,6 +1332,9 @@ static int nht_zclient_connect(struct thread *t)
 {
 	assert(nht_zclient->sock == -1);
 
+	if (PIM_DEBUG_PIM_NHT)
+		zlog_debug("%s: connection attempt", __func__);
+
 	if (zclient_start(nht_zclient) < 0) {
 		zlog_warn("failure connecting NHT socket: failures=%d",
 			  nht_zclient->fail);
@@ -1279,7 +1344,35 @@ static int nht_zclient_connect(struct thread *t)
 		return 0;
 	}
 
+	if (PIM_DEBUG_PIM_NHT)
+		zlog_debug("%s: connection succeeded", __func__);
+
 	return 0;
+}
+
+static void nht_cache_reset(struct hash_bucket *bucket, void *arg)
+{
+	struct pim_instance *pim = arg;
+	struct pim_nexthop_cache *pnc = bucket->data;
+
+	/* Invalidate previous information and ask again. */
+	pim_sendmsg_zebra_rnh(pim, pnc, ZEBRA_NEXTHOP_REGISTER);
+}
+
+static void nht_zebra_connect(struct zclient *zclient)
+{
+	struct vrf *vrf;
+
+	if (PIM_DEBUG_PIM_NHT)
+		zlog_debug("%s: zebra client reconnected", __func__);
+
+	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+		struct pim_instance *pim = vrf->info;
+		if (pim == NULL)
+			continue;
+
+		hash_iterate(pim->rpf_hash, nht_cache_reset, pim);
+	}
 }
 
 static struct zclient_options nht_zcopts = {
@@ -1309,6 +1402,7 @@ void pim_nht_init(void)
 				  array_size(pim_nht_handlers));
 	nht_zclient->sock = -1;
 	nht_zclient->privs = &pimd_privs;
+	nht_zclient->zebra_connected = nht_zebra_connect;
 
 	thread_execute(router->master, nht_zclient_connect, NULL, 0);
 }
