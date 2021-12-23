@@ -221,7 +221,7 @@ static int static_route_leak(struct vty *vty, const char *svrf,
 				 "frr-staticd:staticd", "staticd", svrf,
 				 buf_prefix,
 				 yang_afi_safi_value2identity(afi, safi),
-				 table_id, distance);
+				 table_id, metric ? metric : "1", distance);
 
 		nb_cli_enqueue_change(vty, xpath_prefix, NB_OP_CREATE, NULL);
 
@@ -231,14 +231,6 @@ static int static_route_leak(struct vty *vty, const char *svrf,
 		strlcat(ab_xpath, FRR_STATIC_ROUTE_PATH_TAG_XPATH,
 			sizeof(ab_xpath));
 		nb_cli_enqueue_change(vty, ab_xpath, NB_OP_MODIFY, buf_tag);
-
-		/* Metric processing. */
-		if (metric) {
-			strlcpy(ab_xpath, xpath_prefix, sizeof(ab_xpath));
-			strlcat(ab_xpath, "/metric", sizeof(ab_xpath));
-			nb_cli_enqueue_change(vty, ab_xpath, NB_OP_MODIFY,
-					      metric);
-		}
 
 		/* nexthop processing */
 
@@ -546,7 +538,7 @@ int static_config(struct vty *vty, struct static_vrf *svrf, afi_t afi,
 				    != ZEBRA_STATIC_DISTANCE_DEFAULT)
 					vty_out(vty, " %u", pn->distance);
 
-				if (pn->metric)
+				if (pn->metric != 1)
 					vty_out(vty, " metric %u", pn->metric);
 
 				/* Label information */

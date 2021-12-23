@@ -71,11 +71,18 @@ module frr-staticd {
 
   grouping staticd-prefix-attributes {
     list path-list {
-      key "table-id distance";
+      key "table-id metric distance";
       leaf table-id {
         type uint32;
         description
           "Table-id";
+      }
+
+      leaf metric {
+        type uint32;
+        default 1;
+        description
+          "Route metric.";
       }
 
       leaf distance {
@@ -131,14 +138,6 @@ module frr-staticd {
         }
 
         uses staticd-prefix-attributes {
-          augment "path-list" {
-            leaf metric {
-              type uint32;
-              description
-                "Route metric.";
-            }
-          }
-
           augment "path-list/frr-nexthops/nexthop" {
             container bfd-monitoring {
               description "Next hop BFD monitoring options.";
@@ -180,7 +179,29 @@ module frr-staticd {
               "IPv6 source prefix";
           }
 
-          uses staticd-prefix-attributes;
+          list path-list {
+            key "table-id distance";
+            leaf table-id {
+              type uint32;
+              description
+                "Table-id";
+            }
+
+            leaf distance {
+              type frr-rt:administrative-distance;
+              description
+                "Admin distance associated with this route.";
+            }
+
+            leaf tag {
+              type uint32;
+              default "0";
+              description
+                "Route tag";
+            }
+
+            uses frr-nexthop:frr-nexthop;
+          }
         }
       }
 

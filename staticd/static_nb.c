@@ -43,13 +43,6 @@ const struct frr_yang_module_info frr_staticd_info = {
 			}
 		},
 		{
-			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-staticd:staticd/route-list/path-list/metric",
-			.cbs = {
-				.modify = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_metric_modify,
-				.destroy = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_metric_destroy,
-			}
-		},
-		{
 			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-staticd:staticd/route-list/path-list/tag",
 			.cbs = {
 				.modify = routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_tag_modify,

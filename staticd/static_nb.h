@@ -33,10 +33,6 @@ int routing_control_plane_protocols_control_plane_protocol_staticd_route_list_pa
 	struct nb_cb_create_args *args);
 int routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_destroy(
 	struct nb_cb_destroy_args *args);
-int routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_metric_modify(
-	struct nb_cb_modify_args *args);
-int routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_metric_destroy(
-	struct nb_cb_destroy_args *args);
 int routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_tag_modify(
 	struct nb_cb_modify_args *args);
 int routing_control_plane_protocols_control_plane_protocol_staticd_route_list_path_list_frr_nexthops_nexthop_create(
@@ -156,7 +152,7 @@ int routing_control_plane_protocols_name_validate(
 	"/frr-routing:routing/control-plane-protocols/"                        \
 	"control-plane-protocol[type='%s'][name='%s'][vrf='%s']/"              \
 	"frr-staticd:staticd/route-list[prefix='%s'][afi-safi='%s']/"          \
-	"path-list[table-id='%u'][distance='%u']"
+	"path-list[table-id='%u'][metric='%s'][distance='%u']"
 
 #define FRR_STATIC_ROUTE_INFO_KEY_NO_DISTANCE_XPATH                            \
 	"/frr-routing:routing/control-plane-protocols/"                        \
