@@ -27,6 +27,9 @@ extern struct in6_addr alldrouters6;
 /* forward declaration. */
 struct ospf6;
 
+/* global variable(s). */
+extern bool use_flowinfo;
+
 void ospf6_sb_init(void);
 void ospf6_sb_finish(void);
 void ospf6_sb_schedule(int fd);

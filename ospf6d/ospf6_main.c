@@ -75,7 +75,10 @@ struct zebra_privs_t ospf6d_privs = {
 	.cap_num_i = 0};
 
 /* ospf6d options, we use GNU getopt library. */
-struct option longopts[] = {{0}};
+#define OPTION_NOFLOWINFO 1001
+static const struct option longopts[] = {
+	{"no_flowinfo", no_argument, NULL, OPTION_NOFLOWINFO},
+	{0}};
 
 /* Master of threads. */
 struct thread_master *master;
@@ -100,7 +103,8 @@ static void __attribute__((noreturn)) ospf6_exit(int status)
 				ospf6_interface_delete(ifp->info);
 	}
 
-	ospf6_sb_finish();
+	if (use_flowinfo)
+		ospf6_sb_finish();
 
 	ospf6_message_terminate();
 	ospf6_asbr_terminate();
@@ -200,7 +204,8 @@ int main(int argc, char *argv[], char *envp[])
 	int opt;
 
 	frr_preinit(&ospf6d_di, argc, argv);
-	frr_opt_add("", longopts, "");
+	frr_opt_add("", longopts,
+		    "      --no_flowinfo   Disable the FLOWINFO sockoptions\n");
 
 	/* Command line argument treatment. */
 	while (1) {
@@ -210,6 +215,9 @@ int main(int argc, char *argv[], char *envp[])
 			break;
 
 		switch (opt) {
+		case OPTION_NOFLOWINFO:
+			use_flowinfo = false;
+			break;
 		case 0:
 			break;
 		default:
@@ -239,7 +247,8 @@ int main(int argc, char *argv[], char *envp[])
 	ospf6_init(master);
 
 	/* initialize southbound. */
-	ospf6_sb_init();
+	if (use_flowinfo)
+		ospf6_sb_init();
 
 	frr_config_fork();
 	frr_run(master);

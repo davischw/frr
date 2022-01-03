@@ -38,6 +38,8 @@
 #define IP6_OSPF6_SPF_PROTO 248
 #define IP6_OSPF6_DR_PROTO 250
 
+bool use_flowinfo = true;
+
 struct in6_addr allspfrouters6;
 struct in6_addr alldrouters6;
 
@@ -132,17 +134,18 @@ int ospf6_serv_sock(struct ospf6 *ospf6)
 	ospf6_set_pktinfo(ospf6->fd);
 	ospf6_set_transport_class(ospf6->fd);
 	ospf6_set_checksum(ospf6->fd);
-	ospf6_set_flowid(ospf6->fd);
+	if (use_flowinfo)
+		ospf6_set_flowid(ospf6->fd);
+
+	/* setup global in6_addr, allspf6 and alldr6 for later use */
+	inet_pton(AF_INET6, ALLSPFROUTERS6, &allspfrouters6);
+	inet_pton(AF_INET6, ALLDROUTERS6, &alldrouters6);
 
 	return 0;
 }
 
 void ospf6_sb_init(void)
 {
-	/* setup global in6_addr, allspf6 and alldr6 for later use */
-	inet_pton(AF_INET6, ALLSPFROUTERS6, &allspfrouters6);
-	inet_pton(AF_INET6, ALLDROUTERS6, &alldrouters6);
-
 	frr_with_privs(&ospf6d_privs) {
 		/* Sockets to receive OSPFv3 packets. */
 		sb_ctx.dr_sock = socket(AF_INET6, SOCK_RAW | SOCK_NONBLOCK,
@@ -219,7 +222,7 @@ int ospf6_sso(struct ospf6 *o, ifindex_t ifindex, struct in6_addr *group,
 			   &mreq6.ipv6mr_multiaddr);
 
 	/* There are still other data plane interfaces using this. */
-	if (refcount >= 1)
+	if (use_flowinfo && refcount >= 1)
 		return 0;
 
 	ret = setsockopt(o->fd, IPPROTO_IPV6, option, &mreq6, sizeof(mreq6));
@@ -274,7 +277,9 @@ ssize_t ospf6_sendmsg(struct ospf6 *ospf6, struct in6_addr *src,
 	assert(ifp);
 
 	/* Use the proper ouput socket. */
-	if (dst == &alldrouters6)
+	if (!use_flowinfo)
+		sock = ospf6->fd;
+	else if (dst == &alldrouters6)
 		sock = sb_ctx.dr_sock;
 	else if (dst == &allspfrouters6)
 		sock = sb_ctx.spf_sock;
@@ -295,7 +300,10 @@ ssize_t ospf6_sendmsg(struct ospf6 *ospf6, struct in6_addr *src,
 
 	/* Destination. */
 	memcpy(&dst_sin6.sin6_addr, dst, sizeof(dst_sin6.sin6_addr));
-	dst_sin6.sin6_flowinfo = htonl(ifp->ifindex);
+	if (use_flowinfo)
+		dst_sin6.sin6_flowinfo = htonl(ifp->ifindex);
+	else
+		dst_sin6.sin6_flowinfo = 0;
 	if (IN6_IS_ADDR_LINKLOCAL(dst))
 		dst_sin6.sin6_scope_id = ifp->vif_index;
 
@@ -384,7 +392,8 @@ ssize_t ospf6_recvmsg(struct in6_addr *src, struct in6_addr *dst,
 		zlog_debug("%s: src=%pI6 dst=%pI6 ifindex=%d flowinfo=0x%08x",
 			   __func__, src, dst, *ifindex, flowinfo);
 
-	*ifindex = flowinfo;
+	if (use_flowinfo)
+		*ifindex = flowinfo;
 
 	return rv;
 }
