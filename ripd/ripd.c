@@ -3639,8 +3639,10 @@ void rip_vrf_shutdown(struct rip *rip, bool shutdown)
 				   rip->vrf->vrf_id);
 
 		rip_instance_disable(rip);
-		FOR_ALL_INTERFACES (vrf, ifp)
+		FOR_ALL_INTERFACES (vrf, ifp) {
+			rip_if_down(ifp);
 			rip_interface_sync(ifp);
+		}
 
 	} else if (vrf) {
 		int socket;

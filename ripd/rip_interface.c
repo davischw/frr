@@ -52,7 +52,6 @@ DEFINE_HOOK(rip_ifaddr_del, (struct connected * ifc), (ifc));
 /* static prototypes */
 static void rip_enable_apply(struct interface *);
 static void rip_passive_interface_apply(struct interface *);
-static int rip_if_down(struct interface *ifp);
 static int rip_enable_if_lookup(struct rip *rip, const char *ifname);
 static int rip_enable_network_lookup2(struct connected *connected);
 
