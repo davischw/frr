@@ -200,6 +200,12 @@ static void ospf6_gr_restart_exit(struct ospf6 *ospf6, const char *reason)
 		 */
 		OSPF6_ROUTER_LSA_EXECUTE(area);
 
+		/*
+		 * Force reorigination of intra-area prefix LSAs to handle
+		 * areas without any active neighbor.
+		 */
+		OSPF6_INTRA_PREFIX_LSA_SCHEDULE_STUB(area);
+
 		for (ALL_LIST_ELEMENTS_RO(area->if_list, anode, oi)) {
 			/* Disable hello delay. */
 			if (oi->gr.hello_delay.t_grace_send) {
