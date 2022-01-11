@@ -293,10 +293,14 @@ static int zebra_vrf_delete(struct vrf *vrf)
 			}
 		}
 
-		if (zvrf->rnh_table[afi])
+		if (zvrf->rnh_table[afi]) {
 			route_table_finish(zvrf->rnh_table[afi]);
-		if (zvrf->rnh_table_multicast[afi])
-			route_table_finish(zvrf->rnh_table[afi]);
+			zvrf->rnh_table[afi] = NULL;
+		}
+		if (zvrf->rnh_table_multicast[afi]) {
+			route_table_finish(zvrf->rnh_table_multicast[afi]);
+			zvrf->rnh_table_multicast[afi] = NULL;
+		}
 	}
 
 	otable = otable_pop(&zvrf->other_tables);
