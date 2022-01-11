@@ -118,7 +118,7 @@ class RpcStateBase
       public:
 	virtual CallState doCallback() = 0;
 	virtual void do_request(::frr::Northbound::AsyncService *service,
-				std::unique_ptr<::grpc::ServerCompletionQueue> &cq) = 0;
+				::grpc::ServerCompletionQueue *cq) = 0;
 };
 
 /*
@@ -145,8 +145,6 @@ template <typename Q, typename S> class NewRpcState : RpcStateBase
 		    void (*cb)(NewRpcState<Q, S> *), const char *name)
 	    : requestf(NULL), requestsf(rfunc), callback(cb), responder(&ctx),
 	      async_responder(&ctx), name(name), cdb(cdb){};
-
-	virtual ~NewRpcState() = default;
 
 	CallState doCallback() override
 	{
@@ -191,21 +189,19 @@ template <typename Q, typename S> class NewRpcState : RpcStateBase
 	}
 
 	void do_request(::frr::Northbound::AsyncService *service,
-			std::unique_ptr<::grpc::ServerCompletionQueue> &cq) override
+			::grpc::ServerCompletionQueue *cq) override
 	{
 		grpc_debug("%s, posting a request for: %s", __func__, name);
 		if (requestf) {
 			NewRpcState<Q, S> *copy =
 				new NewRpcState(cdb, requestf, callback, name);
 			(service->*requestf)(&copy->ctx, &copy->request,
-					     &copy->responder,
-					     cq.get(), cq.get(), copy);
+					     &copy->responder, cq, cq, copy);
 		} else {
 			NewRpcState<Q, S> *copy =
 				new NewRpcState(cdb, requestsf, callback, name);
 			(service->*requestsf)(&copy->ctx, &copy->request,
-					      &copy->async_responder,
-					      cq.get(), cq.get(),
+					      &copy->async_responder, cq, cq,
 					      copy);
 		}
 	}
@@ -1250,7 +1246,7 @@ struct grpc_pthread_attr {
 
 // Capture these objects so we can try to shut down cleanly
 static std::unique_ptr<grpc::Server> s_server;
-static std::unique_ptr<grpc::ServerCompletionQueue> s_cq;
+static grpc::ServerCompletionQueue *s_cq;
 
 static void *grpc_pthread_start(void *arg)
 {
@@ -1275,7 +1271,8 @@ static void *grpc_pthread_start(void *arg)
 	builder.AddListeningPort(server_address.str(),
 				 grpc::InsecureServerCredentials());
 	builder.RegisterService(service);
-	s_cq = builder.AddCompletionQueue();
+	auto cq = builder.AddCompletionQueue();
+	s_cq = cq.get();
 	s_server = builder.BuildAndStart();
 
 	/* Schedule all RPC handlers */
@@ -1356,15 +1353,11 @@ static int frr_grpc_finish(void)
 		s_cq->Shutdown();
 
 		// And drain the queue
-		void *ignore = NULL;
-		bool ok = false;
+		void *ignore;
+		bool ok;
 
 		while (s_cq->Next(&ignore, &ok))
 			;
-
-		/* release references / dealloc objects */
-		s_server.reset(nullptr);
-		s_cq.reset(nullptr);
 	}
 
 	if (fpt) {
