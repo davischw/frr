@@ -221,7 +221,7 @@ def test_ospfv3_expected_route_types():
             "numberOfIntraAreaRoutes": 1,
             "numberOfInterAreaRoutes": 2,
             "numberOfExternal1Routes": 0,
-            "numberOfExternal2Routes": 3,
+            "numberOfExternal2Routes": 0,
         },
     )
 

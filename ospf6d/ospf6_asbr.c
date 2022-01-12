@@ -1391,6 +1391,18 @@ void ospf6_asbr_remove_externals_check(struct ospf6 *ospf6)
 		}
 		lsa = lsanext;
 	}
+	iterend = ospf6_lsdb_head(ospf6->lsdb_self, 0, 0, 0, &lsa);
+	while (lsa != NULL) {
+		assert(lsa->lock > 1);
+		lsanext = ospf6_lsdb_next(iterend, lsa);
+		if (ntohs(lsa->header->type) == OSPF6_LSTYPE_AS_EXTERNAL) {
+			THREAD_OFF(lsa->expire);
+			THREAD_OFF(lsa->refresh);
+			ospf6_flood_clear(lsa);
+			ospf6_lsdb_remove(lsa, ospf6->lsdb_self);
+		}
+		lsa = lsanext;
+	}
 }
 
 static struct ospf6_external_aggr_rt *

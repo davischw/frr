@@ -1,9 +1,9 @@
 {
   "routes":{
     "2001:db8:1000::1\/128":{
-      "isBestRoute":false,
+      "isBestRoute":true,
       "destinationType":"N",
-      "pathType":"E2",
+      "pathType":"IE",
       "nextHops":[
         {
           "interfaceName":"eth-rt6"

@@ -124,21 +124,5 @@
       "lsa":[
       ]
     }
-  ],
-  "asScopedLinkStateDb":[
-    {
-      "lsa":[
-        {
-          "type":"ASE",
-          "advRouter":"1.1.1.1",
-          "payload":"2001:db8:1000::1\/128"
-        },
-        {
-          "type":"ASE",
-          "advRouter":"7.7.7.7",
-          "payload":"2001:db8:1000::7\/128"
-        }
-      ]
-    }
   ]
 }

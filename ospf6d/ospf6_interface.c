@@ -38,12 +38,14 @@
 #include "ospf6_route.h"
 #include "ospf6_area.h"
 #include "ospf6_abr.h"
+#include "ospf6_asbr.h"
 #include "ospf6_interface.h"
 #include "ospf6_neighbor.h"
 #include "ospf6_intra.h"
 #include "ospf6_spf.h"
 #include "ospf6d.h"
 #include "ospf6_bfd.h"
+#include "ospf6_flood.h"
 #include "ospf6_zebra.h"
 #include "ospf6_gr.h"
 #include "lib/json.h"
@@ -1830,6 +1832,8 @@ void ospf6_interface_start(struct ospf6_interface *oi)
 {
 	struct ospf6 *ospf6;
 	struct ospf6_area *oa;
+	struct connected *connected;
+	struct listnode *node;
 
 	if (oi->area_id_format == OSPF6_AREA_FMT_UNSET)
 		return;
@@ -1860,11 +1864,24 @@ void ospf6_interface_start(struct ospf6_interface *oi)
 	/* If the router is ABR, originate summary routes */
 	if (ospf6_check_and_set_router_abr(ospf6))
 		ospf6_abr_enable_area(oa);
+
+	/*
+	 * Purge AS-external LSAs associated to the connected routes of this
+	 * interface.
+	 */
+	for (ALL_LIST_ELEMENTS_RO(oi->interface->connected, node, connected)) {
+		struct ospf6_lsa *lsa;
+
+		lsa = ospf6_find_external_lsa(ospf6, connected->address);
+		if (lsa && lsa->header->adv_router == oa->ospf6->router_id)
+			ospf6_lsa_purge(lsa);
+	}
 }
 
 void ospf6_interface_stop(struct ospf6_interface *oi)
 {
 	struct ospf6_area *oa;
+	struct ospf6 *ospf6;
 
 	oa = oi->area;
 	if (!oa)
@@ -1878,6 +1895,22 @@ void ospf6_interface_stop(struct ospf6_interface *oi)
 	if (oa->if_list->count == 0) {
 		UNSET_FLAG(oa->flag, OSPF6_AREA_ENABLE);
 		ospf6_abr_disable_area(oa);
+	}
+
+	/*
+	 * Check if the interface connected routes need to be redistributed now
+	 * that they are no longer part of the AS.
+	 */
+	ospf6 = oa->ospf6;
+	if (CHECK_FLAG(ospf6->flag, OSPF6_FLAG_REDIST_ACTIVE)
+	    && ospf6_redist_lookup(ospf6, ZEBRA_ROUTE_CONNECT, 0)
+	    && zclient->sock > 0) {
+		zebra_redistribute_send(ZEBRA_REDISTRIBUTE_DELETE, zclient,
+					AFI_IP6, ZEBRA_ROUTE_CONNECT, 0,
+					oa->ospf6->vrf_id);
+		zebra_redistribute_send(ZEBRA_REDISTRIBUTE_ADD, zclient,
+					AFI_IP6, ZEBRA_ROUTE_CONNECT, 0,
+					oa->ospf6->vrf_id);
 	}
 }
 
