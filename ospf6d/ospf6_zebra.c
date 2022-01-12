@@ -262,6 +262,26 @@ int ospf6_zebra_gr_disable(struct ospf6 *ospf6)
 	return ospf6_zebra_gr_update(ospf6, ZEBRA_CLIENT_GR_DISABLE, 0);
 }
 
+/* Check if the connected route is already part of the AS. */
+static bool ospf6_distribute_check_connected(struct ospf6 *ospf6,
+					     const struct prefix *prefix)
+{
+	struct ospf6_area *area;
+	struct listnode *anode;
+
+	for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, anode, area)) {
+		struct ospf6_interface *oi;
+		struct listnode *inode;
+
+		for (ALL_LIST_ELEMENTS_RO(area->if_list, inode, oi)) {
+			if (connected_lookup_prefix(oi->interface, prefix))
+				return false;
+		}
+	}
+
+        return true;
+}
+
 static int ospf6_zebra_read_route(ZAPI_CALLBACK_ARGS)
 {
 	struct zapi_route api;
@@ -283,6 +303,10 @@ static int ospf6_zebra_read_route(ZAPI_CALLBACK_ARGS)
 		return 0;
 
 	if (IN6_IS_ADDR_LINKLOCAL(&api.prefix.u.prefix6))
+		return 0;
+
+	if (api.type == ZEBRA_ROUTE_CONNECT
+	    && !ospf6_distribute_check_connected(ospf6, &api.prefix))
 		return 0;
 
 	ifindex = api.nexthops[0].ifindex;
