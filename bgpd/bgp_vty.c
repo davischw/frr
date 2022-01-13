@@ -17082,7 +17082,7 @@ static void bgp_config_write_peer_global(struct vty *vty, struct bgp *bgp,
 	/* password */
 	if (peergroup_flag_check(peer, PEER_FLAG_PASSWORD))
 		vty_out(vty, " neighbor %s password %s\n", addr,
-			peer->password);
+			vty->is_show_running ? "****" : peer->password);
 
 	/* neighbor solo */
 	if (CHECK_FLAG(peer->flags, PEER_FLAG_LONESOUL)) {
