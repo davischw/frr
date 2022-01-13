@@ -999,7 +999,8 @@ void cli_show_ip_rip_authentication_string(struct vty *vty,
 					   bool show_defaults)
 {
 	vty_out(vty, " ip rip authentication string %s\n",
-		yang_dnode_get_string(dnode, NULL));
+		vty->is_show_running ? "****"
+				     : yang_dnode_get_string(dnode, NULL));
 }
 
 /*
