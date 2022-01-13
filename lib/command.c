@@ -1780,7 +1780,13 @@ DEFUN (show_running_config,
        SHOW_STR
        "running configuration (same as write terminal)\n")
 {
-	return vty_write_config(vty);
+	int result;
+
+	vty->is_show_running = true;
+	result = vty_write_config(vty);
+	vty->is_show_running = false;
+
+	return result;
 }
 
 /* ALIAS_FIXME for 'write file' */

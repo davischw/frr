@@ -3234,7 +3234,9 @@ DEFUN (vtysh_write_terminal,
        "Skip \"Building configuration...\" header\n")
 {
 	unsigned int i;
-	char line[] = "do write terminal";
+	char line[] = "do write terminal\n";
+	char line_show_running[] = "do show running-config\n";
+	char *line_selection = line;
 
 	if (!strcmp(argv[argc - 1]->arg, "no-header"))
 		argc--;
@@ -3244,10 +3246,13 @@ DEFUN (vtysh_write_terminal,
 		vty_out(vty, "!\n");
 	}
 
+	if (strcmp(argv[1]->text, "running-config") == 0)
+		line_selection = line_show_running;
+
 	for (i = 0; i < array_size(vtysh_client); i++)
 		if ((argc < 3)
 		    || (strmatch(vtysh_client[i].name, argv[2]->text)))
-			vtysh_client_config(&vtysh_client[i], line);
+			vtysh_client_config(&vtysh_client[i], line_selection);
 
 	/* Integrate vtysh specific configuration. */
 	vty_open_pager(vty);

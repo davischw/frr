@@ -142,6 +142,7 @@ struct vty {
 	struct nb_config *candidate_config_base;
 
 	/* Dynamic transaction information. */
+	bool is_show_running;
 	bool pending_allowed;
 	bool pending_commit;
 	char *pending_cmds_buf;
