@@ -522,6 +522,12 @@ struct cmd_node {
 #define BFD_INTEGRATION_SOURCEV4_STR "Use IPv4 source for BFD session\n"
 #define BFD_INTEGRATION_SOURCEV6_STR "Use IPv4 source for BFD session\n"
 
+/* Route redistribution strings. */
+#define ROUTING_CMD_STR "Routing protocol information\n"
+#define REDISTRIBUTION_CMD_STR "Redistribution information\n"
+#define REDIST_NO_LIST_STR "Unlisted command\n"
+#define REDIST_COMMA_STR "Prepend comma\n"
+
 /* Prototypes. */
 extern void install_node(struct cmd_node *node);
 extern void install_default(enum node_type);

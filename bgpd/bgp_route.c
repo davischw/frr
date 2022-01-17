@@ -16090,6 +16090,105 @@ end_loop:
 	return CMD_SUCCESS;
 }
 
+static inline void show_bgp_redist_route(struct vty *vty, const struct bgp *bgp,
+					 const struct bgp_dest *dest,
+					 const struct bgp_path_info *path_info)
+{
+	const struct interface *interface;
+	const struct attr *attr;
+
+	interface =
+		if_lookup_by_index(path_info->attr->nh_ifindex, bgp->vrf_id);
+	/* Ugly hack so we can use BGP_ATTR_NEXTHOP_AFI_IP6() macro. */
+	attr = path_info->attr;
+
+	vty_out(vty, "{\"prefix\":\"%pFX\",", &dest->p);
+	if (BGP_ATTR_NEXTHOP_AFI_IP6(attr))
+		vty_out(vty, "\"nextHop\":\"%pI6\",", &attr->mp_nexthop_global);
+	else
+		vty_out(vty, "\"nextHop\":\"%pI4\",", &attr->nexthop);
+
+	vty_out(vty, "\"interface\":\"%s\",",
+		interface ? interface->name : "unknown");
+	vty_out(vty, "\"metric\":%u,", attr->med);
+	vty_out(vty, "\"vrf\":\"%s\",", vrf_id_to_name(bgp->vrf_id));
+	vty_out(vty, "\"from\":\"%s\",", zebra_route_string(path_info->type));
+	vty_out(vty, "\"to\":\"bgp\"}");
+}
+
+static void show_bgp_redist_routes(struct vty *vty)
+{
+	struct listnode *node;
+	struct bgp *bgp;
+	bool first = true;
+
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		afi_t afi;
+
+		for (afi = AFI_IP; afi < AFI_MAX; afi++) {
+			safi_t safi;
+
+			for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++) {
+				const struct bgp_table *table =
+					bgp->rib[afi][safi];
+				struct bgp_dest *dest;
+
+				for (dest = bgp_table_top(table); dest;
+				     dest = bgp_route_next(dest)) {
+					const struct bgp_path_info *path_info =
+						bgp_dest_get_bgp_path_info(
+							dest);
+					if (path_info == NULL)
+						continue;
+					if (path_info->type == ZEBRA_ROUTE_BGP)
+						continue;
+
+					if (first)
+						first = false;
+					else
+						vty_out(vty, ",");
+
+					show_bgp_redist_route(vty, bgp, dest,
+							      path_info);
+				}
+			}
+		}
+	}
+}
+
+DEFPY(show_bgp_redist, show_bgp_redist_cmd,
+      "show routing redistribution bgpd json",
+      SHOW_STR
+      ROUTING_CMD_STR
+      REDISTRIBUTION_CMD_STR
+      BGP_STR
+      JSON_STR)
+{
+	vty_out(vty, "[");
+	show_bgp_redist_routes(vty);
+	vty_out(vty, "]\n");
+	return CMD_SUCCESS;
+}
+
+DEFUN_NOSH(show_bgp_redist_no_list, show_bgp_redist_no_list_cmd,
+	   "show routing redistribution bgpd json no-list [comma]",
+	   SHOW_STR
+	   ROUTING_CMD_STR
+	   REDISTRIBUTION_CMD_STR
+	   BGP_STR
+	   JSON_STR
+	   REDIST_NO_LIST_STR
+	   REDIST_COMMA_STR)
+{
+	if (argc == 7)
+		vty_out(vty, ",");
+
+	vty_out(vty, "{\"bgpd\":[");
+	show_bgp_redist_routes(vty);
+	vty_out(vty, "]}\n");
+	return CMD_SUCCESS;
+}
+
 /* also used for encap safi */
 static void bgp_config_write_network_vpn(struct vty *vty, struct bgp *bgp,
 					 afi_t afi, safi_t safi)
@@ -16466,6 +16565,9 @@ void bgp_route_init(void)
 
 	install_element(ENABLE_NODE, &show_bgp_rib_out_cmd);
 	install_element(ENABLE_NODE, &show_bgp_rib_local_cmd);
+
+	install_element(ENABLE_NODE, &show_bgp_redist_cmd);
+	install_element(ENABLE_NODE, &show_bgp_redist_no_list_cmd);
 }
 
 void bgp_route_finish(void)
