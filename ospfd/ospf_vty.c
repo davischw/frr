@@ -12092,7 +12092,102 @@ DEFPY(show_ip_ospf_virtual_link, show_ip_ospf_virtual_link_cmd,
 
 	vty_out(vty, "%s\n", json_object_to_json_string(json));
 	json_object_put(json);
+	return CMD_SUCCESS;
+}
 
+static inline void
+show_ospf_redist_route(struct vty *vty, const struct ospf *ospf,
+		       const struct external_info *external_info)
+{
+	const struct interface *interface =
+		if_lookup_by_index(external_info->ifindex, ospf->vrf_id);
+
+	vty_out(vty, "{\"prefix\":\"%pFX\",", &external_info->p);
+	vty_out(vty, "\"nextHop\":\"%pI4\",", &external_info->nexthop);
+	vty_out(vty, "\"interface\":\"%s\",",
+		interface ? interface->name : "unknown");
+	vty_out(vty, "\"metric\":%u,", external_info->route_map_set.metric);
+	vty_out(vty, "\"vrf\":\"%s\",", vrf_id_to_name(ospf->vrf_id));
+	vty_out(vty, "\"from\":\"%s\",",
+		zebra_route_string(external_info->type));
+	vty_out(vty, "\"to\":\"ospf\"}");
+}
+
+static void show_ospf_redist_routes(struct vty *vty)
+{
+	struct listnode *node;
+	struct ospf *ospf;
+	bool first = true;
+
+	for (ALL_LIST_ELEMENTS_RO(om->ospf, node, ospf)) {
+		int route_type;
+
+		for (route_type = 0; route_type <= ZEBRA_ROUTE_MAX;
+		     route_type++) {
+			struct listnode *external_node;
+			struct ospf_external *external;
+
+			/* Skip unallocated lists. */
+			if (ospf->external[route_type] == NULL)
+				continue;
+
+			for (ALL_LIST_ELEMENTS_RO(ospf->external[route_type],
+						  external_node, external)) {
+				struct route_node *route_node;
+
+				for (route_node =
+					     route_top(external->external_info);
+				     route_node;
+				     route_node = route_next(route_node)) {
+					struct external_info *external_info =
+						route_node->info;
+
+					if (external_info == NULL)
+						continue;
+
+					if (first)
+						first = false;
+					else
+						vty_out(vty, ",");
+
+					show_ospf_redist_route(vty, ospf,
+							       external_info);
+				}
+			}
+		}
+	}
+}
+
+DEFPY(show_ospf_redist, show_ospf_redist_cmd,
+      "show routing redistribution ospfd json",
+      SHOW_STR
+      ROUTING_CMD_STR
+      REDISTRIBUTION_CMD_STR
+      OSPF_STR
+      JSON_STR)
+{
+	vty_out(vty, "[");
+	show_ospf_redist_routes(vty);
+	vty_out(vty, "]");
+	return CMD_SUCCESS;
+}
+
+DEFUN_NOSH(show_ospf_redist_no_list, show_ospf_redist_no_list_cmd,
+	   "show routing redistribution ospfd json no-list [comma]",
+	   SHOW_STR
+	   ROUTING_CMD_STR
+	   REDISTRIBUTION_CMD_STR
+	   OSPF_STR
+	   JSON_STR
+	   REDIST_NO_LIST_STR
+	   REDIST_COMMA_STR)
+{
+	if (argc == 7)
+		vty_out(vty, ",");
+
+	vty_out(vty, "{\"ospfd\":[");
+	show_ospf_redist_routes(vty);
+	vty_out(vty, "]}");
 	return CMD_SUCCESS;
 }
 
@@ -13074,6 +13169,10 @@ void ospf_vty_show_init(void)
 
 	/* "show ip ospf virtual link" command */
 	install_element(VIEW_NODE, &show_ip_ospf_virtual_link_cmd);
+
+	/* Show command for redistributed routes. */
+	install_element(ENABLE_NODE, &show_ospf_redist_cmd);
+	install_element(ENABLE_NODE, &show_ospf_redist_no_list_cmd);
 }
 
 /* Initialization of OSPF interface. */
