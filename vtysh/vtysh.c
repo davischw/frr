@@ -3286,7 +3286,7 @@ DEFUN(vtysh_show_routing_distribution, vtysh_show_routing_distribution_cmd,
 	int daemon_index;
 	bool first = true;
 	char command[128];
-	const char *daemons[] = {"bgpd", "ripd", NULL};
+	const char *daemons[] = {"bgpd", "ripd", "ospfd", NULL};
 
 	vty_out(vty, "[");
 	for (daemon_index = 0; daemons[daemon_index]; daemon_index++) {
