@@ -79,6 +79,8 @@ static void sigint(void)
 {
 	zlog_notice("Terminating on signal");
 
+	frr_early_fini();
+
 	static_vrf_terminate();
 
 	frr_fini();

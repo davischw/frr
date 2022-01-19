@@ -83,6 +83,8 @@ static void sigint(void)
 {
 	zlog_notice("Terminating on signal");
 
+	frr_early_fini();
+
 	bfd_protocol_integration_set_shutdown(true);
 	rip_vrf_terminate();
 	if_rmap_terminate();

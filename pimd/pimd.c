@@ -146,6 +146,8 @@ void pim_terminate(void)
 {
 	struct zclient *zclient;
 
+	frr_early_fini();
+
 	bfd_protocol_integration_set_shutdown(true);
 
 	pimsb_shutdown();

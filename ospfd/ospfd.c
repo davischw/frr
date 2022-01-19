@@ -663,6 +663,8 @@ void ospf_terminate(void)
 
 	SET_FLAG(om->options, OSPF_MASTER_SHUTDOWN);
 
+	frr_early_fini();
+
 	/* Skip some steps if OSPF not actually running */
 	if (listcount(om->ospf) == 0)
 		goto done;
