@@ -3275,6 +3275,37 @@ DEFUN (vtysh_show_running_config,
 	return vtysh_write_terminal(self, vty, argc, argv);
 }
 
+DEFUN(vtysh_show_routing_distribution, vtysh_show_routing_distribution_cmd,
+      "show routing redistribution json",
+      SHOW_STR
+      ROUTING_CMD_STR
+      REDISTRIBUTION_CMD_STR
+      JSON_STR)
+{
+	const char *daemon;
+	int daemon_index;
+	bool first = true;
+	char command[128];
+	const char *daemons[] = {"bgpd", "ripd", NULL};
+
+	vty_out(vty, "[");
+	for (daemon_index = 0; daemons[daemon_index]; daemon_index++) {
+		daemon = daemons[daemon_index];
+
+		snprintf(command, sizeof(command),
+			 "do show routing redistribution %s json no-list%s",
+			 daemon, first ? "" : " comma");
+
+		if (vtysh_client_execute_name(daemon, command) == CMD_SUCCESS) {
+			if (first)
+				first = false;
+		}
+	}
+	vty_out(vty, "]\n");
+
+	return CMD_SUCCESS;
+}
+
 DEFUN (vtysh_integrated_config,
        vtysh_integrated_config_cmd,
        "service integrated-vtysh-config",
@@ -4871,6 +4902,8 @@ void vtysh_init_vty(void)
 
 	install_element(CONFIG_NODE, &vtysh_integrated_config_cmd);
 	install_element(CONFIG_NODE, &no_vtysh_integrated_config_cmd);
+
+	install_element(ENABLE_NODE, &vtysh_show_routing_distribution_cmd);
 
 	/* "write memory" command. */
 	install_element(ENABLE_NODE, &vtysh_write_memory_cmd);

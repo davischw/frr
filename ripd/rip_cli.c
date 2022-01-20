@@ -27,6 +27,7 @@
 #include "command.h"
 #include "northbound_cli.h"
 #include "libfrr.h"
+#include "lib/table.h"
 
 #include "ripd/ripd.h"
 #include "ripd/rip_nb.h"
@@ -1184,6 +1185,85 @@ DEFUN (rip_no_distribute_list,
 					 argv[2 + prefix]->arg, ifname);
 }
 
+static inline void show_rip_redist_route(struct vty *vty, const struct rip *rip,
+					 const struct rip_info *info)
+{
+	const struct interface *interface =
+		if_lookup_by_index(info->nh.ifindex, rip->vrf->vrf_id);
+
+	vty_out(vty, "{\"prefix\":\"%pFX\",", &info->rp->p);
+	vty_out(vty, "\"nextHop\":\"%pI4\",", &info->nh.gate.ipv4);
+	vty_out(vty, "\"interface\":\"%s\",",
+		interface ? interface->name : "unknown");
+	vty_out(vty, "\"metric\":%u,", info->metric);
+	vty_out(vty, "\"vrf\":\"%s\",", rip->vrf_name);
+	vty_out(vty, "\"from\":\"%s\",", zebra_route_string(info->type));
+	vty_out(vty, "\"to\":\"rip\"}");
+}
+
+static void show_rip_redist_routes(struct vty *vty)
+{
+	struct rip *rip;
+	bool first = true;
+
+	RB_FOREACH (rip, rip_instance_head, &rip_instances) {
+		struct route_node *route_node;
+
+		for (route_node = route_top(rip->table); route_node;
+		     route_node = route_next(route_node)) {
+			const struct list *route_list = route_node->info;
+			const struct listnode *route_list_node;
+			const struct rip_info *info = route_node->info;
+
+			if (route_list == NULL || listcount(route_list) == 0)
+				continue;
+
+			route_list_node = listhead(route_list);
+			info = route_list_node->data;
+
+			if (first)
+				first = false;
+			else
+				vty_out(vty, ",");
+
+			show_rip_redist_route(vty, rip, info);
+		}
+	}
+}
+
+DEFUN(show_rip_redist, show_rip_redist_cmd,
+      "show routing redistribution ripd json",
+      SHOW_STR
+      ROUTING_CMD_STR
+      REDISTRIBUTION_CMD_STR
+      RIP_STR
+      JSON_STR)
+{
+	vty_out(vty, "[");
+	show_rip_redist_routes(vty);
+	vty_out(vty, "]\n");
+	return CMD_SUCCESS;
+}
+
+DEFUN_NOSH(show_rip_redist_no_list, show_rip_redist_no_list_cmd,
+	   "show routing redistribution ripd json no-list [comma]",
+	   SHOW_STR
+	   ROUTING_CMD_STR
+	   REDISTRIBUTION_CMD_STR
+	   RIP_STR
+	   JSON_STR
+	   REDIST_NO_LIST_STR
+	   REDIST_COMMA_STR)
+{
+	if (argc == 7)
+		vty_out(vty, ",");
+
+	vty_out(vty, "{\"ripd\":[");
+	show_rip_redist_routes(vty);
+	vty_out(vty, "]}\n");
+	return CMD_SUCCESS;
+}
+
 void rip_cli_init(void)
 {
 	install_element(CONFIG_NODE, &router_rip_cmd);
@@ -1233,4 +1313,7 @@ void rip_cli_init(void)
 	install_element(INTERFACE_NODE, &no_ip_rip_bfd_profile_cmd);
 
 	install_element(ENABLE_NODE, &clear_ip_rip_cmd);
+
+	install_element(ENABLE_NODE, &show_rip_redist_cmd);
+	install_element(ENABLE_NODE, &show_rip_redist_no_list_cmd);
 }
