@@ -1872,6 +1872,87 @@ DEFPY(debug_ospf6_route,
 	return CMD_SUCCESS;
 }
 
+static inline void show_ospf6_redist_route(struct vty *vty,
+					   const struct ospf6 *ospf6,
+					   const struct ospf6_route *route)
+{
+	const struct ospf6_nexthop *nexthop = NULL;
+	const struct interface *interface = NULL;
+
+	if (route->nh_list && listcount(route->nh_list) > 0) {
+		struct listnode *node = listhead(route->nh_list);
+		nexthop = node->data;
+		interface = if_lookup_by_index(nexthop->ifindex, ospf6->vrf_id);
+	}
+
+	vty_out(vty, "{\"prefix\":\"%pFX\",", &route->prefix);
+	if (nexthop)
+		vty_out(vty, "\"nextHop\":\"%pI6\",", &nexthop->address);
+	else
+		vty_out(vty, "\"nextHop\":\"::\",");
+
+	vty_out(vty, "\"interface\":\"%s\",",
+		interface ? interface->name : "unknown");
+	vty_out(vty, "\"metric\":%u,", route->path.cost);
+	vty_out(vty, "\"vrf\":\"%s\",", vrf_id_to_name(ospf6->vrf_id));
+	vty_out(vty, "\"from\":\"%s\",", zebra_route_string(route->type));
+	vty_out(vty, "\"to\":\"ospf6\"}");
+}
+
+static void show_ospf6_redist_routes(struct vty *vty)
+{
+	struct listnode *node;
+	struct ospf6 *ospf6;
+	bool first = true;
+
+	for (ALL_LIST_ELEMENTS_RO(om6->ospf6, node, ospf6)) {
+		struct ospf6_route *route;
+
+		for (route = ospf6_route_head(ospf6->external_table); route;
+		     route = ospf6_route_next(route)) {
+			if (first)
+				first = false;
+			else
+				vty_out(vty, ",");
+
+			show_ospf6_redist_route(vty, ospf6, route);
+		}
+	}
+}
+
+DEFUN(show_ospf6_redist, show_ospf6_redist_cmd,
+      "show routing redistribution ospf6d json",
+      SHOW_STR
+      ROUTING_CMD_STR
+      REDISTRIBUTION_CMD_STR
+      OSPF6_STR
+      JSON_STR)
+{
+	vty_out(vty, "[");
+	show_ospf6_redist_routes(vty);
+	vty_out(vty, "]");
+	return CMD_SUCCESS;
+}
+
+DEFUN_NOSH(show_ospf6_redist_no_list, show_ospf6_redist_no_list_cmd,
+	   "show routing redistribution ospf6d json no-list [comma]",
+	   SHOW_STR
+	   ROUTING_CMD_STR
+	   REDISTRIBUTION_CMD_STR
+	   OSPF6_STR
+	   JSON_STR
+	   REDIST_NO_LIST_STR
+	   REDIST_COMMA_STR)
+{
+	if (argc == 7)
+		vty_out(vty, ",");
+
+	vty_out(vty, "{\"ospf6d\":[");
+	show_ospf6_redist_routes(vty);
+	vty_out(vty, "]}");
+	return CMD_SUCCESS;
+}
+
 int config_write_ospf6_debug_route(struct vty *vty)
 {
 	if (IS_OSPF6_DEBUG_ROUTE(ALL) == OSPF6_DEBUG_ROUTE_ALL) {
@@ -1894,4 +1975,7 @@ void install_element_ospf6_debug_route(void)
 {
 	install_element(ENABLE_NODE, &debug_ospf6_route_cmd);
 	install_element(CONFIG_NODE, &debug_ospf6_route_cmd);
+
+	install_element(ENABLE_NODE, &show_ospf6_redist_cmd);
+	install_element(ENABLE_NODE, &show_ospf6_redist_no_list_cmd);
 }
