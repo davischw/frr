@@ -174,11 +174,13 @@ module frr-zebra {
         description
           "Lookup both unicast and mcast, use entry with lower distance.";
       }
+      /* temporarily not supported (NHT rework)
       enum "longer-prefix" {
         value 5;
         description
           "Lookup both unicast and mcast, use entry with longer prefix.";
       }
+      */
     }
     description
       "Multicast RPF lookup behavior";
@@ -2069,7 +2071,7 @@ module frr-zebra {
       "Data model for the Zebra daemon.";
     leaf mcast-rpf-lookup {
       type frr-zebra:mcast-rpf-lookup-mode;
-      default "mrib-then-urib";
+      default "none";
       description
         "Multicast RPF lookup behavior.";
     }

@@ -98,15 +98,14 @@ static void show_ip_route_nht_dump(struct vty *vty, struct nexthop *nexthop,
 
 DEFUN (ip_multicast_mode,
        ip_multicast_mode_cmd,
-       "ip multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance|longer-prefix>",
+       "ip multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance>",
        IP_STR
        "Multicast options\n"
        "RPF lookup behavior\n"
        "Lookup in unicast RIB only\n"
        "Lookup in multicast RIB only\n"
        "Try multicast RIB first, fall back to unicast RIB\n"
-       "Lookup both, use entry with lower distance\n"
-       "Lookup both, use entry with longer prefix\n")
+       "Lookup both, use entry with lower distance\n")
 {
 	char *mode = argv[3]->text;
 
@@ -118,8 +117,6 @@ DEFUN (ip_multicast_mode,
 		multicast_mode_ipv4_set(MCAST_MIX_MRIB_FIRST);
 	else if (strmatch(mode, "lower-distance"))
 		multicast_mode_ipv4_set(MCAST_MIX_DISTANCE);
-	else if (strmatch(mode, "longer-prefix"))
-		multicast_mode_ipv4_set(MCAST_MIX_PFXLEN);
 	else {
 		vty_out(vty, "Invalid mode specified\n");
 		return CMD_WARNING_CONFIG_FAILED;
@@ -130,7 +127,7 @@ DEFUN (ip_multicast_mode,
 
 DEFUN (no_ip_multicast_mode,
        no_ip_multicast_mode_cmd,
-       "no ip multicast rpf-lookup-mode [<urib-only|mrib-only|mrib-then-urib|lower-distance|longer-prefix>]",
+       "no ip multicast rpf-lookup-mode [<urib-only|mrib-only|mrib-then-urib|lower-distance>]",
        NO_STR
        IP_STR
        "Multicast options\n"
@@ -138,8 +135,7 @@ DEFUN (no_ip_multicast_mode,
        "Lookup in unicast RIB only\n"
        "Lookup in multicast RIB only\n"
        "Try multicast RIB first, fall back to unicast RIB\n"
-       "Lookup both, use entry with lower distance\n"
-       "Lookup both, use entry with longer prefix\n")
+       "Lookup both, use entry with lower distance\n")
 {
 	multicast_mode_ipv4_set(MCAST_NO_CONFIG);
 	return CMD_SUCCESS;

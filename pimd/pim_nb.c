@@ -36,6 +36,12 @@ const struct frr_yang_module_info frr_pim_info = {
 				.destroy = routing_control_plane_protocols_control_plane_protocol_pim_address_family_destroy,
 			}
 		},
+               {
+                       .xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/mcast-rpf-lookup",
+                       .cbs = {
+                               .modify = pim_rpf_mode_modify,
+                       }
+               },
 		{
 			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/ecmp",
 			.cbs = {

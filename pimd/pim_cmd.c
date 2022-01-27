@@ -3682,6 +3682,48 @@ DEFUN (show_ip_ssmpingd,
 	return CMD_SUCCESS;
 }
 
+static int multicast_mode_ipv4_set(struct vty *vty, const char *mode)
+{
+	const char *vrfname;
+	char xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(xpath, sizeof(xpath), FRR_PIM_VRF_XPATH "/mcast-rpf-lookup",
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
+
+	nb_cli_enqueue_change(vty, xpath, NB_OP_MODIFY, mode);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY(ip_pim_multicast_mode, ip_pim_multicast_mode_cmd,
+      "ip multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance>$mode",
+      IP_STR
+      "Multicast options\n"
+      "RPF lookup behavior\n"
+      "Lookup in unicast RIB only\n"
+      "Lookup in multicast RIB only\n"
+      "Try multicast RIB first, fall back to unicast RIB\n"
+      "Lookup both, use entry with lower distance\n")
+{
+	return multicast_mode_ipv4_set(vty, mode);
+}
+
+DEFUN(no_ip_pim_multicast_mode, no_ip_pim_multicast_mode_cmd,
+      "no ip multicast rpf-lookup-mode [<urib-only|mrib-only|mrib-then-urib|lower-distance>]",
+      NO_STR IP_STR
+      "Multicast options\n"
+      "RPF lookup behavior\n"
+      "Lookup in unicast RIB only\n"
+      "Lookup in multicast RIB only\n"
+      "Try multicast RIB first, fall back to unicast RIB\n"
+      "Lookup both, use entry with lower distance\n")
+{
+	return multicast_mode_ipv4_set(vty, "none");
+}
+
 DEFPY (ip_mfib_rmap,
        ip_mfib_rmap_cmd,
        "[no] ip mfib route-map RMAP_NAME",
@@ -8123,6 +8165,10 @@ void pim_cmd_init(void)
 	install_element(VIEW_NODE, &show_ip_mroute_summary_vrf_all_cmd);
 	install_element(VIEW_NODE, &show_ip_rib_cmd);
 	install_element(VIEW_NODE, &show_ip_ssmpingd_cmd);
+	install_element(CONFIG_NODE, &ip_pim_multicast_mode_cmd);
+	install_element(VRF_NODE, &ip_pim_multicast_mode_cmd);
+	install_element(CONFIG_NODE, &no_ip_pim_multicast_mode_cmd);
+	install_element(VRF_NODE, &no_ip_pim_multicast_mode_cmd);
 	install_element(VIEW_NODE, &show_ip_pim_nexthop_cmd);
 	install_element(VIEW_NODE, &show_ip_pim_nexthop_lookup_cmd);
 	install_element(VIEW_NODE, &show_ip_pim_bsrp_cmd);

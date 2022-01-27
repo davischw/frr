@@ -85,6 +85,45 @@ module frr-pim {
     type string;
   }
 
+  typedef mcast-rpf-lookup-mode {
+    type enumeration {
+      enum "none" {
+        value 0;
+        description
+          "No mode set.";
+      }
+      enum "mrib-only" {
+        value 1;
+        description
+          "Lookup in unicast RIB only.";
+      }
+      enum "urib-only" {
+        value 2;
+        description
+          "Lookup in multicast RIB only.";
+      }
+      enum "mrib-then-urib" {
+        value 3;
+        description
+          "Try multicast RIB first, fall back to unicast RIB.";
+      }
+      enum "lower-distance" {
+        value 4;
+        description
+          "Lookup both unicast and mcast, use entry with lower distance.";
+      }
+      /* temporarily not supported (NHT rework)
+      enum "longer-prefix" {
+        value 5;
+        description
+          "Lookup both unicast and mcast, use entry with longer prefix.";
+      }
+      */
+    }
+    description
+      "Multicast RPF lookup behavior";
+  }
+
   /*
    * Groupings
    */
@@ -170,6 +209,13 @@ module frr-pim {
       default "false";
       description
         "Disable PIM operation";
+    }
+
+    leaf mcast-rpf-lookup {
+      type frr-pim:mcast-rpf-lookup-mode;
+      default "none";
+      description
+        "Multicast RPF lookup behavior.";
     }
 
     leaf send-v6-secondary {

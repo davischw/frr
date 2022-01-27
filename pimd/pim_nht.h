@@ -116,4 +116,6 @@ bool pim_nht_bsr_rpf_check(struct pim_instance *pim, pim_addr bsr_addr,
 
 void pim_nht_init(void);
 
+void pim_nht_rpf_modeswitch(struct pim_instance *pim);
+
 #endif

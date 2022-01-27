@@ -27,6 +27,7 @@ extern const struct frr_yang_module_info frr_gmp_info;
 extern const struct frr_yang_module_info frr_pim_candidate_info;
 
 /* frr-pim prototypes*/
+int pim_rpf_mode_modify(struct nb_cb_modify_args *args);
 int routing_control_plane_protocols_control_plane_protocol_pim_address_family_ecmp_modify(
 	struct nb_cb_modify_args *args);
 int routing_control_plane_protocols_control_plane_protocol_pim_address_family_ecmp_rebalance_modify(

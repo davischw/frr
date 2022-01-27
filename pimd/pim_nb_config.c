@@ -36,6 +36,7 @@
 #include "lib_errors.h"
 #include "pim_util.h"
 #include "pim6_mld.h"
+#include "pim_nht.h"
 
 #if PIM_IPV == 6
 #define pim6_msdp_err(funcname, argtype)                                       \
@@ -561,6 +562,36 @@ int pim_address_family_destroy(struct nb_cb_destroy_args *args)
 	case NB_EV_PREPARE:
 	case NB_EV_ABORT:
 	case NB_EV_APPLY:
+		break;
+	}
+
+	return NB_OK;
+}
+
+/*
+ * XPath:
+ * /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/mcast-rpf-lookup
+ */
+int pim_rpf_mode_modify(struct nb_cb_modify_args *args)
+{
+	struct vrf *vrf;
+	struct pim_instance *pim;
+	enum rpf_mode mode;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+
+		mode = yang_dnode_get_enum(args->dnode, NULL);
+		if (mode != pim->rpf_mode) {
+			pim->rpf_mode = mode;
+			pim_nht_rpf_modeswitch(pim);
+		}
 		break;
 	}
 

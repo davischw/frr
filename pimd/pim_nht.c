@@ -1300,6 +1300,19 @@ static void nht_zclient_connect(struct thread *t)
 		zlog_debug("%s: connection succeeded", __func__);
 }
 
+static void nht_cache_modeswitch(struct hash_bucket *bucket, void *arg)
+{
+	struct pim_instance *pim = arg;
+	struct pim_nexthop_cache *pnc = bucket->data;
+
+	pim_nht_reselect(pim, pnc, false);
+}
+
+void pim_nht_rpf_modeswitch(struct pim_instance *pim)
+{
+	hash_iterate(pim->rpf_hash, nht_cache_modeswitch, pim);
+}
+
 static void nht_cache_reset(struct hash_bucket *bucket, void *arg)
 {
 	struct pim_instance *pim = arg;
