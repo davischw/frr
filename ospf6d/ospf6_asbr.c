@@ -1378,8 +1378,12 @@ void ospf6_asbr_remove_externals_from_area(struct ospf6_area *oa)
 	while (lsa != NULL) {
 		assert(lsa->lock > 1);
 		lsanext = ospf6_lsdb_next(iterend, lsa);
-		if (ntohs(lsa->header->type) == OSPF6_LSTYPE_AS_EXTERNAL)
+		if (ntohs(lsa->header->type) == OSPF6_LSTYPE_AS_EXTERNAL) {
+			THREAD_OFF(lsa->expire);
+			THREAD_OFF(lsa->refresh);
+			ospf6_flood_clear(lsa);
 			ospf6_lsdb_remove(lsa, ospf6->lsdb);
+		}
 		lsa = lsanext;
 	}
 }
