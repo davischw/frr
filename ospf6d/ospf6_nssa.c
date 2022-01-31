@@ -134,8 +134,6 @@ ospf6_nssa_find_translated_type5(struct ospf6 *ospf6, struct ospf6_lsa *type7)
 	type = htons(OSPF6_LSTYPE_AS_EXTERNAL);
 	for (ALL_LSDB_TYPED_ADVRTR(ospf6->lsdb, type, ospf6->router_id,
 				   type5)) {
-		if (!CHECK_FLAG(type5->flag, OSPF6_LSA_LOCAL_XLT))
-			continue;
 		if (OSPF6_LSA_IS_MAXAGE(type5))
 			continue;
 
@@ -151,6 +149,8 @@ ospf6_nssa_find_translated_type5(struct ospf6 *ospf6, struct ospf6_lsa *type7)
 				zlog_debug("%s: found %s", __func__,
 					   type5->name);
 
+			/* Reuse pre-existing non-translated Type-5 LSA. */
+			SET_FLAG(type5->flag, OSPF6_LSA_LOCAL_XLT);
 			return type5;
 		}
 	}
