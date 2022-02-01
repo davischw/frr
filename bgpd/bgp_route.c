@@ -16090,6 +16090,138 @@ end_loop:
 	return CMD_SUCCESS;
 }
 
+static void fill_bgp_aggregate_route(const struct prefix *aggregate_prefix,
+				     const struct bgp_aggregate *aggregate,
+				     struct bgp_table *table,
+				     struct json_object *suppresed_json,
+				     struct json_object *advertised_json)
+{
+	struct bgp_dest *dest;
+	struct bgp_dest *top;
+
+	top = bgp_node_get(table, aggregate_prefix);
+	for (dest = bgp_node_get(table, aggregate_prefix); dest;
+	     dest = bgp_route_next_until(dest, top)) {
+		struct json_object *route_json;
+		struct bgp_path_info *path;
+		char prefix_str[PREFIX_STRLEN];
+
+		if (dest->p.prefixlen <= aggregate_prefix->prefixlen)
+			continue;
+
+		route_json = json_object_new_object();
+		prefix2str(&dest->p, prefix_str, sizeof(prefix_str));
+		json_object_string_add(route_json, "prefix", prefix_str);
+
+		/* Simple configuration: suppress all routes. */
+		if (aggregate->summary_only) {
+			json_object_array_add(suppresed_json, route_json);
+			continue;
+		}
+
+		/* Check for path suppression or advertisement. */
+		for (path = bgp_dest_get_bgp_path_info(dest); path;
+		     path = path->next) {
+			if (BGP_PATH_HOLDDOWN(path))
+				continue;
+			if (path->sub_type == BGP_ROUTE_AGGREGATE)
+				continue;
+
+			if (bgp_path_suppressed(path)) {
+				json_object_array_add(suppresed_json,
+						      route_json);
+				break;
+			}
+
+			json_object_array_add(advertised_json, route_json);
+			break;
+		}
+	}
+}
+
+static void print_bgp_aggregate_route(struct json_object *json,
+				      const struct bgp *bgp, afi_t afi,
+				      safi_t safi)
+{
+	struct bgp_table *table = bgp->rib[afi][safi];
+	struct bgp_aggregate *aggregate;
+	struct bgp_dest *dest;
+
+	/* Aggregate-address configuration. */
+	for (dest = bgp_table_top(bgp->aggregate[afi][safi]); dest;
+	     dest = bgp_route_next(dest)) {
+		struct json_object *suppressed_json;
+		struct json_object *advertised_json;
+		struct json_object *aggregate_json;
+		struct bgp_dest *installed_dest;
+		char prefix_str[PREFIX_STRLEN];
+
+		aggregate = bgp_dest_get_bgp_aggregate_info(dest);
+		if (aggregate == NULL)
+			continue;
+
+		installed_dest = bgp_node_get(table, &dest->p);
+		/* Route not installed. */
+		if (installed_dest == NULL)
+			continue;
+
+		bgp_dest_unlock_node(installed_dest);
+
+		aggregate_json = json_object_new_object();
+		prefix2str(&dest->p, prefix_str, sizeof(prefix_str));
+		json_object_object_add(json, prefix_str, aggregate_json);
+		suppressed_json = json_object_new_array();
+		json_object_object_add(aggregate_json, "suppressed",
+				       suppressed_json);
+
+		advertised_json = json_object_new_array();
+		json_object_object_add(aggregate_json, "advertised",
+				       advertised_json);
+
+		fill_bgp_aggregate_route(&dest->p, aggregate, table,
+					 suppressed_json, advertised_json);
+	}
+}
+
+DEFPY(show_bgp_aggregate_route, show_bgp_aggregate_route_cmd,
+      "show bgp neighbors <A.B.C.D|X:X::X:X|WORD>$peer_alias aggregate-address json",
+      SHOW_STR
+      BGP_STR
+      NEIGHBOR_STR
+      NEIGHBOR_ADDR_STR2
+      "BGP aggregate address\n"
+      JSON_STR)
+{
+	struct json_object *json;
+	struct listnode *peer_node;
+	struct listnode *node;
+	struct peer *peer;
+	struct bgp *bgp;
+	safi_t safi;
+	afi_t afi;
+
+	json = json_object_new_object();
+
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		for (ALL_LIST_ELEMENTS_RO(bgp->peer, peer_node, peer)) {
+			if (strcmp(peer_alias, peer->host))
+				continue;
+
+			for (afi = AFI_IP; afi < AFI_MAX; afi++) {
+				for (safi = SAFI_UNICAST; safi < SAFI_MAX;
+				     safi++) {
+					print_bgp_aggregate_route(json, bgp,
+								  afi, safi);
+				}
+			}
+		}
+	}
+
+	vty_out(vty, "%s\n", json_object_to_json_string_ext(json, 0));
+	json_object_put(json);
+	return CMD_SUCCESS;
+}
+
 static inline void show_bgp_redist_route(struct vty *vty, const struct bgp *bgp,
 					 const struct bgp_dest *dest,
 					 const struct bgp_path_info *path_info)
@@ -16568,6 +16700,8 @@ void bgp_route_init(void)
 
 	install_element(ENABLE_NODE, &show_bgp_redist_cmd);
 	install_element(ENABLE_NODE, &show_bgp_redist_no_list_cmd);
+
+	install_element(ENABLE_NODE, &show_bgp_aggregate_route_cmd);
 }
 
 void bgp_route_finish(void)
