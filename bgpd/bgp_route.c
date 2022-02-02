@@ -16321,6 +16321,191 @@ DEFUN_NOSH(show_bgp_redist_no_list, show_bgp_redist_no_list_cmd,
 	return CMD_SUCCESS;
 }
 
+static bool bgp_route_announced_to_peer(struct bgp_table *table,
+					const struct prefix *prefix,
+					const struct peer *peer)
+{
+	struct bgp_dest *dest;
+	struct bgp_adj_out *adj_out;
+
+	dest = bgp_node_get(table, prefix);
+	if (dest == NULL)
+		return false;
+
+	bgp_dest_unlock_node(dest);
+
+	RB_FOREACH (adj_out, bgp_adj_out_rb, &dest->adj_out) {
+		struct peer_af *paf;
+
+		SUBGRP_FOREACH_PEER (adj_out->subgroup, paf) {
+			if (paf->peer != peer || adj_out->attr == NULL)
+				continue;
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool bgp_route_map_match(struct bgp_table *table, struct peer *peer,
+				struct route_map *route_map)
+{
+	struct bgp_dest *dest;
+
+	for (dest = bgp_table_top(table); dest; dest = bgp_route_next(dest)) {
+		struct bgp_path_info *path;
+
+		if (!bgp_route_announced_to_peer(table, &dest->p, peer))
+			continue;
+
+		for (path = bgp_dest_get_bgp_path_info(dest); path;
+		     path = path->next) {
+			struct attr dummy_attr = *path->attr;
+			struct bgp_path_info path_copy = *path;
+			struct bgp_path_info_extra path_extra_copy = {};
+			route_map_result_t result;
+
+			/* Fill temp path_info */
+			prep_for_rmap_apply(&path_copy, &path_extra_copy, dest,
+					    path, path->peer, &dummy_attr);
+
+			RESET_FLAG(dummy_attr.rmap_change_flags);
+
+			result = route_map_apply(route_map, &dest->p,
+						 &path_copy);
+			if (result != RMAP_PERMITMATCH)
+				bgp_attr_flush(&dummy_attr);
+			else {
+				bgp_dest_unlock_node(dest);
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+static void bgp_route_map_match_add(struct bgp_table *table, struct peer *peer,
+				    struct route_map *route_map,
+				    struct json_object *json)
+{
+	struct json_object *route_json;
+	struct bgp_dest *dest;
+
+	for (dest = bgp_table_top(table); dest; dest = bgp_route_next(dest)) {
+		struct bgp_path_info *path;
+
+		if (!bgp_route_announced_to_peer(table, &dest->p, peer))
+			continue;
+
+		for (path = bgp_dest_get_bgp_path_info(dest); path;
+		     path = path->next) {
+			struct attr dummy_attr = *path->attr;
+			struct bgp_path_info path_copy = *path;
+			struct bgp_path_info_extra path_extra_copy = {};
+			route_map_result_t result;
+			char prefix_str[PREFIX_STRLEN];
+
+			/* Fill temp path_info */
+			prep_for_rmap_apply(&path_copy, &path_extra_copy, dest,
+					    path, path->peer, &dummy_attr);
+
+			RESET_FLAG(dummy_attr.rmap_change_flags);
+
+			result = route_map_apply(route_map, &dest->p,
+						 &path_copy);
+			if (result != RMAP_PERMITMATCH) {
+				bgp_attr_flush(&dummy_attr);
+				continue;
+			}
+
+			route_json = json_object_new_object();
+			prefix2str(&dest->p, prefix_str, sizeof(prefix_str));
+			json_object_string_add(route_json, "prefix",
+					       prefix_str);
+			json_object_array_add(json, route_json);
+		}
+	}
+}
+
+static void bgp_peer_advertise_show(struct json_object *json, struct bgp *bgp,
+				    struct peer *peer, afi_t afi, safi_t safi)
+{
+	struct bgp_table *table = bgp->rib[afi][safi];
+	struct json_object *advertise_json;
+	struct bgp_advmap *advmap;
+	bool exists;
+	bool matched;
+
+	frr_each (bgp_advmaps, peer->filter[afi][safi].advmaps, advmap) {
+		struct json_object *advertised_routes_json;
+
+		exists = (advmap->cond == CONDITION_EXIST);
+		matched = bgp_route_map_match(table, peer, advmap->cmap);
+
+		advertise_json = json_object_new_object();
+		advertised_routes_json = json_object_new_array();
+		json_object_object_add(advertise_json, "advertised",
+				       advertised_routes_json);
+		json_object_array_add(json, advertise_json);
+		json_object_string_add(advertise_json, "advertise-map",
+				       advmap->aname);
+		json_object_string_add(advertise_json,
+				       exists ? "exist-map" : "non-exist-map",
+				       advmap->cname);
+		json_object_int_add(advertise_json, "sequence", advmap->seqno);
+
+		/* Check advertise condition. */
+		if ((exists && !matched) || (!exists && matched))
+			continue;
+
+		bgp_route_map_match_add(table, peer, advmap->amap,
+					advertised_routes_json);
+		break;
+	}
+}
+
+DEFPY(show_bgp_advertise, show_bgp_advertise_cmd,
+      "show bgp neighbors <A.B.C.D|X:X::X:X|WORD>$peer_alias conditional-advertise json",
+      SHOW_STR
+      BGP_STR
+      NEIGHBOR_STR
+      NEIGHBOR_ADDR_STR2
+      "BGP conditional advertisement\n"
+      JSON_STR)
+{
+	struct listnode *peer_node;
+	struct json_object *json;
+	struct listnode *node;
+	struct peer *peer;
+	struct bgp *bgp;
+	safi_t safi;
+	afi_t afi;
+
+	json = json_object_new_array();
+
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
+		for (ALL_LIST_ELEMENTS_RO(bgp->peer, peer_node, peer)) {
+			if (strcmp(peer_alias, peer->host))
+				continue;
+
+			for (afi = AFI_IP; afi < AFI_MAX; afi++) {
+				for (safi = SAFI_UNICAST; safi < SAFI_MAX;
+				     safi++) {
+					bgp_peer_advertise_show(json, bgp, peer,
+								afi, safi);
+				}
+			}
+		}
+	}
+
+	vty_out(vty, "%s\n", json_object_to_json_string_ext(json, 0));
+	json_object_put(json);
+
+	return CMD_SUCCESS;
+}
+
 /* also used for encap safi */
 static void bgp_config_write_network_vpn(struct vty *vty, struct bgp *bgp,
 					 afi_t afi, safi_t safi)
@@ -16702,6 +16887,7 @@ void bgp_route_init(void)
 	install_element(ENABLE_NODE, &show_bgp_redist_no_list_cmd);
 
 	install_element(ENABLE_NODE, &show_bgp_aggregate_route_cmd);
+	install_element(ENABLE_NODE, &show_bgp_advertise_cmd);
 }
 
 void bgp_route_finish(void)
