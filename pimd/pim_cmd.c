@@ -3698,28 +3698,35 @@ static int multicast_mode_ipv4_set(struct vty *vty, const char *mode)
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-DEFPY(ip_pim_multicast_mode, ip_pim_multicast_mode_cmd,
-      "ip multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance>$mode",
-      IP_STR
-      "Multicast options\n"
-      "RPF lookup behavior\n"
-      "Lookup in unicast RIB only\n"
-      "Lookup in multicast RIB only\n"
-      "Try multicast RIB first, fall back to unicast RIB\n"
-      "Lookup both, use entry with lower distance\n")
+DEFUN_NOSH(
+       ip_pim_multicast_mode,
+       ip_pim_multicast_mode_cmd,
+       "ip multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance>",
+       IP_STR
+       "Multicast options\n"
+       "RPF lookup behavior\n"
+       "Lookup in unicast RIB only\n"
+       "Lookup in multicast RIB only\n"
+       "Try multicast RIB first, fall back to unicast RIB\n"
+       "Lookup both, use entry with lower distance\n")
 {
+	const char *mode = argv[3]->text;
+
 	return multicast_mode_ipv4_set(vty, mode);
 }
 
-DEFUN(no_ip_pim_multicast_mode, no_ip_pim_multicast_mode_cmd,
-      "no ip multicast rpf-lookup-mode [<urib-only|mrib-only|mrib-then-urib|lower-distance>]",
-      NO_STR IP_STR
-      "Multicast options\n"
-      "RPF lookup behavior\n"
-      "Lookup in unicast RIB only\n"
-      "Lookup in multicast RIB only\n"
-      "Try multicast RIB first, fall back to unicast RIB\n"
-      "Lookup both, use entry with lower distance\n")
+DEFUN_NOSH(
+       no_ip_pim_multicast_mode,
+       no_ip_pim_multicast_mode_cmd,
+       "no ip multicast rpf-lookup-mode [<urib-only|mrib-only|mrib-then-urib|lower-distance>]",
+       NO_STR
+       IP_STR
+       "Multicast options\n"
+       "RPF lookup behavior\n"
+       "Lookup in unicast RIB only\n"
+       "Lookup in multicast RIB only\n"
+       "Try multicast RIB first, fall back to unicast RIB\n"
+       "Lookup both, use entry with lower distance\n")
 {
 	return multicast_mode_ipv4_set(vty, "none");
 }

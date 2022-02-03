@@ -4137,6 +4137,19 @@ DEFUN_HIDDEN(show_cli_graph_vtysh,
 	return CMD_SUCCESS;
 }
 
+DEFUNSH(VTYSH_ZEBRA | VTYSH_PIMD, ip_multicast_mode, ip_multicast_mode_cmd,
+        "ip multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance>",
+        IP_STR
+        "Multicast options\n"
+        "RPF lookup behavior\n"
+        "Lookup in unicast RIB only\n"
+        "Lookup in multicast RIB only\n"
+        "Try multicast RIB first, fall back to unicast RIB\n"
+        "Lookup both, use entry with lower distance\n")
+{
+	return CMD_SUCCESS;
+}
+
 static void vtysh_install_default(enum node_type node)
 {
 	_install_element(node, &config_list_cmd);
@@ -4977,4 +4990,6 @@ void vtysh_init_vty(void)
 	install_element(CONFIG_NODE, &no_vtysh_password_cmd);
 	install_element(CONFIG_NODE, &vtysh_enable_password_cmd);
 	install_element(CONFIG_NODE, &no_vtysh_enable_password_cmd);
+
+	install_element(CONFIG_NODE, &ip_multicast_mode_cmd);
 }

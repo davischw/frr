@@ -96,7 +96,8 @@ static void show_ip_route_dump_vty(struct vty *vty, struct route_table *table);
 static void show_ip_route_nht_dump(struct vty *vty, struct nexthop *nexthop,
 				   struct route_entry *re, unsigned int num);
 
-DEFUN (ip_multicast_mode,
+DEFUN_NOSH(
+	ip_multicast_mode,
        ip_multicast_mode_cmd,
        "ip multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance>",
        IP_STR
@@ -125,7 +126,8 @@ DEFUN (ip_multicast_mode,
 	return CMD_SUCCESS;
 }
 
-DEFUN (no_ip_multicast_mode,
+DEFUN_NOSH(
+	no_ip_multicast_mode,
        no_ip_multicast_mode_cmd,
        "no ip multicast rpf-lookup-mode [<urib-only|mrib-only|mrib-then-urib|lower-distance>]",
        NO_STR
