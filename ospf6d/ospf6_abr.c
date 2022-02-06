@@ -851,9 +851,6 @@ void ospf6_abr_defaults_to_stub(struct ospf6 *o)
 	struct ospf6_route *def, *route;
 	int type = DEFAULT_ROUTE;
 
-	if (!o->backbone)
-		return;
-
 	def = ospf6_route_create(o);
 	def->type = OSPF6_DEST_TYPE_NETWORK;
 	def->prefix.family = AF_INET6;
@@ -862,12 +859,17 @@ void ospf6_abr_defaults_to_stub(struct ospf6 *o)
 	def->type = OSPF6_DEST_TYPE_NETWORK;
 	def->path.type = OSPF6_PATH_TYPE_INTER;
 	def->path.subtype = OSPF6_PATH_SUBTYPE_DEFAULT_RT;
-	def->path.area_id = o->backbone->area_id;
+	def->path.area_id = OSPF_AREA_BACKBONE;
 	def->path.metric_type = metric_type(o, type, 0);
 	def->path.cost = metric_value(o, type, 0);
 
 	for (ALL_LIST_ELEMENTS(o->area_list, node, nnode, oa)) {
-		if (IS_AREA_STUB(oa) || (IS_AREA_NSSA(oa) && oa->no_summary)) {
+		if (oa->area_id == OSPF_AREA_BACKBONE)
+			continue;
+
+		if (IS_OSPF6_ABR(o)
+		    && (IS_AREA_STUB(oa)
+			|| (IS_AREA_NSSA(oa) && oa->no_summary))) {
 			/* announce defaults to stubby areas */
 			if (IS_OSPF6_DEBUG_ABR)
 				zlog_debug(
@@ -877,7 +879,7 @@ void ospf6_abr_defaults_to_stub(struct ospf6 *o)
 			ospf6_abr_originate_summary_to_area(def, oa);
 		} else {
 			/* withdraw defaults when an area switches from stub to
-			 * non-stub */
+			 * non-stub or the router ceases to be an ABR. */
 			route = ospf6_route_lookup(&def->prefix,
 						   oa->summary_prefix);
 			if (route

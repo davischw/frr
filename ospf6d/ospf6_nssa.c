@@ -822,6 +822,9 @@ void ospf6_abr_nssa_type_7_defaults(struct ospf6 *ospf6)
 	struct ospf6_area *oa;
 
 	for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, node, oa)) {
+		if (oa->area_id == OSPF_AREA_BACKBONE)
+			continue;
+
 		if (IS_AREA_NSSA(oa) && oa->nssa_default_originate.enabled
 		    && (IS_OSPF6_ABR(ospf6)
 			|| (IS_OSPF6_ASBR(ospf6)
