@@ -284,6 +284,7 @@ static int ospf6_router_lsa_contains_adj(struct ospf6_area *area,
 	uint16_t type;
 	struct ospf6_lsa *lsa;
 	bool empty = true;
+	bool adj_found = false;
 
 	type = ntohs(OSPF6_LSTYPE_ROUTER);
 	for (ALL_LSDB_TYPED_ADVRTR(area->lsdb, type, adv_router, lsa)) {
@@ -307,11 +308,15 @@ static int ospf6_router_lsa_contains_adj(struct ospf6_area *area,
 			if (lsdesc->type != OSPF6_ROUTER_LSDESC_POINTTOPOINT)
 				continue;
 
-			if (lsdesc->neighbor_router_id == neighbor_router_id)
-				return RTR_LSA_ADJ_FOUND;
+			if (lsdesc->neighbor_router_id == neighbor_router_id) {
+				adj_found = true;
+				break;
+			}
 		}
 	}
 
+	if (adj_found)
+		return RTR_LSA_ADJ_FOUND;
 	if (empty)
 		return RTR_LSA_MISSING;
 
@@ -383,7 +388,7 @@ void ospf6_gr_check_lsdb_consistency(struct ospf6 *ospf6,
 				   "detected inconsistent LSA %s [area %pI4]",
 				   lsa->name, &area->area_id);
 			ospf6_gr_restart_exit(ospf6, reason);
-			return;
+			break;
 		}
 	}
 }
@@ -525,8 +530,10 @@ static bool ospf6_gr_check_adjs(struct ospf6 *ospf6)
 		for (ALL_LSDB_TYPED_ADVRTR(area->lsdb, type, router,
 					   lsa_self)) {
 			found = true;
-			if (!ospf6_gr_check_adjs_lsa(area, lsa_self))
-				return false;
+			if (!ospf6_gr_check_adjs_lsa(area, lsa_self)) {
+				found = false;
+				break;
+			}
 		}
 		if (!found)
 			return false;

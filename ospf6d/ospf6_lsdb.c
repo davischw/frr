@@ -238,6 +238,7 @@ struct ospf6_lsa *ospf6_find_inter_prefix_lsa(struct ospf6 *ospf6,
 					      struct prefix *p)
 {
 	struct ospf6_lsa *lsa;
+	bool found = false;
 	uint16_t type = htons(OSPF6_LSTYPE_INTER_PREFIX);
 
 	for (ALL_LSDB_TYPED_ADVRTR(area->lsdb, type, ospf6->router_id, lsa)) {
@@ -251,9 +252,14 @@ struct ospf6_lsa *ospf6_find_inter_prefix_lsa(struct ospf6 *ospf6,
 		prefix.prefixlen = prefix_lsa->prefix.prefix_length;
 		ospf6_prefix_in6_addr(&prefix.u.prefix6, prefix_lsa,
 				      &prefix_lsa->prefix);
-		if (prefix_same(p, &prefix))
-			return lsa;
+		if (prefix_same(p, &prefix)) {
+			found = true;
+			break;
+		}
 	}
+
+	if (found)
+		return lsa;
 
 	return NULL;
 }

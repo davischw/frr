@@ -62,6 +62,7 @@ static int ospf6_abr_nssa_am_elected(struct ospf6_area *oa)
 	struct ospf6_router_lsa *router_lsa;
 	in_addr_t *best = NULL;
 	uint16_t type;
+	int ret = 0;
 
 	type = htons(OSPF6_LSTYPE_ROUTER);
 
@@ -81,7 +82,8 @@ static int ospf6_abr_nssa_am_elected(struct ospf6_area *oa)
 			if (IS_OSPF6_DEBUG_NSSA)
 				zlog_debug("%s: router %pI4 asserts Nt",
 					   __func__, &lsa->header->id);
-			return 1;
+			ret = 1;
+			break;
 		}
 
 		if (best == NULL)
@@ -89,6 +91,8 @@ static int ospf6_abr_nssa_am_elected(struct ospf6_area *oa)
 		else if (IPV4_ADDR_CMP(best, &lsa->header->adv_router) < 0)
 			best = &lsa->header->adv_router;
 	}
+	if (ret != 0)
+		return ret;
 
 	if (best == NULL) {
 		if (IS_OSPF6_DEBUG_NSSA)
@@ -119,6 +123,7 @@ ospf6_nssa_find_translated_type5(struct ospf6 *ospf6, struct ospf6_lsa *type7)
 	struct prefix prefix5, prefix7;
 	struct ospf6_lsa *type5;
 	uint16_t type;
+	bool found = false;
 
 	/* Find the AS external LSA from Type-7 LSA */
 	if (IS_OSPF6_DEBUG_NSSA)
@@ -151,9 +156,13 @@ ospf6_nssa_find_translated_type5(struct ospf6 *ospf6, struct ospf6_lsa *type7)
 
 			/* Reuse pre-existing non-translated Type-5 LSA. */
 			SET_FLAG(type5->flag, OSPF6_LSA_LOCAL_XLT);
-			return type5;
+			found = true;
+			break;
 		}
 	}
+
+	if (found)
+		return type5;
 
 	return NULL;
 }

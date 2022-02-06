@@ -59,12 +59,25 @@ extern struct ospf6_lsa *ospf6_lsdb_next(const struct route_node *iterend,
 					 struct ospf6_lsa *lsa);
 extern unsigned long ospf6_lsdb_count(struct ospf6_lsdb *lsdb, int type);
 
+/*
+ * Iterate over all LSAs of the given type and advertising router from the given
+ * LSDB.
+ *
+ * NOTE: users of this macro should be careful to avoid calling `return` from
+ * within the iteration, otherwise LSA refcount leaking will occur.
+ */
 #define ALL_LSDB_TYPED_ADVRTR(lsdb, type, adv_router, lsa)                     \
 	const struct route_node *iterend =                                     \
 		ospf6_lsdb_head(lsdb, 2, type, adv_router, &lsa);              \
 	lsa;                                                                   \
 	lsa = ospf6_lsdb_next(iterend, lsa)
 
+/*
+ * Iterate over all LSAs of the given type from the given LSDB.
+ *
+ * NOTE: users of this macro should be careful to avoid calling `return` from
+ * within the iteration, otherwise LSA refcount leaking will occur.
+ */
 #define ALL_LSDB_TYPED(lsdb, type, lsa)                                        \
 	const struct route_node *iterend =                                     \
 		ospf6_lsdb_head(lsdb, 1, type, 0, &lsa);                       \
@@ -77,6 +90,9 @@ extern unsigned long ospf6_lsdb_count(struct ospf6_lsdb *lsdb, int type);
  * we cache the next pointer we need to increment
  * the lock for the lsa so we don't accidentally free
  * it really early.
+ *
+ * NOTE: users of this macro should be careful to avoid calling `return` from
+ * within the iteration, otherwise LSA refcount leaking will occur.
  */
 #define ALL_LSDB(lsdb, lsa, lsanext)                                           \
 	const struct route_node *iterend =                                     \
