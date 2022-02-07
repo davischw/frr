@@ -14814,32 +14814,59 @@ DEFUN (clear_ip_bgp_dampening,
 	return CMD_SUCCESS;
 }
 
-DEFUN (clear_ip_bgp_dampening_prefix,
+DEFPY (clear_ip_bgp_dampening_prefix,
        clear_ip_bgp_dampening_prefix_cmd,
-       "clear ip bgp dampening A.B.C.D/M",
+       "clear ip bgp dampening <A.B.C.D/M|X:X::X:X/M>$prefix",
        CLEAR_STR
        IP_STR
        BGP_STR
        "Clear route flap dampening information\n"
-       "IPv4 prefix\n")
+       "IPv4 prefix\n"
+       "IPv6 prefix\n")
 {
-	int idx_ipv4_prefixlen = 4;
-	return bgp_clear_damp_route(vty, NULL, argv[idx_ipv4_prefixlen]->arg,
-				    AFI_IP, SAFI_UNICAST, NULL, 1);
+	int ret = CMD_WARNING;
+
+	if (prefix && prefix_str) {
+		if (prefix->family == AF_INET)
+			ret = bgp_clear_damp_route(vty, NULL, prefix_str,
+						   AFI_IP, SAFI_UNICAST, NULL,
+						   1);
+		else if (prefix->family == AF_INET6)
+			ret = bgp_clear_damp_route(vty, NULL, prefix_str,
+						   AFI_IP6, SAFI_UNICAST, NULL,
+						   1);
+	}
+
+	return ret;
 }
 
-DEFUN (clear_ip_bgp_dampening_address,
+DEFPY (clear_ip_bgp_dampening_address,
        clear_ip_bgp_dampening_address_cmd,
-       "clear ip bgp dampening A.B.C.D",
+       "clear ip bgp dampening <A.B.C.D|X:X::X:X>$address",
        CLEAR_STR
        IP_STR
        BGP_STR
        "Clear route flap dampening information\n"
-       "Network to clear damping information\n")
+       "IPv4 Network to clear damping information\n"
+       "IPv6 Network to clear damping information\n")
 {
-	int idx_ipv4 = 4;
-	return bgp_clear_damp_route(vty, NULL, argv[idx_ipv4]->arg, AFI_IP,
-				    SAFI_UNICAST, NULL, 0);
+	int ret = CMD_WARNING;
+	struct prefix *p = prefix_new();
+
+	if (str2prefix(address_str, p)) {
+		if (p->family == AF_INET)
+			ret = bgp_clear_damp_route(vty, NULL, address_str,
+						   AFI_IP, SAFI_UNICAST, NULL,
+						   0);
+		else if (p->family == AF_INET6)
+			ret = bgp_clear_damp_route(vty, NULL, address_str,
+						   AFI_IP6, SAFI_UNICAST, NULL,
+						   0);
+	}
+
+	prefix_free(&p);
+
+	return ret;
 }
 
 DEFUN (clear_ip_bgp_dampening_address_mask,
@@ -14866,6 +14893,77 @@ DEFUN (clear_ip_bgp_dampening_address_mask,
 
 	return bgp_clear_damp_route(vty, NULL, prefix_str, AFI_IP, SAFI_UNICAST,
 				    NULL, 0);
+}
+
+DEFPY (clear_ip_bgp_dampening_neighbor,
+       clear_ip_bgp_dampening_neighbor_cmd,
+       "clear [ip] bgp [<view|vrf> VIEWVRFNAME$vrf_name] [ip|ipv6]$afam dampening neighbor <A.B.C.D|X:X::X:X|WORD>$neighbor",
+       CLEAR_STR
+       IP_STR
+       BGP_STR
+       BGP_INSTANCE_HELP_STR
+       BGP_AFI_HELP_STR
+       "Clear route flap dampening information\n"
+       NEIGHBOR_STR
+       NEIGHBOR_ADDR_STR2)
+{
+	struct bgp *bgp;
+	afi_t afi;
+	union sockunion su;
+	struct peer *peer = NULL;
+	struct peer_group *group = NULL;
+
+	if (vrf_name) {
+		bgp = bgp_lookup_by_name(vrf_name);
+		if (bgp == NULL) {
+			vty_out(vty, "%% Can't find BGP instance %s\n",
+				vrf_name);
+			return CMD_WARNING;
+		}
+	} else {
+		bgp = bgp_get_default();
+		if (bgp == NULL) {
+			vty_out(vty, "%% No BGP process is configured\n");
+			return CMD_WARNING;
+		}
+	}
+
+	if (!str2sockunion(neighbor, &su))
+		peer = peer_lookup(bgp, &su);
+	else {
+		peer = peer_lookup_by_conf_if(bgp, neighbor);
+		if (!peer) {
+			group = peer_group_lookup(bgp, neighbor);
+			if (group)
+				peer = group->conf;
+		}
+	}
+
+	if (peer) {
+		if (peer_dynamic_neighbor(peer)) {
+			vty_out(vty,
+				"%% Operation not allowed on a dynamic neighbor\n");
+			return CMD_WARNING;
+		}
+	} else {
+		vty_out(vty, "%% neighbor '%s' not found\n", neighbor);
+		return CMD_WARNING;
+	}
+
+	if (afam) {
+		if (!strcmp(afam, "ip"))
+			afi = AFI_IP;
+		else if (!strcmp(afam, "ipv6"))
+			afi = AFI_IP6;
+		else
+			return CMD_WARNING;
+	}
+	else
+		afi = AFI_IP;
+
+	bgp_damp_reset_peer(peer, afi, SAFI_UNICAST);
+
+	return CMD_SUCCESS;
 }
 
 static void show_bgp_peerhash_entry(struct hash_bucket *bucket, void *arg)
@@ -15205,6 +15303,7 @@ void bgp_route_init(void)
 
 	install_element(ENABLE_NODE, &clear_ip_bgp_dampening_address_cmd);
 	install_element(ENABLE_NODE, &clear_ip_bgp_dampening_address_mask_cmd);
+	install_element(ENABLE_NODE, &clear_ip_bgp_dampening_neighbor_cmd);
 
 	/* prefix count */
 	install_element(ENABLE_NODE,

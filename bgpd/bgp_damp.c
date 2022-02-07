@@ -955,3 +955,190 @@ void bgp_show_peer_dampening_parameters(struct vty *vty, struct peer *peer,
 						    NULL);
 	}
 }
+
+static void bgp_damp_clear_path(struct bgp *bgp, struct bgp_path_info *pi)
+{
+	struct bgp_damp_info *bdi;
+
+	if (!bgp || !pi)
+		return;
+
+	if (pi->extra && pi->extra->damp_info) {
+		bdi = pi->extra->damp_info;
+		if (bdi->lastrecord == BGP_RECORD_UPDATE) {
+			bgp_aggregate_increment(bgp, &bdi->dest->p, bdi->path,
+						bdi->afi, bdi->safi);
+			bgp_process(bgp, bdi->dest, bdi->afi, bdi->safi);
+		}
+		bgp_damp_info_free(bdi, 1);
+	}
+}
+
+static void bgp_damp_reset_peer_group(struct peer_group *group, afi_t afi,
+				      safi_t safi)
+{
+	struct peer *peer = NULL;
+	struct bgp_damp_config *bdc = NULL;
+	struct bgp_damp_info *bdi = NULL;
+	struct listnode *node, *nnode;
+
+	if (!group)
+		return;
+
+	if (!group->conf)
+		return;
+
+	if (group->name)
+		zlog_debug("clearing dampened paths for peer-group %s (%s)\n",
+			   group->name, afi2str(afi));
+
+	for (ALL_LIST_ELEMENTS(group->peer, node, nnode, peer)) {
+		if (CHECK_FLAG(peer->af_flags[afi][safi],
+			       PEER_FLAG_CONFIG_DAMPENING)) {
+			bdc = &peer->damp[afi][safi];
+			if (bdc) {
+				for (unsigned int _i = 0;
+				     _i < bdc->reuse_list_size; ++_i) {
+					SLIST_FOREACH(bdi, &bdc->reuse_list[_i],
+						      entry) {
+						bgp_damp_clear_path(peer->bgp,
+								    bdi->path);
+					}
+				}
+				SLIST_FOREACH(bdi, &bdc->no_reuse_list, entry) {
+					bgp_damp_clear_path(peer->bgp,
+							    bdi->path);
+				}
+			}
+		}
+	}
+
+	if (CHECK_FLAG(group->conf->af_flags[afi][safi],
+		       PEER_FLAG_CONFIG_DAMPENING)) {
+		bdc = &group->conf->damp[afi][safi];
+		if (bdc) {
+			for (unsigned int _i = 0;_i < bdc->reuse_list_size;
+			     ++_i) {
+				 SLIST_FOREACH(bdi, &bdc->reuse_list[_i],
+					       entry) {
+					bgp_damp_clear_path(peer->bgp,
+							    bdi->path);
+				 }
+			}
+			SLIST_FOREACH(bdi, &bdc->no_reuse_list, entry) {
+				bgp_damp_clear_path(peer->bgp, bdi->path);
+			}
+		}
+		return;
+	}
+
+	if (CHECK_FLAG(group->bgp->af_flags[afi][safi], BGP_CONFIG_DAMPENING)) {
+		bdc = &group->bgp->damp[afi][safi];
+		if (bdc) {
+			for (unsigned int _i = 0; _i < bdc->reuse_list_size;
+			     ++_i) {
+				SLIST_FOREACH(bdi, &bdc->reuse_list[_i],
+					      entry) {
+					for (ALL_LIST_ELEMENTS(group->peer,
+							       node, nnode,
+							       peer)) {
+						if (bdi->path->peer == peer)
+							bgp_damp_clear_path(
+								peer->bgp,
+								bdi->path);
+					}
+				}
+			}
+			SLIST_FOREACH(bdi, &bdc->no_reuse_list, entry) {
+				for (ALL_LIST_ELEMENTS(group->peer, node, nnode,
+						       peer)) {
+					if (bdi->path->peer == peer)
+						bgp_damp_clear_path(peer->bgp,
+								    bdi->path);
+				}
+			}
+		}
+	}
+}
+
+void bgp_damp_reset_peer(struct peer *peer, afi_t afi, safi_t safi)
+{
+	struct bgp_damp_config *bdc = NULL;
+	struct bgp_damp_info *bdi = NULL;
+
+	if (!peer)
+		return;
+
+	if (CHECK_FLAG(peer->sflags, PEER_STATUS_GROUP)) {
+		if (peer->group)
+			bgp_damp_reset_peer_group(peer->group, afi, safi);
+		return;
+	}
+
+	if (peer->host)
+		zlog_debug("clearing dampened paths for peer %s (%s)\n",
+			   peer->host, afi2str(afi));
+
+	if (CHECK_FLAG(peer->af_flags[afi][safi], PEER_FLAG_CONFIG_DAMPENING)) {
+		bdc = &peer->damp[afi][safi];
+		if (bdc) {
+			for (unsigned int _i = 0;
+			     _i < bdc->reuse_list_size; ++_i) {
+				SLIST_FOREACH(bdi, &bdc->reuse_list[_i],
+					      entry) {
+					bgp_damp_clear_path(peer->bgp,
+							    bdi->path);
+				}
+			}
+			SLIST_FOREACH(bdi, &bdc->no_reuse_list, entry) {
+				bgp_damp_clear_path(peer->bgp, bdi->path);
+			}
+		}
+		return;
+	}
+
+	if (peer_group_active(peer)) {
+		if (CHECK_FLAG(peer->group->conf->af_flags[afi][safi],
+			       PEER_FLAG_CONFIG_DAMPENING)) {
+			bdc = &peer->group->conf->damp[afi][safi];
+			if (bdc) {
+				for (unsigned int _i = 0;
+				     _i < bdc->reuse_list_size; ++_i) {
+					SLIST_FOREACH(bdi, &bdc->reuse_list[_i],
+						      entry) {
+						if (bdi->path->peer == peer)
+							bgp_damp_clear_path(
+								peer->bgp,
+								bdi->path);
+					}
+				}
+				SLIST_FOREACH(bdi, &bdc->no_reuse_list, entry) {
+					if (bdi->path->peer == peer)
+						bgp_damp_clear_path(peer->bgp,
+								    bdi->path);
+				}
+			}
+			return;
+		}
+	}
+
+	if (CHECK_FLAG(peer->bgp->af_flags[afi][safi], BGP_CONFIG_DAMPENING)) {
+		bdc = &peer->bgp->damp[afi][safi];
+		if (bdc) {
+			for (unsigned int _i = 0; _i < bdc->reuse_list_size;
+			     ++_i) {
+				SLIST_FOREACH(bdi, &bdc->reuse_list[_i],
+					      entry) {
+					if (bdi->path->peer == peer)
+						bgp_damp_clear_path(peer->bgp,
+								    bdi->path);
+				}
+			}
+			SLIST_FOREACH(bdi, &bdc->no_reuse_list, entry) {
+				if (bdi->path->peer == peer)
+					bgp_damp_clear_path(peer->bgp,
+							    bdi->path);
+			}
+		}
+	}
+}

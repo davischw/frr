@@ -171,5 +171,6 @@ extern void bgp_config_write_peer_damp(struct vty *vty, struct peer *peer,
 extern void bgp_show_peer_dampening_parameters(struct vty *vty,
 					       struct peer *peer, afi_t afi,
 					       safi_t safi, bool use_json);
+extern void bgp_damp_reset_peer(struct peer *peer, afi_t afi, safi_t safi);
 
 #endif /* _QUAGGA_BGP_DAMP_H */
