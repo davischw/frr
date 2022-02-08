@@ -168,6 +168,9 @@ struct bgp_master {
 	uint16_t v_update_delay;
 	uint16_t v_establish_wait;
 
+	/** Ready to listen. */
+	bool listen_ready;
+
 	uint32_t flags;
 #define BM_FLAG_GRACEFUL_SHUTDOWN        (1 << 0)
 #define BM_FLAG_SEND_EXTRA_DATA_TO_ZEBRA (1 << 1)

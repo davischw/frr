@@ -3385,6 +3385,10 @@ int bgp_handle_socket(struct bgp *bgp, struct vrf *vrf, vrf_id_t old_vrf_id,
 	struct listnode *node;
 	char *address;
 
+	/* Don't handle sockets if not ready yet. */
+	if (!bm->listen_ready)
+		return 0;
+
 	/* Create BGP server socket, if listen mode not disabled */
 	if (!bgp || bgp_option_check(BGP_OPT_NO_LISTEN))
 		return 0;
