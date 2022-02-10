@@ -315,8 +315,8 @@ static int rip_ifp_down(struct interface *ifp)
 	rip_interface_sync(ifp);
 	rip_if_down(ifp);
 
-	if (IS_RIP_DEBUG_ZEBRA)
-		zlog_debug(
+	/* if (IS_RIP_DEBUG_ZEBRA) */
+		zlog_info(
 			"interface %s vrf %s(%u) index %d flags %llx metric %d mtu %d is down",
 			ifp->name, ifp->vrf->name, ifp->vrf->vrf_id,
 			ifp->ifindex, (unsigned long long)ifp->flags,
@@ -328,8 +328,8 @@ static int rip_ifp_down(struct interface *ifp)
 /* Interface link up message processing */
 static int rip_ifp_up(struct interface *ifp)
 {
-	if (IS_RIP_DEBUG_ZEBRA)
-		zlog_debug(
+	/* if (IS_RIP_DEBUG_ZEBRA) */
+		zlog_info(
 			"interface %s vrf %s(%u) index %d flags %#llx metric %d mtu %d is up",
 			ifp->name, ifp->vrf->name, ifp->vrf->vrf_id,
 			ifp->ifindex, (unsigned long long)ifp->flags,
