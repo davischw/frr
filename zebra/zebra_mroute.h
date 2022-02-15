@@ -40,6 +40,9 @@ struct mcast_route_data {
 
 void zebra_ipmr_route_stats(ZAPI_HANDLER_ARGS);
 
+/** Vendor defined maximum multicast vif amount. */
+#define MAXVIFS_VENDOR 4096
+
 /** Custom netlink attribute value definition. */
 #define RTA_MRT_EXTRA 64
 

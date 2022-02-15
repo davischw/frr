@@ -1148,7 +1148,7 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 	}
 
 	if (PIM_DEBUG_MROUTE) {
-		char buf[1000];
+		char buf[2048];
 		zlog_debug("%s(%s), vrf %s Added Route: %s", __func__, name,
 			   pim->vrf->name,
 			   pim_channel_oil_dump(c_oil, buf, sizeof(buf)));

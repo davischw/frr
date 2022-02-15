@@ -156,13 +156,13 @@ void zmroute_event(ZAPI_HANDLER_ARGS)
 	STREAM_GETL(msg, args.notif_idx);
 	STREAM_GETW(msg, args.flags);
 	STREAM_GETW(msg, args.output_amount);
-	if (args.output_amount > MAXVIFS) {
+	if (args.output_amount > MAXVIFS_VENDOR) {
 		if (IS_ZEBRA_DEBUG_KERNEL)
 			zlog_debug(
 				"%s: invalid amount of interfaces %zu, truncating to %d",
-				__func__, args.output_amount, MAXVIFS);
+				__func__, args.output_amount, MAXVIFS_VENDOR);
 
-		args.output_amount = MAXVIFS;
+		args.output_amount = MAXVIFS_VENDOR;
 	}
 	for (output_idx = 0; output_idx < args.output_amount; output_idx++) {
 		struct mroute_oif_arg *oif = mroute_oif_arg_new(&args.oif_list);
