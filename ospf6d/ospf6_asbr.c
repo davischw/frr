@@ -27,6 +27,7 @@
 #include "vty.h"
 #include "routemap.h"
 #include "table.h"
+#include "filter.h"
 #include "plist.h"
 #include "thread.h"
 #include "linklist.h"
@@ -1987,6 +1988,41 @@ DEFPY (no_ospf6_default_information_originate,
 }
 
 /* Routemap Functions */
+
+/* `match ipv6 address IPV6_ACCESS_LIST' */
+/* Match function should return 1 if match is success else return
+   zero. */
+static enum route_map_cmd_result_t
+route_match_ipv6_address(void *rule, const struct prefix *prefix, void *object)
+{
+	struct access_list *alist;
+
+	alist = access_list_lookup(AFI_IP6, (char *)rule);
+	if (alist == NULL)
+		return RMAP_NOMATCH;
+
+	return (access_list_apply(alist, prefix) == FILTER_DENY ? RMAP_NOMATCH
+								: RMAP_MATCH);
+}
+
+/* Route map `ip address' match statement.  `arg' should be
+   access-list name. */
+static void *route_match_ipv6_address_compile(const char *arg)
+{
+	return XSTRDUP(MTYPE_ROUTE_MAP_COMPILED, arg);
+}
+
+/* Free route map's compiled `ip address' value. */
+static void route_match_ipv6_address_free(void *rule)
+{
+	XFREE(MTYPE_ROUTE_MAP_COMPILED, rule);
+}
+
+/* Route map commands for ip address matching. */
+static const struct route_map_rule_cmd route_match_ipv6_address_cmd = {
+	"ipv6 address", route_match_ipv6_address,
+	route_match_ipv6_address_compile, route_match_ipv6_address_free};
+
 static enum route_map_cmd_result_t
 ospf6_routemap_rule_match_address_prefixlist(void *rule,
 					     const struct prefix *prefix,
@@ -2300,12 +2336,16 @@ static void ospf6_routemap_init(void)
 	route_map_match_tag_hook(generic_match_add);
 	route_map_no_match_tag_hook(generic_match_delete);
 
+	route_map_match_ipv6_address_hook(generic_match_add);
+	route_map_no_match_ipv6_address_hook(generic_match_delete);
+
 	route_map_match_ipv6_address_prefix_list_hook(generic_match_add);
 	route_map_no_match_ipv6_address_prefix_list_hook(generic_match_delete);
 
 	route_map_match_interface_hook(generic_match_add);
 	route_map_no_match_interface_hook(generic_match_delete);
 
+	route_map_install_match(&route_match_ipv6_address_cmd);
 	route_map_install_match(
 		&ospf6_routemap_rule_match_address_prefixlist_cmd);
 	route_map_install_match(&ospf6_routemap_rule_match_interface_cmd);

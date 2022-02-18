@@ -997,6 +997,27 @@ void ospf6_filter_update(struct access_list *access)
 	for (ALL_LIST_ELEMENTS(om6->ospf6, node, nnode, ospf6)) {
 		bool update = false;
 
+		/* Update redistributed routes. */
+		for (int type = 0; type < ZEBRA_ROUTE_MAX; type++) {
+			struct list *red_list;
+			struct ospf6_redist *red;
+
+			red_list = ospf6->redist[type];
+			if (!red_list)
+				continue;
+
+			for (ALL_LIST_ELEMENTS_RO(red_list, node, red)) {
+				if (ROUTEMAP(red)) {
+					/*
+					 * If route-map is not NULL it may be
+					 * using this access list.
+					 */
+					ospf6_asbr_distribute_list_update(ospf6,
+									  red);
+				}
+			}
+		}
+
 		for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, n, oa)) {
 			if (IMPORT_NAME(oa)
 			    && strcmp(IMPORT_NAME(oa), access->name) == 0) {
