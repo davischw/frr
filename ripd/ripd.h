@@ -100,6 +100,28 @@
 
 DECLARE_MGROUP(RIPD);
 
+/** RIP network legacy types. */
+enum rip_network_legacy_type {
+	/** Network prefix specified. */
+	RIP_NETWORK_PREFIX,
+	/** Network interface specified. */
+	RIP_NETWORK_INTERFACE,
+};
+
+/** RIP network legacy configurations. */
+struct rip_network_legacy {
+	/** Network type: prefix or interface name. */
+	enum rip_network_legacy_type type;
+	/** Network value. */
+	union {
+		struct prefix prefix;
+		char interface_name[INTERFACE_NAMSIZ];
+	};
+
+	SLIST_ENTRY(rip_network_legacy) entry;
+};
+SLIST_HEAD(rip_network_legacy_list, rip_network_legacy);
+
 /* RIP structure. */
 struct rip {
 	RB_ENTRY(rip) entry;
@@ -167,14 +189,17 @@ struct rip {
 	/* Are we in passive-interface default mode? */
 	bool passive_default;
 
-	/* RIP enabled interfaces. */
-	vector enable_interface;
-
-	/* RIP enabled networks. */
-	struct route_table *enable_network;
-
 	/* Vector to store passive-interface name. */
 	vector passive_nondefault;
+
+	/**
+	 * Legacy compatibility: hold `network ARG` until user calls
+	 * restart with new configuration.
+	 *
+	 * Eventually when everyone migrated their configuration format
+	 * we can remove all users of this field together.
+	 */
+	struct rip_network_legacy_list network_list;
 
 	/* RIP offset-lists. */
 	struct list *offset_list_master;
@@ -294,8 +319,7 @@ struct rip_interface {
 	struct interface *ifp;
 
 	/* RIP is enabled on this interface. */
-	int enable_network;
-	int enable_interface;
+	bool enabled;
 
 	/* RIP is running on this interface. */
 	int running;
@@ -563,5 +587,22 @@ DECLARE_HOOK(rip_ifaddr_del, (struct connected * ifc), (ifc));
 extern void rip_read_process(struct rip *rip, struct interface *ifp,
 			     struct connected *ifc, struct rip_packet *packet,
 			     int len, struct sockaddr_in from);
+
+
+extern void rip_network_legacy_new_prefix(struct rip *rip,
+					  const struct prefix *prefix);
+extern void rip_network_legacy_new_interface(struct rip *rip,
+					     const char *interface);
+extern void rip_network_legacy_free_prefix(struct rip *rip,
+					   const struct prefix *prefix);
+extern void rip_network_legacy_free_interface(struct rip *rip,
+					      const char *interface);
+extern void rip_network_legacy_free_all(struct rip *rip);
+extern void rip_network_legacy_update(struct rip *rip, const char *interface,
+				      const struct prefix *prefix);
+
+extern int ip_rip_interface_network_toggle(struct vty *vty,
+					   const struct prefix_ipv4 *network);
+extern int ip_rip_interface_name_toggle(struct vty *vty, const char *name);
 
 #endif /* _ZEBRA_RIP_H */

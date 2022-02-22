@@ -300,51 +300,6 @@ void cli_show_rip_neighbor(struct vty *vty, const struct lyd_node *dnode,
 }
 
 /*
- * XPath: /frr-ripd:ripd/instance/network
- */
-DEFPY_YANG (rip_network_prefix,
-       rip_network_prefix_cmd,
-       "[no] network A.B.C.D/M",
-       NO_STR
-       "Enable routing on an IP network\n"
-       "IP prefix <network>/<length>, e.g., 35.0.0.0/8\n")
-{
-	nb_cli_enqueue_change(vty, "./network",
-			      no ? NB_OP_DESTROY : NB_OP_CREATE, network_str);
-
-	return nb_cli_apply_changes(vty, NULL);
-}
-
-void cli_show_rip_network_prefix(struct vty *vty, const struct lyd_node *dnode,
-				 bool show_defaults)
-{
-	vty_out(vty, " network %s\n", yang_dnode_get_string(dnode, NULL));
-}
-
-/*
- * XPath: /frr-ripd:ripd/instance/interface
- */
-DEFPY_YANG (rip_network_if,
-       rip_network_if_cmd,
-       "[no] network WORD",
-       NO_STR
-       "Enable routing on an IP network\n"
-       "Interface name\n")
-{
-	nb_cli_enqueue_change(vty, "./interface",
-			      no ? NB_OP_DESTROY : NB_OP_CREATE, network);
-
-	return nb_cli_apply_changes(vty, NULL);
-}
-
-void cli_show_rip_network_interface(struct vty *vty,
-				    const struct lyd_node *dnode,
-				    bool show_defaults)
-{
-	vty_out(vty, " network %s\n", yang_dnode_get_string(dnode, NULL));
-}
-
-/*
  * XPath: /frr-ripd:ripd/instance/offset-list
  */
 DEFPY_YANG (rip_offset_list,
@@ -652,6 +607,181 @@ void cli_show_ripd_instance_default_bfd_profile(struct vty *vty,
 {
 	vty_out(vty, " bfd default-profile %s\n",
 		yang_dnode_get_string(dnode, NULL));
+}
+
+/*
+ * XPath: /frr-interface:lib/interface/frr-ripd:rip
+ */
+DEFPY_YANG(ip_rip_interface_enable, ip_rip_interface_enable_cmd,
+	   "[no] ip rip",
+	   NO_STR
+	   IP_STR
+	   RIP_STR)
+{
+	const struct lyd_node *interface_dnode =
+		yang_dnode_get(vty->candidate_config->dnode, VTY_CURR_XPATH);
+
+	if (interface_dnode == NULL) {
+		vty_out(vty, "%% Failed to find interface\n");
+		return CMD_WARNING_CONFIG_FAILED;
+	}
+
+	nb_cli_enqueue_change(vty, "./frr-ripd:rip",
+			      no ? NB_OP_DESTROY : NB_OP_CREATE, NULL);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+void cli_show_lib_interface_rip(struct vty *vty, const struct lyd_node *dnode,
+				bool show_default)
+{
+	vty_out(vty, " ip rip\n");
+}
+
+/*
+ * Backwards compatibility for the previous XPaths:
+ * - /frr-ripd:ripd/instance/network
+ * - /frr-ripd:ripd/instance/interface
+ */
+static struct vty *rip_nb_vty;
+
+static void rip_nb_init(void)
+{
+	rip_nb_vty = vty_new();
+	rip_nb_vty->wfd = STDERR_FILENO;
+	rip_nb_vty->node = CONFIG_NODE;
+	rip_nb_vty->type = VTY_FILE;
+	rip_nb_vty->config = true;
+	rip_nb_vty->candidate_config = vty_shared_candidate_config;
+}
+
+static void vty_clear_enqueued_changes(void)
+{
+	/* Clear array of enqueued configuration changes. */
+	rip_nb_vty->num_cfg_changes = 0;
+	memset(&rip_nb_vty->cfg_changes, 0, sizeof(rip_nb_vty->cfg_changes));
+}
+
+int ip_rip_interface_network_toggle(struct vty *vty,
+				    const struct prefix_ipv4 *network)
+{
+	struct vty *vty_selected = vty ? vty : rip_nb_vty;
+	struct vrf *vrf;
+	int return_value = CMD_SUCCESS;
+	char xpath[XPATH_MAXLEN];
+
+	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+		struct interface *interface;
+
+		FOR_ALL_INTERFACES (vrf, interface) {
+			const struct listnode *node;
+			const struct connected *connected;
+
+			FOR_ALL_INTERFACES_ADDRESSES (interface, connected,
+						      node) {
+				if (prefix_cmp(network, connected->address) !=
+				    0)
+					continue;
+
+				snprintf(
+					xpath, sizeof(xpath),
+					"/frr-interface:lib/interface[name='%s']/frr-ripd:rip",
+					interface->name);
+				nb_cli_enqueue_change(vty_selected, xpath,
+						      NB_OP_CREATE, NULL);
+				if (nb_cli_apply_changes(vty_selected, NULL) !=
+				    CMD_SUCCESS)
+					return_value = CMD_WARNING;
+				if (vty_selected == rip_nb_vty)
+					vty_clear_enqueued_changes();
+			}
+		}
+	}
+
+	return return_value;
+}
+
+DEFPY_HIDDEN(rip_network_prefix,
+	     rip_network_prefix_cmd,
+	     "[no] network A.B.C.D/M$network",
+	     NO_STR
+	     "Enable routing on an IP network\n"
+	     "IP prefix\n")
+{
+	char xpath[XPATH_MAXLEN];
+	struct vrf *vrf;
+
+	if (snprintf(xpath, sizeof(xpath), "%s/vrf", VTY_CURR_XPATH) >=
+	    XPATH_MAXLEN)
+		zlog_err("XPath %s is truncated (expected %s/vrf)", xpath,
+			 xpath);
+
+	vrf = vrf_lookup_by_name(
+		yang_dnode_get_string(vty->candidate_config->dnode, xpath));
+	if (no) {
+		rip_network_legacy_free_prefix(vrf->info,
+					       (struct prefix *)network);
+		return CMD_SUCCESS;
+	}
+
+	rip_network_legacy_new_prefix(vrf->info, (struct prefix *)network);
+	return ip_rip_interface_network_toggle(vty, network);
+}
+
+int ip_rip_interface_name_toggle(struct vty *vty, const char *name)
+{
+	struct vty *vty_selected = vty ? vty : rip_nb_vty;
+	struct vrf *vrf;
+	int return_value = CMD_SUCCESS;
+	char xpath[XPATH_MAXLEN];
+
+	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+		struct interface *interface;
+
+		FOR_ALL_INTERFACES (vrf, interface) {
+			if (strcmp(name, interface->name) != 0)
+				continue;
+
+			snprintf(
+				xpath, sizeof(xpath),
+				"/frr-interface:lib/interface[name='%s']/frr-ripd:rip",
+				interface->name);
+			nb_cli_enqueue_change(vty_selected, xpath, NB_OP_CREATE,
+					      NULL);
+			if (nb_cli_apply_changes(vty_selected, NULL) !=
+			    CMD_SUCCESS)
+				return_value = CMD_WARNING;
+			if (vty_selected == rip_nb_vty)
+				vty_clear_enqueued_changes();
+		}
+	}
+
+	return return_value;
+}
+
+DEFPY_HIDDEN(rip_network_if,
+	     rip_network_if_cmd,
+	     "[no] network WORD$interface_name",
+	     NO_STR
+	     "Enable routing on an IP network\n"
+	     "Interface name\n")
+{
+	char xpath[XPATH_MAXLEN];
+	struct vrf *vrf;
+
+	if (snprintf(xpath, sizeof(xpath), "%s/vrf", VTY_CURR_XPATH) >=
+	    XPATH_MAXLEN)
+		zlog_err("XPath %s is truncated (expected %s/vrf)", xpath,
+			 xpath);
+
+	vrf = vrf_lookup_by_name(
+		yang_dnode_get_string(vty->candidate_config->dnode, xpath));
+	if (no) {
+		rip_network_legacy_free_interface(vrf->info, interface_name);
+		return CMD_SUCCESS;
+	}
+
+	rip_network_legacy_new_interface(vrf->info, interface_name);
+	return ip_rip_interface_name_toggle(vty, interface_name);
 }
 
 /*
@@ -1266,6 +1396,8 @@ DEFUN_NOSH(show_rip_redist_no_list, show_rip_redist_no_list_cmd,
 
 void rip_cli_init(void)
 {
+	rip_nb_init();
+
 	install_element(CONFIG_NODE, &router_rip_cmd);
 	install_element(CONFIG_NODE, &no_router_rip_cmd);
 
@@ -1281,8 +1413,6 @@ void rip_cli_init(void)
 	install_element(RIP_NODE, &no_rip_distance_cmd);
 	install_element(RIP_NODE, &rip_distance_source_cmd);
 	install_element(RIP_NODE, &rip_neighbor_cmd);
-	install_element(RIP_NODE, &rip_network_prefix_cmd);
-	install_element(RIP_NODE, &rip_network_if_cmd);
 	install_element(RIP_NODE, &rip_offset_list_cmd);
 	install_element(RIP_NODE, &rip_passive_default_cmd);
 	install_element(RIP_NODE, &rip_passive_interface_cmd);
@@ -1295,6 +1425,9 @@ void rip_cli_init(void)
 	install_element(RIP_NODE, &rip_bfd_default_profile_cmd);
 	install_element(RIP_NODE, &no_rip_bfd_default_profile_cmd);
 
+	install_element(INTERFACE_NODE, &ip_rip_interface_enable_cmd);
+	install_element(RIP_NODE, &rip_network_prefix_cmd);
+	install_element(RIP_NODE, &rip_network_if_cmd);
 	install_element(INTERFACE_NODE, &ip_rip_split_horizon_cmd);
 	install_element(INTERFACE_NODE, &ip_rip_v2_broadcast_cmd);
 	install_element(INTERFACE_NODE, &ip_rip_receive_version_cmd);

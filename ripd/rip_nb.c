@@ -104,22 +104,6 @@ const struct frr_yang_module_info frr_ripd_info = {
 			},
 		},
 		{
-			.xpath = "/frr-ripd:ripd/instance/network",
-			.cbs = {
-				.cli_show = cli_show_rip_network_prefix,
-				.create = ripd_instance_network_create,
-				.destroy = ripd_instance_network_destroy,
-			},
-		},
-		{
-			.xpath = "/frr-ripd:ripd/instance/interface",
-			.cbs = {
-				.cli_show = cli_show_rip_network_interface,
-				.create = ripd_instance_interface_create,
-				.destroy = ripd_instance_interface_destroy,
-			},
-		},
-		{
 			.xpath = "/frr-ripd:ripd/instance/offset-list",
 			.cbs = {
 				.cli_show = cli_show_rip_offset_list,
@@ -242,6 +226,14 @@ const struct frr_yang_module_info frr_ripd_info = {
 				.modify = ripd_instance_default_bfd_profile_modify,
 				.destroy = ripd_instance_default_bfd_profile_destroy,
 				.cli_show = cli_show_ripd_instance_default_bfd_profile,
+			},
+		},
+		{
+			.xpath = "/frr-interface:lib/interface/frr-ripd:rip",
+			.cbs = {
+				.cli_show = cli_show_lib_interface_rip,
+				.create = lib_interface_rip_create,
+				.destroy = lib_interface_rip_destroy,
 			},
 		},
 		{

@@ -153,16 +153,6 @@ module frr-ripd {
           "Specifies the RIP neighbors. Useful for a
            non-broadcast multiple access (NBMA) network.";
       }
-      leaf-list network {
-        type inet:ipv4-prefix;
-        description
-          "Enable RIP on the specified IP network.";
-      }
-      leaf-list interface {
-        type frr-interface:interface-ref;
-        description
-          "Enable RIP on the specified interface.";
-      }
       list offset-list {
         key "interface direction";
         description
@@ -458,6 +448,7 @@ module frr-ripd {
    */
   augment "/frr-interface:lib/frr-interface:interface" {
     container rip {
+      presence "Present if the RIP protocol is enabled in this interface.";
       description
         "RIP interface parameters.";
       leaf split-horizon {

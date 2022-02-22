@@ -62,6 +62,7 @@ DEFINE_MTYPE_STATIC(RIPD, RIP, "RIP structure");
 DEFINE_MTYPE_STATIC(RIPD, RIP_VRF_NAME, "RIP VRF name");
 DEFINE_MTYPE_STATIC(RIPD, RIP_INFO, "RIP route info");
 DEFINE_MTYPE_STATIC(RIPD, RIP_DISTANCE, "RIP distance");
+DEFINE_MTYPE_STATIC(RIPD, RIP_NETWORK_LEGACY, "RIP legacy network command");
 
 /* Prototypes. */
 static void rip_output_process(struct connected *, struct sockaddr_in *, int,
@@ -134,6 +135,129 @@ void rip_info_free(struct rip_info *rinfo)
 struct rip *rip_info_get_instance(const struct rip_info *rinfo)
 {
 	return route_table_get_info(rinfo->rp->table);
+}
+
+static void rip_network_legacy_free(struct rip *rip,
+				    struct rip_network_legacy *network)
+{
+	SLIST_REMOVE(&rip->network_list, network, rip_network_legacy, entry);
+	XFREE(MTYPE_RIP_NETWORK_LEGACY, network);
+}
+
+static struct rip_network_legacy *
+rip_legacy_network_find_prefix(const struct rip *rip,
+			       const struct prefix *prefix)
+{
+	struct rip_network_legacy *network;
+
+	SLIST_FOREACH (network, &rip->network_list, entry) {
+		if (network->type != RIP_NETWORK_PREFIX)
+			continue;
+		if (prefix_cmp(&network->prefix, prefix) != 0)
+			continue;
+
+		return network;
+	}
+
+	return NULL;
+}
+
+void rip_network_legacy_new_prefix(struct rip *rip, const struct prefix *prefix)
+{
+	struct rip_network_legacy *network;
+
+	/* Check for duplicates. */
+	if (rip_legacy_network_find_prefix(rip, prefix))
+		return;
+
+	network = XCALLOC(MTYPE_RIP_NETWORK_LEGACY, sizeof(*network));
+	network->type = RIP_NETWORK_PREFIX;
+	prefix_copy(&network->prefix, prefix);
+	SLIST_INSERT_HEAD(&rip->network_list, network, entry);
+}
+
+void rip_network_legacy_free_prefix(struct rip *rip,
+				    const struct prefix *prefix)
+{
+	struct rip_network_legacy *network =
+		rip_legacy_network_find_prefix(rip, prefix);
+
+	if (network)
+		rip_network_legacy_free(rip, network);
+}
+
+static struct rip_network_legacy *
+rip_legacy_network_find_interface(const struct rip *rip, const char *interface)
+{
+	struct rip_network_legacy *network;
+
+	SLIST_FOREACH (network, &rip->network_list, entry) {
+		if (network->type != RIP_NETWORK_INTERFACE)
+			continue;
+		if (strcmp(network->interface_name, interface) != 0)
+			continue;
+
+		return network;
+	}
+
+	return NULL;
+}
+
+void rip_network_legacy_new_interface(struct rip *rip, const char *interface)
+{
+	struct rip_network_legacy *network;
+
+	/* Check for duplicates. */
+	if (rip_legacy_network_find_interface(rip, interface))
+		return;
+
+	network = XCALLOC(MTYPE_RIP_NETWORK_LEGACY, sizeof(*network));
+	network->type = RIP_NETWORK_INTERFACE;
+	strlcpy(network->interface_name, interface,
+		sizeof(network->interface_name));
+	SLIST_INSERT_HEAD(&rip->network_list, network, entry);
+}
+
+void rip_network_legacy_free_interface(struct rip *rip, const char *interface)
+{
+	struct rip_network_legacy *network =
+		rip_legacy_network_find_interface(rip, interface);
+
+	if (network)
+		rip_network_legacy_free(rip, network);
+}
+
+void rip_network_legacy_free_all(struct rip *rip)
+{
+	while (!SLIST_EMPTY(&rip->network_list)) {
+		struct rip_network_legacy *network =
+			SLIST_FIRST(&rip->network_list);
+		rip_network_legacy_free(rip, network);
+	}
+}
+
+void rip_network_legacy_update(struct rip *rip, const char *interface,
+			       const struct prefix *prefix)
+{
+	struct rip_network_legacy *network;
+
+	SLIST_FOREACH (network, &rip->network_list, entry) {
+		switch (network->type) {
+		case RIP_NETWORK_PREFIX:
+			if (prefix_cmp(&network->prefix, prefix) != 0)
+				continue;
+
+			ip_rip_interface_network_toggle(
+				NULL, (const struct prefix_ipv4 *)prefix);
+			break;
+		case RIP_NETWORK_INTERFACE:
+			if (strcmp(network->interface_name, interface) != 0)
+				continue;
+
+			ip_rip_interface_name_toggle(NULL, interface);
+			break;
+		}
+	}
 }
 
 /* RIP route garbage collect timer. */
@@ -2739,8 +2863,6 @@ struct rip *rip_create(const char *vrf_name, struct vrf *vrf, int socket)
 	rip->peer_list->del = rip_peer_list_del;
 	rip->distance_table = route_table_init();
 	rip->distance_table->cleanup = rip_distance_table_node_cleanup;
-	rip->enable_interface = vector_init(1);
-	rip->enable_network = route_table_init();
 	rip->passive_nondefault = vector_init(1);
 	rip->offset_list_master = list_new();
 	rip->offset_list_master->cmp = (int (*)(void *, void *))offset_list_cmp;
@@ -2767,6 +2889,8 @@ struct rip *rip_create(const char *vrf_name, struct vrf *vrf, int socket)
 		rip->vrf = NULL;
 		rip->sock = -1;
 	}
+
+	SLIST_INIT(&rip->network_list);
 
 	RB_INSERT(rip_instance_head, &rip_instances, rip);
 
@@ -3218,7 +3342,7 @@ DEFUN (show_ip_rip_status,
 		if (!ri->running)
 			continue;
 
-		if (ri->enable_network || ri->enable_interface) {
+		if (ri->enabled) {
 			if (ri->ri_send == RI_RIP_UNSPEC)
 				send_version =
 					lookup_msg(ri_version_msg,
@@ -3248,8 +3372,7 @@ DEFUN (show_ip_rip_status,
 	FOR_ALL_INTERFACES (rip->vrf, ifp) {
 		ri = ifp->info;
 
-		if ((ri->enable_network || ri->enable_interface) &&
-		    ri->passive) {
+		if (ri->enabled && ri->passive) {
 			if (!found_passive) {
 				vty_out(vty, "  Passive Interface(s):\n");
 				found_passive = 1;
@@ -3420,8 +3543,7 @@ void rip_clean(struct rip *rip)
 
 	rip_clean_network(rip);
 	rip_passive_nondefault_clean(rip);
-	vector_free(rip->enable_interface);
-	route_table_finish(rip->enable_network);
+	rip_network_legacy_free_all(rip);
 	vector_free(rip->passive_nondefault);
 	list_delete(&rip->offset_list_master);
 	route_table_finish(rip->distance_table);
