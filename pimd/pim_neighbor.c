@@ -98,6 +98,39 @@ static void dr_election_by_pri(struct interface *ifp)
 	}
 }
 
+static void pim_neighbors_update_upstream(struct pim_instance *pim)
+{
+	struct pim_upstream *upstream;
+	enum pim_rpf_result rpf_result;
+	struct pim_rpf previous_rpf;
+
+	frr_each (rb_pim_upstream, &pim->upstream_head, upstream) {
+		/* Skip entries without upstream. */
+		if (pim_addr_is_any(upstream->upstream_addr))
+			continue;
+
+		previous_rpf.source_nexthop.interface =
+			upstream->rpf.source_nexthop.interface;
+		rpf_result =
+			pim_rpf_update(pim, upstream, &previous_rpf, __func__);
+		if (rpf_result == PIM_RPF_CHANGED
+		    || (rpf_result == PIM_RPF_FAILURE
+			&& previous_rpf.source_nexthop.interface)) {
+			if (PIM_DEBUG_PIM_EVENTS)
+				zlog_debug("%s: upstream %s changed neighbors",
+					   __func__, upstream->sg_str);
+
+			pim_zebra_upstream_rpf_changed(pim, upstream,
+						       &previous_rpf);
+		}
+
+		/* Update kernel multicast forwarding cache (MFC) */
+		pim_upstream_mroute_iif_update(upstream->channel_oil, __func__);
+	}
+
+	pim_zebra_update_all_interfaces(pim);
+}
+
 /*
   RFC 4601: 4.3.2.  DR Election
 
@@ -125,6 +158,9 @@ int pim_if_dr_election(struct interface *ifp)
 		zlog_info("%s: DR was %pPA now is %pPA on interface %s",
 			  __func__, &old_dr_addr, &pim_ifp->pim_dr_addr,
 			  ifp->name);
+
+		/* Refresh RPF cache and update if necessary. */
+		pim_neighbors_update_upstream(pim_ifp->pim);
 
 		pim_ifp->pim_dr_election_last =
 			pim_time_monotonic_sec(); /* timestamp */
