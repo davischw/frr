@@ -347,7 +347,8 @@ void igmp_source_free(struct gm_source *source)
 {
 	struct pim_interface *pim_ifp = source->source_group->interface->info;
 
-	pim_ifp->gm_source_count--;
+	if (source->source_addr.s_addr != INADDR_ANY)
+		pim_ifp->gm_source_count--;
 
 	/* make sure there is no source timer running */
 	assert(!source->t_source_timer);
@@ -491,7 +492,8 @@ struct gm_source *igmp_get_source_by_addr(struct gm_group *group,
 	if (src)
 		return src;
 
-	if (pim_interface->gm_source_count >= pim_interface->gm_source_limit) {
+	if (src_addr.s_addr != INADDR_ANY &&
+	    pim_interface->gm_source_count >= pim_interface->gm_source_limit) {
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
 				"interface %s has reached source limit (%u), refusing to add source %pI4 (group %pI4)",
@@ -504,7 +506,8 @@ struct gm_source *igmp_get_source_by_addr(struct gm_group *group,
 	if (new)
 		*new = true;
 
-	pim_interface->gm_source_count++;
+	if (src_addr.s_addr != INADDR_ANY)
+		pim_interface->gm_source_count++;
 
 	if (PIM_DEBUG_GM_TRACE) {
 		char group_str[INET_ADDRSTRLEN];
