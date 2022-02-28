@@ -1430,7 +1430,8 @@ void igmp_group_timer_on(struct gm_group *group, long interval_msec,
 	assert(group->group_filtermode_isexcl);
 
 	if (interval_msec == 0) {
-		thread_execute(router->master, igmp_group_timer, group, 0);
+		thread_add_timer_msec(router->master, igmp_group_timer, group,
+				      0, &group->t_group_timer);
 		return;
 	}
 
