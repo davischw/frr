@@ -1602,6 +1602,48 @@ static void pim_show_group_rp_mappings_info(struct pim_instance *pim,
 		vty_json(vty, json);
 }
 
+static void igmp_show_group_timer(const struct gm_group *group,
+				  char *time_string, size_t time_string_length)
+{
+	const struct gm_source *source, *source_longest_timer = NULL;
+	struct listnode *node;
+	unsigned long longest_timer = 0;
+	unsigned long item_timer = 0;
+
+	/* Group has timer, use it. */
+	if (group->t_group_timer)
+		item_timer = thread_timer_remain_second(group->t_group_timer);
+	if (item_timer != 0) {
+		pim_time_timer_to_hhmmss(time_string, time_string_length,
+					 group->t_group_timer);
+		return;
+	}
+
+	/* No sources to find timer, quit. */
+	if (listcount(group->group_source_list) == 0) {
+		snprintf(time_string, time_string_length, "--:--:--");
+		return;
+	}
+
+	/* Find the source with the longest_timer. */
+	for (ALL_LIST_ELEMENTS_RO(group->group_source_list, node, source)) {
+		if (source->t_source_timer)
+			item_timer = thread_timer_remain_second(
+				source->t_source_timer);
+		if (longest_timer < item_timer) {
+			source_longest_timer = source;
+			longest_timer = item_timer;
+		}
+	}
+
+	/* Write string and return. */
+	if (source_longest_timer)
+		pim_time_timer_to_hhmmss(time_string, time_string_length,
+					 source_longest_timer->t_source_timer);
+	else /* Is about to expire. */
+		snprintf(time_string, time_string_length, "00:00:00");
+}
+
 static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 {
 	struct interface *ifp;
@@ -1645,8 +1687,7 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 
 			pim_inet4_dump("<group?>", grp->group_addr, group_str,
 				       sizeof(group_str));
-			pim_time_timer_to_hhmmss(hhmmss, sizeof(hhmmss),
-						 grp->t_group_timer);
+			igmp_show_group_timer(grp, hhmmss, sizeof(hhmmss));
 			pim_time_uptime(uptime, sizeof(uptime),
 					now - grp->group_creation);
 
