@@ -1587,6 +1587,9 @@ void igmpv3_report_block(struct gm_sock *igmp, struct in_addr from,
 		/* INCLUDE mode */
 		block_incl(group, num_sources, sources);
 	}
+
+	if (listcount(group->group_source_list) == 0)
+		igmp_group_delete(group);
 }
 
 void igmp_group_timer_lower_to_lmqt(struct gm_group *group)
@@ -1629,8 +1632,6 @@ void igmp_group_timer_lower_to_lmqt(struct gm_group *group)
 			__func__, group_str, ifname, lmqc, lmqi_dsec,
 			lmqt_msec);
 	}
-
-	assert(group->group_filtermode_isexcl);
 
 	igmp_group_timer_on(group, lmqt_msec, ifname);
 }
