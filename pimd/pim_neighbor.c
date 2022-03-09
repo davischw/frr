@@ -178,6 +178,25 @@ int pim_if_dr_election(struct interface *ifp)
 			}
 		}
 
+#if PIM_IPV == 4
+		struct gm_source *source;
+		struct gm_group *group;
+		struct listnode *node, *source_node;
+
+		for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_group_list, node,
+					  group)) {
+			for (ALL_LIST_ELEMENTS_RO(group->group_source_list,
+						  source_node, source)) {
+				if (pim_addr_cmp(pim_ifp->pim_dr_addr,
+						 pim_ifp->primary_address) == 0)
+					igmp_source_forward_start(pim_ifp->pim,
+								  source);
+				else
+					igmp_source_forward_stop(source);
+			}
+		}
+#endif
+
 		return 1;
 	}
 
