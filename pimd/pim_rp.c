@@ -369,7 +369,7 @@ static inline bool pim_rp_try_alist(struct rp_info *rp_info,
  * Given a group, return the rp_info for that group
  */
 struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
-					       const struct prefix *group)
+					const struct prefix *group)
 {
 	struct listnode *node;
 	struct rp_info *best = NULL;
@@ -385,8 +385,9 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 			const struct prefix_list_entry *entry;
 			plist = prefix_list_lookup(PIM_AFI, rp_info->plist);
 
-			if (prefix_list_apply_ext(plist, &entry, group, true)
-			    == PREFIX_DENY || !entry)
+			if (prefix_list_apply_ext(plist, &entry, group, true) ==
+				    PREFIX_DENY ||
+			    !entry)
 				continue;
 
 			if (!bp) {
@@ -539,8 +540,8 @@ void pim_rp_prefix_list_update(struct pim_instance *pim,
 	int refresh_needed = 0;
 
 	for (ALL_LIST_ELEMENTS_RO(pim->rp_list, node, rp_info)) {
-		if (rp_info->plist
-		    && strcmp(rp_info->plist, prefix_list_name(plist)) == 0) {
+		if (rp_info->plist &&
+		    strcmp(rp_info->plist, prefix_list_name(plist)) == 0) {
 			refresh_needed = 1;
 			break;
 		}
@@ -647,10 +648,8 @@ void pim_upstream_update(struct pim_instance *pim, struct pim_upstream *up)
 		pim_upstream_mroute_iif_update(up->channel_oil, __func__);
 
 	if (rpf_result == PIM_RPF_CHANGED ||
-			(rpf_result == PIM_RPF_FAILURE &&
-			 old_rpf.source_nexthop.interface))
+	    (rpf_result == PIM_RPF_FAILURE && old_rpf.source_nexthop.interface))
 		pim_zebra_upstream_rpf_changed(pim, up, &old_rpf);
-
 }
 
 int pim_rp_valid(struct pim_instance *pim, pim_addr rp_addr,
@@ -956,8 +955,8 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 		tmp_rp_info = pim_rp_find_exact(pim, rp_src_flag, rp_addr,
 						&rp_info->group);
 		if (tmp_rp_info) {
-			if ((tmp_rp_info->rp_src != rp_src_flag)
-			    && (rp_src_flag == RP_SRC_STATIC))
+			if ((tmp_rp_info->rp_src != rp_src_flag) &&
+			    (rp_src_flag == RP_SRC_STATIC))
 				/* replace RP_SRC_BSR entry */
 				tmp_rp_info->rp_src = rp_src_flag;
 			XFREE(MTYPE_PIM_RP, rp_info);
@@ -1677,6 +1676,8 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 				  const struct prefix *range, struct list *list,
 				  struct vty *vty, struct ttable *tt,
 				  json_object *json);
+static void pim_rp_show_info_ssm_plist(struct vty *vty, struct pim_ssm *ssm,
+				       json_object *json, struct prefix *range);
 
 void pim_rp_show_information(struct pim_instance *pim, struct prefix *range,
 			     struct vty *vty, json_object *json)
@@ -1696,6 +1697,8 @@ void pim_rp_show_information(struct pim_instance *pim, struct prefix *range,
 
 	pim_rp_show_info_list(pim, range, pim->rp_list, vty, tt, json);
 	pim_rp_show_info_list(pim, range, pim->fb_rp_list, vty, tt, json);
+	pim_rp_show_info_ssm_plist(vty, (struct pim_ssm *)pim->ssm_info, json,
+				   range);
 
 	if (json) {
 		vty_out(vty, "%s\n",
@@ -1706,7 +1709,7 @@ void pim_rp_show_information(struct pim_instance *pim, struct prefix *range,
 }
 
 static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
-				  json_object *json)
+				  json_object *json, const struct prefix *range)
 {
 	struct filter *item;
 	struct filter_cisco *cfilter;
@@ -1743,9 +1746,94 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
 		if (json) {
 			char buf[PREFIX_STRLEN];
 			prefix2str(&p, buf, sizeof(buf));
-			json_object_array_add(json, json_object_new_string(buf));
+			json_object_array_add(json,
+					      json_object_new_string(buf));
 		} else
 			vty_out(vty, "\t%pFX\n", &p);
+	}
+}
+
+static void pim_rp_show_info_ssm_plist(struct vty *vty, struct pim_ssm *ssm,
+				       json_object *json, struct prefix *range)
+{
+	struct prefix_list_entry *pentry;
+	struct prefix_list *plist;
+	struct prefix *p = NULL;
+	json_object *json_rp_rows = NULL;
+	json_object *json_row = NULL;
+	const char *no_rp = "0.0.0.0";
+	const char *source = "Static";
+	const char *type = "SSM";
+	char buf[PREFIX_STRLEN];
+
+	if (ssm->plist_name) {
+		plist = prefix_list_lookup(AFI_IP, ssm->plist_name);
+
+		for (pentry = plist->head; pentry; pentry = pentry->next) {
+			if (pentry->any)
+				continue;
+
+			p = &pentry->prefix;
+
+			if (range && !prefix_match(p, range))
+				continue;
+
+			if (!json)
+				vty_out(vty,
+					"%-15s  %-18pFX  (Unknown)         no         %s   %s\n",
+					no_rp, p, source, type);
+			else {
+				json_row = json_object_new_object();
+				if (!json_object_object_get_ex(json, no_rp, &json_rp_rows)) {
+					json_rp_rows = json_object_new_array();
+					json_object_object_add(json, no_rp,
+							       json_rp_rows);
+				}
+
+				json_object_string_add(json_row, "rpAddress",
+						       no_rp);
+				json_object_string_add(json_row,
+						       "outboundInterface",
+						       "Unknown");
+				json_object_boolean_false_add(json_row,
+							      "iAmRP");
+				json_object_string_add(json_row, "group",
+						       prefix2str(p, buf, 48));
+				json_object_string_add(json_row, "source",
+						       source);
+				json_object_string_add(json_row, "groupType",
+						       type);
+				json_object_array_add(json_rp_rows, json_row);
+			}
+		}
+	} else {
+		(void)str2prefix(PIM_SSM_STANDARD_RANGE, p);
+
+		if (range && !prefix_match(p, range))
+			return;
+
+		if (!json)
+			vty_out(vty,
+				"%-15s  %-18s  (Unknown)         no         %s   %s\n",
+				no_rp, PIM_SSM_STANDARD_RANGE, source, type);
+		else {
+			json_row = json_object_new_object();
+			if (!json_object_object_get_ex(json, no_rp, &json_rp_rows)) {
+				json_rp_rows = json_object_new_array();
+				json_object_object_add(json, no_rp,
+						       json_rp_rows);
+			}
+
+			json_object_string_add(json_row, "rpAddress", no_rp);
+			json_object_string_add(json_row, "outboundInterface",
+					       "Unknown");
+			json_object_boolean_false_add(json_row, "iAmRP");
+			json_object_string_add(json_row, "group",
+					       PIM_SSM_STANDARD_RANGE);
+			json_object_string_add(json_row, "source", source);
+			json_object_string_add(json_row, "groupType", type);
+			json_object_array_add(json_rp_rows, json_row);
+		}
 	}
 }
 
@@ -1791,10 +1879,10 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 		inet_ntop(PIM_AF, &group, buf, sizeof(buf));
 
 		if (json) {
-			json_rp_rows = json_object_object_get(json, buf);
-			if (!json_rp_rows) {
+			if (!json_object_object_get_ex(json, buf, &json_rp_rows)) {
 				json_rp_rows = json_object_new_array();
-				json_object_object_add(json_rp_rows, buf, json_rp_rows);
+				json_object_object_add(json_rp_rows, buf,
+						       json_rp_rows);
 			}
 
 			json_row = json_object_new_object();
@@ -1825,13 +1913,15 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 						       json_aclrules);
 
 				pim_rpinfo_show_alist(vty, rp_info,
-						      json_aclrules);
+						      json_aclrules, range);
 			} else
 				json_object_string_add(
 					json_row, "group",
 					prefix2str(&rp_info->group, buf, 48));
 
 			json_object_string_add(json_row, "source", source);
+			json_object_string_add(json_row, "groupType",
+					       group_type);
 			json_object_array_add(json_rp_rows, json_row);
 		} else {
 			prefix2str(&rp_info->group, grp, sizeof(grp));
@@ -1850,7 +1940,8 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 					  source, group_type);
 
 			if (rp_info->alist)
-				pim_rpinfo_show_alist(vty, rp_info, json);
+				pim_rpinfo_show_alist(vty, rp_info, json,
+						      range);
 		}
 	}
 
