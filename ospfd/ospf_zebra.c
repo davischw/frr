@@ -297,6 +297,10 @@ void ospf_zebra_add(struct ospf *ospf, struct prefix_ipv4 *p,
 	struct ospf_path *path;
 	struct listnode *node;
 
+	/* Do not install connected routes. */
+	if (or->connected)
+		return;
+
 	if (ospf->gr_info.restart_in_progress
 	    || CHECK_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL)) {
 		if (IS_DEBUG_OSPF_GR)

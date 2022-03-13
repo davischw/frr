@@ -600,11 +600,6 @@ def test_ospfv3_type5_summary_tc42_p0(request):
         "summary address on R0 and only one route is sent to R1."
     )
 
-    input_dict_summary = {"r0": {"static_routes": [{"network": "fd00::/64"}]}}
-    dut = "r1"
-    result = verify_ospf6_rib(tgen, dut, input_dict_summary)
-    assert result is True, "Testcase {} : Failed \n Error: {}".format(tc_name, result)
-
     result = verify_rib(tgen, "ipv6", dut, input_dict_summary, protocol=protocol)
     assert (
         result is True
