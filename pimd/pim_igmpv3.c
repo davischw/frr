@@ -541,6 +541,41 @@ struct gm_source *igmp_get_source_by_addr(struct gm_group *group,
 	return src;
 }
 
+static bool source_group_is_empty(const struct gm_sock *igmp,
+				  const struct in_addr *group,
+				  const struct in_addr *sources,
+				  size_t sources_total)
+{
+	/* Filter first, otherwise don't attempt to create IGMP group. */
+	const struct pim_interface *pim_interface = igmp->interface->info;
+	struct prefix_sg source_group = {
+		.family = AF_INET,
+		.prefixlen = 32,
+		.grp = *group,
+	};
+	bool found = false;
+	size_t index;
+
+	for (index = 0; index < sources_total; index++) {
+		const struct in_addr *src_addr = sources + index;
+
+		source_group.src = *src_addr;
+
+		if (pim_filter_match(&pim_interface->igmp_filter, &source_group,
+				     igmp->interface, NULL)) {
+			found = true;
+			continue;
+		}
+
+		if (PIM_DEBUG_GM_TRACE)
+			zlog_debug(
+				"rejected join source %pSG4 on %s due to route-map",
+				&source_group, igmp->interface->name);
+	}
+
+	return !found;
+}
+
 static void allow(struct gm_sock *igmp, struct in_addr from,
 		  struct in_addr group_addr, int num_sources,
 		  struct in_addr *sources)
@@ -576,6 +611,10 @@ static void allow(struct gm_sock *igmp, struct in_addr from,
 
 		return;
 	}
+
+	/* Don't attempt to create group if all sources are filtered. */
+	if (source_group_is_empty(igmp, &group_addr, sources, num_sources))
+		return;
 
 	/* non-existent group is created as INCLUDE {empty} */
 	group = igmp_add_group_by_addr(igmp, group_addr);
@@ -883,6 +922,11 @@ void igmpv3_report_toin(struct gm_sock *igmp, struct in_addr from,
 	 * entry is present, the request is ignored.
 	 */
 	if (num_sources) {
+		/* Don't attempt to create group if all sources are filtered. */
+		if (source_group_is_empty(igmp, &group_addr, sources,
+					  num_sources))
+			return;
+
 		/* non-existent group is created as INCLUDE {empty} */
 		group = igmp_add_group_by_addr(igmp, group_addr);
 		if (!group) {
