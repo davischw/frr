@@ -182,7 +182,7 @@ static void ospf6_area_stub_update(struct ospf6_area *area)
 		if (IS_OSPF6_DEBUG_ORIGINATE(ROUTER))
 			zlog_debug("Stubbing out area for area %s", area->name);
 		OSPF6_OPT_CLEAR(area->options, OSPF6_OPT_E);
-		ospf6_asbr_remove_externals_from_area(area);
+		ospf6_asbr_remove_externals_check(area->ospf6);
 	} else if (IS_AREA_ENABLED(area)) {
 		if (IS_OSPF6_DEBUG_ORIGINATE(ROUTER))
 			zlog_debug("Normal area for area %s", area->name);

@@ -1359,13 +1359,12 @@ void ospf6_asbr_send_externals_to_area(struct ospf6_area *oa)
 	}
 }
 
-/* When an area is stubified, remove all the external LSAs in the area */
-void ospf6_asbr_remove_externals_from_area(struct ospf6_area *oa)
+/* Remove all external LSAs if no normal OSPF area is configured. */
+void ospf6_asbr_remove_externals_check(struct ospf6 *ospf6)
 {
 	struct ospf6_lsa *lsa, *lsanext;
 	struct listnode *node, *nnode;
 	struct ospf6_area *area;
-	struct ospf6 *ospf6 = oa->ospf6;
 	const struct route_node *iterend;
 
 	/* skip if router is in other non-stub/non-NSSA areas */

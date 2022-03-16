@@ -143,7 +143,7 @@ extern void ospf6_asbr_redistribute_disable(struct ospf6 *ospf6);
 extern void ospf6_asbr_redistribute_reset(struct ospf6 *ospf6);
 extern void ospf6_asbr_terminate(void);
 extern void ospf6_asbr_send_externals_to_area(struct ospf6_area *);
-extern void ospf6_asbr_remove_externals_from_area(struct ospf6_area *oa);
+extern void ospf6_asbr_remove_externals_check(struct ospf6 *ospf6);
 
 extern int config_write_ospf6_debug_asbr(struct vty *vty);
 extern int ospf6_distribute_config_write(struct vty *vty, struct ospf6 *ospf6);

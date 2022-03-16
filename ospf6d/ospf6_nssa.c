@@ -1055,7 +1055,7 @@ void ospf6_area_nssa_set(struct ospf6 *ospf6, struct ospf6_area *area)
 	OSPF6_ROUTER_LSA_SCHEDULE(area);
 
 	/* Flush external LSAs. */
-	ospf6_asbr_remove_externals_from_area(area);
+	ospf6_asbr_remove_externals_check(ospf6);
 
 	/* Originate NSSA LSA */
 	ospf6_check_and_originate_type7_lsa(area);
