@@ -279,7 +279,7 @@ static int ospf6_zebra_read_route(ZAPI_CALLBACK_ARGS)
 
 	ospf6 = ospf6_lookup_by_vrf_id(vrf_id);
 
-	if (ospf6 == NULL)
+	if (ospf6 == NULL || !CHECK_FLAG(ospf6->flag, OSPF6_FLAG_REDIST_ACTIVE))
 		return 0;
 
 	if (zapi_route_decode(zclient->ibuf, &api) < 0)

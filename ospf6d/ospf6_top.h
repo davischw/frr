@@ -166,6 +166,7 @@ struct ospf6 {
 #define OSPF6_FLAG_ASBR			0x08
 #define OSPF6_FLAG_SHUTDOWN		0x10
 #define OSPF6_FLAG_SHUTDOWN_GRACEFUL	0x20
+#define OSPF6_FLAG_REDIST_ACTIVE	0x40
 
 	int redistribute; /* Num of redistributed protocols. */
 

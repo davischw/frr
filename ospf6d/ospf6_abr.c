@@ -69,6 +69,7 @@ bool ospf6_check_and_set_router_abr(struct ospf6 *o)
 	struct ospf6_area *oa;
 	int area_count = 0;
 	bool is_backbone = false;
+	bool redist_active = false;
 
 	for (ALL_LIST_ELEMENTS_RO(o->area_list, node, oa)) {
 		if (IS_OSPF6_DEBUG_ABR)
@@ -76,9 +77,22 @@ bool ospf6_check_and_set_router_abr(struct ospf6 *o)
 		if (IS_AREA_ENABLED(oa))
 			area_count++;
 
+		if (IS_AREA_ENABLED(oa) && !IS_AREA_STUB(oa))
+			redist_active = true;
+
 		if (o->backbone == oa)
 			is_backbone = true;
 	}
+
+	/*
+	 * Route redistribution should be enabled only when at least one
+	 * non-stub area is configured.
+	 */
+	if (redist_active && !CHECK_FLAG(o->flag, OSPF6_FLAG_REDIST_ACTIVE))
+		ospf6_asbr_activate_redistribution(o);
+	else if (!redist_active
+		 && CHECK_FLAG(o->flag, OSPF6_FLAG_REDIST_ACTIVE))
+		ospf6_asbr_deactivate_redistribution(o);
 
 	if ((area_count > 1) && (is_backbone)) {
 		if (IS_OSPF6_DEBUG_ABR)
@@ -161,6 +175,9 @@ void ospf6_abr_disable_area(struct ospf6_area *area)
 	for (ALL_LIST_ELEMENTS(area->ospf6->area_list, node, nnode, oa))
 		/* update B bit for each area */
 		OSPF6_ROUTER_LSA_SCHEDULE(oa);
+
+	/* Remove AS-External LSAs if necessary */
+	ospf6_asbr_remove_externals_check(area->ospf6);
 }
 
 /* RFC 2328 12.4.3. Summary-LSAs */

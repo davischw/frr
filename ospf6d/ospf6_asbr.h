@@ -182,4 +182,7 @@ void ospf6_external_aggregator_free(struct ospf6_external_aggr_rt *aggr);
 void ospf6_unset_all_aggr_flag(struct ospf6 *ospf6);
 void ospf6_fill_aggr_route_details(struct ospf6 *ospf6,
 				   struct ospf6_external_aggr_rt *aggr);
+void ospf6_asbr_activate_redistribution(struct ospf6 *ospf6);
+void ospf6_asbr_deactivate_redistribution(struct ospf6 *ospf6);
+
 #endif /* OSPF6_ASBR_H */

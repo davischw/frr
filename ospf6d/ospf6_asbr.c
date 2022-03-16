@@ -61,7 +61,7 @@ DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_DIST_ARGS,     "OSPF6 Distribute arguments");
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_REDISTRIBUTE, "OSPF6 Redistribute arguments");
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_EXTERNAL_RT_AGGR, "OSPF6 ASBR Summarisation");
 
-static void ospf6_asbr_redistribute_set(struct ospf6 *ospf6, int type);
+static void ospf6_asbr_redistribute_activate(struct ospf6 *ospf6, int type);
 static void ospf6_asbr_redistribute_unset(struct ospf6 *ospf6,
 					  struct ospf6_redist *red, int type);
 
@@ -1189,7 +1189,7 @@ void ospf6_asbr_routemap_update(const char *mapname)
 								type));
 				ospf6_asbr_redistribute_unset(ospf6, red, type);
 				ospf6_asbr_routemap_set(red, mapname);
-				ospf6_asbr_redistribute_set(ospf6, type);
+				ospf6_asbr_redistribute_activate(ospf6, type);
 			}
 		}
 	}
@@ -1312,16 +1312,20 @@ void ospf6_asbr_status_update(struct ospf6 *ospf6, int status)
 		ospf6_schedule_abr_task(ospf6);
 }
 
-static void ospf6_asbr_redistribute_set(struct ospf6 *ospf6, int type)
+static void ospf6_asbr_redistribute_activate(struct ospf6 *ospf6, int type)
 {
+	if (!CHECK_FLAG(ospf6->flag, OSPF6_FLAG_REDIST_ACTIVE))
+		return;
+
 	ospf6_zebra_redistribute(type, ospf6->vrf_id);
 
 	++ospf6->redist_count;
 	ospf6_asbr_status_update(ospf6, ospf6->redist_count);
 }
 
-static void ospf6_asbr_redistribute_unset(struct ospf6 *ospf6,
-					  struct ospf6_redist *red, int type)
+static void ospf6_asbr_redistribute_deactivate(struct ospf6 *ospf6,
+					       struct ospf6_redist *red,
+					       int type)
 {
 	struct ospf6_route *route;
 	struct ospf6_external_info *info;
@@ -1338,9 +1342,15 @@ static void ospf6_asbr_redistribute_unset(struct ospf6 *ospf6,
 					       ospf6);
 	}
 
-	ospf6_asbr_routemap_unset(red);
 	--ospf6->redist_count;
 	ospf6_asbr_status_update(ospf6, ospf6->redist_count);
+}
+
+static void ospf6_asbr_redistribute_unset(struct ospf6 *ospf6,
+					  struct ospf6_redist *red, int type)
+{
+	ospf6_asbr_redistribute_deactivate(ospf6, red, type);
+	ospf6_asbr_routemap_unset(red);
 }
 
 /* When an area is unstubified, flood all the external LSAs in the area */
@@ -1368,9 +1378,12 @@ void ospf6_asbr_remove_externals_check(struct ospf6 *ospf6)
 	const struct route_node *iterend;
 
 	/* skip if router is in other non-stub/non-NSSA areas */
-	for (ALL_LIST_ELEMENTS(ospf6->area_list, node, nnode, area))
+	for (ALL_LIST_ELEMENTS(ospf6->area_list, node, nnode, area)) {
+		if (!IS_AREA_ENABLED(area))
+			continue;
 		if (!IS_AREA_STUB(area) && !IS_AREA_NSSA(area))
 			return;
+	}
 
 	/* if router is only in a stub area then purge AS-External LSAs */
 	iterend = ospf6_lsdb_head(ospf6->lsdb, 0, 0, 0, &lsa);
@@ -1747,7 +1760,7 @@ DEFPY (ospf6_redistribute,
 		ospf6_asbr_routemap_set(red, rmap_str);
 	else
 		ospf6_asbr_routemap_unset(red);
-	ospf6_asbr_redistribute_set(ospf6, type);
+	ospf6_asbr_redistribute_activate(ospf6, type);
 
 	return CMD_SUCCESS;
 }
@@ -2702,7 +2715,7 @@ void ospf6_asbr_redistribute_reset(struct ospf6 *ospf6)
 		ospf6_asbr_redistribute_unset(ospf6, red, type);
 		if (buf[0])
 			ospf6_asbr_routemap_set(red, buf);
-		ospf6_asbr_redistribute_set(ospf6, type);
+		ospf6_asbr_redistribute_activate(ospf6, type);
 	}
 }
 
@@ -3746,5 +3759,45 @@ void ospf6_unset_all_aggr_flag(struct ospf6 *ospf6)
 		aggr = rn->info;
 
 		UNSET_FLAG(aggr->aggrflags, OSPF6_EXTERNAL_AGGRT_ORIGINATED);
+	}
+}
+
+void ospf6_asbr_activate_redistribution(struct ospf6 *ospf6)
+{
+	if (IS_OSPF6_DEBUG_ASBR)
+		zlog_debug("Enabling route redistribution");
+
+	SET_FLAG(ospf6->flag, OSPF6_FLAG_REDIST_ACTIVE);
+
+	for (int type = 0; type <= ZEBRA_ROUTE_MAX; type++) {
+		struct ospf6_redist *red;
+
+		if (type == ZEBRA_ROUTE_OSPF6)
+			continue;
+		red = ospf6_redist_lookup(ospf6, type, 0);
+		if (!red)
+			continue;
+
+		ospf6_asbr_redistribute_activate(ospf6, type);
+	}
+}
+
+void ospf6_asbr_deactivate_redistribution(struct ospf6 *ospf6)
+{
+	if (IS_OSPF6_DEBUG_ASBR)
+		zlog_debug("Disabling route redistribution");
+
+	UNSET_FLAG(ospf6->flag, OSPF6_FLAG_REDIST_ACTIVE);
+
+	for (int type = 0; type <= ZEBRA_ROUTE_MAX; type++) {
+		struct ospf6_redist *red;
+
+		if (type == ZEBRA_ROUTE_OSPF6)
+			continue;
+		red = ospf6_redist_lookup(ospf6, type, 0);
+		if (!red)
+			continue;
+
+		ospf6_asbr_redistribute_deactivate(ospf6, red, type);
 	}
 }
