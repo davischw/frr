@@ -2624,6 +2624,8 @@ void pim_show_interfaces_single(struct pim_instance *pim, struct vty *vty,
 			if (pim_ifp->ucast_bsm_accept)
 				json_object_boolean_true_add(json_row,
 							     "ucastBsmEnabled");
+			json_object_int_add(json_row, "joinPruneInterval",
+					    pim_ifp->periodic_jp_sec);
 			json_object_object_add(json, ifp->name, json_row);
 
 		} else {
