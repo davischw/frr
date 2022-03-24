@@ -70,6 +70,7 @@ static inline long igmp_gmi_msec(struct gm_group *group)
 	long qrv = 0, qqi = 0;
 
 	for (ALL_LIST_ELEMENTS_RO(pim_ifp->gm_socket_list, sock_node, igmp)) {
+		qrv = MAX(qrv, pim_ifp->gm_last_member_query_count);
 		qrv = MAX(qrv, igmp->querier_robustness_variable);
 		qqi = MAX(qqi, igmp->querier_query_interval);
 	}
