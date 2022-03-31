@@ -885,8 +885,8 @@ static int rip_auth_md5(struct rip_packet *packet, struct sockaddr_in *from,
 	      || (md5->auth_len == RIP_AUTH_MD5_COMPAT_SIZE))) {
 		if (IS_RIP_DEBUG_EVENT)
 			zlog_debug(
-				"RIPv2 MD5 authentication, strange authentication length field %d",
-				md5->auth_len);
+				"RIPv2 MD5 authentication from IP %pI4, strange authentication length field %d",
+				&from->sin_addr, md5->auth_len);
 		return 0;
 	}
 
@@ -896,8 +896,8 @@ static int rip_auth_md5(struct rip_packet *packet, struct sockaddr_in *from,
 	if (packet_len > (length - RIP_HEADER_SIZE - RIP_AUTH_MD5_SIZE)) {
 		if (IS_RIP_DEBUG_EVENT)
 			zlog_debug(
-				"RIPv2 MD5 authentication, packet length field %d greater than received length %d!",
-				md5->packet_len, length);
+				"RIPv2 MD5 authentication from IP %pI4, packet length field %d greater than received length %d!",
+				&from->sin_addr, md5->packet_len, length);
 		return 0;
 	}
 
@@ -1806,6 +1806,19 @@ static void rip_read(struct thread *t)
 	rip_read_process(rip, ifp, ifc, &rip_buf.rip_packet, len, from);
 }
 
+static const char *rip_authtype2str(int type)
+{
+	switch (type) {
+	case RIP_NO_AUTH:
+		return "none";
+	case RIP_AUTH_MD5:
+		return "md5";
+	case RIP_AUTH_SIMPLE_PASSWORD:
+		return "simple";
+	}
+	return "unknown";
+}
+
 void rip_read_process(struct rip *rip, struct interface *ifp,
 		      struct connected *ifc, struct rip_packet *packet, int len,
 		      struct sockaddr_in from)
@@ -1973,21 +1986,24 @@ void rip_read_process(struct rip *rip, struct interface *ifp,
 
 		default:
 			ret = 0;
-			auth_desc = "unknown type";
+			auth_desc = "unknown";
 			if (IS_RIP_DEBUG_PACKET)
 				zlog_debug(
-					"RIPv2 Unknown authentication type %d",
-					ntohs(packet->rte->tag));
+					"RIPv2 Unknown authentication type from IP %pI4, received auth-type '%s', expected auth-type '%s'",
+					&from.sin_addr, auth_desc,
+					rip_authtype2str(ri->auth_type));
 		}
 
 		if (ret) {
 			if (IS_RIP_DEBUG_PACKET)
-				zlog_debug("RIPv2 %s authentication success",
-					   auth_desc);
+				zlog_debug(
+					"RIPv2 authentication success from IP %pI4, auth-type '%s'",
+					&from.sin_addr, auth_desc);
 		} else {
 			if (IS_RIP_DEBUG_PACKET)
-				zlog_debug("RIPv2 %s authentication failure",
-					   auth_desc);
+				zlog_debug(
+					"RIPv2 authentication failure from IP %pI4, auth-type '%s'",
+					&from.sin_addr, auth_desc);
 			ripd_notif_send_auth_failure(ifp->name);
 			rip_peer_bad_packet(rip, ri, &from);
 			return;
