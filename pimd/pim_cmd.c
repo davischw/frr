@@ -228,6 +228,11 @@ static void pim_show_assert_json_helper(struct vty *vty, struct interface *ifp,
 		json_oil = json_get_or_make(json_src, "oil");
 		json_iface = json_get_or_make(json_oil, ifp->name);
 		json_item = json_get_or_make(json_iface, "assert");
+		json_object_string_add(json_src, "localMembership",
+				       ch->local_ifmembership ==
+						       PIM_IFMEMBERSHIP_NOINFO
+					       ? "NOINFO"
+					       : "LOCAL");
 	} else
 		json_item = json_src;
 
@@ -1018,7 +1023,7 @@ static const char *pim_reg_state2brief_str(enum pim_reg_state reg_state,
 
 static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
 				  struct pim_upstream *up, time_t now,
-				  json_object *json_group)
+				  json_object *json_group, bool everything)
 {
 	char grp_str[INET_ADDRSTRLEN];
 	char src_str[INET_ADDRSTRLEN];
@@ -1028,6 +1033,8 @@ static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
 	char ka_timer[10];
 	char msdp_reg_timer[10];
 	char state_str[PIM_REG_STATE_STR_LEN];
+	char upstream_neighbor[PREFIX_STRLEN] = {};
+	char reg_stop_timer[16];
 
 	pim_inet4_dump("<src?>", up->sg.src, src_str, sizeof(src_str));
 	pim_inet4_dump("<grp?>", up->sg.grp, grp_str, sizeof(grp_str));
@@ -1044,9 +1051,12 @@ static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
 
 		nbr = pim_neighbor_find(up->rpf.source_nexthop.interface,
 					up->rpf.rpf_addr);
-		if (nbr)
+		if (nbr) {
+			inet_ntop(AF_INET, &nbr->source_addr, upstream_neighbor,
+				  sizeof(upstream_neighbor));
 			pim_time_timer_to_hhmmss(join_timer, sizeof(join_timer),
 						 nbr->jp_timer);
+		}
 	}
 
 	pim_time_timer_to_hhmmss(rs_timer, sizeof(rs_timer), up->t_rs_timer);
@@ -1058,6 +1068,8 @@ static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
 					 up->t_ka_timer);
 	pim_time_timer_to_hhmmss(msdp_reg_timer, sizeof(msdp_reg_timer),
 				 up->t_msdp_reg_timer);
+	pim_time_timer_to_hhmmss(reg_stop_timer, sizeof(reg_stop_timer),
+				 up->t_rs_timer);
 
 	pim_upstream_state2brief_str(up->join_state, state_str,
 				     sizeof(state_str));
@@ -1073,6 +1085,9 @@ static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
 
 	if (json_group) {
 		json_object *json_row = json_object_new_object();
+		struct pim_rpf *rpg = RP(pim, up->sg.grp);
+		char rp_address[PREFIX_STRLEN];
+		char next_hop_address[PREFIX_STRLEN];
 
 		json_object_pim_upstream_add(json_row, up);
 		json_object_string_add(
@@ -1091,14 +1106,37 @@ static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
 		if (up->flags & PIM_UPSTREAM_FLAG_MASK_FHR ||
 		    up->sg.src.s_addr == INADDR_ANY) {
 			char rpf[PREFIX_STRLEN];
-			struct pim_rpf *rpg;
 
-			rpg = RP(pim, up->sg.grp);
 			pim_inet4_dump("<rpf?>", rpg->rpf_addr, rpf,
 				       sizeof(rpf));
 			json_object_string_add(json_row, "rpfAddress", rpf);
 		} else {
 			json_object_string_add(json_row, "rpfAddress", src_str);
+		}
+
+		if (everything) {
+			pim_inet4_dump("<rpAddress?>", rpg->rpf_addr,
+				       rp_address, sizeof(rp_address));
+			json_object_string_add(json_row, "rpAddress",
+					       rp_address);
+			if (rpg->source_nexthop.interface)
+				json_object_string_add(
+					json_row, "rpfInterface",
+					rpg->source_nexthop.interface->name);
+			else
+				json_object_string_add(json_row, "rpfInterface",
+						       "unknown");
+
+			pim_inet4_dump("<rpfNextHop?>",
+				       rpg->source_nexthop.mrib_nexthop_addr,
+				       next_hop_address,
+				       sizeof(next_hop_address));
+			json_object_string_add(json_row, "rpfNextHop",
+					       next_hop_address);
+			json_object_string_add(json_row, "upstreamNeighbor",
+					       upstream_neighbor);
+			json_object_string_add(json_row, "drRegisterStopTimer",
+					       reg_stop_timer);
 		}
 
 		json_object_string_add(json_row, "source", src_str);
@@ -1353,7 +1391,7 @@ static void pim_show_everything(struct vty *vty, struct pim_instance *pim,
 			continue;
 
 		json_group = json_get_or_make_addr(json, up->sg.grp);
-		pim_show_upstream_one(vty, pim, up, now, json_group);
+		pim_show_upstream_one(vty, pim, up, now, json_group, true);
 	}
 
 	/* Prepare table. */
