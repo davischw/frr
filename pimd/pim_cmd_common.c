@@ -1727,18 +1727,12 @@ void pim_show_join_helper(struct pim_interface *pim_ifp,
 		json_object_string_add(
 			json_row, "channelJoinName",
 			pim_ifchannel_ifjoin_name(ch->ifjoin_state, ch->flags));
-		if (PIM_IF_FLAG_TEST_S_G_RPT(ch->flags)) {
-#if CONFDATE > 20230131
-			CPP_NOTICE(
-				"Remove JSON object commands with keys starting with capital")
-#endif
-			json_object_int_add(json_row, "SGRpt", 1);
-			json_object_int_add(json_row, "sgRpt", 1);
-		}
-		if (PIM_IF_FLAG_TEST_PROTO_PIM(ch->flags))
-			json_object_int_add(json_row, "protocolPim", 1);
-		if (PIM_IF_FLAG_TEST_PROTO_IGMP(ch->flags))
-			json_object_int_add(json_row, "protocolIgmp", 1);
+		json_object_boolean_add(json_row, "SGRpt",
+					PIM_IF_FLAG_TEST_S_G_RPT(ch->flags));
+		json_object_boolean_add(json_row, "protocolPim",
+					PIM_IF_FLAG_TEST_PROTO_PIM(ch->flags));
+		json_object_boolean_add(json_row, "protocolIgmp",
+					PIM_IF_FLAG_TEST_PROTO_IGMP(ch->flags));
 		snprintfrr(ch_grp_str, sizeof(ch_grp_str), "%pPAs",
 			   &ch->sg.grp);
 		json_object_object_get_ex(json_iface, ch_grp_str, &json_grp);
@@ -3708,7 +3702,7 @@ void show_mroute(struct pim_instance *pim, struct vty *vty, pim_sgaddr *sg,
 		 bool fill, json_object *json)
 {
 	struct listnode *node;
-	struct channel_oil *c_oil;
+	struct channel_oil *c_oil, *i_oil;
 	struct static_route *s_route;
 	struct ttable *tt = NULL;
 	char *table = NULL;
@@ -3728,6 +3722,7 @@ void show_mroute(struct pim_instance *pim, struct vty *vty, pim_sgaddr *sg,
 	char proto[100];
 	char state_str[PIM_REG_STATE_STR_LEN];
 	char mroute_uptime[10];
+	pim_sgaddr sg_star = {};
 
 	if (!json) {
 		vty_out(vty, "IP Multicast Routing Table\n");
@@ -3792,6 +3787,12 @@ void show_mroute(struct pim_instance *pim, struct vty *vty, pim_sgaddr *sg,
 
 		pim_time_uptime(mroute_uptime, sizeof(mroute_uptime),
 				now - c_oil->mroute_creation);
+
+		/* If we have an inherited OIL for (S,G), we should check
+		 * (*,G) for an accurate protocol.
+		 */
+		sg_star.grp = *oil_mcastgrp(c_oil);
+		i_oil = pim_find_channel_oil(pim, &sg_star);
 
 		if (json) {
 
@@ -3871,31 +3872,39 @@ void show_mroute(struct pim_instance *pim, struct vty *vty, pim_sgaddr *sg,
 				json_object_string_add(json_ifp_out, "group",
 						       grp_str);
 
-				if (c_oil->oif_flags[oif_vif_index] &
-				    PIM_OIF_FLAG_PROTO_PIM)
-					json_object_boolean_true_add(
-						json_ifp_out, "protocolPim");
+				json_object_boolean_add(
+					json_ifp_out, "protocolPim",
+					c_oil->oif_flags[oif_vif_index] &
+							PIM_OIF_FLAG_PROTO_PIM ||
+						(i_oil &&
+						 i_oil->oif_flags[oif_vif_index] &
+							 PIM_OIF_FLAG_PROTO_PIM));
 
-				if (c_oil->oif_flags[oif_vif_index] &
-				    PIM_OIF_FLAG_PROTO_GM)
+				json_object_boolean_add(
+					json_ifp_out,
 #if PIM_IPV == 4
-					json_object_boolean_true_add(
-						json_ifp_out, "protocolIgmp");
+					"protocolIgmp",
 #else
-					json_object_boolean_true_add(
-						json_ifp_out, "protocolMld");
+					"protocolMld",
 #endif
+					c_oil->oif_flags[oif_vif_index] &
+							PIM_OIF_FLAG_PROTO_GM ||
+						(i_oil &&
+						 i_oil->oif_flags[oif_vif_index] &
+							 PIM_OIF_FLAG_PROTO_GM));
 
-				if (c_oil->oif_flags[oif_vif_index] &
-				    PIM_OIF_FLAG_PROTO_VXLAN)
-					json_object_boolean_true_add(
-						json_ifp_out, "protocolVxlan");
+				json_object_boolean_add(
+					json_ifp_out, "protocolVxlan",
+					c_oil->oif_flags[oif_vif_index] &
+							PIM_OIF_FLAG_PROTO_VXLAN ||
+						(i_oil &&
+						 i_oil->oif_flags[oif_vif_index] &
+							 PIM_OIF_FLAG_PROTO_VXLAN));
 
-				if (c_oil->oif_flags[oif_vif_index] &
-				    PIM_OIF_FLAG_PROTO_STAR)
-					json_object_boolean_true_add(
-						json_ifp_out,
-						"protocolInherited");
+				json_object_boolean_add(
+					json_ifp_out, "protocolInherited",
+					c_oil->oif_flags[oif_vif_index] &
+						PIM_OIF_FLAG_PROTO_STAR);
 
 				json_object_string_add(json_ifp_out,
 						       "inboundInterface",
