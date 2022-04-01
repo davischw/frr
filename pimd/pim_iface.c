@@ -1250,9 +1250,9 @@ static void igmp_join_free(struct gm_join *ij)
 	XFREE(MTYPE_PIM_IGMP_JOIN, ij);
 }
 
-static struct gm_join *igmp_join_find(struct list *join_list,
-				      struct in_addr group_addr,
-				      struct in_addr source_addr)
+struct gm_join *igmp_join_find(struct list *join_list,
+			       struct in_addr group_addr,
+			       struct in_addr source_addr)
 {
 	struct listnode *node;
 	struct gm_join *ij;

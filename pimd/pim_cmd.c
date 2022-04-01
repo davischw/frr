@@ -1749,7 +1749,7 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 			pim->gm_watermark_limit ? "Set" : "Not Set",
 			pim->gm_watermark_limit);
 		vty_out(vty,
-			"Interface        Group           Mode Timer    Srcs V Uptime  \n");
+			"Interface        Group           Mode Timer    Srcs V Uptime   Static\n");
 	}
 
 	/* scan interfaces */
@@ -1767,6 +1767,20 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 			char group_str[INET_ADDRSTRLEN];
 			char hhmmss[10];
 			char uptime[10];
+			struct gm_join *gj = NULL;
+#if PIM_IPV == 4
+			struct listnode *srcnode;
+			struct gm_source *src;
+
+			for (ALL_LIST_ELEMENTS_RO(grp->group_source_list,
+						  srcnode, src)) {
+				gj = igmp_join_find(pim_ifp->gm_join_list,
+						    grp->group_addr,
+						    src->source_addr);
+				if (gj)
+					break;
+			}
+#endif /* PIM_IPV4 */
 
 			pim_inet4_dump("<group?>", grp->group_addr, group_str,
 				       sizeof(group_str));
@@ -1812,9 +1826,12 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 						    grp->igmp_version);
 				json_object_string_add(json_group, "uptime",
 						       uptime);
+				json_object_boolean_add(json_group,
+							"staticJoin", !!gj);
 				json_object_array_add(json_groups, json_group);
 			} else {
-				vty_out(vty, "%-16s %-15s %4s %8s %4d %d %8s\n",
+				vty_out(vty,
+					"%-16s %-15s %4s %8s %4d %d %8s %s\n",
 					ifp->name, group_str,
 					grp->igmp_version == 3
 						? (grp->group_filtermode_isexcl
@@ -1822,10 +1839,12 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 							   : "INCL")
 						: "----",
 					hhmmss,
-					grp->group_source_list ? listcount(
-						grp->group_source_list)
-							       : 0,
-					grp->igmp_version, uptime);
+					grp->group_source_list
+						? listcount(
+							  grp->group_source_list)
+						: 0,
+					grp->igmp_version, uptime,
+					!!gj ? "yes" : "no");
 			}
 		} /* scan igmp groups */
 	}	  /* scan interfaces */
