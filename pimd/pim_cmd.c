@@ -228,7 +228,7 @@ static void pim_show_assert_json_helper(struct vty *vty, struct interface *ifp,
 		json_oil = json_get_or_make(json_src, "oil");
 		json_iface = json_get_or_make(json_oil, ifp->name);
 		json_item = json_get_or_make(json_iface, "assert");
-		json_object_string_add(json_oil, "localMembership",
+		json_object_string_add(json_iface, "localMembership",
 				       ch->local_ifmembership ==
 						       PIM_IFMEMBERSHIP_NOINFO
 					       ? "NOINFO"
