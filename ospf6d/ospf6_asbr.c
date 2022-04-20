@@ -80,7 +80,7 @@ static struct ospf6_lsa *ospf6_originate_type5_type7_lsas(
 {
 	struct ospf6_lsa *lsa = NULL;
 
-	if (!ospf6->anyNSSA)
+	if (!ospf6->anyNSSA || is_default_prefix(&route->rnode->p))
 		lsa = ospf6_as_external_lsa_originate(route, ospf6);
 	else {
 		struct ospf6_area *oa;
@@ -1581,11 +1581,12 @@ void ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
 }
 
 static void ospf6_asbr_external_lsa_remove_by_id(struct ospf6 *ospf6,
+						 struct prefix *prefix,
 						 uint32_t id)
 {
 	struct ospf6_lsa *lsa;
 
-	if (!ospf6->anyNSSA) {
+	if (!ospf6->anyNSSA || is_default_prefix(prefix)) {
 		lsa = ospf6_lsdb_lookup(htons(OSPF6_LSTYPE_AS_EXTERNAL),
 					htonl(id), ospf6->router_id,
 					ospf6->lsdb);
@@ -1632,7 +1633,7 @@ ospf6_asbr_summary_remove_lsa_and_route(struct ospf6 *ospf6,
 				__func__,
 				&aggr->p);
 
-	ospf6_asbr_external_lsa_remove_by_id(ospf6, aggr->id);
+	ospf6_asbr_external_lsa_remove_by_id(ospf6, &aggr->p, aggr->id);
 
 	if (aggr->route) {
 		if (IS_OSPF6_DEBUG_AGGR)
@@ -1697,7 +1698,7 @@ void ospf6_asbr_redistribute_remove(int type, ifindex_t ifindex,
 	 * if any originated for this prefix
 	 */
 	if (!match->aggr_route)
-		ospf6_asbr_external_lsa_remove_by_id(ospf6, info->id);
+		ospf6_asbr_external_lsa_remove_by_id(ospf6, prefix, info->id);
 	else
 		ospf6_unlink_route_from_aggr(ospf6, match->aggr_route, match);
 
