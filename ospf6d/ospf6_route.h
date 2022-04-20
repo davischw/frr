@@ -232,6 +232,7 @@ struct ospf6_route {
 #define OSPF6_ROUTE_WAS_REMOVED      0x0040
 #define OSPF6_ROUTE_BLACKHOLE_ADDED  0x0080
 #define OSPF6_ROUTE_NSSA_RANGE       0x0100
+#define OSPF6_ROUTE_DEFAULT_ALWAYS   0x0200
 struct ospf6;
 
 struct ospf6_route_table {

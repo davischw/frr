@@ -1907,47 +1907,64 @@ static void ospf6_redistribute_show_config(struct vty *vty, struct ospf6 *ospf6,
 static void ospf6_redistribute_default_set(struct ospf6 *ospf6, int originate)
 {
 	struct prefix_ipv6 p = {};
-	struct in6_addr nexthop = {};
-	int cur_originate = ospf6->default_originate;
+	int cur_originate;
 	struct ospf6_route *route;
 
 	p.family = AF_INET6;
 	p.prefixlen = 0;
 
+	if (originate == ospf6->default_originate) {
+		if (originate != DEFAULT_ORIGINATE_NONE) {
+			/*
+			 * Refresh the LSA since the metric might have changed.
+			 */
+			route = ospf6_route_lookup((struct prefix *)&p,
+						   ospf6->external_table);
+			if (route) {
+				ospf6_asbr_redistribute_remove(route, ospf6);
+				(void)ospf6_asbr_redistribute_add(
+					DEFAULT_ROUTE, 0, (struct prefix *)&p,
+					0, &in6addr_any, 0, ospf6);
+			}
+		}
+		return;
+	}
+
+	cur_originate = ospf6->default_originate;
 	ospf6->default_originate = originate;
 
-	switch (cur_originate) {
-	case DEFAULT_ORIGINATE_NONE:
-		break;
-	case DEFAULT_ORIGINATE_ZEBRA:
+	/* Update zebra default route redistribution. */
+	if (cur_originate == DEFAULT_ORIGINATE_NONE)
+		zclient_redistribute_default(ZEBRA_REDISTRIBUTE_DEFAULT_ADD,
+					     zclient, AFI_IP6, ospf6->vrf_id);
+	if (originate == DEFAULT_ORIGINATE_NONE)
 		zclient_redistribute_default(ZEBRA_REDISTRIBUTE_DEFAULT_DELETE,
 					     zclient, AFI_IP6, ospf6->vrf_id);
 
-		route = ospf6_asbr_redistribute_find(
-			DEFAULT_ROUTE, (struct prefix *)&p, ospf6);
-		if (route)
-			ospf6_asbr_redistribute_remove(route, ospf6);
-		break;
-	case DEFAULT_ORIGINATE_ALWAYS:
-		route = ospf6_asbr_redistribute_find(
-			DEFAULT_ROUTE, (struct prefix *)&p, ospf6);
-		if (route)
-			ospf6_asbr_redistribute_remove(route, ospf6);
-		break;
-	}
-
+	/*
+	 * Check if a new default route needs to be originated, or an existing
+	 * one removed.
+	 */
+	route = ospf6_route_lookup((struct prefix *)&p, ospf6->external_table);
 	switch (originate) {
-	case DEFAULT_ORIGINATE_NONE:
+	case DEFAULT_ORIGINATE_ALWAYS:
+		if (!route) {
+			route = ospf6_asbr_redistribute_add(
+				DEFAULT_ROUTE, 0, (struct prefix *)&p, 0,
+				&in6addr_any, 0, ospf6);
+			if (route)
+				SET_FLAG(route->flag,
+					 OSPF6_ROUTE_DEFAULT_ALWAYS);
+		}
 		break;
 	case DEFAULT_ORIGINATE_ZEBRA:
-		zclient_redistribute_default(ZEBRA_REDISTRIBUTE_DEFAULT_ADD,
-					     zclient, AFI_IP6, ospf6->vrf_id);
-
+		if (route
+		    && CHECK_FLAG(route->flag, OSPF6_ROUTE_DEFAULT_ALWAYS))
+			ospf6_asbr_redistribute_remove(route, ospf6);
 		break;
-	case DEFAULT_ORIGINATE_ALWAYS:
-		(void)ospf6_asbr_redistribute_add(DEFAULT_ROUTE, 0,
-						  (struct prefix *)&p, 0,
-						  &nexthop, 0, ospf6);
+	case DEFAULT_ORIGINATE_NONE:
+		if (route)
+			ospf6_asbr_redistribute_remove(route, ospf6);
 		break;
 	}
 }

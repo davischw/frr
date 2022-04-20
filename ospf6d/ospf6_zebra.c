@@ -310,11 +310,14 @@ static int ospf6_zebra_read_route(ZAPI_CALLBACK_ARGS)
 	if (is_default_prefix6(&p))
 		api.type = DEFAULT_ROUTE;
 
-	if (cmd == ZEBRA_REDISTRIBUTE_ROUTE_ADD)
-		(void)ospf6_asbr_redistribute_add(api.type, ifindex,
+	if (cmd == ZEBRA_REDISTRIBUTE_ROUTE_ADD) {
+		route = ospf6_asbr_redistribute_add(api.type, ifindex,
 						  &api.prefix, api.nexthop_num,
 						  nexthop, api.tag, ospf6);
-	else {
+		if (route && api.type == DEFAULT_ROUTE)
+			/* Mark default route as dynamic. */
+			UNSET_FLAG(route->flag, OSPF6_ROUTE_DEFAULT_ALWAYS);
+	} else {
 		route = ospf6_asbr_redistribute_find(api.type, &api.prefix,
 						     ospf6);
 		if (!route) {
@@ -324,7 +327,23 @@ static int ospf6_zebra_read_route(ZAPI_CALLBACK_ARGS)
 			return 0;
 		}
 
+		/* Do not remove persistent default route. */
+		if (api.type == DEFAULT_ROUTE
+		    && CHECK_FLAG(route->flag, OSPF6_ROUTE_DEFAULT_ALWAYS))
+			return 0;
+
 		ospf6_asbr_redistribute_remove(route, ospf6);
+
+		/* Check if a new default route needs to be originated. */
+		if (api.type == DEFAULT_ROUTE
+		    && ospf6->default_originate == DEFAULT_ORIGINATE_ALWAYS) {
+			route = ospf6_asbr_redistribute_add(
+				DEFAULT_ROUTE, 0, &api.prefix, 0, &in6addr_any,
+				0, ospf6);
+			if (route)
+				SET_FLAG(route->flag,
+					 OSPF6_ROUTE_DEFAULT_ALWAYS);
+		}
 	}
 
 	return 0;
