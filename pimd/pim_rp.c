@@ -1911,9 +1911,10 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 				json_object_object_add(json_row,
 						       "accessListContents",
 						       json_aclrules);
-
-				pim_rpinfo_show_alist(vty, rp_info,
-						      json_aclrules, range);
+				if (rp_info->alist)
+					pim_rpinfo_show_alist(vty, rp_info,
+							      json_aclrules,
+							      range);
 			} else
 				json_object_string_add(
 					json_row, "group",
