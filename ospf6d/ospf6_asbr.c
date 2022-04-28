@@ -1328,19 +1328,12 @@ static void ospf6_asbr_redistribute_deactivate(struct ospf6 *ospf6,
 					       int type)
 {
 	struct ospf6_route *route;
-	struct ospf6_external_info *info;
 
 	ospf6_zebra_no_redistribute(type, ospf6->vrf_id);
 
 	for (route = ospf6_route_head(ospf6->external_table); route;
-	     route = ospf6_route_next(route)) {
-		info = route->route_option;
-		if (info->type != type)
-			continue;
-
-		ospf6_asbr_redistribute_remove(info->type, 0, &route->prefix,
-					       ospf6);
-	}
+	     route = ospf6_route_next(route))
+		ospf6_asbr_redistribute_remove(route, ospf6);
 
 	--ospf6->redist_count;
 	ospf6_asbr_status_update(ospf6, ospf6->redist_count);
@@ -1422,11 +1415,12 @@ ospf6_external_aggr_match(struct ospf6 *ospf6, struct prefix *p)
 	return node->info;
 }
 
-void ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
-				 struct prefix *prefix,
-				 unsigned int nexthop_num,
-				 const struct in6_addr *nexthop,
-				 route_tag_t tag, struct ospf6 *ospf6)
+struct ospf6_route *ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
+						struct prefix *prefix,
+						unsigned int nexthop_num,
+						const struct in6_addr *nexthop,
+						route_tag_t tag,
+						struct ospf6 *ospf6)
 {
 	route_map_result_t ret;
 	struct ospf6_route troute;
@@ -1438,11 +1432,11 @@ void ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
 	red = ospf6_redist_lookup(ospf6, type, 0);
 
 	if (!red)
-		return;
+		return NULL;
 
 	if ((type != DEFAULT_ROUTE)
 	    && !ospf6_zebra_is_redistribute(type, ospf6->vrf_id))
-		return;
+		return NULL;
 
 	memset(&troute, 0, sizeof(troute));
 	memset(&tinfo, 0, sizeof(tinfo));
@@ -1461,7 +1455,7 @@ void ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
 			zlog_warn(
 				"route-map \"%s\" not found, suppress redistributing",
 				ROUTEMAP_NAME(red));
-			return;
+			return NULL;
 		}
 	}
 
@@ -1477,9 +1471,12 @@ void ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
 			if (IS_OSPF6_DEBUG_ASBR)
 				zlog_debug("Denied by route-map \"%s\"",
 					   ROUTEMAP_NAME(red));
-			ospf6_asbr_redistribute_remove(type, ifindex, prefix,
-						       ospf6);
-			return;
+
+			route = ospf6_asbr_redistribute_find(type, prefix,
+							     ospf6);
+			if (route)
+				ospf6_asbr_redistribute_remove(route, ospf6);
+			return NULL;
 		}
 	}
 
@@ -1528,7 +1525,7 @@ void ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
 
 		ospf6_asbr_status_update(ospf6, ospf6->redistribute);
 
-		return;
+		return match;
 	}
 
 	/* create new entry */
@@ -1578,6 +1575,7 @@ void ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
 
 	ospf6_asbr_status_update(ospf6, ospf6->redistribute);
 
+	return route;
 }
 
 static void ospf6_asbr_external_lsa_remove_by_id(struct ospf6 *ospf6,
@@ -1672,41 +1670,47 @@ ospf6_unlink_route_from_aggr(struct ospf6 *ospf6,
 		ospf6_asbr_summary_remove_lsa_and_route(ospf6, aggr);
 }
 
-void ospf6_asbr_redistribute_remove(int type, ifindex_t ifindex,
-				    struct prefix *prefix, struct ospf6 *ospf6)
+struct ospf6_route *ospf6_asbr_redistribute_find(int type,
+						 struct prefix *prefix,
+						 struct ospf6 *ospf6)
 {
-	struct ospf6_route *match;
+	struct ospf6_route *route;
+	struct ospf6_external_info *info;
+
+	route = ospf6_route_lookup(prefix, ospf6->external_table);
+	if (route == NULL)
+		return NULL;
+
+	info = route->route_option;
+	assert(info);
+	if (info->type != type)
+		return NULL;
+
+	return route;
+}
+
+void ospf6_asbr_redistribute_remove(struct ospf6_route *route,
+				    struct ospf6 *ospf6)
+{
 	struct ospf6_external_info *info = NULL;
 
-	match = ospf6_route_lookup(prefix, ospf6->external_table);
-	if (match == NULL) {
-		if (IS_OSPF6_DEBUG_ASBR)
-			zlog_debug("No such route %pFX to withdraw", prefix);
-		return;
-	}
-
-	info = match->route_option;
+	info = route->route_option;
 	assert(info);
-
-	if (info->type != type) {
-		if (IS_OSPF6_DEBUG_ASBR)
-			zlog_debug("Original protocol mismatch: %pFX", prefix);
-		return;
-	}
 
 	/* This means aggregation on this route was not done, hence remove LSA
 	 * if any originated for this prefix
 	 */
-	if (!match->aggr_route)
-		ospf6_asbr_external_lsa_remove_by_id(ospf6, prefix, info->id);
+	if (!route->aggr_route)
+		ospf6_asbr_external_lsa_remove_by_id(ospf6, &route->rnode->p,
+						     info->id);
 	else
-		ospf6_unlink_route_from_aggr(ospf6, match->aggr_route, match);
+		ospf6_unlink_route_from_aggr(ospf6, route->aggr_route, route);
 
 	if (IS_OSPF6_DEBUG_ASBR)
 		zlog_debug("Removing route from external table %pFX",
-			   prefix);
+			   &route->rnode->p);
 
-	ospf6_route_remove(match, ospf6->external_table);
+	ospf6_route_remove(route, ospf6->external_table);
 	XFREE(MTYPE_OSPF6_EXTERNAL_INFO, info);
 
 	ospf6_asbr_status_update(ospf6, ospf6->redistribute);
@@ -1905,6 +1909,7 @@ static void ospf6_redistribute_default_set(struct ospf6 *ospf6, int originate)
 	struct prefix_ipv6 p = {};
 	struct in6_addr nexthop = {};
 	int cur_originate = ospf6->default_originate;
+	struct ospf6_route *route;
 
 	p.family = AF_INET6;
 	p.prefixlen = 0;
@@ -1917,13 +1922,17 @@ static void ospf6_redistribute_default_set(struct ospf6 *ospf6, int originate)
 	case DEFAULT_ORIGINATE_ZEBRA:
 		zclient_redistribute_default(ZEBRA_REDISTRIBUTE_DEFAULT_DELETE,
 					     zclient, AFI_IP6, ospf6->vrf_id);
-		ospf6_asbr_redistribute_remove(DEFAULT_ROUTE, 0,
-					       (struct prefix *)&p, ospf6);
 
+		route = ospf6_asbr_redistribute_find(
+			DEFAULT_ROUTE, (struct prefix *)&p, ospf6);
+		if (route)
+			ospf6_asbr_redistribute_remove(route, ospf6);
 		break;
 	case DEFAULT_ORIGINATE_ALWAYS:
-		ospf6_asbr_redistribute_remove(DEFAULT_ROUTE, 0,
-					       (struct prefix *)&p, ospf6);
+		route = ospf6_asbr_redistribute_find(
+			DEFAULT_ROUTE, (struct prefix *)&p, ospf6);
+		if (route)
+			ospf6_asbr_redistribute_remove(route, ospf6);
 		break;
 	}
 
@@ -1936,9 +1945,9 @@ static void ospf6_redistribute_default_set(struct ospf6 *ospf6, int originate)
 
 		break;
 	case DEFAULT_ORIGINATE_ALWAYS:
-		ospf6_asbr_redistribute_add(DEFAULT_ROUTE, 0,
-					    (struct prefix *)&p, 0, &nexthop, 0,
-					    ospf6);
+		(void)ospf6_asbr_redistribute_add(DEFAULT_ROUTE, 0,
+						  (struct prefix *)&p, 0,
+						  &nexthop, 0, ospf6);
 		break;
 	}
 }

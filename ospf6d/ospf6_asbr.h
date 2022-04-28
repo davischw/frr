@@ -126,13 +126,15 @@ extern void ospf6_asbr_lsentry_remove(struct ospf6_route *asbr_entry,
 				      struct ospf6 *ospf6);
 
 extern int ospf6_asbr_is_asbr(struct ospf6 *o);
-extern void ospf6_asbr_redistribute_add(int type, ifindex_t ifindex,
-					struct prefix *prefix,
-					unsigned int nexthop_num,
-					const struct in6_addr *nexthop,
-					route_tag_t tag, struct ospf6 *ospf6);
-extern void ospf6_asbr_redistribute_remove(int type, ifindex_t ifindex,
-					   struct prefix *prefix,
+extern struct ospf6_route *
+ospf6_asbr_redistribute_add(int type, ifindex_t ifindex, struct prefix *prefix,
+			    unsigned int nexthop_num,
+			    const struct in6_addr *nexthop, route_tag_t tag,
+			    struct ospf6 *ospf6);
+extern struct ospf6_route *ospf6_asbr_redistribute_find(int type,
+							struct prefix *prefix,
+							struct ospf6 *ospf6);
+extern void ospf6_asbr_redistribute_remove(struct ospf6_route *route,
 					   struct ospf6 *ospf6);
 
 extern int ospf6_redistribute_config_write(struct vty *vty,

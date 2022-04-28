@@ -276,6 +276,7 @@ static int ospf6_zebra_read_route(ZAPI_CALLBACK_ARGS)
 	const struct in6_addr *nexthop = &in6addr_any;
 	struct ospf6 *ospf6;
 	struct prefix_ipv6 p;
+	struct ospf6_route *route;
 
 	ospf6 = ospf6_lookup_by_vrf_id(vrf_id);
 
@@ -310,12 +311,21 @@ static int ospf6_zebra_read_route(ZAPI_CALLBACK_ARGS)
 		api.type = DEFAULT_ROUTE;
 
 	if (cmd == ZEBRA_REDISTRIBUTE_ROUTE_ADD)
-		ospf6_asbr_redistribute_add(api.type, ifindex, &api.prefix,
-					    api.nexthop_num, nexthop, api.tag,
-					    ospf6);
-	else
-		ospf6_asbr_redistribute_remove(api.type, ifindex, &api.prefix,
-					       ospf6);
+		(void)ospf6_asbr_redistribute_add(api.type, ifindex,
+						  &api.prefix, api.nexthop_num,
+						  nexthop, api.tag, ospf6);
+	else {
+		route = ospf6_asbr_redistribute_find(api.type, &api.prefix,
+						     ospf6);
+		if (!route) {
+			if (IS_OSPF6_DEBUG_ASBR)
+				zlog_debug("No such route %pFX to withdraw",
+					   &api.prefix);
+			return 0;
+		}
+
+		ospf6_asbr_redistribute_remove(route, ospf6);
+	}
 
 	return 0;
 }
