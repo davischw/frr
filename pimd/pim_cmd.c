@@ -1765,6 +1765,28 @@ static void igmp_show_group_timer(const struct gm_group *group,
 		snprintf(time_string, time_string_length, "00:00:00");
 }
 
+static uint32_t
+igmp_group_sources_count(const struct pim_interface *pim_interface,
+			 const struct gm_group *group)
+{
+	const struct gm_source *source;
+	const struct listnode *node;
+	uint32_t sources_count = 0;
+
+	if (group->group_source_list == NULL)
+		return 0;
+
+	for (ALL_LIST_ELEMENTS_RO(group->group_source_list, node, source)) {
+		if (pim_interface->igmp_version == 2 &&
+		    source->source_addr.s_addr != INADDR_ANY)
+			continue;
+
+		sources_count++;
+	}
+
+	return sources_count;
+}
+
 static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 {
 	struct interface *ifp;
@@ -1849,7 +1871,7 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 				json_object_string_add(json_group, "group",
 						       group_str);
 
-				if (grp->igmp_version == 3)
+				if (pim_ifp->igmp_version == 3)
 					json_object_string_add(
 						json_group, "mode",
 						grp->group_filtermode_isexcl
@@ -1860,11 +1882,9 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 						       hhmmss);
 				json_object_int_add(
 					json_group, "sourcesCount",
-					grp->group_source_list ? listcount(
-						grp->group_source_list)
-							       : 0);
+					igmp_group_sources_count(pim_ifp, grp));
 				json_object_int_add(json_group, "version",
-						    grp->igmp_version);
+						    pim_ifp->igmp_version);
 				json_object_string_add(json_group, "uptime",
 						       uptime);
 				json_object_boolean_add(json_group,
@@ -1874,17 +1894,14 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 				vty_out(vty,
 					"%-16s %-15s %4s %8s %4d %d %8s %s\n",
 					ifp->name, group_str,
-					grp->igmp_version == 3
+					pim_ifp->igmp_version == 3
 						? (grp->group_filtermode_isexcl
 							   ? "EXCL"
 							   : "INCL")
 						: "----",
 					hhmmss,
-					grp->group_source_list
-						? listcount(
-							  grp->group_source_list)
-						: 0,
-					grp->igmp_version, uptime,
+					igmp_group_sources_count(pim_ifp, grp),
+					pim_ifp->igmp_version, uptime,
 					!!gj ? "yes" : "no");
 			}
 		} /* scan igmp groups */
@@ -1989,6 +2006,10 @@ static void igmp_show_sources(struct pim_instance *pim, struct vty *vty,
 				char source_str[INET_ADDRSTRLEN];
 				char mmss[10];
 				char uptime[10];
+
+				if (pim_ifp->igmp_version == 2 &&
+				    src->source_addr.s_addr != INADDR_ANY)
+					continue;
 
 				pim_inet4_dump("<source?>", src->source_addr,
 					       source_str, sizeof(source_str));
@@ -2096,6 +2117,10 @@ static void igmp_show_source_retransmission(struct pim_instance *pim,
 			for (ALL_LIST_ELEMENTS_RO(grp->group_source_list,
 						  srcnode, src)) {
 				char source_str[INET_ADDRSTRLEN];
+
+				if (pim_ifp->igmp_version == 2 &&
+				    src->source_addr.s_addr != INADDR_ANY)
+					continue;
 
 				pim_inet4_dump("<source?>", src->source_addr,
 					       source_str, sizeof(source_str));
