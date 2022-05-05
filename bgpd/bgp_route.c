@@ -16139,6 +16139,8 @@ DEFPY(clear_ip_bgp_dampening_neighbor, clear_ip_bgp_dampening_neighbor_cmd,
 		peer = peer_lookup(bgp, &su);
 	else {
 		peer = peer_lookup_by_conf_if(bgp, neighbor);
+		if (!peer)
+			peer = peer_lookup_by_address_list(bgp, neighbor);
 		if (!peer) {
 			group = peer_group_lookup(bgp, neighbor);
 			if (group)
