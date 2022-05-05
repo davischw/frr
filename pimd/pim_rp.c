@@ -1716,8 +1716,9 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
 	struct access_list *acl;
 
 	acl = access_list_lookup(AFI_IP, rp_info->alist);
-	if (!acl && !json) {
-		vty_out(vty, "\t-- access list does not exist\n");
+	if (!acl) {
+		if (!json)
+			vty_out(vty, "\t-- access list does not exist\n");
 		return;
 	}
 
@@ -1911,10 +1912,8 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 				json_object_object_add(json_row,
 						       "accessListContents",
 						       json_aclrules);
-				if (rp_info->alist)
-					pim_rpinfo_show_alist(vty, rp_info,
-							      json_aclrules,
-							      range);
+				pim_rpinfo_show_alist(vty, rp_info,
+						      json_aclrules, range);
 			} else
 				json_object_string_add(
 					json_row, "group",
