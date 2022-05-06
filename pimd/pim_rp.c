@@ -1769,6 +1769,12 @@ static void pim_rp_show_info_ssm_plist(struct vty *vty, struct pim_ssm *ssm,
 
 	if (ssm->plist_name) {
 		plist = prefix_list_lookup(AFI_IP, ssm->plist_name);
+		if (!plist) {
+			if (!json)
+				vty_out(vty,
+					"\t-- prefix-list does not exist\n");
+			return;
+		}
 
 		for (pentry = plist->head; pentry; pentry = pentry->next) {
 			if (pentry->any)
@@ -1808,7 +1814,9 @@ static void pim_rp_show_info_ssm_plist(struct vty *vty, struct pim_ssm *ssm,
 			}
 		}
 	} else {
+		p = prefix_new();
 		(void)str2prefix(PIM_SSM_STANDARD_RANGE, p);
+		apply_mask(p);
 
 		if (range && !prefix_match(p, range))
 			return;
