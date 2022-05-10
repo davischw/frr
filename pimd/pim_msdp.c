@@ -740,6 +740,10 @@ bool pim_msdp_peer_rpf_check(struct pim_msdp_peer *mp, struct in_addr rp)
 		return true;
 	}
 
+	if (PIM_DEBUG_MSDP_EVENTS)
+		zlog_debug("MSDP peer %pI4 RPF failure for %pI4", &mp->peer,
+			   &rp);
+
 	mp->rpf_lookup_failure_count++;
 
 	return false;
