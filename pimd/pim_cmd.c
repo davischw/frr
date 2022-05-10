@@ -7845,8 +7845,10 @@ static void msdp_peer_details_json(struct json_object *json,
 		return;
 	}
 
-	inet_pton(AF_INET, peer_string, &peer_address);
-	peer = pim_msdp_peer_find(vrf->info, peer_address);
+	if (inet_pton(AF_INET, peer_string, &peer_address) == 1)
+		peer = pim_msdp_peer_find(vrf->info, peer_address);
+	else
+		peer = pim_msdp_named_peer_lookup(vrf->info, peer_string);
 	if (peer == NULL)
 		return;
 
@@ -7856,7 +7858,7 @@ static void msdp_peer_details_json(struct json_object *json,
 }
 
 DEFPY(show_ip_msdp_peer_detail_json, show_ip_msdp_peer_detail_json_cmd,
-      "show ip msdp [<vrf all$vrf_all|vrf WORD$vrf_name>] peer [A.B.C.D$peer] details json",
+      "show ip msdp [<vrf all$vrf_all|vrf WORD$vrf_name>] peer [<A.B.C.D|WORD>$peer] details json",
       SHOW_STR
       IP_STR
       MSDP_STR
@@ -7864,6 +7866,7 @@ DEFPY(show_ip_msdp_peer_detail_json, show_ip_msdp_peer_detail_json_cmd,
       VRF_CMD_HELP_STR
       "MSDP peer information\n"
       "Peer IP address\n"
+      "Peer name\n"
       "Detailed output\n"
       JSON_STR)
 {
@@ -7892,10 +7895,10 @@ DEFPY(show_ip_msdp_peer_detail_json, show_ip_msdp_peer_detail_json_cmd,
 			struct json_object *vrf_json = json_object_new_object();
 
 			json_object_object_add(json, vrf->name, vrf_json);
-			msdp_peer_details_json(vrf_json, vrf, peer_str);
+			msdp_peer_details_json(vrf_json, vrf, peer);
 		}
 	} else {
-		msdp_peer_details_json(json, vrf, peer_str);
+		msdp_peer_details_json(json, vrf, peer);
 	}
 
 	vty_out(vty, "%s\n",
@@ -7906,7 +7909,7 @@ DEFPY(show_ip_msdp_peer_detail_json, show_ip_msdp_peer_detail_json_cmd,
 }
 
 DEFPY(clear_ip_msdp_peer_counters, clear_ip_msdp_peer_counters_cmd,
-      "clear ip msdp [<vrf all$vrf_all|vrf WORD$vrf_name>] peer [A.B.C.D$peer] counters",
+      "clear ip msdp [<vrf all$vrf_all|vrf WORD$vrf_name>] peer [<A.B.C.D|WORD>$peer] counters",
       CLEAR_STR
       IP_STR
       MSDP_STR
@@ -7914,10 +7917,12 @@ DEFPY(clear_ip_msdp_peer_counters, clear_ip_msdp_peer_counters_cmd,
       VRF_CMD_HELP_STR
       "MSDP peer information\n"
       "Peer IP address\n"
+      "Peer name\n"
       "MSDP peer counters\n")
 {
 	struct pim_msdp_peer *msdp_peer;
 	struct vrf *vrf;
+	struct in_addr peer_address;
 
 	if (vrf_name) {
 		vrf = vrf_lookup_by_name(vrf_name);
@@ -7937,12 +7942,21 @@ DEFPY(clear_ip_msdp_peer_counters, clear_ip_msdp_peer_counters_cmd,
 
 	if (vrf == NULL) {
 		RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-			msdp_peer = pim_msdp_peer_find(vrf->info, peer);
+			if (inet_pton(AF_INET, peer, &peer_address) == 1)
+				msdp_peer = pim_msdp_peer_find(vrf->info,
+							       peer_address);
+			else
+				msdp_peer = pim_msdp_named_peer_lookup(
+					vrf->info, peer);
 			if (msdp_peer)
 				break;
 		}
-	} else
-		msdp_peer = pim_msdp_peer_find(vrf->info, peer);
+	} else {
+		if (inet_pton(AF_INET, peer, &peer_address) == 1)
+			msdp_peer = pim_msdp_peer_find(vrf->info, peer_address);
+		else
+			msdp_peer = pim_msdp_named_peer_lookup(vrf->info, peer);
+	}
 
 	/* Peer doesn't exist. */
 	if (msdp_peer == NULL)

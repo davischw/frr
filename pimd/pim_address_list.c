@@ -37,6 +37,21 @@
 
 DEFINE_MTYPE_STATIC(PIMD, PIM_MSDP_NAMED_PEER, "MSDP named peer context");
 
+struct pim_msdp_peer *pim_msdp_named_peer_lookup(const struct pim_instance *pim,
+						 const char *name)
+{
+	struct msdp_named_peer *peer;
+
+	SLIST_FOREACH (peer, &pim->msdp_named_peer_list, entry) {
+		if (strcmp(peer->list_name, name))
+			continue;
+
+		return &peer->peer_data;
+	}
+
+	return NULL;
+}
+
 static void msdp_named_peer_disable(struct pim_msdp_peer *msdp_peer)
 {
 	/* Destination not configured, skip this. */

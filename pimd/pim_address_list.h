@@ -48,6 +48,10 @@ pim_msdp_named_peer_new(struct pim_instance *pim,
 /* Delete and free MSDP peer. */
 void pim_msdp_named_peer_free(struct pim_msdp_peer *msdp_peer);
 
+/** Look up MSDP peer. */
+struct pim_msdp_peer *pim_msdp_named_peer_lookup(const struct pim_instance *pim,
+						 const char *name);
+
 /** Initialize address list integration. */
 void pim_address_list_init(void);
 
