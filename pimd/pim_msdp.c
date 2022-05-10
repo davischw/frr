@@ -60,6 +60,21 @@ static void pim_msdp_sa_deref(struct pim_msdp_sa *sa,
 static int pim_msdp_mg_mbr_comp(const void *p1, const void *p2);
 static void pim_msdp_mg_mbr_free(struct pim_msdp_mg_mbr *mbr);
 
+void pim_msdp_originator_id(const struct pim_instance *pim,
+			    const struct pim_msdp_peer *peer,
+			    struct in_addr *originator_id)
+{
+	/* Originator ID was configured, use it. */
+	if (pim->msdp.originator_id.s_addr != INADDR_ANY) {
+		*originator_id = pim->msdp.originator_id;
+		return;
+	}
+
+	/* Otherwise fallback to the configured peer source if available. */
+	if (peer)
+		*originator_id = peer->local;
+}
+
 /************************ SA cache management ******************************/
 static void pim_msdp_sa_timer_expiry_log(struct pim_msdp_sa *sa,
 					 const char *timer_str)
@@ -429,7 +444,7 @@ void pim_msdp_sa_ref(struct pim_instance *pim, struct pim_msdp_peer *mp,
 					   sa->sg_str);
 			}
 			/* send an immediate SA update to peers */
-			sa->rp = pim->msdp.originator_id;
+			pim_msdp_originator_id(pim, mp, &sa->rp);
 			pim_msdp_pkt_sa_tx_one(sa);
 		}
 		sa->flags &= ~PIM_MSDP_SAF_STALE;
@@ -1061,8 +1076,6 @@ struct pim_msdp_peer *pim_msdp_peer_add(struct pim_instance *pim,
 	pim_inet4_dump("<peer?>", mp->peer, mp->key_str, sizeof(mp->key_str));
 	pim_msdp_addr2su(&mp->su_peer, mp->peer);
 	mp->local = *local;
-	/* XXX: originator_id setting needs to move to the mesh group */
-	pim->msdp.originator_id = *local;
 	pim_msdp_addr2su(&mp->su_local, mp->local);
 	if (mesh_group_name)
 		mp->mesh_group_name =

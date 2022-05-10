@@ -358,6 +358,10 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 		vty_out(vty, "\n");
 	}
 
+	if (pim->msdp.originator_id.s_addr != INADDR_ANY)
+		vty_out(vty, "%sip msdp originator-id %pI4\n", spaces,
+			&pim->msdp.originator_id);
+
 	return writes;
 }
 

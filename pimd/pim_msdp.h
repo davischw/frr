@@ -253,6 +253,21 @@ struct pim_msdp {
 #define PIM_MSDP_PEER_READ_OFF(mp) thread_cancel(&mp->t_read)
 #define PIM_MSDP_PEER_WRITE_OFF(mp) thread_cancel(&mp->t_write)
 
+/**
+ * Get current configured originator ID to put in SA message for RP field.
+ *
+ * If `originator-id` not configured, then the local address will be used.
+ * If `originator-id` and `peer` were not specified then `originator_id`
+ * won't be touched.
+ *
+ * \param[in] pim PIM instance that MSDP connection belongs to.
+ * \param[in] peer MSDP peer of the connection.
+ * \param[out] originator_id parameter to output the originator value.
+ */
+void pim_msdp_originator_id(const struct pim_instance *pim,
+			    const struct pim_msdp_peer *peer,
+			    struct in_addr *originator_id);
+
 #if PIM_IPV != 6
 // struct pim_msdp *msdp;
 struct pim_instance;
@@ -361,7 +376,6 @@ void pim_msdp_peer_restart(struct pim_msdp_peer *mp);
  * \param state shutdown state.
  */
 void pim_msdp_shutdown(struct pim_instance *pim, bool state);
-
 #else /* PIM_IPV == 6 */
 static inline void pim_msdp_init(struct pim_instance *pim,
 				 struct thread_master *master)

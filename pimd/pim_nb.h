@@ -78,7 +78,9 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_ss
 int pim_msdp_hold_time_modify(struct nb_cb_modify_args *args);
 int pim_msdp_keep_alive_modify(struct nb_cb_modify_args *args);
 int pim_msdp_connection_retry_modify(struct nb_cb_modify_args *args);
+int pim_msdp_originator_id_modify(struct nb_cb_modify_args *args);
 int pim_msdp_shutdown_modify(struct nb_cb_modify_args *args);
+int pim_msdp_originator_id_destroy(struct nb_cb_destroy_args *args);
 int pim_msdp_mesh_group_create(struct nb_cb_create_args *args);
 int pim_msdp_mesh_group_destroy(struct nb_cb_destroy_args *args);
 int pim_msdp_mesh_group_members_create(struct nb_cb_create_args *args);

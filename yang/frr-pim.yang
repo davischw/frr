@@ -297,6 +297,14 @@ module frr-pim {
       description "Global MSDP configuration.";
       uses msdp-timers;
 
+      leaf originator-id {
+        type inet:ip-address;
+        description
+          "Configure the RP address for the SAs.
+
+           By default the local system RP address will be used.";
+      }
+
       leaf shutdown {
         type boolean;
         default false;

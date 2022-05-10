@@ -1457,8 +1457,56 @@ pim6_msdp_err(routing_control_plane_protocols_control_plane_protocol_pim_address
 pim6_msdp_err(pim_msdp_peer_authentication_type_modify, nb_cb_modify_args);
 pim6_msdp_err(pim_msdp_peer_authentication_key_modify, nb_cb_modify_args);
 pim6_msdp_err(pim_msdp_peer_authentication_key_destroy, nb_cb_destroy_args);
+pim6_msdp_err(pim_msdp_originator_id_modify, nb_cb_modify_args);
+pim6_msdp_err(pim_msdp_originator_id_destroy, nb_cb_destroy_args);
 
 #if PIM_IPV != 6
+/*
+ * XPath:
+ * /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp/originator-id
+ */
+int pim_msdp_originator_id_modify(struct nb_cb_modify_args *args)
+{
+	struct pim_instance *pim;
+	struct vrf *vrf;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+		yang_dnode_get_ipv4(&pim->msdp.originator_id, args->dnode,
+				    NULL);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int pim_msdp_originator_id_destroy(struct nb_cb_destroy_args *args)
+{
+	struct pim_instance *pim;
+	struct vrf *vrf;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+		memset(&pim->msdp.originator_id, 0,
+		       sizeof(pim->msdp.originator_id));
+		break;
+	}
+
+	return NB_OK;
+}
+
 /*
  * XPath:
  * /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-mesh-groups

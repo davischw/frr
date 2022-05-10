@@ -445,14 +445,15 @@ static void pim_msdp_pkt_sa_gen(struct pim_instance *pim,
 	struct pim_msdp_sa *sa;
 	int sa_count;
 	int local_cnt = pim_msdp_peer_sa_count(pim, mp);
+	struct in_addr originator_id;
 
 	sa_count = 0;
 	if (PIM_DEBUG_MSDP_INTERNAL) {
 		zlog_debug("  sa gen  %d", local_cnt);
 	}
 
-	local_cnt = pim_msdp_pkt_sa_fill_hdr(pim, local_cnt,
-					     pim->msdp.originator_id);
+	pim_msdp_originator_id(pim, mp, &originator_id);
+	local_cnt = pim_msdp_pkt_sa_fill_hdr(pim, local_cnt, originator_id);
 
 	for (ALL_LIST_ELEMENTS_RO(pim->msdp.sa_list, sanode, sa)) {
 		if (!(sa->flags & PIM_MSDP_SAF_LOCAL)) {
@@ -482,8 +483,8 @@ static void pim_msdp_pkt_sa_gen(struct pim_instance *pim,
 				zlog_debug("  sa gen for remainder %d",
 					   local_cnt);
 			}
-			local_cnt = pim_msdp_pkt_sa_fill_hdr(
-				pim, local_cnt, pim->msdp.originator_id);
+			local_cnt = pim_msdp_pkt_sa_fill_hdr(pim, local_cnt,
+							     originator_id);
 		}
 	}
 

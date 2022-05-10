@@ -7229,6 +7229,57 @@ DEFPY(no_ip_msdp_peer_sa_limit, no_ip_msdp_peer_sa_limit_cmd,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+DEFPY(ip_msdp_originator_id, ip_msdp_originator_id_cmd,
+      "[no] ip msdp originator-id A.B.C.D$originator_id",
+      NO_STR
+      IP_STR
+      CFG_MSDP_STR
+      "Configure MSDP RP originator\n"
+      "MSDP RP originator identifier\n")
+{
+	const char *vrfname;
+	char xpath_value[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	/* Get mesh group base XPath. */
+	snprintf(xpath_value, sizeof(xpath_value),
+		 FRR_PIM_VRF_XPATH "/msdp/originator-id", "frr-pim:pimd", "pim",
+		 vrfname, "frr-routing:ipv4");
+
+	if (no)
+		nb_cli_enqueue_change(vty, xpath_value, NB_OP_DESTROY, NULL);
+	else
+		nb_cli_enqueue_change(vty, xpath_value, NB_OP_MODIFY,
+				      originator_id_str);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY(no_ip_msdp_originator_id, no_ip_msdp_originator_id_cmd,
+      "no ip msdp originator-id",
+      NO_STR
+      IP_STR
+      CFG_MSDP_STR
+      "Configure MSDP RP originator\n")
+{
+	const char *vrfname;
+	char xpath_value[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	/* Get mesh group base XPath. */
+	snprintf(xpath_value, sizeof(xpath_value),
+		 FRR_PIM_VRF_XPATH "/msdp/originator-id", "frr-pim:pimd", "pim",
+		 vrfname, "frr-routing:ipv4");
+	nb_cli_enqueue_change(vty, xpath_value, NB_OP_DESTROY, NULL);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 static void ip_msdp_show_mesh_group(struct vty *vty, struct pim_msdp_mg *mg,
 				    struct json_object *json)
 {
@@ -8766,6 +8817,10 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &ip_msdp_peer_sa_limit_cmd);
 	install_element(CONFIG_NODE, &no_ip_msdp_peer_sa_limit_cmd);
 	install_element(VRF_NODE, &no_ip_msdp_peer_sa_limit_cmd);
+	install_element(CONFIG_NODE, &ip_msdp_originator_id_cmd);
+	install_element(VRF_NODE, &ip_msdp_originator_id_cmd);
+	install_element(CONFIG_NODE, &no_ip_msdp_originator_id_cmd);
+	install_element(VRF_NODE, &no_ip_msdp_originator_id_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_vrf_all_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_sa_detail_cmd);
