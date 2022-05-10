@@ -389,6 +389,15 @@ void pim_msdp_sa_ref(struct pim_instance *pim, struct pim_msdp_peer *mp,
 {
 	struct pim_msdp_sa *sa;
 
+	/* Check peer SA limit. */
+	if (mp && mp->sa_limit && mp->sa_cnt >= mp->sa_limit) {
+		if (PIM_DEBUG_MSDP_EVENTS)
+			zlog_debug("MSDP peer %pI4 reject SA (%pI4, %pI4)",
+				   &mp->peer, &sg->src, &sg->grp);
+
+		return;
+	}
+
 	sa = pim_msdp_sa_add(pim, sg, rp);
 	if (!sa) {
 		return;
@@ -1370,6 +1379,10 @@ bool pim_msdp_peer_config_write(struct vty *vty, struct pim_instance *pim,
 		if (mp->acl_out)
 			vty_out(vty, "%sip msdp peer %pI4 sa-filter %s out\n",
 				spaces, &mp->peer, mp->acl_out);
+
+		if (mp->sa_limit)
+			vty_out(vty, "%sip msdp peer %pI4 sa-limit %zu\n",
+				spaces, &mp->peer, mp->sa_limit);
 
 		written = true;
 	}

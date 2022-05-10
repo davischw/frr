@@ -171,6 +171,9 @@ struct pim_msdp_peer {
 
 	/** BGP AS number for RPF check. */
 	uint32_t asn;
+
+	/** SA maximum amount. */
+	size_t sa_limit;
 };
 
 struct pim_msdp_mg_mbr {

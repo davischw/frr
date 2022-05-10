@@ -245,6 +245,13 @@ const struct frr_yang_module_info frr_pim_info = {
 			}
 		},
 		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-peer/sa-limit",
+			.cbs = {
+				.modify = pim_msdp_peer_sa_limit_modify,
+				.destroy = pim_msdp_peer_sa_limit_destroy,
+			},
+		},
+		{
 			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-peer/as",
 			.cbs = {
 				.modify = pim_msdp_peer_as_modify,

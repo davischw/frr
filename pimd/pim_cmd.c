@@ -7178,6 +7178,57 @@ DEFPY(ip_msdp_shutdown,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+DEFPY(ip_msdp_peer_sa_limit, ip_msdp_peer_sa_limit_cmd,
+      "ip msdp peer A.B.C.D$peer sa-limit (1-4294967294)$sa_limit",
+      IP_STR
+      CFG_MSDP_STR
+      "Configure MSDP peer\n"
+      "MSDP peer address\n"
+      "Limit amount of SA\n"
+      "Maximum number of SA\n")
+{
+	const char *vrfname;
+	char xpath_value[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	/* Get mesh group base XPath. */
+	snprintf(xpath_value, sizeof(xpath_value),
+		 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip=\"%s\"]/sa-limit",
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", peer_str);
+
+	nb_cli_enqueue_change(vty, xpath_value, NB_OP_MODIFY, sa_limit_str);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY(no_ip_msdp_peer_sa_limit, no_ip_msdp_peer_sa_limit_cmd,
+      "no ip msdp peer A.B.C.D$peer sa-limit [(1-4294967294)]",
+      NO_STR
+      IP_STR
+      CFG_MSDP_STR
+      "Configure MSDP peer\n"
+      "MSDP peer address\n"
+      "Limit amount of SA\n"
+      "Maximum number of SA\n")
+{
+	const char *vrfname;
+	char xpath_value[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	/* Get mesh group base XPath. */
+	snprintf(xpath_value, sizeof(xpath_value),
+		 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip=\"%s\"]/sa-limit",
+		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", peer_str);
+
+	nb_cli_enqueue_change(vty, xpath_value, NB_OP_DESTROY, NULL);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 static void ip_msdp_show_mesh_group(struct vty *vty, struct pim_msdp_mg *mg,
 				    struct json_object *json)
 {
@@ -8711,6 +8762,10 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &no_ip_msdp_mesh_group_cmd);
 	install_element(CONFIG_NODE, &ip_msdp_shutdown_cmd);
 	install_element(VRF_NODE, &ip_msdp_shutdown_cmd);
+	install_element(CONFIG_NODE, &ip_msdp_peer_sa_limit_cmd);
+	install_element(VRF_NODE, &ip_msdp_peer_sa_limit_cmd);
+	install_element(CONFIG_NODE, &no_ip_msdp_peer_sa_limit_cmd);
+	install_element(VRF_NODE, &no_ip_msdp_peer_sa_limit_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_vrf_all_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_sa_detail_cmd);
