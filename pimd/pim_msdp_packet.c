@@ -469,6 +469,7 @@ static void pim_msdp_pkt_sa_gen(struct pim_instance *pim,
 				zlog_debug("MSDP peer %pI4 filter SA out %s",
 					   &mp->peer, sa->sg_str);
 
+			mp->acl_out_count++;
 			continue;
 		}
 
@@ -532,6 +533,8 @@ void pim_msdp_pkt_sa_tx_one(struct pim_msdp_sa *sa)
 			if (PIM_DEBUG_MSDP_EVENTS)
 				zlog_debug("MSDP peer %pI4 filter SA out %s",
 					   &mp->peer, sa->sg_str);
+
+			mp->acl_out_count++;
 			continue;
 		}
 
@@ -564,6 +567,8 @@ void pim_msdp_pkt_sa_tx_one_to_one_peer(struct pim_msdp_peer *mp,
 		if (PIM_DEBUG_MSDP_EVENTS)
 			zlog_debug("MSDP peer %pI4 filter SA out (%pI4, %pI4)",
 				   &mp->peer, &sa.sg.src, &sa.sg.grp);
+
+		mp->acl_out_count++;
 		return;
 	}
 
@@ -625,6 +630,8 @@ static void pim_msdp_pkt_sa_rx_one(struct pim_msdp_peer *mp, struct in_addr rp)
 				zlog_debug(
 					"MSDP peer %pI4 filter SA in (%pI4, %pI4)",
 					&mp->peer, &sg.src, &sg.grp);
+
+			mp->acl_in_count++;
 			return;
 		}
 	}
