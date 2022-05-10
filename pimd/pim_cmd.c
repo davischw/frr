@@ -7905,6 +7905,62 @@ DEFPY(show_ip_msdp_peer_detail_json, show_ip_msdp_peer_detail_json_cmd,
 	return CMD_SUCCESS;
 }
 
+DEFPY(clear_ip_msdp_peer_counters, clear_ip_msdp_peer_counters_cmd,
+      "clear ip msdp [<vrf all$vrf_all|vrf WORD$vrf_name>] peer [A.B.C.D$peer] counters",
+      CLEAR_STR
+      IP_STR
+      MSDP_STR
+      VRF_CMD_HELP_STR
+      VRF_CMD_HELP_STR
+      "MSDP peer information\n"
+      "Peer IP address\n"
+      "MSDP peer counters\n")
+{
+	struct pim_msdp_peer *msdp_peer;
+	struct vrf *vrf;
+
+	if (vrf_name) {
+		vrf = vrf_lookup_by_name(vrf_name);
+		if (vrf == NULL) {
+			vty_out(vty, "VRF %s does not exist\n", vrf_name);
+			return CMD_WARNING;
+		}
+	} else if (vrf_all) {
+		vrf = NULL;
+	} else {
+		vrf = vrf_lookup_by_id(VRF_DEFAULT);
+		if (vrf == NULL) {
+			vty_out(vty, "Default VRF does not exist\n");
+			return CMD_WARNING;
+		}
+	}
+
+	if (vrf == NULL) {
+		RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+			msdp_peer = pim_msdp_peer_find(vrf->info, peer);
+			if (msdp_peer)
+				break;
+		}
+	} else
+		msdp_peer = pim_msdp_peer_find(vrf->info, peer);
+
+	/* Peer doesn't exist. */
+	if (msdp_peer == NULL)
+		return CMD_SUCCESS;
+
+	msdp_peer->ka_rx_cnt = 0;
+	msdp_peer->ka_tx_cnt = 0;
+	msdp_peer->sa_rx_cnt = 0;
+	msdp_peer->sa_tx_cnt = 0;
+	msdp_peer->est_flaps = 0;
+	msdp_peer->conn_attempts = 0;
+	msdp_peer->acl_in_count = 0;
+	msdp_peer->acl_out_count = 0;
+	msdp_peer->rpf_lookup_failure_count = 0;
+
+	return CMD_SUCCESS;
+}
+
 static void ip_msdp_show_sa(struct pim_instance *pim, struct vty *vty, bool uj)
 {
 	struct listnode *sanode;
@@ -8956,7 +9012,6 @@ void pim_cmd_init(void)
 	install_element(VIEW_NODE, &debug_rmap_apply_cmd);
 
 	install_element(ENABLE_NODE, &clear_ip_mroute_count_cmd);
-	install_element(ENABLE_NODE, &clear_ip_msdp_peer_cmd);
 	install_element(ENABLE_NODE, &clear_ip_interfaces_cmd);
 	install_element(ENABLE_NODE, &clear_ip_igmp_interfaces_cmd);
 	install_element(ENABLE_NODE, &clear_ip_mroute_cmd);
@@ -8965,6 +9020,8 @@ void pim_cmd_init(void)
 	install_element(ENABLE_NODE, &clear_ip_pim_oil_cmd);
 	install_element(ENABLE_NODE, &clear_ip_pim_statistics_cmd);
 	install_element(ENABLE_NODE, &clear_ip_pim_bsr_db_cmd);
+	install_element(ENABLE_NODE, &clear_ip_msdp_peer_cmd);
+	install_element(ENABLE_NODE, &clear_ip_msdp_peer_counters_cmd);
 
 	install_element(ENABLE_NODE, &show_debugging_pim_cmd);
 
