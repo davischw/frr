@@ -19,6 +19,7 @@
 
 #include <zebra.h>
 
+#include "northbound.h"
 #include "pimd.h"
 #include "pim_nb.h"
 #include "lib/northbound_cli.h"
@@ -39,6 +40,7 @@
 #include "pim_util.h"
 #include "pim6_mld.h"
 #include "pim_nht.h"
+#include "pimd/pim_address_list.h"
 
 #if PIM_IPV == 6
 #define pim6_msdp_err(funcname, argtype)                                       \
@@ -1459,6 +1461,12 @@ pim6_msdp_err(pim_msdp_peer_authentication_key_modify, nb_cb_modify_args);
 pim6_msdp_err(pim_msdp_peer_authentication_key_destroy, nb_cb_destroy_args);
 pim6_msdp_err(pim_msdp_originator_id_modify, nb_cb_modify_args);
 pim6_msdp_err(pim_msdp_originator_id_destroy, nb_cb_destroy_args);
+pim6_msdp_err(
+	routing_control_plane_protocols_control_plane_protocol_pim_address_family_msdp_named_peer_create,
+	nb_cb_create_args);
+pim6_msdp_err(
+	routing_control_plane_protocols_control_plane_protocol_pim_address_family_msdp_named_peer_destroy,
+	nb_cb_destroy_args);
 
 #if PIM_IPV != 6
 /*
@@ -1808,6 +1816,57 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_ms
 		yang_dnode_get_ip(&source_ip, args->dnode, NULL);
 		pim_msdp_peer_change_source(mp, &source_ip.ipaddr_v4);
 		break;
+	}
+
+	return NB_OK;
+}
+
+/*
+ * XPath:
+ * /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-named-peer
+ */
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_msdp_named_peer_create(
+	struct nb_cb_create_args *args)
+{
+	struct pim_msdp_peer *mp;
+	struct pim_instance *pim;
+	struct vrf *vrf;
+	struct ipaddr source_ip;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		/* NOTHING */
+		break;
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+		yang_dnode_get_ip(&source_ip, args->dnode, "./source-ip");
+		mp = pim_msdp_named_peer_new(
+			pim, &source_ip.ipaddr_v4,
+			yang_dnode_get_string(args->dnode, "./peer-name"),
+			NULL);
+		nb_running_set_entry(args->dnode, mp);
+	}
+
+	return NB_OK;
+}
+
+int routing_control_plane_protocols_control_plane_protocol_pim_address_family_msdp_named_peer_destroy(
+	struct nb_cb_destroy_args *args)
+{
+	struct pim_msdp_peer *mp;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		/* NOTHING */
+		break;
+	case NB_EV_APPLY:
+		mp = nb_running_unset_entry(args->dnode);
+		pim_msdp_named_peer_free(mp);
 	}
 
 	return NB_OK;

@@ -66,6 +66,7 @@ pim_common = \
 
 pimd_pimd_SOURCES = \
 	$(pim_common) \
+	pimd/pim_address_list.c \
 	pimd/pim_cmd.c \
 	pimd/pim_igmp.c \
 	pimd/pim_igmp_mtrace.c \
@@ -105,6 +106,7 @@ nodist_pimd_pim6d_SOURCES = \
 
 noinst_HEADERS += \
 	pimd/pim_addr.h \
+	pimd/pim_address_list.h \
 	pimd/pim_assert.h \
 	pimd/pim_bfd.h \
 	pimd/pim_br.h \

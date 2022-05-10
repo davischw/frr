@@ -33,6 +33,7 @@
 #include "pim_upstream.h"
 #include "pim_mroute.h"
 #include "pim_routemap.h"
+#include "pim_address_list.h"
 
 #define PIM_SPT_THRESH_NEVER ~0U
 
@@ -239,6 +240,9 @@ struct pim_instance {
 	int64_t last_route_change_time;
 
 	uint64_t gm_rx_drop_sys;
+
+	/** PIM MSDP named peers. */
+	struct msdp_named_peer_list msdp_named_peer_list;
 };
 
 /* info pointer in pim_instance->spt.thresh_table nodes */

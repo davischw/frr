@@ -96,7 +96,7 @@ struct pim_msdp_sa {
 enum pim_msdp_peer_flags {
 	PIM_MSDP_PEERF_NONE = 0,
 	PIM_MSDP_PEERF_LISTENER = (1 << 0),
-#define PIM_MSDP_PEER_IS_LISTENER(mp) (mp->flags & PIM_MSDP_PEERF_LISTENER)
+#define PIM_MSDP_PEER_IS_LISTENER(mp) ((mp)->flags & PIM_MSDP_PEERF_LISTENER)
 	PIM_MSDP_PEERF_SA_JUST_SENT = (1 << 1),
 	/** Flag to signalize that peer belongs to a group. */
 	PIM_MSDP_PEERF_IN_GROUP = (1 << 2),
@@ -174,6 +174,9 @@ struct pim_msdp_peer {
 
 	/** SA maximum amount. */
 	size_t sa_limit;
+
+	/** Named peer data structure back pointer. */
+	struct msdp_named_peer *named_peer;
 };
 
 struct pim_msdp_mg_mbr {
@@ -273,6 +276,7 @@ void pim_msdp_originator_id(const struct pim_instance *pim,
 struct pim_instance;
 void pim_msdp_init(struct pim_instance *pim, struct thread_master *master);
 void pim_msdp_exit(struct pim_instance *pim);
+void pim_msdp_enable(struct pim_instance *pim);
 char *pim_msdp_state_dump(enum pim_msdp_peer_state state, char *buf,
 			  int buf_size);
 struct pim_msdp_peer *pim_msdp_peer_find(struct pim_instance *pim,
@@ -298,6 +302,11 @@ void pim_msdp_up_join_state_changed(struct pim_instance *pim,
 void pim_msdp_up_del(struct pim_instance *pim, pim_sgaddr *sg);
 enum pim_msdp_err pim_msdp_mg_del(struct pim_instance *pim,
 				  const char *mesh_group_name);
+
+void pim_msdp_peer_listen(struct pim_msdp_peer *mp);
+void pim_msdp_peer_connect(struct pim_msdp_peer *mp);
+void pim_msdp_peer_state_chg_log(struct pim_msdp_peer *mp);
+void pim_msdp_addr2su(union sockunion *su, struct in_addr addr);
 
 /**
  * Allocates a new mesh group data structure under PIM instance.

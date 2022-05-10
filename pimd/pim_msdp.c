@@ -23,6 +23,7 @@
 #include <lib/jhash.h>
 #include <lib/log.h>
 #include <lib/prefix.h>
+#include <lib/printfrr.h>
 #include <lib/sockunion.h>
 #include <lib/stream.h>
 #include <lib/thread.h>
@@ -30,6 +31,7 @@
 #include <lib/plist.h>
 #include <lib/lib_errors.h>
 
+#include "address_list.h"
 #include "pimd.h"
 #include "pim_memory.h"
 #include "pim_instance.h"
@@ -47,13 +49,11 @@
 
 // struct pim_msdp pim_msdp, *msdp = &pim_msdp;
 
-static void pim_msdp_peer_listen(struct pim_msdp_peer *mp);
 static void pim_msdp_peer_cr_timer_setup(struct pim_msdp_peer *mp, bool start);
 static void pim_msdp_peer_ka_timer_setup(struct pim_msdp_peer *mp, bool start);
 static void pim_msdp_peer_hold_timer_setup(struct pim_msdp_peer *mp,
 					   bool start);
 static void pim_msdp_peer_free(struct pim_msdp_peer *mp);
-static void pim_msdp_enable(struct pim_instance *pim);
 static void pim_msdp_sa_adv_timer_setup(struct pim_instance *pim, bool start);
 static void pim_msdp_sa_deref(struct pim_msdp_sa *sa,
 			      enum pim_msdp_sa_flags flags);
@@ -769,7 +769,7 @@ char *pim_msdp_state_dump(enum pim_msdp_peer_state state, char *buf,
 	return buf;
 }
 
-static void pim_msdp_peer_state_chg_log(struct pim_msdp_peer *mp)
+void pim_msdp_peer_state_chg_log(struct pim_msdp_peer *mp)
 {
 	char state_str[PIM_MSDP_STATE_STRLEN];
 
@@ -780,7 +780,7 @@ static void pim_msdp_peer_state_chg_log(struct pim_msdp_peer *mp)
 /* MSDP Connection State Machine actions (defined in RFC-3618:Sec-11.2) */
 /* 11.2.A2: active peer - start connect retry timer; when the timer fires
  * a tcp connection will be made */
-static void pim_msdp_peer_connect(struct pim_msdp_peer *mp)
+void pim_msdp_peer_connect(struct pim_msdp_peer *mp)
 {
 	if (mp->pim->msdp.shutdown)
 		return;
@@ -794,7 +794,7 @@ static void pim_msdp_peer_connect(struct pim_msdp_peer *mp)
 }
 
 /* 11.2.A3: passive peer - just listen for connections */
-static void pim_msdp_peer_listen(struct pim_msdp_peer *mp)
+void pim_msdp_peer_listen(struct pim_msdp_peer *mp)
 {
 	if (mp->pim->msdp.shutdown)
 		return;
@@ -1049,7 +1049,7 @@ void pim_msdp_peer_pkt_txed(struct pim_msdp_peer *mp)
 	}
 }
 
-static void pim_msdp_addr2su(union sockunion *su, struct in_addr addr)
+void pim_msdp_addr2su(union sockunion *su, struct in_addr addr)
 {
 	sockunion_init(su);
 	su->sin.sin_addr = addr;
@@ -1175,6 +1175,10 @@ void pim_msdp_peer_del(struct pim_msdp_peer **mp)
 
 void pim_msdp_peer_restart(struct pim_msdp_peer *mp)
 {
+	/* Do nothing if no peer address is configured. */
+	if (mp->peer.s_addr == INADDR_ANY)
+		return;
+
 	/* Stop auth listening socket if any. */
 	thread_cancel(&mp->auth_listen_ev);
 	if (mp->auth_listen_sock != -1) {
@@ -1363,9 +1367,48 @@ int pim_msdp_config_write(struct pim_instance *pim, struct vty *vty,
 	return count;
 }
 
+static void _pim_msdp_peer_config_write(struct vty *vty,
+					const struct pim_msdp_peer *peer,
+					const char *spaces)
+{
+	char peer_string[ADDRESS_LIST_NAME_LONGEST];
+
+	if (peer->named_peer)
+		strlcpy(peer_string, peer->named_peer->list_name,
+			sizeof(peer_string));
+	else
+		snprintfrr(peer_string, sizeof(peer_string), "%pI4",
+			   &peer->peer);
+
+	vty_out(vty, "%sip msdp peer %s source %pI4", spaces, peer_string,
+		&peer->local);
+	if (peer->asn)
+		vty_out(vty, " as %u", peer->asn);
+
+	vty_out(vty, "\n");
+
+	if (peer->acl_in)
+		vty_out(vty, "%sip msdp peer %s sa-filter %s in\n", spaces,
+			peer_string, peer->acl_in);
+
+	if (peer->acl_out)
+		vty_out(vty, "%sip msdp peer %s sa-filter %s out\n", spaces,
+			peer_string, peer->acl_out);
+
+	if (peer->auth_type == MSDP_AUTH_MD5)
+		vty_out(vty, "%sip msdp peer %s password %s\n", spaces,
+			peer_string,
+			vty->is_show_running ? "****" : peer->auth_key);
+
+	if (peer->sa_limit)
+		vty_out(vty, "%sip msdp peer %s sa-limit %zu\n", spaces,
+			peer_string, peer->sa_limit);
+}
+
 bool pim_msdp_peer_config_write(struct vty *vty, struct pim_instance *pim,
 				const char *spaces)
 {
+	struct msdp_named_peer *named_peer;
 	struct pim_msdp_peer *mp;
 	struct listnode *node;
 	bool written = false;
@@ -1374,30 +1417,21 @@ bool pim_msdp_peer_config_write(struct vty *vty, struct pim_instance *pim,
 		/* Skip meshed group peers. */
 		if (mp->flags & PIM_MSDP_PEERF_IN_GROUP)
 			continue;
+		/* Skip named peers. */
+		if (mp->named_peer)
+			continue;
 
-		vty_out(vty, "%sip msdp peer %pI4 source %pI4", spaces,
-			&mp->peer, &mp->local);
-		if (mp->asn)
-			vty_out(vty, " as %u", mp->asn);
-		vty_out(vty, "\n");
+		_pim_msdp_peer_config_write(vty, mp, spaces);
+		written = true;
+	}
 
-		if (mp->auth_type == MSDP_AUTH_MD5)
-			vty_out(vty, "%sip msdp peer %pI4 password %s\n",
-				spaces, &mp->peer,
-				vty->is_show_running ? "****" : mp->auth_key);
+	SLIST_FOREACH (named_peer, &pim->msdp_named_peer_list, entry) {
+		mp = &named_peer->peer_data;
+		/* Skip meshed group peers. */
+		if (mp->flags & PIM_MSDP_PEERF_IN_GROUP)
+			continue;
 
-		if (mp->acl_in)
-			vty_out(vty, "%sip msdp peer %pI4 sa-filter %s in\n",
-				spaces, &mp->peer, mp->acl_in);
-
-		if (mp->acl_out)
-			vty_out(vty, "%sip msdp peer %pI4 sa-filter %s out\n",
-				spaces, &mp->peer, mp->acl_out);
-
-		if (mp->sa_limit)
-			vty_out(vty, "%sip msdp peer %pI4 sa-limit %zu\n",
-				spaces, &mp->peer, mp->sa_limit);
-
+		_pim_msdp_peer_config_write(vty, mp, spaces);
 		written = true;
 	}
 
@@ -1406,7 +1440,7 @@ bool pim_msdp_peer_config_write(struct vty *vty, struct pim_instance *pim,
 
 /* Enable feature including active/periodic timers etc. on the first peer
  * config. Till then MSDP should just stay quiet. */
-static void pim_msdp_enable(struct pim_instance *pim)
+void pim_msdp_enable(struct pim_instance *pim)
 {
 	if (pim->msdp.flags & PIM_MSDPF_ENABLE) {
 		/* feature is already enabled */

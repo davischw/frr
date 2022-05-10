@@ -266,6 +266,60 @@ const struct frr_yang_module_info frr_pim_info = {
 			}
 		},
 		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-named-peer",
+			.cbs = {
+				.create = routing_control_plane_protocols_control_plane_protocol_pim_address_family_msdp_named_peer_create,
+				.destroy = routing_control_plane_protocols_control_plane_protocol_pim_address_family_msdp_named_peer_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-named-peer/source-ip",
+			.cbs = {
+				.modify = routing_control_plane_protocols_control_plane_protocol_pim_address_family_msdp_peer_source_ip_modify,
+			}
+		},
+		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-named-peer/as",
+			.cbs = {
+				.modify = pim_msdp_peer_as_modify,
+				.destroy = pim_msdp_peer_as_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-named-peer/sa-filter-in",
+			.cbs = {
+				.modify = pim_msdp_peer_sa_filter_in_modify,
+				.destroy = pim_msdp_peer_sa_filter_in_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-named-peer/sa-filter-out",
+			.cbs = {
+				.modify = pim_msdp_peer_sa_filter_out_modify,
+				.destroy = pim_msdp_peer_sa_filter_out_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-named-peer/authentication-type",
+			.cbs = {
+				.modify = pim_msdp_peer_authentication_type_modify,
+			}
+		},
+		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-named-peer/authentication-key",
+			.cbs = {
+				.modify = pim_msdp_peer_authentication_key_modify,
+				.destroy = pim_msdp_peer_authentication_key_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp-named-peer/sa-limit",
+			.cbs = {
+				.modify = pim_msdp_peer_sa_limit_modify,
+				.destroy = pim_msdp_peer_sa_limit_destroy,
+			}
+		},
+		{
 			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/mlag",
 			.cbs = {
 				.create = routing_control_plane_protocols_control_plane_protocol_pim_address_family_mlag_create,

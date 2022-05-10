@@ -3708,13 +3708,14 @@ DEFPY (clear_ip_mroute_count,
 }
 
 DEFPY(clear_ip_msdp_peer, clear_ip_msdp_peer_cmd,
-      "clear ip msdp peer A.B.C.D$peer [vrf WORD$vrfname]",
+      "clear ip msdp peer <A.B.C.D$peer|WORD$list_name> [vrf WORD$vrfname]",
       CLEAR_STR
       IP_STR
       MSDP_STR
       "Restart MSDP peer\n"
       "MSDP peer address\n"
-      VRF_CMD_HELP_STR)
+      "Address list name\n"
+       VRF_CMD_HELP_STR)
 {
 	const struct pim_instance *pim;
 	const struct listnode *node;
@@ -3730,7 +3731,12 @@ DEFPY(clear_ip_msdp_peer, clear_ip_msdp_peer_cmd,
 
 	pim = vrf->info;
 	for (ALL_LIST_ELEMENTS_RO(pim->msdp.peer_list, node, mp)) {
-		if (mp->peer.s_addr != peer.s_addr)
+		if (list_name) {
+			if (mp->named_peer == NULL)
+				continue;
+			if (strcmp(mp->named_peer->list_name, list_name))
+				continue;
+		} else if (mp->peer.s_addr != peer.s_addr)
 			continue;
 
 		pim_msdp_peer_restart(mp);
@@ -6695,11 +6701,12 @@ ALIAS(no_ip_pim_bfd, no_ip_pim_bfd_param_cmd,
 #endif /* !HAVE_BFDD */
 
 DEFPY(ip_msdp_peer, ip_msdp_peer_cmd,
-      "ip msdp peer A.B.C.D$peer source A.B.C.D$source [as (1-4294967295)$asn]",
+      "ip msdp peer <A.B.C.D$peer|WORD$list_name> source A.B.C.D$source [as (1-4294967295)$asn]",
       IP_STR
       CFG_MSDP_STR
       "Configure MSDP peer\n"
       "Peer IP address\n"
+      "Address list name\n"
       "Source address for TCP connection\n"
       "Local IP address\n"
       "BGP Autonomous System peer information\n"
@@ -6716,8 +6723,13 @@ DEFPY(ip_msdp_peer, ip_msdp_peer_cmd,
 	snprintf(msdp_peer_source_xpath, sizeof(msdp_peer_source_xpath),
 		 FRR_PIM_VRF_XPATH, "frr-pim:pimd", "pim", vrfname,
 		 "frr-routing:ipv4");
-	snprintf(temp_xpath, sizeof(temp_xpath),
-		 "/msdp-peer[peer-ip='%s']/source-ip", peer_str);
+	if (list_name)
+		snprintf(temp_xpath, sizeof(temp_xpath),
+			 "/msdp-named-peer[peer-name='%s']/source-ip",
+			 list_name);
+	else
+		snprintf(temp_xpath, sizeof(temp_xpath),
+			 "/msdp-peer[peer-ip='%s']/source-ip", peer_str);
 	strlcat(msdp_peer_source_xpath, temp_xpath,
 		sizeof(msdp_peer_source_xpath));
 
@@ -6728,8 +6740,13 @@ DEFPY(ip_msdp_peer, ip_msdp_peer_cmd,
 		snprintf(msdp_peer_source_xpath, sizeof(msdp_peer_source_xpath),
 			 FRR_PIM_VRF_XPATH, "frr-pim:pimd", "pim", vrfname,
 			 "frr-routing:ipv4");
-		snprintf(temp_xpath, sizeof(temp_xpath),
-			 "/msdp-peer[peer-ip='%s']/as", peer_str);
+		if (list_name)
+			snprintf(temp_xpath, sizeof(temp_xpath),
+				 "/msdp-named-peer[peer-name='%s']/as",
+				 list_name);
+		else
+			snprintf(temp_xpath, sizeof(temp_xpath),
+				 "/msdp-peer[peer-ip='%s']/as", peer_str);
 		strlcat(msdp_peer_source_xpath, temp_xpath,
 			sizeof(msdp_peer_source_xpath));
 		nb_cli_enqueue_change(vty, msdp_peer_source_xpath, NB_OP_MODIFY,
@@ -6738,72 +6755,6 @@ DEFPY(ip_msdp_peer, ip_msdp_peer_cmd,
 
 	return nb_cli_apply_changes(vty,
 			FRR_PIM_INTERFACE_XPATH, "frr-routing:ipv4");
-}
-
-DEFPY(ip_msdp_peer_md5, ip_msdp_peer_md5_cmd,
-      "ip msdp peer A.B.C.D$peer password WORD$psk",
-      IP_STR
-      CFG_MSDP_STR
-      "Configure MSDP peer\n"
-      "MSDP Peer address\n"
-      "Use MD5 authentication\n"
-      "MD5 pre shared key\n")
-{
-	const struct lyd_node *peer_node;
-	const char *vrfname;
-	char xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(xpath, sizeof(xpath),
-		 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip='%s']", "frr-pim:pimd",
-		 "pim", vrfname, "frr-routing:ipv4", peer_str);
-	peer_node = yang_dnode_get(vty->candidate_config->dnode, xpath);
-	if (peer_node == NULL) {
-		vty_out(vty, "%% MSDP peer %s not yet configured\n", peer_str);
-		return CMD_SUCCESS;
-	}
-
-	nb_cli_enqueue_change(vty, "./authentication-type", NB_OP_MODIFY,
-			      "MD5");
-	nb_cli_enqueue_change(vty, "./authentication-key", NB_OP_MODIFY, psk);
-
-	return nb_cli_apply_changes(vty, "%s", xpath);
-}
-
-DEFPY(no_ip_msdp_peer_md5, no_ip_msdp_peer_md5_cmd,
-      "no ip msdp peer A.B.C.D$peer password [WORD]",
-      NO_STR
-      IP_STR
-      CFG_MSDP_STR
-      "Configure MSDP peer\n"
-      "MSDP Peer address\n"
-      "Use MD5 authentication\n"
-      "MD5 pre shared key\n")
-{
-	const struct lyd_node *peer_node;
-	const char *vrfname;
-	char xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(xpath, sizeof(xpath),
-		 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip='%s']", "frr-pim:pimd",
-		 "pim", vrfname, "frr-routing:ipv4", peer_str);
-	peer_node = yang_dnode_get(vty->candidate_config->dnode, xpath);
-	if (peer_node == NULL) {
-		vty_out(vty, "%% MSDP peer %s not yet configured\n", peer_str);
-		return CMD_SUCCESS;
-	}
-
-	nb_cli_enqueue_change(vty, "./authentication-type", NB_OP_MODIFY,
-			      "None");
-
-	return nb_cli_apply_changes(vty, "%s", xpath);
 }
 
 DEFPY(ip_msdp_timers, ip_msdp_timers_cmd,
@@ -6867,14 +6818,14 @@ DEFPY(no_ip_msdp_timers, no_ip_msdp_timers_cmd,
 	return CMD_SUCCESS;
 }
 
-DEFUN (no_ip_msdp_peer,
-       no_ip_msdp_peer_cmd,
-       "no ip msdp peer A.B.C.D",
-       NO_STR
-       IP_STR
-       CFG_MSDP_STR
-       "Delete MSDP peer\n"
-       "peer ip address\n")
+DEFPY(no_ip_msdp_peer, no_ip_msdp_peer_cmd,
+      "no ip msdp peer <A.B.C.D$peer|WORD$list_name>",
+      NO_STR
+      IP_STR
+      CFG_MSDP_STR
+      "Delete MSDP peer\n"
+      "Peer IP address\n"
+      "Address list name\n")
 {
 	const char *vrfname;
 	char msdp_peer_xpath[XPATH_MAXLEN];
@@ -6887,9 +6838,12 @@ DEFUN (no_ip_msdp_peer,
 	snprintf(msdp_peer_xpath, sizeof(msdp_peer_xpath),
 		 FRR_PIM_VRF_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
-	snprintf(temp_xpath, sizeof(temp_xpath),
-		 "/msdp-peer[peer-ip='%s']",
-		 argv[4]->arg);
+	if (list_name)
+		snprintf(temp_xpath, sizeof(temp_xpath),
+			 "/msdp-named-peer[peer-name='%s']", list_name);
+	else
+		snprintf(temp_xpath, sizeof(temp_xpath),
+			 "/msdp-peer[peer-ip='%s']", peer_str);
 
 	strlcat(msdp_peer_xpath, temp_xpath, sizeof(msdp_peer_xpath));
 
@@ -6899,11 +6853,12 @@ DEFUN (no_ip_msdp_peer,
 }
 
 DEFPY(ip_msdp_peer_sa_filter, ip_msdp_peer_sa_filter_cmd,
-      "ip msdp peer A.B.C.D$peer sa-filter ACL_NAME$acl_name <in|out>$dir",
+      "ip msdp peer <A.B.C.D$peer|WORD$list_name> sa-filter ACL_NAME$acl_name <in|out>$dir",
       IP_STR
       CFG_MSDP_STR
       "Configure MSDP peer\n"
       "MSDP Peer address\n"
+      "Address list name\n"
       "SA access-list filter\n"
       "SA access-list name\n"
       "Filter incoming SAs\n"
@@ -6917,9 +6872,17 @@ DEFPY(ip_msdp_peer_sa_filter, ip_msdp_peer_sa_filter_cmd,
 	if (vrfname == NULL)
 		return CMD_WARNING_CONFIG_FAILED;
 
-	snprintf(xpath, sizeof(xpath),
-		 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip='%s']", "frr-pim:pimd",
-		 "pim", vrfname, "frr-routing:ipv4", peer_str);
+	if (list_name)
+		snprintf(xpath, sizeof(xpath),
+			 FRR_PIM_VRF_XPATH "/msdp-named-peer[peer-name='%s']",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 list_name);
+	else
+		snprintf(xpath, sizeof(xpath),
+			 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip='%s']",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 peer_str);
+
 	peer_node = yang_dnode_get(vty->candidate_config->dnode, xpath);
 	if (peer_node == NULL) {
 		vty_out(vty, "%% MSDP peer %s not yet configured\n", peer_str);
@@ -6937,12 +6900,13 @@ DEFPY(ip_msdp_peer_sa_filter, ip_msdp_peer_sa_filter_cmd,
 }
 
 DEFPY(no_ip_msdp_peer_sa_filter, no_ip_msdp_peer_sa_filter_cmd,
-      "no ip msdp peer A.B.C.D$peer sa-filter ACL_NAME <in|out>$dir",
+      "no ip msdp peer <A.B.C.D$peer|WORD$list_name> sa-filter ACL_NAME <in|out>$dir",
       NO_STR
       IP_STR
       CFG_MSDP_STR
       "Configure MSDP peer\n"
       "MSDP Peer address\n"
+      "Address list name\n"
       "SA access-list filter\n"
       "SA access-list name\n"
       "Filter incoming SAs\n"
@@ -6956,9 +6920,17 @@ DEFPY(no_ip_msdp_peer_sa_filter, no_ip_msdp_peer_sa_filter_cmd,
 	if (vrfname == NULL)
 		return CMD_WARNING_CONFIG_FAILED;
 
-	snprintf(xpath, sizeof(xpath),
-		 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip='%s']", "frr-pim:pimd",
-		 "pim", vrfname, "frr-routing:ipv4", peer_str);
+	if (list_name)
+		snprintf(xpath, sizeof(xpath),
+			 FRR_PIM_VRF_XPATH "/msdp-named-peer[peer-name='%s']",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 list_name);
+	else
+		snprintf(xpath, sizeof(xpath),
+			 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip='%s']",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 peer_str);
+
 	peer_node = yang_dnode_get(vty->candidate_config->dnode, xpath);
 	if (peer_node == NULL) {
 		vty_out(vty, "%% MSDP peer %s not yet configured\n", peer_str);
@@ -6971,6 +6943,90 @@ DEFPY(no_ip_msdp_peer_sa_filter, no_ip_msdp_peer_sa_filter_cmd,
 	else
 		nb_cli_enqueue_change(vty, "./sa-filter-out", NB_OP_DESTROY,
 				      NULL);
+
+	return nb_cli_apply_changes(vty, "%s", xpath);
+}
+
+DEFPY(ip_msdp_peer_md5, ip_msdp_peer_md5_cmd,
+      "ip msdp peer <A.B.C.D$peer|WORD$list_name> password WORD$psk",
+      IP_STR
+      CFG_MSDP_STR
+      "Configure MSDP peer\n"
+      "MSDP Peer address\n"
+      "Address list name\n"
+      "Use MD5 authentication\n"
+      "MD5 pre shared key\n")
+{
+	const struct lyd_node *peer_node;
+	const char *vrfname;
+	char xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	if (list_name)
+		snprintf(xpath, sizeof(xpath),
+			 FRR_PIM_VRF_XPATH "/msdp-named-peer[peer-name='%s']",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 list_name);
+	else
+		snprintf(xpath, sizeof(xpath),
+			 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip='%s']",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 peer_str);
+
+	peer_node = yang_dnode_get(vty->candidate_config->dnode, xpath);
+	if (peer_node == NULL) {
+		vty_out(vty, "%% MSDP peer %s not yet configured\n", peer_str);
+		return CMD_SUCCESS;
+	}
+
+	nb_cli_enqueue_change(vty, "./authentication-type", NB_OP_MODIFY,
+			      "MD5");
+	nb_cli_enqueue_change(vty, "./authentication-key", NB_OP_MODIFY, psk);
+
+	return nb_cli_apply_changes(vty, "%s", xpath);
+}
+
+DEFPY(no_ip_msdp_peer_md5, no_ip_msdp_peer_md5_cmd,
+      "no ip msdp peer <A.B.C.D$peer|WORD$list_name> password [WORD]",
+      NO_STR
+      IP_STR
+      CFG_MSDP_STR
+      "Configure MSDP peer\n"
+      "MSDP Peer address\n"
+      "Address list name\n"
+      "Use MD5 authentication\n"
+      "MD5 pre shared key\n")
+{
+	const struct lyd_node *peer_node;
+	const char *vrfname;
+	char xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	if (list_name)
+		snprintf(xpath, sizeof(xpath),
+			 FRR_PIM_VRF_XPATH "/msdp-named-peer[peer-name='%s']",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 list_name);
+	else
+		snprintf(xpath, sizeof(xpath),
+			 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip='%s']",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 peer_str);
+
+	peer_node = yang_dnode_get(vty->candidate_config->dnode, xpath);
+	if (peer_node == NULL) {
+		vty_out(vty, "%% MSDP peer %s not yet configured\n", peer_str);
+		return CMD_SUCCESS;
+	}
+
+	nb_cli_enqueue_change(vty, "./authentication-type", NB_OP_MODIFY,
+			      "None");
 
 	return nb_cli_apply_changes(vty, "%s", xpath);
 }
@@ -7179,11 +7235,12 @@ DEFPY(ip_msdp_shutdown,
 }
 
 DEFPY(ip_msdp_peer_sa_limit, ip_msdp_peer_sa_limit_cmd,
-      "ip msdp peer A.B.C.D$peer sa-limit (1-4294967294)$sa_limit",
+      "ip msdp peer <A.B.C.D$peer|WORD$list_name> sa-limit (1-4294967294)$sa_limit",
       IP_STR
       CFG_MSDP_STR
       "Configure MSDP peer\n"
       "MSDP peer address\n"
+      "Address list name\n"
       "Limit amount of SA\n"
       "Maximum number of SA\n")
 {
@@ -7195,21 +7252,31 @@ DEFPY(ip_msdp_peer_sa_limit, ip_msdp_peer_sa_limit_cmd,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	/* Get mesh group base XPath. */
-	snprintf(xpath_value, sizeof(xpath_value),
-		 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip=\"%s\"]/sa-limit",
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", peer_str);
+	if (list_name)
+		snprintf(xpath_value, sizeof(xpath_value),
+			 FRR_PIM_VRF_XPATH
+			 "/msdp-named-peer[peer-name=\"%s\"]/sa-limit",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 list_name);
+	else
+		snprintf(xpath_value, sizeof(xpath_value),
+			 FRR_PIM_VRF_XPATH
+			 "/msdp-peer[peer-ip=\"%s\"]/sa-limit",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 peer_str);
 
 	nb_cli_enqueue_change(vty, xpath_value, NB_OP_MODIFY, sa_limit_str);
 	return nb_cli_apply_changes(vty, NULL);
 }
 
 DEFPY(no_ip_msdp_peer_sa_limit, no_ip_msdp_peer_sa_limit_cmd,
-      "no ip msdp peer A.B.C.D$peer sa-limit [(1-4294967294)]",
+      "no ip msdp peer <A.B.C.D$peer|WORD$list_name> sa-limit [(1-4294967294)]",
       NO_STR
       IP_STR
       CFG_MSDP_STR
       "Configure MSDP peer\n"
       "MSDP peer address\n"
+      "Address list name\n"
       "Limit amount of SA\n"
       "Maximum number of SA\n")
 {
@@ -7221,9 +7288,18 @@ DEFPY(no_ip_msdp_peer_sa_limit, no_ip_msdp_peer_sa_limit_cmd,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	/* Get mesh group base XPath. */
-	snprintf(xpath_value, sizeof(xpath_value),
-		 FRR_PIM_VRF_XPATH "/msdp-peer[peer-ip=\"%s\"]/sa-limit",
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", peer_str);
+	if (list_name)
+		snprintf(xpath_value, sizeof(xpath_value),
+			 FRR_PIM_VRF_XPATH
+			 "/msdp-named-peer[peer-name=\"%s\"]/sa-limit",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 list_name);
+	else
+		snprintf(xpath_value, sizeof(xpath_value),
+			 FRR_PIM_VRF_XPATH
+			 "/msdp-peer[peer-ip=\"%s\"]/sa-limit",
+			 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4",
+			 peer_str);
 
 	nb_cli_enqueue_change(vty, xpath_value, NB_OP_DESTROY, NULL);
 	return nb_cli_apply_changes(vty, NULL);
@@ -7487,7 +7563,9 @@ static void ip_msdp_show_peers_detail(struct pim_instance *pim, struct vty *vty,
 
 	for (ALL_LIST_ELEMENTS_RO(pim->msdp.peer_list, mpnode, mp)) {
 		pim_inet4_dump("<peer?>", mp->peer, peer_str, sizeof(peer_str));
-		if (strcmp(peer, "detail") && strcmp(peer, peer_str))
+		if (strcmp(peer, "detail") && strcmp(peer, peer_str) &&
+		    (mp->named_peer == NULL ||
+		     strcmp(peer, mp->named_peer->list_name)))
 			continue;
 
 		if (mp->state == PIM_MSDP_ESTABLISHED) {
@@ -7572,7 +7650,7 @@ static void ip_msdp_show_peers_detail(struct pim_instance *pim, struct vty *vty,
 
 DEFUN (show_ip_msdp_peer_detail,
        show_ip_msdp_peer_detail_cmd,
-       "show ip msdp [vrf NAME] peer [detail|A.B.C.D] [json]",
+       "show ip msdp [vrf NAME] peer [detail|A.B.C.D|WORD] [json]",
        SHOW_STR
        IP_STR
        MSDP_STR
@@ -7580,6 +7658,7 @@ DEFUN (show_ip_msdp_peer_detail,
        "MSDP peer information\n"
        "Detailed output\n"
        "peer ip address\n"
+       "Address list name\n"
        JSON_STR)
 {
 	bool uj = use_json(argc, argv);
@@ -7594,6 +7673,8 @@ DEFUN (show_ip_msdp_peer_detail,
 	if (argv_find(argv, argc, "detail", &idx))
 		arg = argv[idx]->text;
 	else if (argv_find(argv, argc, "A.B.C.D", &idx))
+		arg = argv[idx]->arg;
+	else if (argv_find(argv, argc, "WORD", &idx))
 		arg = argv[idx]->arg;
 
 	if (arg)

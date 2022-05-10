@@ -168,6 +168,7 @@ int main(int argc, char **argv, char **envp)
 	pim_zebra_init();
 	pim_bfd_init();
 	pim_mlag_init();
+	pim_address_list_init();
 
 	hook_register(routing_conf_event,
 		      routing_control_plane_protocols_name_validate);
