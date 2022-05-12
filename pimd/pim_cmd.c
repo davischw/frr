@@ -7975,6 +7975,82 @@ DEFPY(clear_ip_msdp_peer_counters, clear_ip_msdp_peer_counters_cmd,
 	return CMD_SUCCESS;
 }
 
+static void msdp_clear_sa_group(const struct pim_instance *pim,
+				const struct in_addr *group)
+{
+	struct pim_msdp_sa *sa;
+	struct listnode *node, *node_next;
+
+	for (ALL_LIST_ELEMENTS(pim->msdp.sa_list, node, node_next, sa)) {
+		if (sa->sg.grp.s_addr != group->s_addr)
+			continue;
+
+		pim_msdp_sa_deref(sa, PIM_MSDP_SAF_LOCAL | PIM_MSDP_SAF_PEER);
+	}
+}
+
+static void msdp_clear_sa_peer(const struct pim_instance *pim,
+			       const struct in_addr *peer)
+{
+	struct pim_msdp_sa *sa;
+	struct listnode *node, *node_next;
+
+	for (ALL_LIST_ELEMENTS(pim->msdp.sa_list, node, node_next, sa)) {
+		if (sa->peer.s_addr != peer->s_addr)
+			continue;
+
+		pim_msdp_sa_deref(sa, PIM_MSDP_SAF_LOCAL | PIM_MSDP_SAF_PEER);
+	}
+}
+
+DEFPY(clear_ip_msdp_sa, clear_ip_msdp_sa_cmd,
+      "clear ip msdp [<vrf all$vrf_all|vrf WORD$vrf_name>] sa <group A.B.C.D$sa_group|peer A.B.C.D$peer>",
+      CLEAR_STR
+      IP_STR
+      MSDP_STR
+      VRF_CMD_HELP_STR
+      VRF_CMD_HELP_STR
+      "MSDP SA\n"
+      "SA group\n"
+      "SA group address\n"
+      "MSDP peer information\n"
+      "Peer IP address\n")
+{
+	struct vrf *vrf;
+
+	if (vrf_name) {
+		vrf = vrf_lookup_by_name(vrf_name);
+		if (vrf == NULL) {
+			vty_out(vty, "VRF %s does not exist\n", vrf_name);
+			return CMD_WARNING;
+		}
+	} else if (vrf_all) {
+		vrf = NULL;
+	} else {
+		vrf = vrf_lookup_by_id(VRF_DEFAULT);
+		if (vrf == NULL) {
+			vty_out(vty, "Default VRF does not exist\n");
+			return CMD_WARNING;
+		}
+	}
+
+	if (vrf == NULL) {
+		RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+			if (sa_group_str)
+				msdp_clear_sa_group(vrf->info, &sa_group);
+			else if (peer_str)
+				msdp_clear_sa_peer(vrf->info, &peer);
+		}
+	} else {
+		if (sa_group_str)
+			msdp_clear_sa_group(vrf->info, &sa_group);
+		else if (peer_str)
+			msdp_clear_sa_peer(vrf->info, &peer);
+	}
+
+	return CMD_SUCCESS;
+}
+
 static void ip_msdp_show_sa(struct pim_instance *pim, struct vty *vty, bool uj)
 {
 	struct listnode *sanode;
@@ -9036,6 +9112,7 @@ void pim_cmd_init(void)
 	install_element(ENABLE_NODE, &clear_ip_pim_bsr_db_cmd);
 	install_element(ENABLE_NODE, &clear_ip_msdp_peer_cmd);
 	install_element(ENABLE_NODE, &clear_ip_msdp_peer_counters_cmd);
+	install_element(ENABLE_NODE, &clear_ip_msdp_sa_cmd);
 
 	install_element(ENABLE_NODE, &show_debugging_pim_cmd);
 

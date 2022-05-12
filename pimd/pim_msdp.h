@@ -301,6 +301,7 @@ bool pim_msdp_peer_config_write(struct vty *vty, struct pim_instance *pim,
 void pim_msdp_peer_pkt_txed(struct pim_msdp_peer *mp);
 void pim_msdp_sa_ref(struct pim_instance *pim, struct pim_msdp_peer *mp,
 		     pim_sgaddr *sg, struct in_addr rp);
+void pim_msdp_sa_deref(struct pim_msdp_sa *sa, enum pim_msdp_sa_flags flags);
 void pim_msdp_sa_local_update(struct pim_upstream *up);
 void pim_msdp_sa_local_del(struct pim_instance *pim, pim_sgaddr *sg);
 void pim_msdp_i_am_rp_changed(struct pim_instance *pim);

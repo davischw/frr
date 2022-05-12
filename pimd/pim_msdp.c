@@ -55,8 +55,6 @@ static void pim_msdp_peer_hold_timer_setup(struct pim_msdp_peer *mp,
 					   bool start);
 static void pim_msdp_peer_free(struct pim_msdp_peer *mp);
 static void pim_msdp_sa_adv_timer_setup(struct pim_instance *pim, bool start);
-static void pim_msdp_sa_deref(struct pim_msdp_sa *sa,
-			      enum pim_msdp_sa_flags flags);
 static int pim_msdp_mg_mbr_comp(const void *p1, const void *p2);
 static void pim_msdp_mg_mbr_free(struct pim_msdp_mg_mbr *mbr);
 
@@ -355,8 +353,7 @@ static void pim_msdp_sa_peer_ip_set(struct pim_msdp_sa *sa,
  * aged out overtime if not seen in the SA updates from the peers.
  * XXX: should we provide a knob to drop entries learnt from a peer when the
  * peer goes down? */
-static void pim_msdp_sa_deref(struct pim_msdp_sa *sa,
-			      enum pim_msdp_sa_flags flags)
+void pim_msdp_sa_deref(struct pim_msdp_sa *sa, enum pim_msdp_sa_flags flags)
 {
 	bool update_up = false;
 
