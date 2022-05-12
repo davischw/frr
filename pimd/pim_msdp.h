@@ -304,6 +304,7 @@ void pim_msdp_sa_ref(struct pim_instance *pim, struct pim_msdp_peer *mp,
 void pim_msdp_sa_deref(struct pim_msdp_sa *sa, enum pim_msdp_sa_flags flags);
 void pim_msdp_sa_local_update(struct pim_upstream *up);
 void pim_msdp_sa_local_del(struct pim_instance *pim, pim_sgaddr *sg);
+uint32_t pim_msdp_sa_asn(const struct pim_msdp_sa *sa);
 void pim_msdp_i_am_rp_changed(struct pim_instance *pim);
 bool pim_msdp_peer_rpf_check(struct pim_msdp_peer *mp, struct in_addr rp);
 void pim_msdp_up_join_state_changed(struct pim_instance *pim,

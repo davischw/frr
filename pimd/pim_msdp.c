@@ -73,6 +73,16 @@ void pim_msdp_originator_id(const struct pim_instance *pim,
 		*originator_id = peer->local;
 }
 
+uint32_t pim_msdp_sa_asn(const struct pim_msdp_sa *sa)
+{
+	struct pim_msdp_peer *peer = pim_msdp_peer_find(sa->pim, sa->peer);
+
+	if (peer == NULL)
+		return 0;
+
+	return peer->asn;
+}
+
 /************************ SA cache management ******************************/
 static void pim_msdp_sa_timer_expiry_log(struct pim_msdp_sa *sa,
 					 const char *timer_str)
