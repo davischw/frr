@@ -247,7 +247,7 @@ def test_ospf6_default_route():
         assertmsg = '"{}" convergence failure'.format(router)
         assert result is None, assertmsg
 
-    metric = 123
+    metric = 1
     expect_lsas(
         "r1",
         "0.0.0.1",

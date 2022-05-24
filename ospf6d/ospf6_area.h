@@ -57,6 +57,9 @@ struct ospf6_area {
 	/* Area type */
 	int no_summary;
 
+	/* Cost of a NSSA or stub area summary route */
+	uint32_t default_cost;
+
 	/* NSSA default-information-originate */
 	struct {
 		bool enabled;
