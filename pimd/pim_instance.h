@@ -245,6 +245,8 @@ struct pim_instance {
 	uint32_t log_flags;
 /** Log neighbor event messages. */
 #define PIM_MSDP_LOG_NEIGHBOR_EVENTS 0x01
+/** Log SA event messages. */
+#define PIM_MSDP_LOG_SA_EVENTS 0x02
 
 	/** PIM MSDP named peers. */
 	struct msdp_named_peer_list msdp_named_peer_list;
@@ -272,5 +274,6 @@ void pim_spt_prefix_list_update(struct pim_instance *pim,
 				struct prefix_list *plist);
 
 extern bool pim_msdp_log_neighbor_events(const struct pim_instance *pim);
+extern bool pim_msdp_log_sa_events(const struct pim_instance *pim);
 
 #endif

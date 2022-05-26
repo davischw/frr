@@ -8922,6 +8922,28 @@ DEFPY(msdp_log_neighbor_changes, msdp_log_neighbor_changes_cmd,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+DEFPY(msdp_log_sa_changes, msdp_log_sa_changes_cmd,
+      "[no] msdp log sa-events",
+      NO_STR
+      MSDP_STR
+      "MSDP log messages\n"
+      "MSDP log SA event messages\n")
+{
+	const char *vrf_name;
+	char xpath_value[XPATH_MAXLEN];
+
+	vrf_name = pim_cli_get_vrf_name(vty);
+	if (vrf_name == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(xpath_value, sizeof(xpath_value),
+		 FRR_PIM_MSDP_XPATH "/log-sa-events", "frr-pim:pimd", "pim",
+		 vrf_name, "frr-routing:ipv4");
+	nb_cli_enqueue_change(vty, xpath_value,
+			      no ? NB_OP_DESTROY : NB_OP_MODIFY, "true");
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 void pim_cmd_init(void)
 {
 	if_cmd_init(pim_interface_config_write);
@@ -9286,6 +9308,8 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &no_ip_msdp_originator_id_cmd);
 	install_element(CONFIG_NODE, &msdp_log_neighbor_changes_cmd);
 	install_element(VRF_NODE, &msdp_log_neighbor_changes_cmd);
+	install_element(CONFIG_NODE, &msdp_log_sa_changes_cmd);
+	install_element(VRF_NODE, &msdp_log_sa_changes_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_vrf_all_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_json_cmd);
