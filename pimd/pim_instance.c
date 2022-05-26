@@ -354,3 +354,8 @@ void pim_spt_prefix_list_update(struct pim_instance *pim,
 
 	pim_vrf_spt_reconfig(pim, NULL);
 }
+
+bool pim_msdp_log_neighbor_events(const struct pim_instance *pim)
+{
+	return (pim->log_flags & PIM_MSDP_LOG_NEIGHBOR_EVENTS);
+}

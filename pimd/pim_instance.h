@@ -241,6 +241,11 @@ struct pim_instance {
 
 	uint64_t gm_rx_drop_sys;
 
+	/** Log information flags. */
+	uint32_t log_flags;
+/** Log neighbor event messages. */
+#define PIM_MSDP_LOG_NEIGHBOR_EVENTS 0x01
+
 	/** PIM MSDP named peers. */
 	struct msdp_named_peer_list msdp_named_peer_list;
 };
@@ -265,5 +270,7 @@ uint32_t pim_vrf_spt_thresh(struct pim_instance *pim, pim_addr group);
 void pim_vrf_spt_reconfig(struct pim_instance *pim, struct prefix *groups);
 void pim_spt_prefix_list_update(struct pim_instance *pim,
 				struct prefix_list *plist);
+
+extern bool pim_msdp_log_neighbor_events(const struct pim_instance *pim);
 
 #endif

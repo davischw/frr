@@ -381,6 +381,13 @@ module frr-pim {
         description
           "Shutdown MSDP functionality.";
       }
+
+      leaf log-neighbor-events {
+        type boolean;
+        default false;
+        description
+          "Log all MSDP neighbor related events.";
+      }
     }
 
     list msdp-mesh-groups {

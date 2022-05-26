@@ -58,9 +58,9 @@ static void msdp_named_peer_disable(struct pim_msdp_peer *msdp_peer)
 	if (msdp_peer->peer.s_addr == INADDR_ANY)
 		return;
 
-	if (PIM_DEBUG_MSDP_EVENTS)
-		zlog_debug("Removing MSDP peer %s previous address: %pI4",
-			   msdp_peer->named_peer->list_name, &msdp_peer->peer);
+	if (pim_msdp_log_neighbor_events(msdp_peer->pim))
+		zlog_info("Removing MSDP peer %s previous address: %pI4",
+			  msdp_peer->named_peer->list_name, &msdp_peer->peer);
 
 	/* Stop connection. */
 	pim_msdp_peer_stop_tcp_conn(msdp_peer, true);
@@ -86,9 +86,9 @@ static void msdp_named_peer_toggle(struct msdp_named_peer *peer,
 
 	/* No more entries in the list. */
 	if (ae == NULL) {
-		if (PIM_DEBUG_MSDP_EVENTS)
-			zlog_debug("MSDP peer %s: no new addresses",
-				   peer->list_name);
+		if (pim_msdp_log_neighbor_events(peer->pim))
+			zlog_info("MSDP peer %s: no new addresses",
+				  peer->list_name);
 		return;
 	}
 
@@ -102,7 +102,7 @@ static void msdp_named_peer_toggle(struct msdp_named_peer *peer,
 			return;
 		}
 
-		if (PIM_DEBUG_MSDP_EVENTS)
+		if (pim_msdp_log_neighbor_events(peer->pim))
 			zlog_debug("MSDP peer %s new address: %pI4",
 				   peer->list_name, &ae->ae_ip.ip._v4_addr);
 
@@ -120,14 +120,14 @@ static void msdp_named_peer_toggle(struct msdp_named_peer *peer,
 
 	case IPADDR_NONE:
 		/* Peer disabled, no address. */
-		if (PIM_DEBUG_MSDP_EVENTS)
-			zlog_debug("MSDP peer %s no address", peer->list_name);
+		if (pim_msdp_log_neighbor_events(peer->pim))
+			zlog_info("MSDP peer %s no address", peer->list_name);
 		return;
 
 	case IPADDR_V6:
 	default:
-		if (PIM_DEBUG_MSDP_EVENTS)
-			zlog_debug(
+		if (pim_msdp_log_neighbor_events(peer->pim))
+			zlog_info(
 				"MSDP peer %s new address: unsupported family %d",
 				peer->list_name, ae->ae_ip.ipa_type);
 		return;
@@ -141,8 +141,8 @@ static void msdp_named_peer_toggle(struct msdp_named_peer *peer,
 		 hash_alloc_intern);
 	listnode_add_sort(peer->pim->msdp.peer_list, &peer->peer_data);
 
-	if (PIM_DEBUG_MSDP_EVENTS) {
-		zlog_debug("MSDP peer %s started", peer->list_name);
+	if (pim_msdp_log_neighbor_events(peer->pim)) {
+		zlog_info("MSDP peer %s started", peer->list_name);
 		pim_msdp_peer_state_chg_log(&peer->peer_data);
 	}
 
@@ -176,6 +176,9 @@ pim_msdp_named_peer_new(struct pim_instance *pim,
 	peer->peer_data.named_peer = peer;
 	SLIST_INSERT_HEAD(&pim->msdp_named_peer_list, peer, entry);
 
+	if (pim_msdp_log_neighbor_events(peer->pim))
+		zlog_info("MSDP peer %s created", peer->list_name);
+
 	address_list = address_list_lookup(list_name);
 	if (address_list && address_list->al_selected)
 		msdp_named_peer_toggle(peer, address_list->al_selected);
@@ -188,6 +191,9 @@ void pim_msdp_named_peer_free(struct pim_msdp_peer *msdp_peer)
 	struct msdp_named_peer *peer = msdp_peer->named_peer;
 
 	assert(peer != NULL);
+
+	if (pim_msdp_log_neighbor_events(peer->pim))
+		zlog_info("MSDP peer %s deleted", peer->list_name);
 
 	SLIST_REMOVE(&msdp_peer->pim->msdp_named_peer_list, peer,
 		     msdp_named_peer, entry);
