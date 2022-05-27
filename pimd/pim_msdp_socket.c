@@ -77,7 +77,6 @@ static int _pim_msdp_sock_listen(const struct vrf *vrf,
 	int rv;
 	socklen_t socklen;
 	struct sockaddr_in sin = {};
-	union sockunion su_peer = {};
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1) {
@@ -130,7 +129,9 @@ static int _pim_msdp_sock_listen(const struct vrf *vrf,
 
 	/* Set MD5 authentication. */
 	if (mp && mp->auth_key) {
-		su_peer = mp->su_peer;
+		union sockunion su_peer = {};
+
+		pim_msdp_addr2su(&su_peer, mp->peer);
 		frr_with_privs (&pimd_privs) {
 			sockopt_tcp_signature(sock, &su_peer, mp->auth_key);
 		}
@@ -365,6 +366,7 @@ int pim_msdp_sock_listen(struct pim_instance *pim)
 int pim_msdp_sock_connect(struct pim_msdp_peer *mp)
 {
 	int rc;
+	union sockunion su_peer = {}, su_local = {};
 
 	if (PIM_DEBUG_MSDP_INTERNAL) {
 		zlog_debug("MSDP peer %s attempt connect%s", mp->key_str,
@@ -382,8 +384,11 @@ int pim_msdp_sock_connect(struct pim_msdp_peer *mp)
 		pim_msdp_peer_stop_tcp_conn(mp, false /* chg_state */);
 	}
 
+	pim_msdp_addr2su(&su_peer, mp->peer);
+	pim_msdp_addr2su(&su_local, mp->local);
+
 	/* Make socket for the peer. */
-	mp->fd = sockunion_socket(&mp->su_peer);
+	mp->fd = sockunion_socket(&su_peer);
 	if (mp->fd < 0) {
 		flog_err_sys(EC_LIB_SOCKET,
 			     "pim_msdp_socket socket failure: %s",
@@ -418,7 +423,7 @@ int pim_msdp_sock_connect(struct pim_msdp_peer *mp)
 	sockopt_reuseport(mp->fd);
 
 	/* source bind */
-	rc = sockunion_bind(mp->fd, &mp->su_local, 0, &mp->su_local);
+	rc = sockunion_bind(mp->fd, &su_local, 0, &su_local);
 	if (rc < 0) {
 		flog_err_sys(EC_LIB_SOCKET,
 			     "pim_msdp_socket connect bind failure: %s",
@@ -437,12 +442,11 @@ int pim_msdp_sock_connect(struct pim_msdp_peer *mp)
 	/* Set authentication (if configured). */
 	if (mp->auth_key) {
 		frr_with_privs (&pimd_privs) {
-			sockopt_tcp_signature(mp->fd, &mp->su_peer,
-					      mp->auth_key);
+			sockopt_tcp_signature(mp->fd, &su_peer, mp->auth_key);
 		}
 	}
 
 	/* Connect to the remote mp. */
-	return (sockunion_connect(mp->fd, &mp->su_peer,
-				  htons(PIM_MSDP_TCP_PORT), 0));
+	return (sockunion_connect(mp->fd, &su_peer, htons(PIM_MSDP_TCP_PORT),
+				  0));
 }

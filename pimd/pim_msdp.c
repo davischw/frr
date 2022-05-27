@@ -1087,9 +1087,7 @@ struct pim_msdp_peer *pim_msdp_peer_add(struct pim_instance *pim,
 	mp->pim = pim;
 	mp->peer = *peer;
 	pim_inet4_dump("<peer?>", mp->peer, mp->key_str, sizeof(mp->key_str));
-	pim_msdp_addr2su(&mp->su_peer, mp->peer);
 	mp->local = *local;
-	pim_msdp_addr2su(&mp->su_local, mp->local);
 	if (mesh_group_name)
 		mp->mesh_group_name =
 			XSTRDUP(MTYPE_PIM_MSDP_MG_NAME, mesh_group_name);

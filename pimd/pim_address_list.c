@@ -108,10 +108,6 @@ static void msdp_named_peer_toggle(struct msdp_named_peer *peer,
 
 		/* Higher IP address is listener */
 		peer->peer_data.peer = ae->ae_ip.ip._v4_addr;
-		pim_msdp_addr2su(&peer->peer_data.su_peer,
-				 peer->peer_data.peer);
-		pim_msdp_addr2su(&peer->peer_data.su_local,
-				 peer->peer_data.local);
 		pim_inet4_dump("<peer?>", peer->peer_data.peer,
 			       peer->peer_data.key_str,
 			       sizeof(peer->peer_data.key_str));
