@@ -1494,6 +1494,8 @@ void pim_msdp_exit(struct pim_instance *pim)
 
 	pim_msdp_sa_adv_timer_setup(pim, false);
 
+	pim_msdp_address_list_exit(pim);
+
 	/* Stop listener and delete all peer sessions */
 	while ((mg = SLIST_FIRST(&pim->msdp.mglist)) != NULL)
 		pim_msdp_mg_free(pim, &mg);

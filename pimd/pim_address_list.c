@@ -251,3 +251,13 @@ void pim_address_list_init(void)
 {
 	hook_register(address_entry_next, pim_next_address);
 }
+
+void pim_msdp_address_list_exit(struct pim_instance *pim)
+{
+	struct msdp_named_peer *peer;
+
+	while (!SLIST_EMPTY(&pim->msdp_named_peer_list)) {
+		peer = SLIST_FIRST(&pim->msdp_named_peer_list);
+		pim_msdp_named_peer_free(&peer->peer_data);
+	}
+}

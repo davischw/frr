@@ -54,5 +54,7 @@ struct pim_msdp_peer *pim_msdp_named_peer_lookup(const struct pim_instance *pim,
 
 /** Initialize address list integration. */
 void pim_address_list_init(void);
+/** Run MSDP address list integration destructor. */
+void pim_msdp_address_list_exit(struct pim_instance *pim);
 
 #endif /* PIM_ADDRESS_LIST_H */
