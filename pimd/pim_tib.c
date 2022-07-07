@@ -176,4 +176,6 @@ void tib_sg_gm_prune(struct pim_instance *pim, pim_sgaddr sg,
 	  per-interface (S,G) state.
 	 */
 	pim_ifchannel_local_membership_del(oif, &sg);
+
+	pim_channel_oil_del(*oilp, __func__);
 }
