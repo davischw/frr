@@ -7933,6 +7933,19 @@ DEFPY(show_ip_msdp_peer_detail_json, show_ip_msdp_peer_detail_json_cmd,
 	return CMD_SUCCESS;
 }
 
+static void clear_msdp_peer_counters(struct pim_msdp_peer *peer)
+{
+	peer->ka_rx_cnt = 0;
+	peer->ka_tx_cnt = 0;
+	peer->sa_rx_cnt = 0;
+	peer->sa_tx_cnt = 0;
+	peer->est_flaps = 0;
+	peer->conn_attempts = 0;
+	peer->acl_in_count = 0;
+	peer->acl_out_count = 0;
+	peer->rpf_lookup_failure_count = 0;
+}
+
 DEFPY(clear_ip_msdp_peer_counters, clear_ip_msdp_peer_counters_cmd,
       "clear ip msdp [<vrf all$vrf_all|vrf WORD$vrf_name>] peer [<A.B.C.D|WORD>$peer] counters",
       CLEAR_STR
@@ -7945,7 +7958,8 @@ DEFPY(clear_ip_msdp_peer_counters, clear_ip_msdp_peer_counters_cmd,
       "Peer name\n"
       "MSDP peer counters\n")
 {
-	struct pim_msdp_peer *msdp_peer;
+	const struct pim_instance *pim;
+	struct pim_msdp_peer *msdp_peer = NULL;
 	struct vrf *vrf;
 	struct in_addr peer_address;
 
@@ -7965,37 +7979,47 @@ DEFPY(clear_ip_msdp_peer_counters, clear_ip_msdp_peer_counters_cmd,
 		}
 	}
 
-	if (vrf == NULL) {
-		RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-			if (inet_pton(AF_INET, peer, &peer_address) == 1)
-				msdp_peer = pim_msdp_peer_find(vrf->info,
-							       peer_address);
-			else
-				msdp_peer = pim_msdp_named_peer_lookup(
-					vrf->info, peer);
+	if (vrf) {
+		pim = vrf->info;
+
+		if (peer && inet_pton(AF_INET, peer, &peer_address) == 1) {
+			msdp_peer = pim_msdp_peer_find(pim, peer_address);
 			if (msdp_peer)
-				break;
+				clear_msdp_peer_counters(msdp_peer);
+		} else if (peer) {
+			msdp_peer = pim_msdp_named_peer_lookup(pim, peer);
+			if (msdp_peer)
+				clear_msdp_peer_counters(msdp_peer);
+		} else {
+			struct listnode *node;
+
+			for (ALL_LIST_ELEMENTS_RO(pim->msdp.peer_list, node,
+						  msdp_peer))
+				clear_msdp_peer_counters(msdp_peer);
 		}
-	} else {
-		if (inet_pton(AF_INET, peer, &peer_address) == 1)
-			msdp_peer = pim_msdp_peer_find(vrf->info, peer_address);
-		else
-			msdp_peer = pim_msdp_named_peer_lookup(vrf->info, peer);
+
+		return CMD_SUCCESS;
 	}
 
-	/* Peer doesn't exist. */
-	if (msdp_peer == NULL)
-		return CMD_SUCCESS;
+	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+		pim = vrf->info;
 
-	msdp_peer->ka_rx_cnt = 0;
-	msdp_peer->ka_tx_cnt = 0;
-	msdp_peer->sa_rx_cnt = 0;
-	msdp_peer->sa_tx_cnt = 0;
-	msdp_peer->est_flaps = 0;
-	msdp_peer->conn_attempts = 0;
-	msdp_peer->acl_in_count = 0;
-	msdp_peer->acl_out_count = 0;
-	msdp_peer->rpf_lookup_failure_count = 0;
+		if (peer && inet_pton(AF_INET, peer, &peer_address) == 1) {
+			msdp_peer = pim_msdp_peer_find(pim, peer_address);
+			if (msdp_peer)
+				clear_msdp_peer_counters(msdp_peer);
+		} else if (peer) {
+			msdp_peer = pim_msdp_named_peer_lookup(pim, peer);
+			if (msdp_peer)
+				clear_msdp_peer_counters(msdp_peer);
+		} else {
+			struct listnode *node;
+
+			for (ALL_LIST_ELEMENTS_RO(pim->msdp.peer_list, node,
+						  msdp_peer))
+				clear_msdp_peer_counters(msdp_peer);
+		}
+	}
 
 	return CMD_SUCCESS;
 }
