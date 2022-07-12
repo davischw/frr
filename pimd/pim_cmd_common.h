@@ -201,6 +201,9 @@ void pim_show_join_helper(struct pim_interface *pim_ifp,
 			  struct pim_ifchannel *ch, json_object *json,
 			  time_t now, struct ttable *tt);
 
+void pim_show_bsr(struct pim_instance *pim, struct vty *vty, bool uj);
+int pim_show_bsr_helper(const char *vrf, struct vty *vty, bool uj);
+
 /*
  * Special Macro to allow us to get the correct pim_instance;
  */
