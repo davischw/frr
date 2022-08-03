@@ -1962,6 +1962,69 @@ static void igmp_show_group_retransmission(struct pim_instance *pim,
 	}	  /* scan interfaces */
 }
 
+static void igmp_show_group_retransmission_json(const struct pim_instance *pim,
+						struct json_object *json)
+{
+	struct interface *interface;
+
+	FOR_ALL_INTERFACES (pim->vrf, interface) {
+		struct pim_interface *pim_interface = interface->info;
+		struct gm_group *group;
+		struct listnode *node;
+
+		if (pim_interface == NULL)
+			continue;
+
+		for (ALL_LIST_ELEMENTS_RO(pim_interface->gm_group_list, node,
+					  group)) {
+			struct json_object *interface_json;
+			struct json_object *groups_json;
+			struct json_object *group_json;
+			struct listnode *source_node;
+			struct gm_source *source;
+			int sources_retransmissions = 0;
+			char retransmit_timer[16];
+			char group_str[INET_ADDRSTRLEN];
+
+			pim_inet4_dump("<group?>", group->group_addr, group_str,
+				       sizeof(group_str));
+			pim_time_timer_to_mmss(
+				retransmit_timer, sizeof(retransmit_timer),
+				group->t_group_query_retransmit_timer);
+			for (ALL_LIST_ELEMENTS_RO(group->group_source_list,
+						  source_node, source))
+				if (source->source_query_retransmit_count > 0)
+					++sources_retransmissions;
+
+			group_json = json_object_new_object();
+			json_object_string_add(group_json, "group", group_str);
+			json_object_string_add(group_json, "retransmitTimer",
+					       retransmit_timer);
+			json_object_int_add(
+				group_json, "retransmissionCount",
+				group->group_specific_query_retransmit_count);
+			json_object_int_add(group_json,
+					    "sourceRetransmissionCount",
+					    sources_retransmissions);
+
+			if (!json_object_object_get_ex(json, interface->name,
+						       &interface_json)) {
+				interface_json = json_object_new_object();
+				json_object_object_add(json, interface->name,
+						       interface_json);
+			}
+			if (!json_object_object_get_ex(interface_json, "groups",
+						       &groups_json)) {
+				groups_json = json_object_new_array();
+				json_object_object_add(interface_json, "groups",
+						       groups_json);
+			}
+
+			json_object_array_add(groups_json, group_json);
+		}
+	}
+}
+
 static void igmp_show_sources(struct pim_instance *pim, struct vty *vty,
 			      bool uj)
 {
@@ -2086,6 +2149,106 @@ static void igmp_show_sources(struct pim_instance *pim, struct vty *vty,
 		vty_json(vty, json);
 }
 
+static __attribute__((unused)) void
+igmp_show_sources_json(const struct pim_instance *pim, struct json_object *json)
+{
+	struct interface *interface;
+	time_t now;
+
+	now = pim_time_monotonic_sec();
+
+	FOR_ALL_INTERFACES (pim->vrf, interface) {
+		struct pim_interface *pim_interface = interface->info;
+		struct gm_group *group;
+		struct listnode *node;
+
+		if (pim_interface == NULL)
+			continue;
+
+		for (ALL_LIST_ELEMENTS_RO(pim_interface->gm_group_list, node,
+					  group)) {
+			struct json_object *sources_json = NULL;
+			struct listnode *source_node;
+			struct gm_source *source;
+			char group_str[INET_ADDRSTRLEN];
+
+			pim_inet4_dump("<group?>", group->group_addr, group_str,
+				       sizeof(group_str));
+
+			for (ALL_LIST_ELEMENTS_RO(group->group_source_list,
+						  source_node, source)) {
+				struct json_object *source_json;
+				char mmss[16];
+				char uptime[16];
+				char source_str[INET_ADDRSTRLEN];
+
+				if (pim_interface->igmp_version == 2 &&
+				    source->source_addr.s_addr != INADDR_ANY)
+					continue;
+
+				pim_inet4_dump("<source?>", source->source_addr,
+					       source_str, sizeof(source_str));
+				pim_time_timer_to_mmss(mmss, sizeof(mmss),
+						       source->t_source_timer);
+				pim_time_uptime(uptime, sizeof(uptime),
+						now - source->source_creation);
+
+				source_json = json_object_new_object();
+				json_object_string_add(source_json, "source",
+						       source_str);
+				json_object_boolean_add(
+					source_json, "forwarding",
+					IGMP_SOURCE_TEST_FORWARDING(
+						source->source_flags));
+				json_object_string_add(source_json, "timer",
+						       mmss);
+				json_object_string_add(source_json, "uptime",
+						       uptime);
+
+				if (sources_json == NULL) {
+					struct json_object *interface_json;
+					struct json_object *groups_json;
+					struct json_object *group_json;
+
+					if (!json_object_object_get_ex(
+						    json, interface->name,
+						    &interface_json)) {
+						interface_json =
+							json_object_new_object();
+						json_object_object_add(
+							json, interface->name,
+							interface_json);
+					}
+
+					if (!json_object_object_get_ex(
+						    interface_json, "groups",
+						    &groups_json)) {
+						groups_json =
+							json_object_new_array();
+						json_object_object_add(
+							interface_json,
+							"groups", groups_json);
+					}
+
+					group_json = json_object_new_object();
+					json_object_string_add(
+						group_json, "group", group_str);
+					json_object_array_add(groups_json,
+							      group_json);
+
+					sources_json = json_object_new_array();
+					json_object_object_add(group_json,
+							       "sources",
+							       sources_json);
+				}
+
+				json_object_array_add(sources_json,
+						      source_json);
+			}
+		}
+	}
+}
+
 static void igmp_show_source_retransmission(struct pim_instance *pim,
 					    struct vty *vty)
 {
@@ -2132,6 +2295,91 @@ static void igmp_show_source_retransmission(struct pim_instance *pim,
 			} /* scan group sources */
 		}	 /* scan igmp groups */
 	}		  /* scan interfaces */
+}
+
+static void igmp_show_source_retransmission_json(const struct pim_instance *pim,
+						 struct json_object *json)
+{
+	struct interface *interface;
+
+	FOR_ALL_INTERFACES (pim->vrf, interface) {
+		struct pim_interface *pim_interface = interface->info;
+		struct gm_group *group;
+		struct listnode *node;
+
+		if (!pim_interface)
+			continue;
+
+		for (ALL_LIST_ELEMENTS_RO(pim_interface->gm_group_list, node,
+					  group)) {
+			struct json_object *sources_json = NULL;
+			struct listnode *source_node;
+			struct gm_source *source;
+			char group_str[INET_ADDRSTRLEN];
+
+			pim_inet4_dump("<group?>", group->group_addr, group_str,
+				       sizeof(group_str));
+
+			for (ALL_LIST_ELEMENTS_RO(group->group_source_list,
+						  source_node, source)) {
+				struct json_object *source_json;
+				char source_str[INET_ADDRSTRLEN];
+
+				if (pim_interface->igmp_version == 2 &&
+				    source->source_addr.s_addr != INADDR_ANY)
+					continue;
+
+				source_json = json_object_new_object();
+
+				pim_inet4_dump("<source?>", source->source_addr,
+					       source_str, sizeof(source_str));
+
+				json_object_string_add(source_json, "source",
+						       source_str);
+				json_object_int_add(
+					source_json, "retransmissionCount",
+					source->source_query_retransmit_count);
+
+				if (sources_json == NULL) {
+					struct json_object *interface_json;
+					struct json_object *groups_json;
+					struct json_object *group_json;
+
+					if (!json_object_object_get_ex(
+						    json, interface->name,
+						    &interface_json)) {
+						json_object_object_add(
+							json, interface->name,
+							interface_json);
+					}
+
+					if (!json_object_object_get_ex(
+						    interface_json, "groups",
+						    &groups_json)) {
+						groups_json =
+							json_object_new_array();
+						json_object_object_add(
+							interface_json,
+							"groups", groups_json);
+					}
+
+					group_json = json_object_new_object();
+					json_object_string_add(
+						group_json, "group", group_str);
+					json_object_array_add(groups_json,
+							      group_json);
+
+					sources_json = json_object_new_array();
+					json_object_object_add(group_json,
+							       "sources",
+							       sources_json);
+				}
+
+				json_object_array_add(sources_json,
+						      source_json);
+			}
+		}
+	}
 }
 
 static void pim_show_bsr(struct pim_instance *pim,
@@ -2603,13 +2851,14 @@ DEFUN (show_ip_igmp_groups_vrf_all,
 
 DEFUN (show_ip_igmp_groups_retransmissions,
        show_ip_igmp_groups_retransmissions_cmd,
-       "show ip igmp [vrf NAME] groups retransmissions",
+       "show ip igmp [vrf NAME] groups retransmissions [json]",
        SHOW_STR
        IP_STR
        IGMP_STR
        VRF_CMD_HELP_STR
        IGMP_GROUP_STR
-       "IGMP group retransmissions\n")
+       "IGMP group retransmissions\n"
+       JSON_STR)
 {
 	int idx = 2;
 	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
@@ -2617,7 +2866,15 @@ DEFUN (show_ip_igmp_groups_retransmissions,
 	if (!vrf)
 		return CMD_WARNING;
 
-	igmp_show_group_retransmission(vrf->info, vty);
+	if (use_json(argc, argv)) {
+		struct json_object *json = json_object_new_object();
+		igmp_show_group_retransmission_json(vrf->info, json);
+		vty_out(vty, "%s\n",
+			json_object_to_json_string_ext(
+				json, JSON_C_TO_STRING_PRETTY));
+		json_object_free(json);
+	} else
+		igmp_show_group_retransmission(vrf->info, vty);
 
 	return CMD_SUCCESS;
 }
@@ -2645,13 +2902,14 @@ DEFUN (show_ip_igmp_sources,
 
 DEFUN (show_ip_igmp_sources_retransmissions,
        show_ip_igmp_sources_retransmissions_cmd,
-       "show ip igmp [vrf NAME] sources retransmissions",
+       "show ip igmp [vrf NAME] sources retransmissions [json]",
        SHOW_STR
        IP_STR
        IGMP_STR
        VRF_CMD_HELP_STR
        IGMP_SOURCE_STR
-       "IGMP source retransmissions\n")
+       "IGMP source retransmissions\n"
+       JSON_STR)
 {
 	int idx = 2;
 	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
@@ -2659,7 +2917,15 @@ DEFUN (show_ip_igmp_sources_retransmissions,
 	if (!vrf)
 		return CMD_WARNING;
 
-	igmp_show_source_retransmission(vrf->info, vty);
+	if (use_json(argc, argv)) {
+		struct json_object *json = json_object_new_object();
+		igmp_show_source_retransmission_json(vrf->info, json);
+		vty_out(vty, "%s\n",
+			json_object_to_json_string_ext(
+				json, JSON_C_TO_STRING_PRETTY));
+		json_object_free(json);
+	} else
+		igmp_show_source_retransmission(vrf->info, vty);
 
 	return CMD_SUCCESS;
 }
