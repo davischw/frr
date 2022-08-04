@@ -1360,9 +1360,16 @@ int bgp_stop(struct peer *peer)
 
 	peer->nsf_af_count = 0;
 
-	/* deregister peer */
+	/*
+	 * Remove BFD registration if BGP peer was shutdown.
+	 *
+	 * We must also uninstall the BFD session if the peer is changing
+	 * source address (so BFD daemon can start peer in new source address).
+	 */
 	if (peer->bfd_config
-	    && peer->last_reset == PEER_DOWN_UPDATE_SOURCE_CHANGE)
+	    && (peer->last_reset == PEER_DOWN_UPDATE_SOURCE_CHANGE
+		|| CHECK_FLAG(peer->flags, PEER_FLAG_SHUTDOWN)
+		|| CHECK_FLAG(bgp->flags, BGP_FLAG_SHUTDOWN)))
 		bfd_sess_uninstall(peer->bfd_config->session);
 
 	if (peer_dynamic_neighbor_no_nsf(peer) &&
@@ -1727,6 +1734,10 @@ static int bgp_connect_success(struct peer *peer)
 			zlog_debug("%s passive open", peer->host);
 	}
 
+	/* Successfully connected, start monitoring (if not running). */
+	if (peer->bfd_config)
+		bfd_sess_install(peer->bfd_config->session);
+
 	/* Send an open message */
 	bgp_open_send(peer);
 
@@ -1882,6 +1893,11 @@ int bgp_start(struct peer *peer)
 			if (bgp_debug_neighbor_events(peer))
 				zlog_debug("%s [FSM] Waiting for NHT",
 					   peer->host);
+
+			/* There is no route to peer, so don't start BFD yet. */
+			if (peer->bfd_config)
+				bfd_sess_uninstall(peer->bfd_config->session);
+
 			peer->last_reset = PEER_DOWN_WAITING_NHT;
 			BGP_EVENT_ADD(peer, TCP_connection_open_failed);
 			return 0;

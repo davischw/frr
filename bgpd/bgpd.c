@@ -4497,8 +4497,13 @@ void bgp_shutdown_disable(struct bgp *bgp)
 	/* clear the BGP instances shutdown flag */
 	UNSET_FLAG(bgp->flags, BGP_FLAG_SHUTDOWN);
 
-	for (ALL_LIST_ELEMENTS_RO(bgp->peer, node, peer))
-		bgp_timer_set(peer);
+	/* Startup all instance peers again. */
+	for (ALL_LIST_ELEMENTS_RO(bgp->peer, node, peer)) {
+		peer->v_start = BGP_INIT_START_TIMER;
+		BGP_EVENT_ADD(peer, BGP_Stop);
+		if (peer->bfd_config)
+			bfd_sess_install(peer->bfd_config->session);
+	}
 }
 
 /* Change specified peer flag. */
