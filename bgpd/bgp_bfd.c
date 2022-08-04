@@ -87,6 +87,28 @@ static void bfd_session_status_update(struct bfd_session_params *bsp,
 	}
 }
 
+static bool bgp_peer_has_local_address(const struct peer *peer)
+{
+	struct in6_addr in6_zero = {};
+
+	if (peer->su_local == NULL)
+		return false;
+
+	switch (peer->su_local->sa.sa_family) {
+	case AF_INET:
+		if (peer->su_local->sin.sin_addr.s_addr)
+			return true;
+		break;
+	case AF_INET6:
+		if (memcmp(&peer->su_local->sin6.sin6_addr, &in6_zero,
+			   sizeof(peer->su_local->sin6.sin6_addr)))
+			return true;
+		break;
+	}
+
+	return false;
+}
+
 void bgp_peer_config_apply(struct peer *p, struct peer_group *pg)
 {
 	struct listnode *n;
@@ -109,7 +131,8 @@ void bgp_peer_config_apply(struct peer *p, struct peer_group *pg)
 		bfd_sess_set_cbit(p->bfd_config->session, p->bfd_config->cbit);
 		bfd_sess_set_profile(p->bfd_config->session,
 				     p->bfd_config->profile);
-		bfd_sess_install(p->bfd_config->session);
+		if (bgp_peer_has_local_address(p))
+			bfd_sess_install(p->bfd_config->session);
 		return;
 	}
 
@@ -151,7 +174,8 @@ void bgp_peer_config_apply(struct peer *p, struct peer_group *pg)
 				    p->bfd_config->min_rx,
 				    p->bfd_config->min_tx);
 
-	bfd_sess_install(p->bfd_config->session);
+	if (bgp_peer_has_local_address(p))
+		bfd_sess_install(p->bfd_config->session);
 }
 
 void bgp_peer_bfd_update_source(struct peer *p)
@@ -287,7 +311,7 @@ void bgp_peer_bfd_update_source(struct peer *p)
 		changed = true;
 	}
 
-	if (changed)
+	if (changed && bgp_peer_has_local_address(p))
 		bfd_sess_install(session);
 }
 
