@@ -7834,6 +7834,102 @@ static void ip_msdp_show_peers(struct pim_instance *pim, struct vty *vty,
 		vty_json(vty, json);
 }
 
+static void msdp_peer_details_add_json(struct json_object *peer_json,
+				       const struct pim_msdp_peer *peer)
+{
+	char state_str[PIM_MSDP_STATE_STRLEN];
+	char holdtimer[PIM_MSDP_TIMER_STRLEN];
+	char timebuf[PIM_MSDP_UPTIME_STRLEN];
+	char katimer[PIM_MSDP_TIMER_STRLEN];
+	char crtimer[PIM_MSDP_TIMER_STRLEN];
+	time_t now;
+
+	if (peer->state == PIM_MSDP_ESTABLISHED) {
+		now = pim_time_monotonic_sec();
+		pim_time_uptime(timebuf, sizeof(timebuf), now - peer->uptime);
+	} else
+		strlcpy(timebuf, "-", sizeof(timebuf));
+
+	pim_msdp_state_dump(peer->state, state_str, sizeof(state_str));
+	pim_time_timer_to_hhmmss(katimer, sizeof(katimer), peer->ka_timer);
+	pim_time_timer_to_hhmmss(crtimer, sizeof(crtimer), peer->cr_timer);
+	pim_time_timer_to_hhmmss(holdtimer, sizeof(holdtimer),
+				 peer->hold_timer);
+
+	if (peer->state == PIM_MSDP_ESTABLISHED) {
+		union {
+			struct sockaddr sa;
+			struct sockaddr_in sin;
+			struct sockaddr_in6 sin6;
+		} sock_address;
+		socklen_t sock_address_size = sizeof(sock_address);
+		char address_string[INET6_ADDRSTRLEN];
+
+		memset(&sock_address, 0, sizeof(sock_address));
+
+		if (getsockname(peer->fd, &sock_address.sa,
+				&sock_address_size) == -1) {
+			zlog_warn(
+				"MSDP peer failed to get socket local address: (%d) %s",
+				errno, strerror(errno));
+			return;
+		}
+
+		inet_ntop(AF_INET, &sock_address.sin.sin_addr, address_string,
+			  sizeof(address_string));
+		json_object_string_add(peer_json, "local", address_string);
+		json_object_int_add(peer_json, "localPort",
+				    ntohs(sock_address.sin.sin_port));
+
+		if (getpeername(peer->fd, &sock_address.sa,
+				&sock_address_size) == -1) {
+			zlog_warn(
+				"MSDP peer failed to get socket peer address: (%d) %s",
+				errno, strerror(errno));
+			return;
+		}
+
+		inet_ntop(AF_INET, &sock_address.sin.sin_addr, address_string,
+			  sizeof(address_string));
+		json_object_string_add(peer_json, "peer", address_string);
+		json_object_int_add(peer_json, "peerPort",
+				    ntohs(sock_address.sin.sin_port));
+	}
+
+	if (peer->flags & PIM_MSDP_PEERF_IN_GROUP)
+		json_object_string_add(peer_json, "meshGroupName",
+				       peer->mesh_group_name);
+
+	if (peer->named_peer)
+		json_object_string_add(peer_json, "addressListName",
+				       peer->named_peer->list_name);
+
+	json_object_int_add(peer_json, "asn", peer->asn);
+	json_object_string_add(peer_json, "state", state_str);
+	json_object_string_add(peer_json, "upTime", timebuf);
+	json_object_string_add(peer_json, "keepAliveTimer", katimer);
+	json_object_string_add(peer_json, "connRetryTimer", crtimer);
+	json_object_string_add(peer_json, "holdTimer", holdtimer);
+	json_object_string_add(peer_json, "lastReset", peer->last_reset);
+	json_object_int_add(peer_json, "connAttempts", peer->conn_attempts);
+	json_object_int_add(peer_json, "establishedChanges", peer->est_flaps);
+	json_object_int_add(peer_json, "saCount", peer->sa_cnt);
+	json_object_int_add(peer_json, "kaSent", peer->ka_tx_cnt);
+	json_object_int_add(peer_json, "kaRcvd", peer->ka_rx_cnt);
+	json_object_int_add(peer_json, "saSent", peer->sa_tx_cnt);
+	json_object_int_add(peer_json, "saRcvd", peer->sa_rx_cnt);
+	json_object_int_add(peer_json, "saFilteredIn", peer->acl_in_count);
+	if (peer->acl_in)
+		json_object_string_add(peer_json, "saFilterIn", peer->acl_in);
+
+	json_object_int_add(peer_json, "saFilteredOut", peer->acl_out_count);
+	if (peer->acl_out)
+		json_object_string_add(peer_json, "saFilterout", peer->acl_out);
+
+	json_object_int_add(peer_json, "rpfLookupFailures",
+			    peer->rpf_lookup_failure_count);
+}
+
 static void ip_msdp_show_peers_detail(struct pim_instance *pim, struct vty *vty,
 				      const char *peer, bool uj)
 {
@@ -7856,10 +7952,18 @@ static void ip_msdp_show_peers_detail(struct pim_instance *pim, struct vty *vty,
 
 	for (ALL_LIST_ELEMENTS_RO(pim->msdp.peer_list, mpnode, mp)) {
 		pim_inet4_dump("<peer?>", mp->peer, peer_str, sizeof(peer_str));
-		if (strcmp(peer, "detail") && strcmp(peer, peer_str) &&
+		if (strcmp(peer, "detail") && strcmp(peer, "details") &&
+		    strcmp(peer, peer_str) &&
 		    (mp->named_peer == NULL ||
 		     strcmp(peer, mp->named_peer->list_name)))
 			continue;
+
+		if (uj) {
+			json_row = json_object_new_object();
+			msdp_peer_details_add_json(json_row, mp);
+			json_object_object_add(json, peer_str, json_row);
+			continue;
+		}
 
 		if (mp->state == PIM_MSDP_ESTABLISHED) {
 			now = pim_time_monotonic_sec();
@@ -7878,65 +7982,29 @@ static void ip_msdp_show_peers_detail(struct pim_instance *pim, struct vty *vty,
 		pim_time_timer_to_hhmmss(holdtimer, sizeof(holdtimer),
 					 mp->hold_timer);
 
-		if (uj) {
-			json_row = json_object_new_object();
-			json_object_string_add(json_row, "peer", peer_str);
-			json_object_string_add(json_row, "local", local_str);
-			if (mp->flags & PIM_MSDP_PEERF_IN_GROUP)
-				json_object_string_add(json_row,
-						       "meshGroupName",
-						       mp->mesh_group_name);
-			json_object_int_add(json_row, "asn", mp->asn);
-			json_object_string_add(json_row, "state", state_str);
-			json_object_string_add(json_row, "upTime", timebuf);
-			json_object_string_add(json_row, "keepAliveTimer",
-					       katimer);
-			json_object_string_add(json_row, "connRetryTimer",
-					       crtimer);
-			json_object_string_add(json_row, "holdTimer",
-					       holdtimer);
-			json_object_string_add(json_row, "lastReset",
-					       mp->last_reset);
-			json_object_int_add(json_row, "connAttempts",
-					    mp->conn_attempts);
-			json_object_int_add(json_row, "establishedChanges",
-					    mp->est_flaps);
-			json_object_int_add(json_row, "saCount", mp->sa_cnt);
-			json_object_int_add(json_row, "kaSent", mp->ka_tx_cnt);
-			json_object_int_add(json_row, "kaRcvd", mp->ka_rx_cnt);
-			json_object_int_add(json_row, "saSent", mp->sa_tx_cnt);
-			json_object_int_add(json_row, "saRcvd", mp->sa_rx_cnt);
-			json_object_object_add(json, peer_str, json_row);
-		} else {
-			vty_out(vty, "Peer : %s\n", peer_str);
-			vty_out(vty, "  Local               : %s\n", local_str);
-			if (mp->flags & PIM_MSDP_PEERF_IN_GROUP)
-				vty_out(vty, "  Mesh Group          : %s\n",
-					mp->mesh_group_name);
-			vty_out(vty, "  BGP/AS              : %u\n", mp->asn);
-			vty_out(vty, "  State               : %s\n", state_str);
-			vty_out(vty, "  Uptime              : %s\n", timebuf);
+		vty_out(vty, "Peer : %s\n", peer_str);
+		vty_out(vty, "  Local               : %s\n", local_str);
+		if (mp->flags & PIM_MSDP_PEERF_IN_GROUP)
+			vty_out(vty, "  Mesh Group          : %s\n",
+				mp->mesh_group_name);
+		vty_out(vty, "  BGP/AS              : %u\n", mp->asn);
+		vty_out(vty, "  State               : %s\n", state_str);
+		vty_out(vty, "  Uptime              : %s\n", timebuf);
 
-			vty_out(vty, "  Keepalive Timer     : %s\n", katimer);
-			vty_out(vty, "  Conn Retry Timer    : %s\n", crtimer);
-			vty_out(vty, "  Hold Timer          : %s\n", holdtimer);
-			vty_out(vty, "  Last Reset          : %s\n",
-				mp->last_reset);
-			vty_out(vty, "  Conn Attempts       : %d\n",
-				mp->conn_attempts);
-			vty_out(vty, "  Established Changes : %d\n",
-				mp->est_flaps);
-			vty_out(vty, "  SA Count            : %d\n",
-				mp->sa_cnt);
-			vty_out(vty, "  Statistics          :\n");
-			vty_out(vty,
-				"                       Sent       Rcvd\n");
-			vty_out(vty, "    Keepalives : %10d %10d\n",
-				mp->ka_tx_cnt, mp->ka_rx_cnt);
-			vty_out(vty, "    SAs        : %10d %10d\n",
-				mp->sa_tx_cnt, mp->sa_rx_cnt);
-			vty_out(vty, "\n");
-		}
+		vty_out(vty, "  Keepalive Timer     : %s\n", katimer);
+		vty_out(vty, "  Conn Retry Timer    : %s\n", crtimer);
+		vty_out(vty, "  Hold Timer          : %s\n", holdtimer);
+		vty_out(vty, "  Last Reset          : %s\n", mp->last_reset);
+		vty_out(vty, "  Conn Attempts       : %d\n", mp->conn_attempts);
+		vty_out(vty, "  Established Changes : %d\n", mp->est_flaps);
+		vty_out(vty, "  SA Count            : %d\n", mp->sa_cnt);
+		vty_out(vty, "  Statistics          :\n");
+		vty_out(vty, "                       Sent       Rcvd\n");
+		vty_out(vty, "    Keepalives : %10d %10d\n", mp->ka_tx_cnt,
+			mp->ka_rx_cnt);
+		vty_out(vty, "    SAs        : %10d %10d\n", mp->sa_tx_cnt,
+			mp->sa_rx_cnt);
+		vty_out(vty, "\n");
 	}
 
 	if (uj)
@@ -7945,17 +8013,19 @@ static void ip_msdp_show_peers_detail(struct pim_instance *pim, struct vty *vty,
 
 DEFUN (show_ip_msdp_peer_detail,
        show_ip_msdp_peer_detail_cmd,
-       "show ip msdp [vrf NAME] peer [detail|A.B.C.D|WORD] [json]",
+       "show ip msdp [vrf NAME] peer [detail|details|A.B.C.D|WORD] [json]",
        SHOW_STR
        IP_STR
        MSDP_STR
        VRF_CMD_HELP_STR
        "MSDP peer information\n"
        "Detailed output\n"
+       "Detailed output\n"
        "peer ip address\n"
        "Address list name\n"
        JSON_STR)
 {
+	const char *arg = NULL;
 	bool uj = use_json(argc, argv);
 	int idx = 2;
 	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
@@ -7963,9 +8033,8 @@ DEFUN (show_ip_msdp_peer_detail,
 	if (!vrf)
 		return CMD_WARNING;
 
-	char *arg = NULL;
-
-	if (argv_find(argv, argc, "detail", &idx))
+	if (argv_find(argv, argc, "detail", &idx) ||
+	    argv_find(argv, argc, "details", &idx))
 		arg = argv[idx]->text;
 	else if (argv_find(argv, argc, "A.B.C.D", &idx))
 		arg = argv[idx]->arg;
@@ -7982,12 +8051,13 @@ DEFUN (show_ip_msdp_peer_detail,
 
 DEFUN (show_ip_msdp_peer_detail_vrf_all,
        show_ip_msdp_peer_detail_vrf_all_cmd,
-       "show ip msdp vrf all peer [detail|A.B.C.D] [json]",
+       "show ip msdp vrf all peer [detail|details|A.B.C.D] [json]",
        SHOW_STR
        IP_STR
        MSDP_STR
        VRF_CMD_HELP_STR
        "MSDP peer information\n"
+       "Detailed output\n"
        "Detailed output\n"
        "peer ip address\n"
        JSON_STR)
@@ -8007,8 +8077,9 @@ DEFUN (show_ip_msdp_peer_detail_vrf_all,
 			first = false;
 		} else
 			vty_out(vty, "VRF: %s\n", vrf->name);
-		if (argv_find(argv, argc, "detail", &idx)
-		    || argv_find(argv, argc, "A.B.C.D", &idx))
+		if (argv_find(argv, argc, "detail", &idx) ||
+		    argv_find(argv, argc, "details", &idx) ||
+		    argv_find(argv, argc, "A.B.C.D", &idx))
 			ip_msdp_show_peers_detail(vrf->info, vty,
 						  argv[idx]->arg, uj);
 		else
@@ -8016,189 +8087,6 @@ DEFUN (show_ip_msdp_peer_detail_vrf_all,
 	}
 	if (uj)
 		vty_out(vty, "}\n");
-
-	return CMD_SUCCESS;
-}
-
-static void msdp_peer_details_add_json(struct json_object *peer_json,
-				       const struct pim_msdp_peer *peer)
-{
-	char state_str[PIM_MSDP_STATE_STRLEN];
-	char holdtimer[PIM_MSDP_TIMER_STRLEN];
-	char timebuf[PIM_MSDP_UPTIME_STRLEN];
-	char katimer[PIM_MSDP_TIMER_STRLEN];
-	char crtimer[PIM_MSDP_TIMER_STRLEN];
-	time_t now;
-
-	if (peer->state == PIM_MSDP_ESTABLISHED) {
-		now = pim_time_monotonic_sec();
-		pim_time_uptime(timebuf, sizeof(timebuf), now - peer->uptime);
-	} else {
-		strlcpy(timebuf, "-", sizeof(timebuf));
-	}
-
-	pim_msdp_state_dump(peer->state, state_str, sizeof(state_str));
-	pim_time_timer_to_hhmmss(katimer, sizeof(katimer), peer->ka_timer);
-	pim_time_timer_to_hhmmss(crtimer, sizeof(crtimer), peer->cr_timer);
-	pim_time_timer_to_hhmmss(holdtimer, sizeof(holdtimer),
-				 peer->hold_timer);
-
-	if (peer->state == PIM_MSDP_ESTABLISHED) {
-		union {
-			struct sockaddr sa;
-			struct sockaddr_in sin;
-			struct sockaddr_in6 sin6;
-		} sock_address;
-		socklen_t sock_address_size = sizeof(sock_address);
-		char address_string[INET6_ADDRSTRLEN];
-
-		if (getsockname(peer->fd, &sock_address.sa, &sock_address_size)
-		    == -1) {
-			zlog_warn(
-				"MSDP peer failed to get socket local address: (%d) %s",
-				errno, strerror(errno));
-			return;
-		}
-
-		inet_ntop(AF_INET, &sock_address.sin.sin_addr, address_string,
-			  sizeof(address_string));
-		json_object_string_add(peer_json, "local", address_string);
-		json_object_int_add(peer_json, "localPort",
-				    ntohs(sock_address.sin.sin_port));
-
-		if (getpeername(peer->fd, &sock_address.sa, &sock_address_size)
-		    == -1) {
-			zlog_warn(
-				"MSDP peer failed to get socket peer address: (%d) %s",
-				errno, strerror(errno));
-			return;
-		}
-
-		inet_ntop(AF_INET, &sock_address.sin.sin_addr, address_string,
-			  sizeof(address_string));
-		json_object_string_add(peer_json, "peer", address_string);
-		json_object_int_add(peer_json, "peerPort",
-				    ntohs(sock_address.sin.sin_port));
-	}
-
-	if (peer->flags & PIM_MSDP_PEERF_IN_GROUP)
-		json_object_string_add(peer_json, "meshGroupName",
-				       peer->mesh_group_name);
-
-	if (peer->acl_in)
-		json_object_string_add(peer_json, "saFilterIn", peer->acl_in);
-
-	if (peer->acl_out)
-		json_object_string_add(peer_json, "saFilterout", peer->acl_out);
-
-	if (peer->named_peer)
-		json_object_string_add(peer_json, "addressListName",
-				       peer->named_peer->list_name);
-
-	json_object_string_add(peer_json, "state", state_str);
-	json_object_string_add(peer_json, "upTime", timebuf);
-	json_object_string_add(peer_json, "keepAliveTimer", katimer);
-	json_object_string_add(peer_json, "connRetryTimer", crtimer);
-	json_object_string_add(peer_json, "holdTimer", holdtimer);
-	json_object_string_add(peer_json, "lastReset", peer->last_reset);
-	json_object_int_add(peer_json, "connAttempts", peer->conn_attempts);
-	json_object_int_add(peer_json, "establishedChanges", peer->est_flaps);
-	json_object_int_add(peer_json, "saCount", peer->sa_cnt);
-	json_object_int_add(peer_json, "kaSent", peer->ka_tx_cnt);
-	json_object_int_add(peer_json, "kaRcvd", peer->ka_rx_cnt);
-	json_object_int_add(peer_json, "saSent", peer->sa_tx_cnt);
-	json_object_int_add(peer_json, "saRcvd", peer->sa_rx_cnt);
-	json_object_int_add(peer_json, "saFilteredIn", peer->acl_in_count);
-	json_object_int_add(peer_json, "saFilteredOut", peer->acl_out_count);
-	json_object_int_add(peer_json, "rpfLookupFailures",
-			    peer->rpf_lookup_failure_count);
-}
-
-static void msdp_peer_details_json(struct json_object *json,
-				   const struct vrf *vrf,
-				   const char *peer_string)
-{
-	struct pim_instance *pim = vrf->info;
-	struct json_object *peer_json;
-	struct pim_msdp_peer *peer;
-	struct listnode *node;
-	struct in_addr peer_address;
-
-	if (peer_string == NULL) {
-		for (ALL_LIST_ELEMENTS_RO(pim->msdp.peer_list, node, peer)) {
-			char peer_address_string[INET6_ADDRSTRLEN];
-
-			peer_json = json_object_new_object();
-			msdp_peer_details_add_json(peer_json, peer);
-
-			inet_ntop(AF_INET, &peer->peer, peer_address_string,
-				  sizeof(peer_address_string));
-			json_object_object_add(json, peer_address_string,
-					       peer_json);
-		}
-
-		return;
-	}
-
-	if (inet_pton(AF_INET, peer_string, &peer_address) == 1)
-		peer = pim_msdp_peer_find(vrf->info, peer_address);
-	else
-		peer = pim_msdp_named_peer_lookup(vrf->info, peer_string);
-	if (peer == NULL)
-		return;
-
-	peer_json = json_object_new_object();
-	msdp_peer_details_add_json(peer_json, peer);
-	json_object_object_add(json, peer_string, peer_json);
-}
-
-DEFPY(show_ip_msdp_peer_detail_json, show_ip_msdp_peer_detail_json_cmd,
-      "show ip msdp [<vrf all$vrf_all|vrf WORD$vrf_name>] peer [<A.B.C.D|WORD>$peer] details json",
-      SHOW_STR
-      IP_STR
-      MSDP_STR
-      VRF_CMD_HELP_STR
-      VRF_CMD_HELP_STR
-      "MSDP peer information\n"
-      "Peer IP address\n"
-      "Peer name\n"
-      "Detailed output\n"
-      JSON_STR)
-{
-	struct vrf *vrf;
-	struct json_object *json;
-
-	if (vrf_name) {
-		vrf = vrf_lookup_by_name(vrf_name);
-		if (vrf == NULL) {
-			vty_out(vty, "VRF %s does not exist\n", vrf_name);
-			return CMD_WARNING;
-		}
-	} else if (vrf_all) {
-		vrf = NULL;
-	} else {
-		vrf = vrf_lookup_by_id(VRF_DEFAULT);
-		if (vrf == NULL) {
-			vty_out(vty, "Default VRF does not exist\n");
-			return CMD_WARNING;
-		}
-	}
-
-	json = json_object_new_object();
-	if (vrf == NULL) {
-		RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
-			struct json_object *vrf_json = json_object_new_object();
-
-			json_object_object_add(json, vrf->name, vrf_json);
-			msdp_peer_details_json(vrf_json, vrf, peer);
-		}
-	} else {
-		msdp_peer_details_json(json, vrf, peer);
-	}
-
-	vty_out(vty, "%s\n",
-		json_object_to_json_string_ext(json, JSON_C_TO_STRING_PRETTY));
-	json_object_put(json);
 
 	return CMD_SUCCESS;
 }
@@ -9621,7 +9509,6 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &msdp_log_sa_changes_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_vrf_all_cmd);
-	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_json_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_sa_detail_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_sa_detail_vrf_all_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_sa_sg_cmd);
