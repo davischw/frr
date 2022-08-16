@@ -8013,16 +8013,16 @@ static void ip_msdp_show_peers_detail(struct pim_instance *pim, struct vty *vty,
 
 DEFUN (show_ip_msdp_peer_detail,
        show_ip_msdp_peer_detail_cmd,
-       "show ip msdp [vrf NAME] peer [detail|details|A.B.C.D|WORD] [json]",
+       "show ip msdp [vrf NAME] peer [detail|A.B.C.D|WORD] [details] [json]",
        SHOW_STR
        IP_STR
        MSDP_STR
        VRF_CMD_HELP_STR
        "MSDP peer information\n"
        "Detailed output\n"
-       "Detailed output\n"
        "peer ip address\n"
        "Address list name\n"
+       "Detailed output\n"
        JSON_STR)
 {
 	const char *arg = NULL;
@@ -8051,15 +8051,15 @@ DEFUN (show_ip_msdp_peer_detail,
 
 DEFUN (show_ip_msdp_peer_detail_vrf_all,
        show_ip_msdp_peer_detail_vrf_all_cmd,
-       "show ip msdp vrf all peer [detail|details|A.B.C.D] [json]",
+       "show ip msdp vrf all peer [detail|A.B.C.D] [details] [json]",
        SHOW_STR
        IP_STR
        MSDP_STR
        VRF_CMD_HELP_STR
        "MSDP peer information\n"
        "Detailed output\n"
-       "Detailed output\n"
        "peer ip address\n"
+       "Detailed output\n"
        JSON_STR)
 {
 	int idx = 2;
