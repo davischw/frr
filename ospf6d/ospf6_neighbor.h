@@ -211,7 +211,8 @@ struct ospf6_if_p2xp_neighcfg {
 #define OSPF6_NEIGHBOR_EVENT_INACTIVITY_TIMER    10
 #define OSPF6_NEIGHBOR_EVENT_VLINK_UNREACHABLE   11
 #define OSPF6_NEIGHBOR_EVENT_VLINK_REACHABLE     12
-#define OSPF6_NEIGHBOR_EVENT_MAX_EVENT           13
+#define OSPF6_NEIGHBOR_EVENT_KILLNBR             13
+#define OSPF6_NEIGHBOR_EVENT_MAX_EVENT           14
 
 extern const char *const ospf6_neighbor_event_str[];
 

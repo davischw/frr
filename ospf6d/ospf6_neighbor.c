@@ -60,6 +60,8 @@ DECLARE_RBTREE_UNIQ(ospf6_if_p2xp_neighcfgs, struct ospf6_if_p2xp_neighcfg,
 		    item, ospf6_if_p2xp_neighcfg_cmp);
 
 static void p2xp_neigh_refresh(struct ospf6_neighbor *on, uint32_t prev_cost);
+static void ospf6_neighbor_state_change(uint8_t next_state,
+					struct ospf6_neighbor *on, int event);
 
 DEFINE_HOOK(ospf6_neighbor_change,
 	    (struct ospf6_neighbor * on, int state, int next_state),
@@ -75,7 +77,7 @@ const char *const ospf6_neighbor_event_str[] = {
 	"NoEvent",      "HelloReceived", "2-WayReceived",   "NegotiationDone",
 	"ExchangeDone", "LoadingDone",   "AdjOK?",	  "SeqNumberMismatch",
 	"BadLSReq",     "1-WayReceived", "InactivityTimer", "VLinkUnreachable",
-	"VLinkReachable",
+	"VLinkReachable", "KillNbr",
 };
 
 int ospf6_neighbor_cmp(void *va, void *vb)
@@ -162,6 +164,10 @@ void ospf6_neighbor_delete(struct ospf6_neighbor *on)
 
 	assertf(!on->vlink, "on->name=%pSQ on->router_id=%pI4", on->name,
 		&on->router_id);
+
+	/* Ensure the neighbor is in the "Down" state before deleting it. */
+	ospf6_neighbor_state_change(OSPF6_NEIGHBOR_DOWN, on,
+				    OSPF6_NEIGHBOR_EVENT_KILLNBR);
 
 	listnode_delete(on->ospf6_if->neighbor_list, on);
 
