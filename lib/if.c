@@ -34,6 +34,7 @@
 #include "table.h"
 #include "buffer.h"
 #include "log.h"
+#include "libfrr.h"
 #include "northbound_cli.h"
 #ifndef VTYSH_EXTRACT_PL
 #include "lib/if_clippy.c"
@@ -1197,7 +1198,10 @@ DEFPY_YANG_NOSH (interface,
 	}
 
 	nb_cli_enqueue_change(vty, ".", NB_OP_CREATE, NULL);
-	ret = nb_cli_apply_changes_clear_pending(vty, xpath_list);
+	if (strmatch(frr_protoname, "PIM"))
+		ret = nb_cli_apply_changes(vty, xpath_list);
+	else
+		ret = nb_cli_apply_changes_clear_pending(vty, xpath_list);
 	if (ret == CMD_SUCCESS) {
 		VTY_PUSH_XPATH(INTERFACE_NODE, xpath_list);
 
