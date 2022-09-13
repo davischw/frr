@@ -8011,79 +8011,84 @@ static void ip_msdp_show_peers_detail(struct pim_instance *pim, struct vty *vty,
 		vty_json(vty, json);
 }
 
-DEFUN (show_ip_msdp_peer_detail,
-       show_ip_msdp_peer_detail_cmd,
-       "show ip msdp [vrf NAME] peer [detail|A.B.C.D|WORD] [details] [json]",
-       SHOW_STR
-       IP_STR
-       MSDP_STR
-       VRF_CMD_HELP_STR
-       "MSDP peer information\n"
-       "Detailed output\n"
-       "peer ip address\n"
-       "Address list name\n"
-       "Detailed output\n"
-       JSON_STR)
+DEFPY(show_ip_msdp_peer_detail,
+      show_ip_msdp_peer_detail_cmd,
+      "show ip msdp [vrf NAME] peer [detail$detail|A.B.C.D$address|WORD$name] [details$details] [json]",
+      SHOW_STR
+      IP_STR
+      MSDP_STR
+      VRF_CMD_HELP_STR
+      "MSDP peer information\n"
+      "Detailed output\n"
+      "peer ip address\n"
+      "Address list name\n"
+      "Detailed output\n"
+      JSON_STR)
 {
 	const char *arg = NULL;
 	bool uj = use_json(argc, argv);
 	int idx = 2;
-	struct vrf *vrf = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
+	struct vrf *vrfp = pim_cmd_lookup_vrf(vty, argv, argc, &idx);
 
-	if (!vrf)
+	if (!vrfp)
 		return CMD_WARNING;
 
-	if (argv_find(argv, argc, "detail", &idx) ||
-	    argv_find(argv, argc, "details", &idx))
-		arg = argv[idx]->text;
-	else if (argv_find(argv, argc, "A.B.C.D", &idx))
-		arg = argv[idx]->arg;
-	else if (argv_find(argv, argc, "WORD", &idx))
-		arg = argv[idx]->arg;
+	if (address_str != NULL)
+		arg = address_str;
+	else if (name != NULL)
+		arg = name;
+	else if (details || detail)
+		arg = "detail";
 
 	if (arg)
-		ip_msdp_show_peers_detail(vrf->info, vty, argv[idx]->arg, uj);
+		ip_msdp_show_peers_detail(vrfp->info, vty, arg, uj);
 	else
-		ip_msdp_show_peers(vrf->info, vty, uj);
+		ip_msdp_show_peers(vrfp->info, vty, uj);
 
 	return CMD_SUCCESS;
 }
 
-DEFUN (show_ip_msdp_peer_detail_vrf_all,
-       show_ip_msdp_peer_detail_vrf_all_cmd,
-       "show ip msdp vrf all peer [detail|A.B.C.D] [details] [json]",
-       SHOW_STR
-       IP_STR
-       MSDP_STR
-       VRF_CMD_HELP_STR
-       "MSDP peer information\n"
-       "Detailed output\n"
-       "peer ip address\n"
-       "Detailed output\n"
-       JSON_STR)
+DEFPY(show_ip_msdp_peer_detail_vrf_all,
+      show_ip_msdp_peer_detail_vrf_all_cmd,
+      "show ip msdp vrf all peer [detail$detail|A.B.C.D$address|WORD$name] [details$details] [json]",
+      SHOW_STR
+      IP_STR
+      MSDP_STR
+      VRF_CMD_HELP_STR
+      "MSDP peer information\n"
+      "Detailed output\n"
+      "peer ip address\n"
+      "Address list name\n"
+      "Detailed output\n"
+      JSON_STR)
 {
-	int idx = 2;
+	const char *arg = NULL;
 	bool uj = use_json(argc, argv);
-	struct vrf *vrf;
+	struct vrf *vrfp;
 	bool first = true;
 
 	if (uj)
 		vty_out(vty, "{ ");
-	RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
+	RB_FOREACH (vrfp, vrf_name_head, &vrfs_by_name) {
 		if (uj) {
 			if (!first)
 				vty_out(vty, ", ");
-			vty_out(vty, " \"%s\": ", vrf->name);
+			vty_out(vty, " \"%s\": ", vrfp->name);
 			first = false;
 		} else
-			vty_out(vty, "VRF: %s\n", vrf->name);
-		if (argv_find(argv, argc, "detail", &idx) ||
-		    argv_find(argv, argc, "details", &idx) ||
-		    argv_find(argv, argc, "A.B.C.D", &idx))
-			ip_msdp_show_peers_detail(vrf->info, vty,
-						  argv[idx]->arg, uj);
+			vty_out(vty, "VRF: %s\n", vrfp->name);
+
+		if (address_str != NULL)
+			arg = address_str;
+		else if (name != NULL)
+			arg = name;
+		else if (details || detail)
+			arg = "detail";
+
+		if (arg)
+			ip_msdp_show_peers_detail(vrfp->info, vty, arg, uj);
 		else
-			ip_msdp_show_peers(vrf->info, vty, uj);
+			ip_msdp_show_peers(vrfp->info, vty, uj);
 	}
 	if (uj)
 		vty_out(vty, "}\n");
