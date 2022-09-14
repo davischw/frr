@@ -1547,6 +1547,7 @@ int pim_msdp_originator_id_modify(struct nb_cb_modify_args *args)
 		pim = vrf->info;
 		yang_dnode_get_ipv4(&pim->msdp.originator_id, args->dnode,
 				    NULL);
+		pim_msdp_local_sa_update(pim);
 		break;
 	}
 
@@ -1568,6 +1569,7 @@ int pim_msdp_originator_id_destroy(struct nb_cb_destroy_args *args)
 		pim = vrf->info;
 		memset(&pim->msdp.originator_id, 0,
 		       sizeof(pim->msdp.originator_id));
+		pim_msdp_local_sa_update(pim);
 		break;
 	}
 

@@ -443,4 +443,7 @@ static inline void pim_msdp_shutdown(struct pim_instance *pim, bool state)
 }
 #endif /* PIM_IPV == 6 */
 
+/** Update all PIM instance SAs to use the newly configured originator ID. */
+extern void pim_msdp_local_sa_update(struct pim_instance *pim);
+
 #endif

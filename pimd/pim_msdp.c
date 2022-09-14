@@ -73,6 +73,22 @@ void pim_msdp_originator_id(const struct pim_instance *pim,
 		*originator_id = peer->local;
 }
 
+void pim_msdp_local_sa_update(struct pim_instance *pim)
+{
+	const struct listnode *node;
+	struct pim_msdp_sa *sa;
+
+	for (ALL_LIST_ELEMENTS_RO(pim->msdp.sa_list, node, sa)) {
+		const struct pim_msdp_peer *peer;
+
+		if (CHECK_FLAG(sa->flags, PIM_MSDP_SAF_LOCAL))
+			continue;
+
+		peer = pim_msdp_peer_find(pim, sa->peer);
+		pim_msdp_originator_id(pim, peer, &sa->rp);
+	}
+}
+
 uint32_t pim_msdp_sa_asn(const struct pim_msdp_sa *sa)
 {
 	struct pim_msdp_peer *peer = pim_msdp_peer_find(sa->pim, sa->peer);
