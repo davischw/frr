@@ -3513,6 +3513,8 @@ static void rip_routemap_update(const char *notused)
 
 static void rip_instance_enable(struct rip *rip, int sock)
 {
+	zlog_info("RIP instance (vrf %s) enabled", rip->vrf_name);
+
 	rip->sock = sock;
 	rip->enabled = true;
 
@@ -3533,6 +3535,8 @@ static void rip_instance_disable(struct rip *rip)
 {
 	struct vrf *vrf = rip->vrf;
 	struct route_node *rp;
+
+	zlog_info("RIP instance (vrf %s) disabled", rip->vrf_name);
 
 	/* Clear RIP routes */
 	for (rp = route_top(rip->table); rp; rp = route_next(rp)) {
