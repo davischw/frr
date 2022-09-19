@@ -23,6 +23,7 @@
 #include "lib/json.h"
 #include "command.h"
 #include "if.h"
+#include "pimd/pim_southbound.h"
 #include "prefix.h"
 #include "zclient.h"
 #include "plist.h"
@@ -4363,6 +4364,21 @@ void clear_mroute(struct pim_instance *pim)
 	/* clean up all upstreams*/
 	while ((up = rb_pim_upstream_first(&pim->upstream_head)))
 		pim_upstream_del(pim, up, __func__);
+
+
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled) {
+		/* Resend all static IGMP joins. */
+		FOR_ALL_INTERFACES (pim->vrf, ifp) {
+			struct pim_interface *pim_ifp = ifp->info;
+
+			if (pim_ifp == NULL)
+				continue;
+
+			pimsb_igmp_join(pim_ifp);
+		}
+	}
+#endif /* VENDOR_SOUTHBOUND */
 }
 
 void clear_pim_statistics(struct pim_instance *pim)
