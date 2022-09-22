@@ -81,7 +81,7 @@ void pim_msdp_local_sa_update(struct pim_instance *pim)
 	for (ALL_LIST_ELEMENTS_RO(pim->msdp.sa_list, node, sa)) {
 		const struct pim_msdp_peer *peer;
 
-		if (CHECK_FLAG(sa->flags, PIM_MSDP_SAF_LOCAL))
+		if (!CHECK_FLAG(sa->flags, PIM_MSDP_SAF_LOCAL))
 			continue;
 
 		peer = pim_msdp_peer_find(pim, sa->peer);
