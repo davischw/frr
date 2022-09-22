@@ -430,7 +430,8 @@ void reset_ifassert_state(struct pim_ifchannel *ch)
 				router->infinite_assert_metric);
 }
 
-struct pim_ifchannel *pim_ifchannel_find(struct interface *ifp, pim_sgaddr *sg)
+struct pim_ifchannel *pim_ifchannel_find(struct interface *ifp,
+					 const pim_sgaddr *sg)
 {
 	struct pim_interface *pim_ifp;
 	struct pim_ifchannel *ch;

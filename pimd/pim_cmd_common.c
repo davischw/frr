@@ -3727,7 +3727,8 @@ void show_mroute(struct pim_instance *pim, struct vty *vty, pim_sgaddr *sg,
 
 	if (!json) {
 		vty_out(vty, "IP Multicast Routing Table\n");
-		vty_out(vty, "Flags: S - Sparse, C - Connected, P - Pruned\n");
+		vty_out(vty,
+			"Flags: S - Sparse, C - Connected, P - Pruned, M - SSM\n");
 		vty_out(vty,
 			"       R - SGRpt Pruned, F - Register flag, T - SPT-bit set\n");
 
@@ -3744,6 +3745,11 @@ void show_mroute(struct pim_instance *pim, struct vty *vty, pim_sgaddr *sg,
 
 	/* print list of PIM and IGMP routes */
 	frr_each (rb_pim_oil, &pim->channel_oil_head, c_oil) {
+		pim_sgaddr source_group = {
+			.src = *oil_origin(c_oil),
+			.grp = *oil_mcastgrp(c_oil),
+		};
+
 		found_oif = 0;
 		first = 1;
 		if (!c_oil->installed)
@@ -3774,6 +3780,8 @@ void show_mroute(struct pim_instance *pim, struct vty *vty, pim_sgaddr *sg,
 				strlcat(state_str, "F", sizeof(state_str));
 			if (c_oil->up->sptbit == PIM_UPSTREAM_SPTBIT_TRUE)
 				strlcat(state_str, "T", sizeof(state_str));
+			if (pim_is_sg_ssm(pim, &source_group))
+				strlcat(state_str, "M", sizeof(state_str));
 		}
 		if (pim_channel_oil_empty(c_oil))
 			strlcat(state_str, "P", sizeof(state_str));
