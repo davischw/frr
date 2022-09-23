@@ -4505,6 +4505,7 @@ void bgp_shutdown_disable(struct bgp *bgp)
 		BGP_EVENT_ADD(peer, BGP_Stop);
 		if (peer->bfd_config)
 			bfd_sess_install(peer->bfd_config->session);
+		bgp_timer_set(peer);
 	}
 }
 
