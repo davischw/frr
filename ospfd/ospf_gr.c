@@ -288,6 +288,7 @@ static void ospf_gr_restart_exit(struct ospf *ospf, const char *reason)
 	 *    installed before the restart, but that are no longer valid,
 	 *    should be removed.
 	 */
+	ospf_asbr_reoriginate(ospf);
 	ospf->gr_info.finishing_restart = true;
 	XFREE(MTYPE_TMP, ospf->gr_info.exit_reason);
 	ospf->gr_info.exit_reason = XSTRDUP(MTYPE_TMP, reason);
