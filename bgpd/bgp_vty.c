@@ -3129,7 +3129,7 @@ DEFPY (bgp_graceful_restart_notification,
 
 		SET_FLAG(bgp->flags, BGP_FLAG_GRACEFUL_NOTIFICATION);
 	}
-	
+
 	bgp_apply_immediately(vty, bgp);
 
 	return CMD_SUCCESS;
@@ -18481,6 +18481,9 @@ static void bgp_config_finish(struct thread *t)
 static void bgp_config_start(void)
 {
 #define BGP_PRE_CONFIG_MAX_WAIT_SECONDS 600
+	/* Mark the start of configuration. */
+	bm->listen_ready = false;
+
 	THREAD_OFF(t_bgp_cfg);
 	thread_add_timer(bm->master, bgp_config_finish, NULL,
 			 BGP_PRE_CONFIG_MAX_WAIT_SECONDS, &t_bgp_cfg);
