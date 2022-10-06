@@ -1407,6 +1407,29 @@ def ignore_delete_re_add_lines(lines_to_add, lines_to_del):
                 lines_to_add.append((add_cmd, None))
                 lines_to_del_to_del.append((ctx_keys, None))
 
+        address_list = re.search(
+            "^address-list\s+(\S+)\s+address\s+(\S+)\s+(sequence \d+)$",
+            ctx_keys[0],
+        )
+        if address_list:
+            found = False
+            without_sequence = (
+                "address-list "
+                + address_list.group(1)
+                + " address "
+                + address_list.group(2)
+            )
+            for ctx in lines_to_add:
+                if ctx[0][0] == without_sequence:
+                    lines_to_del_to_del.append((ctx_keys, None))
+                    lines_to_add_to_del.append(((without_sequence,), None))
+                    found = True
+
+            if found is False:
+                add_cmd = ("no " + ctx_keys[0],)
+                lines_to_add.append((add_cmd, None))
+                lines_to_del_to_del.append((ctx_keys, None))
+
         if (
             len(ctx_keys) == 3
             and ctx_keys[0].startswith("router bgp")
