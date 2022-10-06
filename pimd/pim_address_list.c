@@ -174,6 +174,7 @@ pim_msdp_named_peer_new(struct pim_instance *pim,
 	peer->peer_data.ibuf = stream_new(PIM_MSDP_MAX_PACKET_SIZE);
 	peer->peer_data.obuf = stream_fifo_new();
 	peer->peer_data.named_peer = peer;
+	peer->peer_data.local = *local_address;
 	SLIST_INSERT_HEAD(&pim->msdp_named_peer_list, peer, entry);
 
 	if (pim_msdp_log_neighbor_events(peer->pim))
