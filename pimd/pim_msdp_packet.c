@@ -526,9 +526,9 @@ void pim_msdp_pkt_sa_tx_one(struct pim_msdp_sa *sa)
 	struct pim_msdp_peer *mp;
 	struct listnode *node;
 
-	pim_msdp_pkt_sa_fill_hdr(sa->pim, 1 /* cnt */, sa->rp);
-	pim_msdp_pkt_sa_fill_one(sa);
 	for (ALL_LIST_ELEMENTS_RO(sa->pim->msdp.peer_list, node, mp)) {
+		struct in_addr rp = {};
+
 		if (msdp_peer_sa_filter(mp, sa)) {
 			if (pim_msdp_log_sa_events(sa->pim))
 				zlog_info("MSDP peer %pI4 filter SA out %s",
@@ -538,6 +538,9 @@ void pim_msdp_pkt_sa_tx_one(struct pim_msdp_sa *sa)
 			continue;
 		}
 
+		pim_msdp_originator_id(sa->pim, mp, &rp);
+		pim_msdp_pkt_sa_fill_hdr(sa->pim, 1, rp);
+		pim_msdp_pkt_sa_fill_one(sa);
 		pim_msdp_pkt_sa_push(sa->pim, mp);
 	}
 	pim_msdp_pkt_sa_tx_done(sa->pim);
