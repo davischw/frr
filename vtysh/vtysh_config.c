@@ -477,6 +477,9 @@ void vtysh_config_parse_line(void *arg, const char *line)
 			config = config_get(BFD_NODE, line);
 		else if (strncmp(line, "rpki", strlen("rpki")) == 0)
 			config = config_get(RPKI_NODE, line);
+		else if (strncmp(line, "address-list",
+				 strlen("address-list")) == 0)
+			config = config_get(ACCESS_NODE, line);
 		else {
 			if (strncmp(line, "log", strlen("log")) == 0 ||
 			    strncmp(line, "hostname", strlen("hostname")) ==
