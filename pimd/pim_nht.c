@@ -843,20 +843,41 @@ static int pim_nht_update(ZAPI_CALLBACK_ARGS)
 		for (i = 0; i < nhr.nexthop_num; i++) {
 			nexthop = nexthop_from_zapi_nexthop(&nhr.nexthops[i]);
 			switch (nexthop->type) {
-			case NEXTHOP_TYPE_IFINDEX:
+			case NEXTHOP_TYPE_IFINDEX: {
+				struct interface *ifp_next = if_lookup_by_index(
+					nexthop->ifindex, pim->vrf->vrf_id);
+				struct pim_neighbor *nbr = NULL;
+
+				if (ifp_next)
+					nbr = pim_neighbor_find_if(ifp_next);
+
 				/*
-				 * Connected route (i.e. no nexthop), use
-				 * RPF address from nexthop cache (i.e.
-				 * destination) as PIM nexthop.
+				 * Routes without next hop gateway must
+				 * learn the neighbor address from
+				 * somewhere. Here are the two possible
+				 * outcomes:
+				 *   1. the interface is active and has
+				 *      a neighbor in it: use the
+				 *      neighbor address.
+				 *   2. The interface is not active or
+				 *      there are no neighbors: use the
+				 *      previously cached value.
 				 */
 #if PIM_IPV == 4
 				nexthop->type = NEXTHOP_TYPE_IPV4_IFINDEX;
-				nexthop->gate.ipv4 = pnc->rpf.rpf_addr;
+				if (nbr)
+					nexthop->gate.ipv4 = nbr->source_addr;
+				else
+					nexthop->gate.ipv4 = pnc->rpf.rpf_addr;
 #else
 				nexthop->type = NEXTHOP_TYPE_IPV6_IFINDEX;
-				nexthop->gate.ipv6 = pnc->rpf.rpf_addr;
+				if (nbr)
+					nexthop->gate.ipv6 = nbr->source_addr;
+				else
+					nexthop->gate.ipv6 = pnc->rpf.rpf_addr;
 #endif
 				break;
+			}
 #if PIM_IPV == 4
 			/* RFC5549 IPv4-over-IPv6 nexthop handling:
 			 * if we get an IPv6 nexthop in IPv4 PIM, hunt down a
