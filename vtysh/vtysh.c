@@ -482,16 +482,39 @@ static int vtysh_client_execute(struct vtysh_client *head_client,
 }
 
 /* Execute by name */
-static int vtysh_client_execute_name(const char *name, const char *line)
+static int vtysh_client_execute_name(const char *name, const char *line,
+				     bool json)
 {
 	int ret = CMD_SUCCESS;
 	int idx_client = -1;
 
 	idx_client = vtysh_client_lookup(name);
-	if (idx_client != -1)
+	if (idx_client != -1) {
+		const struct vtysh_client *client;
+		bool is_connected = true;
+
 		ret = vtysh_client_execute(&vtysh_client[idx_client], line);
-	else {
-		vty_out(vty, "Client not found\n");
+		if (ret != CMD_SUCCESS)
+			return ret;
+
+		for (client = &vtysh_client[idx_client]; client;
+		     client = client->next)
+			if (client->fd < 0)
+				is_connected = false;
+
+		if (is_connected)
+			return ret;
+
+		if (json)
+			vty_out(vty, "{\"error\": \"%s is not running\"}\n",
+				name);
+		else
+			vty_out(vty, "%s is not running\n", name);
+	} else {
+		if (json)
+			vty_out(vty, "{\"error\": \"Client not found\"}\n");
+		else
+			vty_out(vty, "Client not found\n");
 		ret = CMD_WARNING;
 	}
 
@@ -2779,12 +2802,12 @@ static int show_per_daemon(struct vty *vty, struct cmd_token **argv, int argc,
 }
 
 static int show_one_daemon(struct vty *vty, struct cmd_token **argv, int argc,
-			   const char *name)
+			   const char *name, bool json)
 {
 	int ret;
 	char *line = do_prepend(vty, argv, argc);
 
-	ret = vtysh_client_execute_name(name, line);
+	ret = vtysh_client_execute_name(name, line, json);
 
 	XFREE(MTYPE_TMP, line);
 
@@ -2839,7 +2862,8 @@ DEFUN (vtysh_show_work_queues_daemon,
        "Work Queue information\n"
        DAEMONS_STR)
 {
-	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text);
+	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text,
+			       false);
 }
 
 DEFUNSH(VTYSH_ZEBRA, vtysh_link_params, vtysh_link_params_cmd, "link-params",
@@ -2962,7 +2986,8 @@ DEFUN_HIDDEN (show_config_running,
        "Show default values\n"
        DAEMONS_STR)
 {
-	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text);
+	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text,
+			       false);
 }
 
 DEFUN (show_yang_operational_data,
@@ -2985,7 +3010,7 @@ DEFUN (show_yang_operational_data,
        "Merge configuration data\n"
        DAEMONS_STR)
 {
-	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text);
+	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text, true);
 }
 
 DEFUN(show_yang_module, show_yang_module_cmd,
@@ -2996,7 +3021,8 @@ DEFUN(show_yang_module, show_yang_module_cmd,
       "YANG module translator\n"
       "YANG module translator\n" DAEMONS_STR)
 {
-	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text);
+	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text,
+			       false);
 }
 
 DEFUN(show_yang_module_detail, show_yang_module_detail_cmd,
@@ -3015,7 +3041,8 @@ DEFUN(show_yang_module_detail, show_yang_module_detail_cmd,
       "Display module in the YANG format\n"
       "Display module in the YIN format\n" DAEMONS_STR)
 {
-	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text);
+	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text,
+			       false);
 }
 
 
@@ -3068,7 +3095,7 @@ DEFUN (vtysh_show_memory,
 {
 	if (argc == 3)
 		return show_one_daemon(vty, argv, argc - 1,
-				       argv[argc - 1]->text);
+				       argv[argc - 1]->text, false);
 
 	return show_per_daemon(vty, argv, argc, "Memory statistics for %s:\n");
 }
@@ -3319,7 +3346,8 @@ DEFUN(vtysh_show_routing_distribution, vtysh_show_routing_distribution_cmd,
 			 "do show routing redistribution %s json no-list%s",
 			 daemon, first ? "" : " comma");
 
-		if (vtysh_client_execute_name(daemon, command) == CMD_SUCCESS) {
+		if (vtysh_client_execute_name(daemon, command, true)
+		    == CMD_SUCCESS) {
 			if (first)
 				first = false;
 		}
