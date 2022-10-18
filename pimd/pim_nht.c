@@ -393,12 +393,11 @@ bool pim_nht_bsr_rpf_check(struct pim_instance *pim, pim_addr bsr_addr,
 		}
 
 		/* MRIB (IGP) may be pointing at a router where PIM is down */
-		nbr = pim_neighbor_find(ifp, nhaddr);
+		nbr = pim_neighbor_find(ifp, nhaddr, true);
 		if (!nbr)
 			continue;
 
-		ret = (nh->ifindex == src_ifp->ifindex
-		       && pim_addr_cmp(nhaddr, src_ip) == 0);
+		ret = nh->ifindex == src_ifp->ifindex;
 		break;
 	}
 
