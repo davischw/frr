@@ -1338,7 +1338,7 @@ bool pim_nexthop_lookup(struct pim_instance *pim, struct pim_nexthop *nexthop,
 					&addr);
 			} else if (neighbor_needed &&
 						!pim_if_connected_to_source(ifp, addr)) {
-			nbr = pim_neighbor_find(ifp, nhaddr);
+			nbr = pim_neighbor_find(ifp, nhaddr, true);
 			if (PIM_DEBUG_PIM_TRACE_DETAIL)
 				zlog_debug("ifp name: %s, pim nbr: %p",
 					   ifp->name, nbr);
