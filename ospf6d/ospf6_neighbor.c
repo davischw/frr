@@ -258,8 +258,8 @@ static void ospf6_neighbor_state_change(uint8_t next_state,
 		|| (next_state == OSPF6_NEIGHBOR_FULL)
 		|| (next_state < prev_state)))
 		zlog_notice(
-			"AdjChg: Nbr %pI4(%s) on %s: %s -> %s (%s)",
-			&on->router_id,
+			"AdjChg: Nbr %pI4 NbrIP %pI6 (%s) on %s: %s -> %s (%s)",
+			&on->router_id, &on->linklocal_addr,
 			vrf_id_to_name(on->ospf6_if->interface->vrf->vrf_id),
 			on->name, ospf6_neighbor_state_str[prev_state],
 			ospf6_neighbor_state_str[next_state],
