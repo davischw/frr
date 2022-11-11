@@ -563,6 +563,7 @@ static int pim_ecmp_nexthop_search(struct pim_instance *pim,
 	uint32_t hash_val = 0, mod_val = 0;
 	uint8_t nh_iter = 0, found = 0;
 	uint32_t i, num_nbrs = 0;
+	struct pim_interface *pim_ifp;
 	struct pim_nexthop_data *nhd;
 
 	if (!pnc || pnc->rib_sel == SAFI_UNSPEC)
@@ -681,10 +682,13 @@ static int pim_ecmp_nexthop_search(struct pim_instance *pim,
 			nh_iter++;
 			continue;
 		}
-		if (!ifp->info) {
+
+		pim_ifp = ifp->info;
+
+		if (!pim_ifp || !pim_ifp->pim_enable) {
 			if (PIM_DEBUG_PIM_NHT)
 				zlog_debug(
-					"%s: multicast not enabled on input interface %s(%s) (ifindex=%d, RPF for source %pPA)",
+					"%s: pim not enabled on input interface %s(%s) (ifindex=%d, RPF for source %pPA)",
 					__func__, ifp->name, pim->vrf->name,
 					first_ifindex, &src);
 			if (nh_iter == mod_val)
@@ -872,6 +876,7 @@ static int pim_nht_update(ZAPI_CALLBACK_ARGS)
 	struct zapi_route nhr;
 	struct prefix match;
 	struct pim_nexthop_data *nhd;
+	struct pim_interface *pim_ifp;
 
 	if (!vrf)
 		return 0;
@@ -1031,7 +1036,8 @@ static int pim_nht_update(ZAPI_CALLBACK_ARGS)
 					nhr.distance, nhr.metric);
 			}
 
-			if (!ifp->info) {
+			pim_ifp = ifp->info;
+			if (!pim_ifp || !pim_ifp->pim_enable) {
 				/*
 				 * Though Multicast is not enabled on this
 				 * Interface store it in database otheriwse we
@@ -1044,7 +1050,7 @@ static int pim_nht_update(ZAPI_CALLBACK_ARGS)
 					char buf[NEXTHOP_STRLEN];
 
 					zlog_debug(
-						"%s: multicast not enabled on input interface %s(%s) (ifindex=%d, addr %s)",
+						"%s: pim not enabled on input interface %s(%s) (ifindex=%d, addr %s)",
 						__func__, ifp->name,
 						pim->vrf->name,
 						nexthop->ifindex,
@@ -1248,6 +1254,7 @@ bool pim_nexthop_lookup(struct pim_instance *pim, struct pim_nexthop *nexthop,
 	struct interface *ifp = NULL;
 	pim_addr nhaddr;
 	bool ret = false;
+	struct pim_interface *pim_ifp;
 
 #if PIM_IPV == 4
 	/*
@@ -1323,14 +1330,15 @@ bool pim_nexthop_lookup(struct pim_instance *pim, struct pim_nexthop *nexthop,
 			continue;
 		}
 
-		if (!ifp->info) {
+		pim_ifp = ifp->info;
+		if (!pim_ifp || !pim_ifp->pim_enable) {
 			if (PIM_DEBUG_ZEBRA)
 				zlog_debug(
-					"%s: multicast not enabled on input interface %s (ifindex=%d, RPF for source %pPA)",
+					"%s: pim not enabled on input interface %s (ifindex=%d, RPF for source %pPA)",
 					__func__, ifp->name, nh->ifindex,
 					&addr);
-		} else if (neighbor_needed &&
-			   !pim_if_connected_to_source(ifp, addr)) {
+			} else if (neighbor_needed &&
+						!pim_if_connected_to_source(ifp, addr)) {
 			nbr = pim_neighbor_find(ifp, nhaddr);
 			if (PIM_DEBUG_PIM_TRACE_DETAIL)
 				zlog_debug("ifp name: %s, pim nbr: %p",
