@@ -124,4 +124,6 @@ void pim_nht_init(void);
 
 void pim_nht_rpf_modeswitch(struct pim_instance *pim);
 
+void pim_upstream_nh_if_update(struct pim_instance *pim, struct interface *ifp);
+
 #endif
