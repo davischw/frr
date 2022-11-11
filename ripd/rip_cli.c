@@ -278,6 +278,26 @@ void cli_show_rip_distance_source(struct vty *vty, const struct lyd_node *dnode,
 }
 
 /*
+ * XPath: /frr-ripd:ripd/instance/log-neighbor-changes
+ */
+DEFPY_YANG(rip_log_neighbor_changes, rip_log_neighbor_changes_cmd, "[no] log-neighbor-changes",
+      NO_STR "Log neighbor discovery and disapperances\n")
+{
+        nb_cli_enqueue_change(vty, "./log-neighbor-changes", NB_OP_MODIFY,
+                              no ? "false" : "true");
+
+        return nb_cli_apply_changes(vty, NULL);
+}
+
+void cli_show_rip_log_neighbor_changes(struct vty *vty, struct lyd_node *dnode,
+                                 bool show_defaults)
+{
+        if (!yang_dnode_get_bool(dnode, NULL))
+                vty_out(vty, " no");
+        vty_out(vty, " log-neighbor-changes\n");
+}
+
+/*
  * XPath: /frr-ripd:ripd/instance/explicit-neighbor
  */
 DEFPY_YANG (rip_neighbor,
@@ -1412,6 +1432,7 @@ void rip_cli_init(void)
 	install_element(RIP_NODE, &rip_distance_cmd);
 	install_element(RIP_NODE, &no_rip_distance_cmd);
 	install_element(RIP_NODE, &rip_distance_source_cmd);
+	install_element(RIP_NODE, &rip_log_neighbor_changes_cmd);
 	install_element(RIP_NODE, &rip_neighbor_cmd);
 	install_element(RIP_NODE, &rip_offset_list_cmd);
 	install_element(RIP_NODE, &rip_passive_default_cmd);

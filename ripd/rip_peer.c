@@ -75,6 +75,9 @@ static void rip_peer_timeout(struct thread *t)
 	struct rip_peer *peer;
 
 	peer = THREAD_ARG(t);
+	if (peer->rip->log_neighbor_changes) { 
+		zlog_info("RIP Peer disappeared: %pI4 on %s", &peer->addr, peer->ri->ifp->name);
+	}
 	listnode_delete(peer->rip->peer_list, peer);
 	rip_peer_free(peer);
 }
@@ -90,6 +93,9 @@ static struct rip_peer *rip_peer_get(struct rip *rip, struct rip_interface *ri,
 	if (peer) {
 		THREAD_OFF(peer->t_timeout);
 	} else {
+		if (rip->log_neighbor_changes) {
+			zlog_debug("RIP Peer discovered: %pI4 on %s", addr, ri->ifp->name);
+		}
 		peer = rip_peer_new();
 		peer->version = RI_RIP_VERSION_1_AND_2;
 		peer->rip = rip;

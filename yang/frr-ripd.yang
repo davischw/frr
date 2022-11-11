@@ -112,6 +112,12 @@ module frr-ripd {
         description
           "Default metric of redistributed routes.";
       }
+      leaf log-neighbor-changes {
+        type boolean;
+        default "false";
+        description
+          "Log neighbor discovery and disapperances.";
+      }
       container distance {
         description
           "Administrative distance.";

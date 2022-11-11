@@ -146,6 +146,13 @@ const struct frr_yang_module_info frr_ripd_info = {
 				.destroy = ripd_instance_non_passive_interface_destroy,
 			},
 		},
+                {
+                        .xpath = "/frr-ripd:ripd/instance/log-neighbor-changes",
+                        .cbs = {
+                                .cli_show = cli_show_rip_log_neighbor_changes,
+                                .modify = ripd_instance_log_neighbor_changes_modify,
+                        },
+                },
 		{
 			.xpath = "/frr-ripd:ripd/instance/redistribute",
 			.cbs = {
