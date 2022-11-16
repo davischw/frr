@@ -2870,6 +2870,20 @@ static int pim_print_vty_pnc_cache_walkcb(struct hash_bucket *bucket, void *arg)
 	ifindex_t first_ifindex;
 	struct interface *ifp = NULL;
 	char selchar = 0;
+	struct ttable *tt = NULL;
+	char *table = NULL;
+
+	/* Prepare table. */
+	tt = ttable_new(&ttable_styles[TTSTYLE_BLANK]);
+	ttable_add_row(
+		tt,
+		"fl|Address|Interface|Nexthop");
+	ttable_add_row(
+		tt,
+		"Flags: > - selected, u - URIB, m - MRIB");
+	tt->style.cell.rpad = 2;
+	tt->style.corner = '+';
+	ttable_restyle(tt);
 
 	nhd = &pnc->rib[SAFI_UNICAST - 1];
 	selchar = (pnc->rib_sel == SAFI_UNICAST) ? '>' : ' ';
@@ -2878,15 +2892,11 @@ static int pim_print_vty_pnc_cache_walkcb(struct hash_bucket *bucket, void *arg)
 
 		ifp = if_lookup_by_index(first_ifindex, pim->vrf->vrf_id);
 
-		vty_out(vty, "%cu  ", selchar);
-		vty_out(vty, "%-15pPA ", &pnc->rpf.rpf_addr);
-		vty_out(vty, "%-16s ", ifp ? ifp->name : "NULL");
 #if PIM_IPV == 4
-		vty_out(vty, "%pI4 ", &nh_node->gate.ipv4);
+	ttable_add_row(tt, "%cu|%pPA|%s|%pI4", selchar, &pnc->rpf.rpf_addr, ifp ? ifp->name : "NULL", &nh_node->gate.ipv4);
 #else
-		vty_out(vty, "%pI6 ", &nh_node->gate.ipv6);
+	ttable_add_row(tt, "%cu|%pPA|%s|%pI6", selchar, &pnc->rpf.rpf_addr, ifp ? ifp->name : "NULL", &nh_node->gate.ipv6);
 #endif
-		vty_out(vty, "\n");
 	}
 
 	nhd = &pnc->rib[SAFI_MULTICAST - 1];
@@ -2896,17 +2906,18 @@ static int pim_print_vty_pnc_cache_walkcb(struct hash_bucket *bucket, void *arg)
 
 		ifp = if_lookup_by_index(first_ifindex, pim->vrf->vrf_id);
 
-		vty_out(vty, "%cm  ", selchar);
-		vty_out(vty, "%-15pPA ", &pnc->rpf.rpf_addr);
-		vty_out(vty, "%-16s ", ifp ? ifp->name : "NULL");
 #if PIM_IPV == 4
-		vty_out(vty, "%pI4 ", &nh_node->gate.ipv4);
+	ttable_add_row(tt, "%cm|%pPA|%s|%pI4", selchar, &pnc->rpf.rpf_addr, ifp ? ifp->name : "NULL", &nh_node->gate.ipv4);
 #else
-		vty_out(vty, "%pI6 ", &nh_node->gate.ipv6);
+	ttable_add_row(tt, "%cm|%pPA|%s|%pI6", selchar, &pnc->rpf.rpf_addr, ifp ? ifp->name : "NULL", &nh_node->gate.ipv6);
 #endif
-		vty_out(vty, "\n");
 	}
 
+	/* Dump the generated table. */
+	table = ttable_dump(tt, "\n");
+	vty_out(vty, "%s\n", table);
+	XFREE(MTYPE_TMP, table);
+	ttable_del(tt);
 	return CMD_SUCCESS;
 }
 
@@ -3083,8 +3094,6 @@ void pim_show_nexthop(struct pim_instance *pim, struct vty *vty, bool uj)
 	} else {
 		vty_out(vty, "Number of registered addresses: %lu\n",
 			pim->rpf_hash->count);
-		vty_out(vty, "fl  Address         Interface        Nexthop\n");
-		vty_out(vty, "-------------------------------------------------\n");
 	}
 
 	if (uj) {
@@ -3093,8 +3102,6 @@ void pim_show_nexthop(struct pim_instance *pim, struct vty *vty, bool uj)
 		vty_json(vty, jcwd.json_obj);
 	} else {
 		hash_walk(pim->rpf_hash, pim_print_vty_pnc_cache_walkcb, &cwd);
-		vty_out(vty, "-------------------------------------------------\n");
-		vty_out(vty, "Flags: > - selected, u - URIB, m - MRIB\n");
 	}
 }
 
