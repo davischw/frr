@@ -408,17 +408,33 @@ static void pim_update_rp_nh(struct pim_instance *pim,
 {
 	struct listnode *node = NULL;
 	struct rp_info *rp_info = NULL;
+	bool changed = false;
 
 	/*Traverse RP list and update each RP Nexthop info */
 	for (ALL_LIST_ELEMENTS_RO(pnc->rp_list, node, rp_info)) {
+		bool was_valid;
+
 		if (pim_rpf_addr_is_inaddr_any(&rp_info->rp))
 			continue;
+
+		was_valid = rp_info->rp.source_nexthop.interface != NULL;
 
 		// Compute PIM RPF using cached nexthop
 		if (!pim_ecmp_nexthop_lookup(pim, &rp_info->rp.source_nexthop,
 					     rp_info->rp.rpf_addr,
-					     &rp_info->group, 1))
+					     &rp_info->group, 1)) {
 			pim_rp_nexthop_del(rp_info);
+			changed = true;
+		} else if (!was_valid)
+			changed = true;
+	}
+
+	if (changed) {
+		if (PIM_DEBUG_PIM_NHT)
+			zlog_debug("NHT validity change for %pFX triggering group-to-RP reeval",
+				   &pnc->rpf.rpf_addr);
+
+		pim_rp_refresh_group_to_rp_mapping(pim);
 	}
 }
 
