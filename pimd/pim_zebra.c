@@ -421,6 +421,7 @@ void sched_rpf_cache_refresh(struct pim_instance *pim)
 	++pim->rpf_cache_refresh_requests;
 
 	pim_rpf_set_refresh_time(pim);
+	pim_rp_refresh_group_to_rp_mapping(pim);
 
 	if (pim->rpf_cache_refresher) {
 		/* Refresh timer is already running */
