@@ -1567,9 +1567,9 @@ static void igmp_show_groups(struct pim_instance *pim, struct vty *vty, bool uj)
 				if (!pim_ifp->gm_join_list)
 					continue;
 
-				gj = igmp_join_find(pim_ifp->gm_join_list,
-						    grp->group_addr,
-						    src->source_addr);
+				gj = gm_join_find(pim_ifp->gm_join_list,
+						  grp->group_addr,
+						  src->source_addr);
 				if (gj)
 					break;
 			}
