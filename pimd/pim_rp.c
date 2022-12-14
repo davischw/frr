@@ -384,6 +384,9 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 
 	bp = NULL;
 	for (ALL_LIST_ELEMENTS_RO(pim->rp_list, node, rp_info)) {
+		if (!rp_info->rp.source_nexthop.interface)
+			continue;
+
 		if (rp_info->plist) {
 			const struct prefix_list_entry *entry;
 			plist = prefix_list_lookup(PIM_AFI, rp_info->plist);
@@ -430,18 +433,13 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 		return best;
 	}
 
-	rp_info = rn->info;
-	if (PIM_DEBUG_PIM_TRACE) {
-		if (best)
-			zlog_debug(
-				"Lookedup(%pFX): prefix_list match %s, rn %p found: %pFX",
-				group, best->plist, rn, &rp_info->group);
-		else
-			zlog_debug("Lookedup(%pFX): rn %p found:%pFX", group,
-				   rn, &rp_info->group);
-	}
-
 	route_unlock_node(rn);
+
+	for (rp_info = NULL; rn; rn = rn->parent, rp_info = NULL) {
+		rp_info = rn->info;
+		if (rp_info && rp_info->rp.source_nexthop.interface)
+			break;
+	}
 
 	/*
 	 * rp's with prefix lists have the group as 224.0.0.0/4 which will
@@ -463,10 +461,17 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 			best = rp_info;
 	}
 
-	if (best && !pim_addr_is_any(best->rp.rpf_addr))
+	if (best && !pim_addr_is_any(best->rp.rpf_addr)) {
+		if (PIM_DEBUG_PIM_TRACE)
+			zlog_debug("Lookedup: group %pFX, rp_info %p group %pFX, RP %pFX",
+				   group, best, &best->group, &best->rp.rpf_addr);
 		return best;
+	}
 
 	for (ALL_LIST_ELEMENTS_RO(pim->fb_rp_list, node, rp_info)) {
+		if (!rp_info->rp.source_nexthop.interface)
+			continue;
+
 		if (rp_info->plist) {
 			const struct prefix_list_entry *entry;
 			plist = prefix_list_lookup(PIM_AFI, rp_info->plist);
@@ -503,20 +508,40 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 		}
 	}
 
+	rp_info = NULL;
+
 	rn = route_node_match(pim->fb_rp_table, group);
 	if (rn) {
-		rp_info = rn->info;
-		if (PIM_DEBUG_PIM_TRACE)
-			zlog_debug(
-				"Lookedup fallback: %p for rp_info: %p(%pFX) Lock: %d",
-				rn, rp_info, &rp_info->group,
-				route_node_get_lock_count(rn));
-
 		route_unlock_node(rn);
+
+		for (; rn; rn = rn->parent, rp_info = NULL) {
+			rp_info = rn->info;
+
+			if (rp_info && rp_info->rp.source_nexthop.interface)
+				break;
+		}
+	}
+
+	if (rp_info) {
+		/*
+		 * Fix clang NULL deference warning:
+		 * if `best` was never chosen then pick the first one as best.
+		 */
+		if (best == NULL)
+			best = rp_info;
+
 		if (!pim_addr_is_any(best->rp.rpf_addr))
 			best = rp_info;
 		else if (rp_info->group.prefixlen < best->group.prefixlen)
 			best = rp_info;
+	}
+
+	if (PIM_DEBUG_PIM_TRACE) {
+		if (best)
+			zlog_debug("Lookedup: group %pFX, fallback rp_info %p group %pFX, RP %pFX",
+				   group, best, &best->group, &best->rp.rpf_addr);
+		else
+			zlog_debug("Lookedup: group %pFX, no RP found", group);
 	}
 
 	return best;
