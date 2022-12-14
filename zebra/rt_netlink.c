@@ -1010,10 +1010,12 @@ static int netlink_route_change_read_unicast(struct nlmsghdr *h, ns_id_t ns_id,
 				}
 			}
 		}
-		if (nhe_id || ng)
+		if (nhe_id || ng) {
 			rib_add_multipath(afi, SAFI_UNICAST, &p, &src_p, re, ng,
 					  startup);
-		else {
+			if (ng)
+				nexthop_group_delete(&ng);
+		} else {
 			/*
 			 * I really don't see how this is possible
 			 * but since we are testing for it let's
