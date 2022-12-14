@@ -54,6 +54,9 @@
 #include "pim_ssm.h"
 #include "termtable.h"
 
+static void pim_upstream_update(struct pim_instance *pim,
+				struct pim_upstream *up);
+
 /* Cleanup pim->rpf_hash each node data */
 void pim_rp_list_hash_clean(void *data)
 {
@@ -655,7 +658,8 @@ static void pim_rp_check_interfaces(struct pim_instance *pim,
 	}
 }
 
-void pim_upstream_update(struct pim_instance *pim, struct pim_upstream *up)
+static void pim_upstream_update(struct pim_instance *pim,
+				struct pim_upstream *up)
 {
 	struct pim_rpf old_rpf;
 	enum pim_rpf_result rpf_result;
