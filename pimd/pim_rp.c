@@ -526,10 +526,63 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
  *
  * This is a placeholder function for now.
  */
+static void pim_rp_refresh_group_to_rp_mapping_thread(struct thread *t)
+{
+	struct pim_instance *pim = THREAD_ARG(t);
+	struct pim_upstream *up;
+
+	THREAD_OFF(pim->t_refresh_group_to_rp);
+
+	pim_msdp_i_am_rp_changed(pim);
+	/* pim_upstream_reeval_use_rpt(pim);
+	 * inlined below, don't loop over all S,G twice
+	 */
+
+	frr_each (rb_pim_upstream, &pim->upstream_head, up) {
+		struct prefix grp;
+		struct rp_info *trp_info;
+
+#if PIM_IPV == 4
+		grp.family = AF_INET;
+		grp.prefixlen = IPV4_MAX_BITLEN;
+		grp.u.prefix4 = up->sg.grp;
+#else
+		grp.family = AF_INET6;
+		grp.prefixlen = IPV6_MAX_BITLEN;
+		grp.u.prefix6 = up->sg.grp;
+#endif
+
+		trp_info = pim_rp_find_match_group(pim, &grp);
+
+		if (pim_addr_is_any(up->sg.src)) {
+			/* RP not found for the group grp */
+			if (pim_addr_is_any(trp_info->rp.rpf_addr)) {
+				pim_upstream_rpf_clear(pim, up);
+				pim_rp_set_upstream_addr(pim, &up->upstream_addr,
+							 up->sg.src, up->sg.grp);
+			} else {
+				/* RP found for the group grp */
+				pim_upstream_update(pim, up);
+			}
+		} else {
+			/* pim_upstream_reeval_use_rpt(pim); */
+			pim_upstream_update_use_rpt(up, true /*update_mroute*/);
+		}
+	}
+}
+
+/* since this walks through all groups, give it a 0.1s delay to accumulate
+ * in case we have multiple things triggering a Group-to-RP reeval
+ */
 void pim_rp_refresh_group_to_rp_mapping(struct pim_instance *pim)
 {
-	pim_msdp_i_am_rp_changed(pim);
-	pim_upstream_reeval_use_rpt(pim);
+	/* this is not allowed to delay further, even if re-triggered */
+	if (pim->t_refresh_group_to_rp)
+		return;
+
+	thread_add_timer_msec(router->master,
+			      pim_rp_refresh_group_to_rp_mapping_thread, pim,
+			      100, &pim->t_refresh_group_to_rp);
 }
 
 void pim_rp_prefix_list_update(struct pim_instance *pim,

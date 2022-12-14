@@ -626,7 +626,6 @@ void pim_bsm_clear(struct pim_instance *pim)
 	pim_addr nht_p;
 	struct prefix g_all;
 	struct rp_info *rp_all;
-	struct pim_upstream *up;
 	struct rp_info *rp_info;
 	bool upstream_updated = false;
 
@@ -701,32 +700,6 @@ void pim_bsm_clear(struct pim_instance *pim)
 		pim_free_bsgrp_data(bsgrp);
 	}
 	pim_rp_refresh_group_to_rp_mapping(pim);
-
-
-	frr_each (rb_pim_upstream, &pim->upstream_head, up) {
-		/* Find the upstream (*, G) whose upstream address is same as
-		 * the RP
-		 */
-		if (!pim_addr_is_any(up->sg.src))
-			continue;
-
-		struct prefix grp;
-		struct rp_info *trp_info;
-
-		pim_addr_to_prefix(&grp, up->sg.grp);
-		trp_info = pim_rp_find_match_group(pim, &grp);
-
-		/* RP not found for the group grp */
-		if (pim_rpf_addr_is_inaddr_any(&trp_info->rp)) {
-			pim_upstream_rpf_clear(pim, up);
-			pim_rp_set_upstream_addr(pim, &up->upstream_addr,
-						 up->sg.src, up->sg.grp);
-		} else {
-			/* RP found for the group grp */
-			pim_upstream_update(pim, up);
-			upstream_updated = true;
-		}
-	}
 
 	if (upstream_updated)
 		pim_zebra_update_all_interfaces(pim);

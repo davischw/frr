@@ -51,6 +51,7 @@ static void pim_spt_thresh_table_cleanup(struct route_table *table,
 static void pim_instance_terminate(struct pim_instance *pim)
 {
 	THREAD_OFF(pim->mfib_rmap_reapply);
+	THREAD_OFF(pim->t_refresh_group_to_rp);
 
 	pim_vxlan_exit(pim);
 
