@@ -597,6 +597,8 @@ static void pim_rp_refresh_group_to_rp_mapping_thread(struct thread *t)
 			pim_upstream_update_use_rpt(up, true /*update_mroute*/);
 		}
 	}
+
+	pim_zebra_update_all_interfaces(pim);
 }
 
 /* since this walks through all groups, give it a 0.1s delay to accumulate
