@@ -1177,7 +1177,6 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	struct pim_upstream *up;
 	struct bsgrp_node *bsgrp = NULL;
 	struct bsm_rpinfo *bsrp = NULL;
-	bool upstream_updated = false;
 
 	if (rp_src_flag == RP_SRC_FALLBACK) {
 		list = pim->fb_rp_list;
@@ -1303,39 +1302,6 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	}
 
 	pim_rp_refresh_group_to_rp_mapping(pim);
-
-	frr_each (rb_pim_upstream, &pim->upstream_head, up) {
-		/* Find the upstream (*, G) whose upstream address is same as
-		 * the deleted RP
-		 */
-		pim_addr rpf_addr;
-
-		rpf_addr = rp_info->rp.rpf_addr;
-		if (!pim_addr_cmp(up->upstream_addr, rpf_addr) &&
-		    pim_addr_is_any(up->sg.src)) {
-			struct prefix grp;
-
-			pim_addr_to_prefix(&grp, up->sg.grp);
-			trp_info = pim_rp_find_match_group(pim, &grp);
-
-			/* RP not found for the group grp */
-			if (pim_rpf_addr_is_inaddr_any(&trp_info->rp)) {
-				pim_upstream_rpf_clear(pim, up);
-				pim_rp_set_upstream_addr(
-					pim, &up->upstream_addr, up->sg.src,
-					up->sg.grp);
-			}
-
-			/* RP found for the group grp */
-			else {
-				pim_upstream_update(pim, up);
-				upstream_updated = true;
-			}
-		}
-	}
-
-	if (upstream_updated)
-		pim_zebra_update_all_interfaces(pim);
 
 	XFREE(MTYPE_PIM_RP, rp_info);
 	return PIM_SUCCESS;
