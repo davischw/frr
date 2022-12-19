@@ -705,8 +705,9 @@ static void pim_upstream_update(struct pim_instance *pim,
 				 up->sg.grp);
 
 	if (PIM_DEBUG_PIM_TRACE)
-		zlog_debug("%s: pim upstream update for old upstream %pPA",
-			   __func__, &old_upstream_addr);
+		zlog_debug("%s: %pSG upstream update, US %pPA -> %pPA",
+			   __func__, &up->sg, &old_upstream_addr,
+			   &new_upstream_addr);
 
 	if (!pim_addr_cmp(old_upstream_addr, new_upstream_addr))
 		return;
