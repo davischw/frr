@@ -303,6 +303,10 @@ struct pim_upstream {
 #define PIM_MSDP_REG_RXED_PERIOD (3 * (1.5 * router->register_suppress_time))
 
 	int64_t state_transition; /* Record current state uptime */
+
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	struct in_addr sb_register_to;
+#endif
 };
 
 static inline bool pim_upstream_is_kat_running(struct pim_upstream *up)

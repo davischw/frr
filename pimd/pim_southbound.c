@@ -495,10 +495,13 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 		stream_putl(s, ia_zero.s_addr);
 
 	/* Remote RP address. */
-	if (has_pimreg && has_rp_if)
+	if (has_pimreg && has_rp_if) {
 		stream_putl(s, rp->rp.rpf_addr.s_addr);
-	else
+		upstream->sb_register_to = rp->rp.rpf_addr;
+	} else {
 		stream_putl(s, ia_zero.s_addr);
+		upstream->sb_register_to = ia_zero;
+	}
 
 	stream_putw_at(s, 0, (uint16_t)stream_get_endp(s));
 	zclient_send_message(zclient);
