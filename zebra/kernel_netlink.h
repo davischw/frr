@@ -184,6 +184,9 @@ extern void netlink_set_batch_buffer_size(uint32_t size, uint32_t threshold,
 					  bool set);
 
 extern struct nlsock *kernel_netlink_nlsock_lookup(int sock);
+
+extern void netlink_parse_extended_ack(struct nlmsghdr *h);
+
 #endif /* HAVE_NETLINK */
 
 #ifdef __cplusplus

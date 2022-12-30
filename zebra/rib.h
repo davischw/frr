@@ -612,6 +612,29 @@ static inline struct nexthop_group *rib_get_fib_backup_nhg(
 	return &(re->fib_backup_ng);
 }
 
+/*
+ * vrf_id_get_next
+ *
+ * Get the first vrf id that is greater than the given vrf id if any.
+ *
+ * Returns true if a vrf id was found, false otherwise.
+ */
+static inline int vrf_id_get_next(vrf_id_t vrf_id, vrf_id_t *next_id_p)
+{
+	struct vrf *vrf;
+
+	vrf = vrf_lookup_by_id(vrf_id);
+	if (vrf) {
+		vrf = RB_NEXT(vrf_id_head, vrf);
+		if (vrf) {
+			*next_id_p = vrf->vrf_id;
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 extern void zebra_vty_init(void);
 
 extern pid_t pid;

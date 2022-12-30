@@ -4785,29 +4785,6 @@ void rib_init(void)
 }
 
 /*
- * vrf_id_get_next
- *
- * Get the first vrf id that is greater than the given vrf id if any.
- *
- * Returns true if a vrf id was found, false otherwise.
- */
-static inline int vrf_id_get_next(vrf_id_t vrf_id, vrf_id_t *next_id_p)
-{
-	struct vrf *vrf;
-
-	vrf = vrf_lookup_by_id(vrf_id);
-	if (vrf) {
-		vrf = RB_NEXT(vrf_id_head, vrf);
-		if (vrf) {
-			*next_id_p = vrf->vrf_id;
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
-/*
  * rib_tables_iter_next
  *
  * Returns the next table in the iteration.

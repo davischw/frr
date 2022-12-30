@@ -830,7 +830,7 @@ static void netlink_parse_nlattr(struct nlattr **tb, int max,
 	}
 }
 
-static void netlink_parse_extended_ack(struct nlmsghdr *h)
+void netlink_parse_extended_ack(struct nlmsghdr *h)
 {
 	struct nlattr *tb[NLMSGERR_ATTR_MAX + 1] = {};
 	const struct nlmsgerr *err = (const struct nlmsgerr *)NLMSG_DATA(h);
