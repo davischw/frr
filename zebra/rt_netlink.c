@@ -281,6 +281,7 @@ static inline int zebra2proto(int proto)
 		}
 #endif		/* VENDOR_SOUTHBOUND */
 		/* FALLTHROUGH */
+	case ZEBRA_ROUTE_LOCAL:
 	case ZEBRA_ROUTE_KERNEL:
 		proto = RTPROT_KERNEL;
 		break;

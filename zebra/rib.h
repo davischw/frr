@@ -187,7 +187,8 @@ struct route_entry {
 
 /* Define route types that are equivalent to "connected". */
 #define RIB_CONNECTED_ROUTE(R)                                                 \
-	((R)->type == ZEBRA_ROUTE_CONNECT || (R)->type == ZEBRA_ROUTE_NHRP)
+	((R)->type == ZEBRA_ROUTE_CONNECT || (R)->type == ZEBRA_ROUTE_LOCAL || \
+	 (R)->type == ZEBRA_ROUTE_NHRP)
 
 /* meta-queue structure:
  * sub-queue 0: nexthop group objects

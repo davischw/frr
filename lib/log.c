@@ -532,6 +532,8 @@ int proto_redistnum(int afi, const char *s)
 			return ZEBRA_ROUTE_KERNEL;
 		else if (strmatch(s, "connected"))
 			return ZEBRA_ROUTE_CONNECT;
+		else if (strmatch(s, "local"))
+			return ZEBRA_ROUTE_LOCAL;
 		else if (strmatch(s, "static"))
 			return ZEBRA_ROUTE_STATIC;
 		else if (strmatch(s, "rip"))
@@ -564,6 +566,8 @@ int proto_redistnum(int afi, const char *s)
 			return ZEBRA_ROUTE_KERNEL;
 		else if (strmatch(s, "connected"))
 			return ZEBRA_ROUTE_CONNECT;
+		else if (strmatch(s, "local"))
+			return ZEBRA_ROUTE_LOCAL;
 		else if (strmatch(s, "static"))
 			return ZEBRA_ROUTE_STATIC;
 		else if (strmatch(s, "ripng"))
