@@ -274,6 +274,13 @@ static inline int zebra2proto(int proto)
 		proto = RTPROT_ZEBRA;
 		break;
 	case ZEBRA_ROUTE_CONNECT:
+#ifdef VENDOR_SOUTHBOUND
+		if (vendor_southbound_enabled) {
+			proto = RTPROT_CONNECTED;
+			break;
+		}
+#endif		/* VENDOR_SOUTHBOUND */
+		/* FALLTHROUGH */
 	case ZEBRA_ROUTE_KERNEL:
 		proto = RTPROT_KERNEL;
 		break;
@@ -721,6 +728,13 @@ static int netlink_route_change_read_unicast(struct nlmsghdr *h, ns_id_t ns_id,
 	void *src = NULL;     /* IPv6 srcdest   source prefix */
 	enum blackhole_type bh_type = BLACKHOLE_UNSPEC;
 
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		flags = startup ? ZEBRA_FLAG_SYNC_ROUTE : 0;
+	if (h->nlmsg_flags & NLM_F_APPEND)
+		flags |= ZEBRA_FLAG_APPEND_ROUTE;
+#endif /* VENDOR_SOUTHBOUND */
+
 	frrtrace(3, frr_zebra, netlink_route_change_read_unicast, h, ns_id,
 		 startup);
 
@@ -914,10 +928,19 @@ static int netlink_route_change_read_unicast(struct nlmsghdr *h, ns_id_t ns_id,
 	 *    values will end up with a admin distance of 0, which
 	 *    will cause them to win for the purposes of zebra.
 	 */
-	if (proto == ZEBRA_ROUTE_KERNEL) {
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled) {
 		distance = (metric >> 24) & 0xFF;
 		metric = (metric & 0x00FFFFFF);
-	}
+		if (!selfroute)
+			proto = proto2zebra(rtm->rtm_protocol, rtm->rtm_family,
+					    false);
+	} else
+#endif /* VENDOR_SOUTHBOUND*/
+		if (proto == ZEBRA_ROUTE_KERNEL) {
+			distance = (metric >> 24) & 0xFF;
+			metric = (metric & 0x00FFFFFF);
+		}
 
 	if (IS_ZEBRA_DEBUG_KERNEL) {
 		char buf2[PREFIX_STRLEN];
@@ -2081,11 +2104,15 @@ ssize_t netlink_route_multipath_msg_encode(int cmd,
 	 * prefix information to tell the kernel to schwack
 	 * it.
 	 */
-	if (cmd == RTM_DELROUTE) {
-		if (!_netlink_set_tag(&req->n, datalen, tag))
-			return 0;
-		return NLMSG_ALIGN(req->n.nlmsg_len);
-	}
+#ifdef VENDOR_SOUTHBOUND
+	/* Send most information as possible for vendors. */
+	if (!vendor_southbound_enabled)
+#endif /* VENDOR_SOUTHBOUND */
+		if (cmd == RTM_DELROUTE) {
+			if (!_netlink_set_tag(&req->n, datalen, tag))
+				return 0;
+			return NLMSG_ALIGN(req->n.nlmsg_len);
+		}
 
 	if (dplane_ctx_get_mtu(ctx) || dplane_ctx_get_nh_mtu(ctx)) {
 		struct rtattr *nest;

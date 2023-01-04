@@ -594,8 +594,14 @@ static void zserv_client_free(struct zserv *client)
 		if (DYNAMIC_CLIENT_GR_DISABLED(client)) {
 			zebra_mpls_client_cleanup_vrf_label(client->proto);
 
-			nroutes = rib_score_proto(client->proto,
-						  client->instance);
+#ifdef VENDOR_SOUTHBOUND
+			if (vendor_southbound_enabled &&
+			    client->proto == ZEBRA_ROUTE_STATIC)
+				nroutes = 0;
+			else
+#endif /* VENDOR_SOUTHBOUND */
+				nroutes = rib_score_proto(client->proto,
+							  client->instance);
 			zlog_notice(
 				"client %d disconnected %lu %s routes removed from the rib",
 				client->sock, nroutes,

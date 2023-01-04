@@ -1104,6 +1104,11 @@ int netlink_parse_info(int (*filter)(struct nlmsghdr *, ns_id_t, int),
 	int error;
 	int read_in = 0;
 
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		return vendor_southbound_parse_info(filter, nl, startup);
+#endif /* VENDOR_SOUTHBOUND */
+
 	while (1) {
 		struct sockaddr_nl snl;
 		struct msghdr msg = {.msg_name = (void *)&snl,
@@ -1215,6 +1220,11 @@ static int netlink_talk_info(int (*filter)(struct nlmsghdr *, ns_id_t,
 {
 	struct nlsock *nl;
 
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		return vendor_southbound_talk_info(filter, n, dp_info, startup);
+#endif /* VENDOR_SOUTHBOUND */
+
 	nl = kernel_netlink_nlsock_lookup(dp_info->sock);
 	n->nlmsg_seq = dp_info->seq;
 	n->nlmsg_pid = nl->snl.nl_pid;
@@ -1263,6 +1273,11 @@ int netlink_talk(int (*filter)(struct nlmsghdr *, ns_id_t, int startup),
 int netlink_request(struct nlsock *nl, void *req)
 {
 	struct nlmsghdr *n = (struct nlmsghdr *)req;
+
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		return vendor_southbound_request(nl, req);
+#endif /* VENDOR_SOUTHBOUND */
 
 	/* Check netlink socket. */
 	if (nl->sock < 0) {
@@ -1480,12 +1495,27 @@ static void nl_batch_send(struct nl_batch *bth)
 				   __func__, nl->name, bth->curlen,
 				   bth->msgcnt);
 
-		if (netlink_send_msg(nl, bth->buf, bth->curlen) == -1)
-			err = true;
+#ifdef VENDOR_SOUTHBOUND
+		if (vendor_southbound_enabled) {
+			if (vendor_southbound_send_msg(nl, bth->buf,
+						       bth->curlen) == -1)
+				err = true;
+		} else
+#endif /* VENDOR_SOUTHBOUND */
+			if (netlink_send_msg(nl, bth->buf, bth->curlen) == -1)
+				err = true;
 
 		if (!err) {
-			if (nl_batch_read_resp(bth) == -1)
-				err = true;
+#ifdef VENDOR_SOUTHBOUND
+			if (vendor_southbound_enabled) {
+				if (vendor_southbound_parse_info(
+					    vendor_southbound_information_fetch,
+					    nl, false))
+					err = true;
+			} else
+#endif /* VENDOR_SOUTHBOUND */
+				if (nl_batch_read_resp(bth) == -1)
+					err = true;
 		}
 	}
 
@@ -1705,7 +1735,7 @@ struct nlsock *kernel_netlink_nlsock_lookup(int sock)
 }
 
 /* Insert nlsock entry into hash */
-static void kernel_netlink_nlsock_insert(struct nlsock *nls)
+void kernel_netlink_nlsock_insert(struct nlsock *nls)
 {
 	NLSOCK_LOCK();
 	(void)hash_get(nlsock_hash, nls, hash_alloc_intern);
@@ -1713,7 +1743,7 @@ static void kernel_netlink_nlsock_insert(struct nlsock *nls)
 }
 
 /* Remove nlsock entry from hash */
-static void kernel_netlink_nlsock_remove(struct nlsock *nls)
+void kernel_netlink_nlsock_remove(struct nlsock *nls)
 {
 	NLSOCK_LOCK();
 	(void)hash_release(nlsock_hash, nls);
@@ -1746,6 +1776,13 @@ void kernel_init(struct zebra_ns *zns)
 #if defined SOL_NETLINK
 	int one, ret;
 #endif
+
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled) {
+		vendor_southbound_init(zns);
+		return;
+	}
+#endif /* VENDOR_SOUTHBOUND */
 
 	/*
 	 * Initialize netlink sockets
@@ -1912,7 +1949,7 @@ void kernel_init(struct zebra_ns *zns)
 }
 
 /* Helper to clean up an nlsock */
-static void kernel_nlsock_fini(struct nlsock *nls)
+void kernel_nlsock_fini(struct nlsock *nls)
 {
 	if (nls && nls->sock >= 0) {
 		kernel_netlink_nlsock_remove(nls);

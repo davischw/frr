@@ -100,6 +100,10 @@ const struct option longopts[] = {
 	{"nl-bufsize", required_argument, NULL, 's'},
 	{"v6-rr-semantics", no_argument, NULL, OPTION_V6_RR_SEMANTICS},
 #endif /* HAVE_NETLINK */
+#ifdef VENDOR_SOUTHBOUND
+	{"nl-proxy", required_argument, NULL, 'y'},
+	{"dplaneaddr", required_argument, NULL, 'y'},
+#endif /* VENDOR_SOUTHBOUND */
 	{0}};
 
 zebra_capabilities_t _caps_p[] = {ZCAP_NET_ADMIN, ZCAP_SYS_ADMIN,
@@ -303,6 +307,9 @@ int main(int argc, char **argv)
 #ifdef HAVE_NETLINK
 		"n"
 #endif
+#ifdef VENDOR_SOUTHBOUND
+		"y:"
+#endif /* VENDOR_SOUTHBOUND */
 		,
 		longopts,
 		"  -b, --batch              Runs in batch mode\n"
@@ -319,6 +326,10 @@ int main(int argc, char **argv)
 #else
 		"  -s,                      Set kernel socket receive buffer size\n"
 #endif /* HAVE_NETLINK */
+#ifdef VENDOR_SOUTHBOUND
+		"  -y, --dplaneaddr         Netlink vendor server address\n"
+		"  --nl-proxy               (DEPRECATED) Alias for --dplaneaddr\n"
+#endif /* VENDOR_SOUTHBOUND */
 	);
 
 	while (1) {
@@ -388,6 +399,11 @@ int main(int argc, char **argv)
 			asic_offload = true;
 			break;
 #endif /* HAVE_NETLINK */
+#ifdef VENDOR_SOUTHBOUND
+		case 'y':
+			vendor_southbound_parse_address(optarg);
+			break;
+#endif /* VENDOR_SOUTHBOUND */
 		default:
 			frr_help_exit(1);
 		}

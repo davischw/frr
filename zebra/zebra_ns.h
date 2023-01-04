@@ -42,6 +42,14 @@ struct nlsock {
 
 	uint8_t *buf;
 	size_t buflen;
+
+#ifdef VENDOR_SOUTHBOUND
+	struct stream *nsbuf;
+	struct list *inbufs;
+	struct list *outbufs;
+	struct zebra_ns *zns;
+	uint32_t lastseq;
+#endif /* VENDOR_SOUTHBOUND */
 };
 #endif
 
@@ -62,6 +70,11 @@ struct zebra_ns {
 	struct nlsock netlink_dplane_out;
 	struct nlsock netlink_dplane_in;
 	struct thread *t_netlink;
+
+#ifdef VENDOR_SOUTHBOUND
+	/** Netlink write ready. */
+	struct thread *t_netlinkout;
+#endif /* VENDOR_SOUTHBOUND */
 #endif
 
 	struct route_table *if_table;

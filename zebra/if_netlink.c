@@ -1065,6 +1065,10 @@ static int netlink_interface(struct nlmsghdr *h, ns_id_t ns_id, int startup)
 	ifp->metric = 0;
 	ifp->speed = get_iflink_speed(ifp, NULL);
 	ifp->ptm_status = ZEBRA_PTM_STATUS_UNKNOWN;
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		UNSET_FLAG(ifp->status, ZEBRA_INTERFACE_SYNC);
+#endif /* VENDOR_SOUTHBOUND */
 
 	/* Set zebra interface type */
 	zebra_if_set_ziftype(ifp, zif_type, zif_slave_type);

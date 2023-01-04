@@ -311,6 +311,9 @@ enum {
 #define RTPROT_OSPF		188	/* OSPF Routes */
 #define RTPROT_RIP		189	/* RIP Routes */
 #define RTPROT_EIGRP		192	/* EIGRP Routes */
+#ifndef RTPROT_CONNECTED
+#define RTPROT_CONNECTED 200
+#endif /* RTPROT_CONNECTED */
 
 /* rtm_scope
 

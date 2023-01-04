@@ -792,6 +792,30 @@ fi
 
 AM_CONDITIONAL([NETLINK_DEBUG], [test "$enable_netlink_debug" != "no"])
 
+dnl
+dnl Vendor southbound toggle
+dnl
+AC_ARG_ENABLE([vendor-southbound],
+  AS_HELP_STRING([--disable-vendor-southbound], [vendor southbound implementation]),
+  [
+    if test "x$disable_vendor_southbound" = "x"; then
+      vendor_southbound=disabled
+    elif test "x$disable_vendor_southbound" = "xyes"; then
+      vendor_southbound=disabled
+    elif test "x$disable_vendor_southbound" = "xno"; then
+      vendor_southbound=enabled
+    else
+      echo "Unknown --disable-vendor-southbound option $disable_vendor_southbound"
+      exit -1
+    fi
+  ], [vendor_southbound=enabled])
+
+if test "x$vendor_southbound" = "xenabled"; then
+  AC_DEFINE([VENDOR_SOUTHBOUND], [1], [Vendor southbound implementation])
+fi
+
+AM_CONDITIONAL([VENDOR_SOUTHBOUND], [test "x$vendor_southbound" = "xenabled"])
+
 if test "$enable_time_check" != "no" ; then
   if test "$enable_time_check" = "yes" -o "$enable_time_check" = "" ; then
     AC_DEFINE([CONSUMED_TIME_CHECK], [5000000], [Consumed Time Check])
@@ -2816,6 +2840,7 @@ config file mask        : ${enable_configfile_mask}
 log file mask           : ${enable_logfile_mask}
 zebra protobuf enabled  : ${enable_protobuf:-no}
 vici socket path        : ${vici_socket}
+vendor southbound       : ${vendor_southbound:-enabled}
 
 The above user and group must have read/write access to the state file
 directory and to the config files in the config file directory."

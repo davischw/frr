@@ -273,3 +273,13 @@ zebra_zebra_dplane_dpdk_la_SOURCES = zebra/dpdk/zebra_dplane_dpdk.c zebra/dpdk/z
 zebra_zebra_dplane_dpdk_la_LDFLAGS = -avoid-version -module -shared -export-dynamic -L/usr/local/lib -v
 zebra_zebra_dplane_dpdk_la_CFLAGS = $(DPDK_CFLAGS)
 zebra_zebra_dplane_dpdk_la_LIBADD  = $(DPDK_LIBS)
+
+if VENDOR_SOUTHBOUND
+zebra_zebra_SOURCES += \
+  zebra/vendor_southbound.c \
+  # end
+
+noinst_HEADERS += \
+  zebra/vendor_southbound.h \
+  # end
+endif

@@ -5432,6 +5432,11 @@ static void dplane_incoming_read(struct thread *event)
 {
 	struct dplane_zns_info *zi = THREAD_ARG(event);
 
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		return;
+#endif /* VENDOR_SOUTHBOUND */
+
 	kernel_dplane_read(&zi->info);
 
 	/* Re-start read task */
@@ -5942,6 +5947,10 @@ static int kernel_dplane_process_func(struct zebra_dplane_provider *prov)
 	struct zebra_dplane_ctx *ctx, *tctx;
 	struct dplane_ctx_q work_list;
 	int counter, limit;
+
+#ifdef VENDOR_SOUTHBOUND
+	VENDOR_SOUTHBOUND_LOCK_AUTOUNLOCK();
+#endif /* VENDOR_SOUTHBOUND */
 
 	TAILQ_INIT(&work_list);
 

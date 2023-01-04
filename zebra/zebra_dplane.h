@@ -31,6 +31,7 @@
 #include "zebra/zserv.h"
 #include "zebra/zebra_mpls.h"
 #include "zebra/zebra_nhg.h"
+#include "zebra/vendor_southbound.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,13 +57,19 @@ zebra_dplane_info_from_zns(struct zebra_dplane_info *zns_info,
 
 #if defined(HAVE_NETLINK)
 	zns_info->is_cmd = is_cmd;
-	if (is_cmd) {
-		zns_info->sock = zns->netlink_cmd.sock;
-		zns_info->seq = zns->netlink_cmd.seq;
-	} else {
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled) {
 		zns_info->sock = zns->netlink.sock;
 		zns_info->seq = zns->netlink.seq;
-	}
+	} else
+#endif /* VENDOR_SOUTHBOUND */
+		if (is_cmd) {
+			zns_info->sock = zns->netlink_cmd.sock;
+			zns_info->seq = zns->netlink_cmd.seq;
+		} else {
+			zns_info->sock = zns->netlink.sock;
+			zns_info->seq = zns->netlink.seq;
+		}
 #endif /* NETLINK */
 }
 

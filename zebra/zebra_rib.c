@@ -2683,6 +2683,44 @@ static void process_subq_early_route_add(struct zebra_early_route *ere)
 	rn = srcdest_rnode_get(table, &ere->p,
 			       ere->src_p_provided ? &ere->src_p : NULL);
 
+#ifdef VENDOR_SOUTHBOUND
+	/* Handle synchronization case. */
+	if (CHECK_FLAG(re->flags, ZEBRA_FLAG_SYNC_ROUTE)) {
+		/* Check for synchronized route. */
+		RNODE_FOREACH_RE (rn, same) {
+			if (CHECK_FLAG(same->status, ROUTE_ENTRY_REMOVED))
+				continue;
+			if (rib_compare_routes(re, same) == false)
+				continue;
+
+			/* Remove the synchronization flag. */
+			UNSET_FLAG(same->flags, ZEBRA_FLAG_SYNC_ROUTE);
+
+			/*
+			 * Exact match, lets free the incoming route to
+			 * not lose information (e.g. uptime).
+			 */
+			if (re->nhe && re->nhe_id) {
+				assert(re->nhe->id == re->nhe_id);
+				zebra_nhg_decrement_ref(re->nhe);
+			} else if (re->nhe && re->nhe->nhg.nexthop)
+				nexthops_free(re->nhe->nhg.nexthop);
+
+			nexthops_free(re->fib_ng.nexthop);
+			return;
+		}
+
+		UNSET_FLAG(re->flags, ZEBRA_FLAG_SYNC_ROUTE);
+	}
+
+	/* We've got an append message, deal with it properly. */
+	if (vendor_southbound_enabled &&
+	    CHECK_FLAG(re->flags, ZEBRA_FLAG_APPEND_ROUTE) &&
+	    rib_append_nexthop(ere->afi, &ere->p, &ere->src_p, re, nhe, rn) ==
+		    -1)
+		return;
+#endif /* VENDOR_SOUTHBOUND */
+
 	/*
 	 * If same type of route are installed, treat it as a implicit
 	 * withdraw. If the user has specified the No route replace semantics
@@ -2694,6 +2732,17 @@ static void process_subq_early_route_add(struct zebra_early_route *ere)
 			continue;
 		}
 
+#ifdef VENDOR_SOUTHBOUND
+		/* Don't merge static routes with different distance/metric. */
+		if (vendor_southbound_enabled &&
+		    re->type == ZEBRA_ROUTE_STATIC) {
+			if (same->distance != re->distance)
+				continue;
+			if (same->metric != re->metric)
+				continue;
+		}
+#endif /* VENDOR_SOUTHBOUND */
+
 		/* Compare various route_entry properties */
 		if (rib_compare_routes(re, same)) {
 			same_count++;
@@ -2704,6 +2753,12 @@ static void process_subq_early_route_add(struct zebra_early_route *ere)
 	}
 
 	same = first_same;
+
+#ifdef VENDOR_SOUTHBOUND
+	/* If not treated here, then we are adding new entry. */
+	if (vendor_southbound_enabled)
+		UNSET_FLAG(re->flags, ZEBRA_FLAG_APPEND_ROUTE);
+#endif /* VENDOR_SOUTHBOUND */
 
 	if (!ere->startup && (re->flags & ZEBRA_FLAG_SELFROUTE) &&
 	    zrouter.asic_offloaded) {
@@ -2956,6 +3011,21 @@ static void process_subq_early_route_delete(struct zebra_early_route *ere)
 
 	if (same) {
 		struct nexthop *tmp_nh;
+
+#ifdef VENDOR_SOUTHBOUND
+		/*
+		 * Kernel wants to delete specific next hop:
+		 * The loop above before the the `!same` check already found
+		 * the entry pointer and the next hop, now all we need is to
+		 * remove it.
+		 */
+		if (vendor_southbound_enabled &&
+		    CHECK_FLAG(ere->re->flags, ZEBRA_FLAG_APPEND_ROUTE) &&
+		    rtnh != NULL) {
+			rib_delete_nexthop(ere->afi, rn, re, rtnh);
+			return;
+		}
+#endif /* VENDOR_SOUTHBOUND */
 
 		if (ere->fromkernel &&
 		    CHECK_FLAG(ere->re->flags, ZEBRA_FLAG_SELFROUTE) &&
