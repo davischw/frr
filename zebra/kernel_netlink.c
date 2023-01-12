@@ -1694,6 +1694,10 @@ void kernel_update_multi(struct dplane_ctx_q *ctx_list)
 		if (ctx == NULL)
 			break;
 
+		/* Interrupt as soon as shutdown is detected. */
+		if (dplane_is_in_shutdown())
+			break;
+
 		if (batch.zns != NULL
 		    && batch.zns->ns_id != dplane_ctx_get_ns(ctx)->ns_id)
 			nl_batch_send(&batch);
