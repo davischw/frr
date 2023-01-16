@@ -1311,6 +1311,7 @@ static void rib_process(struct route_node *rn)
 									vrf),
 								vrf_id, rn);
 						rib_unlink(rn, re);
+						continue;
 					} else
 						SET_FLAG(re->status,
 							 ROUTE_ENTRY_REMOVED);
