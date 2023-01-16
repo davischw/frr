@@ -62,7 +62,8 @@ extern "C" {
 #define OSPF_IFTYPE_POINTOMULTIPOINT	4
 #define OSPF_IFTYPE_VIRTUALLINK		5
 #define OSPF_IFTYPE_LOOPBACK            6
-#define OSPF_IFTYPE_MAX			7
+#define OSPF_IFTYPE_P2MP_NB		7
+#define OSPF_IFTYPE_MAX			8
 
 /* OSPF interface default values. */
 #define OSPF_OUTPUT_COST_DEFAULT           10

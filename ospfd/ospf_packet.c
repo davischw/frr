@@ -920,7 +920,8 @@ static void ospf_hello(struct ip *iph, struct ospf_header *ospfh,
 	/* Checking is also ignored for Point-to-Multipoint with /32 prefix */
 	if (oi->type != OSPF_IFTYPE_POINTOPOINT
 	    && oi->type != OSPF_IFTYPE_VIRTUALLINK
-	    && !(oi->type == OSPF_IFTYPE_POINTOMULTIPOINT
+	    && !((oi->type == OSPF_IFTYPE_POINTOMULTIPOINT
+		  || oi->type == OSPF_IFTYPE_P2MP_NB)
 		 && oi->address->prefixlen == IPV4_MAX_BITLEN))
 		if (oi->address->prefixlen != p.prefixlen) {
 			flog_warn(
@@ -1676,7 +1677,8 @@ static void ospf_ls_req(struct ip *iph, struct ospf_header *ospfh,
 
 		/* Packet overflows MTU size, send immediately. */
 		if (length + ntohs(find->data->length) > ospf_packet_max(oi)) {
-			if (oi->type == OSPF_IFTYPE_NBMA)
+			if (oi->type == OSPF_IFTYPE_NBMA
+			    || oi->type == OSPF_IFTYPE_P2MP_NB)
 				ospf_ls_upd_send(nbr, ls_upd,
 						 OSPF_SEND_PACKET_DIRECT, 0);
 			else
@@ -1698,7 +1700,8 @@ static void ospf_ls_req(struct ip *iph, struct ospf_header *ospfh,
 
 	/* Send rest of Link State Update. */
 	if (listcount(ls_upd) > 0) {
-		if (oi->type == OSPF_IFTYPE_NBMA)
+		if (oi->type == OSPF_IFTYPE_NBMA
+		    || oi->type == OSPF_IFTYPE_P2MP_NB)
 			ospf_ls_upd_send(nbr, ls_upd, OSPF_SEND_PACKET_DIRECT,
 					 0);
 		else
@@ -2482,7 +2485,8 @@ static int ospf_check_network_mask(struct ospf_interface *oi,
 		return 1;
 
 	/* Ignore mask check for max prefix length (32) */
-	if (oi->type == OSPF_IFTYPE_POINTOMULTIPOINT
+	if ((oi->type == OSPF_IFTYPE_POINTOMULTIPOINT
+	     || oi->type == OSPF_IFTYPE_P2MP_NB)
 	    && oi->address->prefixlen == IPV4_MAX_BITLEN)
 		return 1;
 
@@ -3854,6 +3858,24 @@ void ospf_hello_send(struct ospf_interface *oi)
 			 * hello to all neighbors */
 			ospf_hello_send_sub(oi, nbr->address.u.prefix4.s_addr);
 		}
+	} else if (oi->type == OSPF_IFTYPE_P2MP_NB) {
+		struct route_node *rn;
+
+		for (rn = route_top(oi->ospf->nbr_nbma); rn;
+		     rn = route_next(rn)) {
+			struct ospf_nbr_nbma *nbr_nbma;
+			struct prefix_ipv4 p;
+
+			nbr_nbma = rn->info;
+			if (!nbr_nbma)
+				continue;
+
+			p.family = AF_INET;
+			p.prefix = nbr_nbma->addr;
+			p.prefixlen = IPV4_MAX_BITLEN;
+			if (prefix_match(oi->address, &p))
+				ospf_hello_send_sub(oi, nbr_nbma->addr.s_addr);
+		}
 	} else {
 		/* Decide destination address. */
 		if (oi->type == OSPF_IFTYPE_VIRTUALLINK)
@@ -4209,11 +4231,11 @@ void ospf_ls_upd_send(struct ospf_neighbor *nbr, struct list *update, int flag,
 	else
 		p.prefix.s_addr = htonl(OSPF_ALLDROUTERS);
 
-	if (oi->type == OSPF_IFTYPE_NBMA) {
+	if (oi->type == OSPF_IFTYPE_NBMA || oi->type == OSPF_IFTYPE_P2MP_NB) {
 		if (flag == OSPF_SEND_PACKET_INDIRECT)
 			flog_warn(
 				EC_OSPF_PACKET,
-				"* LS-Update is directly sent on NBMA network.");
+				"* LS-Update is directly sent on NBMA/P2MP-NB network.");
 		if (IPV4_ADDR_SAME(&oi->address->u.prefix4, &p.prefix))
 			flog_warn(EC_OSPF_PACKET,
 				  "* LS-Update is sent to myself.");
@@ -4323,7 +4345,7 @@ void ospf_ls_ack_send_delayed(struct ospf_interface *oi)
 	      networks, delayed Link State Acknowledgment packets must be
 	      unicast	separately over	each adjacency (i.e., neighbor whose
 	      state is >= Exchange).  */
-	if (oi->type == OSPF_IFTYPE_NBMA) {
+	if (oi->type == OSPF_IFTYPE_NBMA || oi->type == OSPF_IFTYPE_P2MP_NB) {
 		struct ospf_neighbor *nbr;
 		struct route_node *rn;
 

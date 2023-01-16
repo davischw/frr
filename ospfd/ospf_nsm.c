@@ -160,6 +160,7 @@ int nsm_should_adj(struct ospf_neighbor *nbr)
 	/* These network types must always form adjacencies. */
 	if (oi->type == OSPF_IFTYPE_POINTOPOINT
 	    || oi->type == OSPF_IFTYPE_POINTOMULTIPOINT
+	    || oi->type == OSPF_IFTYPE_P2MP_NB
 	    || oi->type == OSPF_IFTYPE_VIRTUALLINK
 	    /* Router itself is the DRouter or the BDRouter. */
 	    || IPV4_ADDR_SAME(&oi->address->u.prefix4, &DR(oi))

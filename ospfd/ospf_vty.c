@@ -8422,13 +8422,14 @@ DEFUN_HIDDEN (no_ospf_hello_interval,
 }
 
 DEFUN(ip_ospf_network, ip_ospf_network_cmd,
-      "ip ospf network <broadcast|non-broadcast|point-to-multipoint|point-to-point [dmvpn]>",
+      "ip ospf network <broadcast|non-broadcast|point-to-multipoint [non-broadcast]|point-to-point [dmvpn]>",
       "IP Information\n"
       "OSPF interface commands\n"
       "Network type\n"
       "Specify OSPF broadcast multi-access network\n"
       "Specify OSPF NBMA network\n"
       "Specify OSPF point-to-multipoint network\n"
+      "Specify OSPF point-to-multipoint non-broadcast network\n"
       "Specify OSPF point-to-point network\n"
       "Specify OSPF point-to-point DMVPN network\n")
 {
@@ -8448,10 +8449,14 @@ DEFUN(ip_ospf_network, ip_ospf_network_cmd,
 
 	if (argv_find(argv, argc, "broadcast", &idx))
 		IF_DEF_PARAMS(ifp)->type = OSPF_IFTYPE_BROADCAST;
+	else if (argv_find(argv, argc, "point-to-multipoint", &idx)) {
+		if (argv_find(argv, argc, "non-broadcast", &idx))
+			IF_DEF_PARAMS(ifp)->type = OSPF_IFTYPE_P2MP_NB;
+		else
+			IF_DEF_PARAMS(ifp)->type = OSPF_IFTYPE_POINTOMULTIPOINT;
+	}
 	else if (argv_find(argv, argc, "non-broadcast", &idx))
 		IF_DEF_PARAMS(ifp)->type = OSPF_IFTYPE_NBMA;
-	else if (argv_find(argv, argc, "point-to-multipoint", &idx))
-		IF_DEF_PARAMS(ifp)->type = OSPF_IFTYPE_POINTOMULTIPOINT;
 	else if (argv_find(argv, argc, "point-to-point", &idx)) {
 		IF_DEF_PARAMS(ifp)->type = OSPF_IFTYPE_POINTOPOINT;
 		if (argv_find(argv, argc, "dmvpn", &idx))
@@ -8496,7 +8501,7 @@ DEFUN_HIDDEN (ospf_network,
 
 DEFUN (no_ip_ospf_network,
        no_ip_ospf_network_cmd,
-       "no ip ospf network [<broadcast|non-broadcast|point-to-multipoint|point-to-point>]",
+       "no ip ospf network [<broadcast|non-broadcast|point-to-multipoint [non-broadcast]|point-to-point>]",
        NO_STR
        "IP Information\n"
        "OSPF interface commands\n"
@@ -8504,6 +8509,7 @@ DEFUN (no_ip_ospf_network,
        "Specify OSPF broadcast multi-access network\n"
        "Specify OSPF NBMA network\n"
        "Specify OSPF point-to-multipoint network\n"
+       "Specify OSPF point-to-multipoint non-broadcast network\n"
        "Specify OSPF point-to-point network\n")
 {
 	VTY_DECLVAR_CONTEXT(interface, ifp);
@@ -12092,7 +12098,8 @@ static const char *const ospf_int_type_str[] = {
 	"non-broadcast",
 	"point-to-multipoint",
 	"virtual-link", /* should never be used. */
-	"loopback"
+	"loopback",
+	"point-to-multipoint non-broadcast",
 };
 
 static const char *interface_config_auth_str(struct ospf_if_params *params)

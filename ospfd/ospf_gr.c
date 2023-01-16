@@ -90,7 +90,8 @@ static void ospf_gr_lsa_body_set(struct ospf_gr_info *gr_info,
 
 	/* Put IP address. */
 	if (oi->type == OSPF_IFTYPE_BROADCAST || oi->type == OSPF_IFTYPE_NBMA
-	    || oi->type == OSPF_IFTYPE_POINTOMULTIPOINT) {
+	    || oi->type == OSPF_IFTYPE_POINTOMULTIPOINT
+	    || oi->type == OSPF_IFTYPE_P2MP_NB) {
 		tlv_address.header.type = htons(RESTARTER_IP_ADDR_TYPE);
 		tlv_address.header.length = htons(RESTARTER_IP_ADDR_LEN);
 		tlv_address.addr = oi->address->u.prefix4;

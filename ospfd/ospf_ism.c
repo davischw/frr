@@ -368,6 +368,7 @@ static int ism_interface_up(struct ospf_interface *oi)
 	   the state transitions to Point-to-Point. */
 	if (oi->type == OSPF_IFTYPE_POINTOPOINT
 	    || oi->type == OSPF_IFTYPE_POINTOMULTIPOINT
+	    || oi->type == OSPF_IFTYPE_P2MP_NB
 	    || oi->type == OSPF_IFTYPE_VIRTUALLINK)
 		next_state = ISM_PointToPoint;
 	/* Else if the router is not eligible to DR, the state transitions to

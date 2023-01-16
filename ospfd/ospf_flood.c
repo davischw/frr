@@ -635,7 +635,7 @@ int ospf_flood_through_interface(struct ospf_interface *oi,
 	    (i.e., those in state Exchange or greater).	 The destination
 	    IP addresses for these packets are the neighbors' IP
 	    addresses.   */
-	if (oi->type == OSPF_IFTYPE_NBMA) {
+	if (oi->type == OSPF_IFTYPE_NBMA || oi->type == OSPF_IFTYPE_P2MP_NB) {
 		struct ospf_neighbor *nbr;
 
 		for (rn = route_top(oi->nbrs); rn; rn = route_next(rn)) {

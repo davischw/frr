@@ -909,9 +909,14 @@ static unsigned int ospf_nexthop_calculation(struct ospf_area *area,
 				 * somehow.
 				 */
 				if (area->ospf->ti_lfa_enabled
-				    || (oi && oi->type == OSPF_IFTYPE_POINTOPOINT)
-				    || (oi && oi->type == OSPF_IFTYPE_POINTOMULTIPOINT
-					   && oi->address->prefixlen == IPV4_MAX_BITLEN)) {
+				    || (oi
+					&& oi->type == OSPF_IFTYPE_POINTOPOINT)
+				    || (oi
+					&& (oi->type
+						    == OSPF_IFTYPE_POINTOMULTIPOINT
+					    || oi->type == OSPF_IFTYPE_P2MP_NB)
+					&& oi->address->prefixlen
+						   == IPV4_MAX_BITLEN)) {
 					struct ospf_neighbor *nbr_w = NULL;
 
 					/* Calculating node is root node, link
@@ -940,8 +945,12 @@ static unsigned int ospf_nexthop_calculation(struct ospf_area *area,
 							}
 						}
 					}
-				} else if (oi && oi->type
-					   == OSPF_IFTYPE_POINTOMULTIPOINT) {
+				} else if (
+					oi
+					&& (oi->type
+						    == OSPF_IFTYPE_POINTOMULTIPOINT
+					    || oi->type
+						       == OSPF_IFTYPE_P2MP_NB)) {
 					struct prefix_ipv4 la;
 
 					la.family = AF_INET;

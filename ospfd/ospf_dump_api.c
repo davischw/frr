@@ -90,6 +90,8 @@ const struct message ospf_network_type_msg[] = {
 	{OSPF_IFTYPE_NBMA, "NBMA"},
 	{OSPF_IFTYPE_POINTOMULTIPOINT, "Point-to-MultiPoint"},
 	{OSPF_IFTYPE_VIRTUALLINK, "Virtual-Link"},
+	{OSPF_IFTYPE_LOOPBACK, "Loopback"},
+	{OSPF_IFTYPE_P2MP_NB, "Point-to-MultiPoint Non Broadcast"},
 	{0}};
 
 /* AuType */

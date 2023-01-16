@@ -695,6 +695,7 @@ static int router_lsa_link_set(struct stream **s, struct ospf_area *area)
 					links += lsa_link_nbma_set(s, oi);
 					break;
 				case OSPF_IFTYPE_POINTOMULTIPOINT:
+				case OSPF_IFTYPE_P2MP_NB:
 					links += lsa_link_ptomp_set(s, oi);
 					break;
 				case OSPF_IFTYPE_VIRTUALLINK:
