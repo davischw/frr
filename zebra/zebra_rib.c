@@ -2838,7 +2838,7 @@ static void process_subq_early_route_delete(struct zebra_early_route *ere)
 	struct route_entry *re;
 	struct route_entry *fib = NULL;
 	struct route_entry *same = NULL;
-	struct nexthop *rtnh;
+	struct nexthop *rtnh = NULL;
 	char buf2[INET6_ADDRSTRLEN];
 	rib_dest_t *dest;
 
