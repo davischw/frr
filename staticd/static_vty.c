@@ -425,7 +425,7 @@ static int static_route_nb_run(struct vty *vty, struct static_route_args *args)
 /* Static unicast routes for multicast RPF lookup. */
 DEFPY_YANG (ip_mroute_dist,
        ip_mroute_dist_cmd,
-       "[no] ip mroute A.B.C.D/M$prefix <A.B.C.D$gate|INTERFACE$ifname> [{"
+       "[no] ip mroute A.B.C.D/M$prefix {A.B.C.D$gate|INTERFACE$ifname} [{"
        "(1-255)$distance"
        "|bfd$bfd [{multi-hop$bfd_multi_hop|source A.B.C.D$bfd_source|profile BFDPROF$bfd_profile}]"
        "}]",
