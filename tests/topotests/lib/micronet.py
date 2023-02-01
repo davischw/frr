@@ -596,7 +596,7 @@ class LinuxNamespace(Commander):
         o = self.cmd_legacy("ls -l /proc/{}/ns".format(self.pid))
         self.logger.debug("namespaces:\n %s", o)
         self.logger.warning("LinuxNamespace::__init__: pid        = {}".format(self.pid))
-        self.logger.warning("LinuxNamespace::__init__: namespaces = {}".format(str(o.split("\n"))))
+        self.logger.warning("LinuxNamespace::__init__: namespaces =\n{}".format(o))
 
         # Doing this here messes up all_protocols ipv6 check
         self.cmd_raises("ip link set lo up")
