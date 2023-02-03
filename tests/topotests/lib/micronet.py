@@ -520,6 +520,7 @@ class LinuxNamespace(Commander):
         # has no other processes like frr daemons running, will take the main network
         # namespace with it, which will remove the bridges and the veth pair (because
         # the bridge side veth is deleted).
+        self.logger.warning("LinuxNamespace::__init__: cmd (unshare) = {}".format(cmd))
         self.logger.debug("%s: creating namespace process: %s", self, cmd)
         p = subprocess.Popen(
             cmd,
