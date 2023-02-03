@@ -117,7 +117,7 @@ def setup_module(module):
         tgen.gears["r%s" % i].start()
 
     # For debugging after starting FRR daemons, uncomment the next line
-    # tgen.mininet_cli()
+    tgen.mininet_cli()
 
 
 def teardown_module(module):
