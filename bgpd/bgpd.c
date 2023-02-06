@@ -8386,6 +8386,6 @@ static ssize_t printfrr_bp(struct fbuf *buf, struct printfrr_eargs *ea,
 	if (!peer)
 		return bputs(buf, "(null)");
 
-	return bprintfrr(buf, "%s(%s)", peer->host,
+	return bprintfrr(buf, "neighbor %s(%s)", peer->host,
 			 peer->hostname ? peer->hostname : "Unknown");
 }
