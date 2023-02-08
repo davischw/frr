@@ -582,9 +582,14 @@ static void pim_rp_refresh_group_to_rp_mapping_thread(struct thread *t)
 
 		trp_info = pim_rp_find_match_group(pim, &grp);
 
+		if (!trp_info && PIM_DEBUG_PIM_TRACE)
+			zlog_debug("Group to RP refresh: no RP info for %pFX",
+				   &grp);
+
 		if (pim_addr_is_any(up->sg.src)) {
 			/* RP not found for the group grp */
-			if (pim_addr_is_any(trp_info->rp.rpf_addr)) {
+			if (!trp_info ||
+			    pim_addr_is_any(trp_info->rp.rpf_addr)) {
 				pim_upstream_rpf_clear(pim, up);
 				pim_rp_set_upstream_addr(pim, &up->upstream_addr,
 							 up->sg.src, up->sg.grp);
@@ -597,8 +602,8 @@ static void pim_rp_refresh_group_to_rp_mapping_thread(struct thread *t)
 			pim_upstream_update_use_rpt(up, true /*update_mroute*/);
 
 #if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
-			if (IPV4_ADDR_CMP(&trp_info->rp.rpf_addr,
-					  &up->sb_register_to))
+			if (trp_info && IPV4_ADDR_CMP(&trp_info->rp.rpf_addr,
+						      &up->sb_register_to))
 				pim_upstream_mroute_add(up->channel_oil,
 							__func__);
 #endif
