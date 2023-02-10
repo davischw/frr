@@ -4496,6 +4496,11 @@ void bgp_shutdown_disable(struct bgp *bgp)
 	zlog_info("Disabled administrative shutdown on BGP instance AS %u",
 		  bgp->as);
 
+	/* Reactive the startup timer so peers send R-bit. */
+	thread_cancel(&bgp->t_startup);
+	thread_add_timer(bm->master, bgp_startup_timer_expire, bgp,
+			 bgp->restart_time, &bgp->t_startup);
+
 	/* clear the BGP instances shutdown flag */
 	UNSET_FLAG(bgp->flags, BGP_FLAG_SHUTDOWN);
 
