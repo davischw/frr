@@ -102,9 +102,6 @@ int ospf6_serv_sock(struct ospf6 *ospf6)
 	ospf6_set_transport_class(ospf6_sock);
 
 	ospf6->fd = ospf6_sock;
-	/* setup global in6_addr, allspf6 and alldr6 for later use */
-	inet_pton(AF_INET6, ALLSPFROUTERS6, &allspfrouters6);
-	inet_pton(AF_INET6, ALLDROUTERS6, &alldrouters6);
 
 	return 0;
 }

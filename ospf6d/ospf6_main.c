@@ -220,6 +220,10 @@ int main(int argc, char *argv[], char *envp[])
 		exit(1);
 	}
 
+	/* setup global in6_addr, allspf6 and alldr6 for later use */
+	inet_pton(AF_INET6, ALLSPFROUTERS6, &allspfrouters6);
+	inet_pton(AF_INET6, ALLDROUTERS6, &alldrouters6);
+
 	/* OSPF6 master init. */
 	ospf6_master_init(frr_init());
 
