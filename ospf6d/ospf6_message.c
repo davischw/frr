@@ -58,7 +58,8 @@ DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_MESSAGE, "OSPF6 message");
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_PACKET, "OSPF6 packet");
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_FIFO, "OSPF6  FIFO queue");
 
-unsigned char conf_debug_ospf6_message[6] = {0x03, 0, 0, 0, 0, 0};
+unsigned char conf_debug_ospf6_message[OSPF6_MESSAGE_TYPE_MAX] = {0x03, 0, 0,
+								  0,	0, 0};
 
 const char *ospf6_message_type(int type)
 {
