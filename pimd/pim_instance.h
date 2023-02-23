@@ -32,6 +32,8 @@
 #include "pim_upstream.h"
 #include "pim_mroute.h"
 
+#define PIM_SPT_THRESH_NEVER ~0U
+
 enum pim_spt_switchover {
 	PIM_SPT_IMMEDIATE,
 	PIM_SPT_INFINITY,
@@ -158,7 +160,11 @@ struct pim_instance {
 	struct list *rp_list;
 	struct route_table *rp_table;
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	int iface_vif_index[MAXVIFS_VENDOR];
+#else
 	int iface_vif_index[MAXVIFS];
+#endif /* VENDOR_SOUTHBOUND */
 	int mcast_if_count;
 
 	struct rb_pim_oil_head channel_oil_head;

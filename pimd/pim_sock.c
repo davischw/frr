@@ -225,6 +225,11 @@ int pim_socket_mcast(int protocol, pim_addr ifaddr, struct interface *ifp,
 	int fd;
 	int ret;
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		return pimsb_socket_mcast(protocol, ifaddr, ifp, loop);
+#endif /* VENDOR_SOUTHBOUND */
+
 	fd = pim_socket_raw(protocol);
 	if (fd < 0) {
 		zlog_warn("Could not create multicast socket: errno=%d: %s",

@@ -20,6 +20,8 @@
 #ifndef PIM_OIL_H
 #define PIM_OIL_H
 
+#include <stdbool.h>
+
 struct pim_interface;
 
 #include "pim_mroute.h"
@@ -51,7 +53,11 @@ struct pim_interface;
  * fix it.
  */
 #define PIM_OIF_PIM_REGISTER_VIF   0
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#define PIM_MAX_USABLE_VIFS (system_maxvifs() - 1)
+#else
 #define PIM_MAX_USABLE_VIFS        (MAXVIFS - 1)
+#endif /* VENDOR_SOUTHBOUND */
 
 struct channel_counts {
 	unsigned long long lastused;
@@ -65,6 +71,25 @@ struct channel_counts {
 	unsigned long wrong_if;
 	unsigned long oldwrong_if;
 };
+
+/** Channel interface representation. */
+struct channel_if {
+	/** Interface index. */
+	int32_t ifindex;
+	/** Interface flags. \see `PIM_OIF_FLAG_*`. */
+	uint32_t flags;
+
+	SLIST_ENTRY(channel_if) entry;
+};
+SLIST_HEAD(channel_if_list, channel_if);
+
+extern struct channel_if *channel_oif_find(struct channel_oil *oil,
+					   int32_t ifindex);
+extern void channel_oif_add(struct channel_oil *oil, int32_t ifindex,
+			    uint32_t flag);
+extern void channel_oif_del(struct channel_oil *oil, int32_t ifindex,
+			    uint32_t flag);
+extern void channel_oif_free(struct channel_oil *oil, struct channel_if **oif);
 
 /*
   qpim_channel_oil_list holds a list of struct channel_oil.
@@ -99,19 +124,53 @@ struct channel_oil {
 	struct rb_pim_oil_item oil_rb;
 
 #if PIM_IPV == 4
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	union {
+		struct mfcctl_vendor oil;
+		struct mfcctl oil_generic;
+	};
+#else
 	struct mfcctl oil;
+#endif /* VENDOR_SOUTHBOUND */
 #else
 	struct mf6cctl oil;
 #endif
-	int installed;
-	int oil_inherited_rescan;
+
+	bool installed : 1;
+	/* NB: filtered oils are still installed into the kernel, but their
+	 * oifs are empty.  Otherwise the kernel would keep notifying us about
+	 * unexpected traffic from this source.
+	 */
+	bool filtered : 1;
+	bool oil_inherited_rescan : 1;
+
 	int oil_size;
 	int oil_ref_count;
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	time_t oif_creation[MAXVIFS_VENDOR];
+	uint32_t oif_flags[MAXVIFS_VENDOR];
+#else
 	time_t oif_creation[MAXVIFS];
 	uint32_t oif_flags[MAXVIFS];
+#endif /* VENDOR_SOUTHBOUND */
 	struct channel_counts cc;
 	struct pim_upstream *up;
 	time_t mroute_creation;
+
+	/* only valid on (*,G) entries */
+	uint32_t spt_threshold;
+
+	/** Input interface. */
+	struct channel_if iif;
+	/** Notification interface. */
+	struct channel_if notifif;
+	/** Output interfaces. */
+	struct channel_if_list oif_list;
+	/** Output interfaces amount. */
+	size_t oif_list_count;
+
+	/** Static route indicator. */
+	bool is_static;
 };
 
 #if PIM_IPV == 4
@@ -140,7 +199,12 @@ static inline void oil_if_set(struct channel_oil *c_oil, vifi_t ifi, uint8_t set
 	c_oil->oil.mfcc_ttls[ifi] = set;
 }
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+static inline int oil_if_cmp(struct mfcctl_vendor *oil1,
+			     struct mfcctl_vendor *oil2)
+#else
 static inline int oil_if_cmp(struct mfcctl *oil1, struct mfcctl *oil2)
+#endif /* VENDOR_SOUTHBOUND */
 {
 	return memcmp(&oil1->mfcc_ttls[0], &oil2->mfcc_ttls[0],
 		      sizeof(oil1->mfcc_ttls));

@@ -146,3 +146,24 @@ void pim_ssm_terminate(struct pim_ssm *ssm)
 
 	XFREE(MTYPE_PIM_SSM_INFO, ssm);
 }
+
+bool pim_is_sg_ssm(const struct pim_instance *pim, pim_sgaddr *source_group)
+{
+	struct interface *interface;
+
+	FOR_ALL_INTERFACES (pim->vrf, interface) {
+		const struct pim_interface *pim_interface = interface->info;
+		const struct pim_ifchannel *ifchannel;
+
+		if (pim_interface == NULL)
+			continue;
+
+		ifchannel = pim_ifchannel_find(interface, source_group);
+		if (ifchannel == NULL)
+			continue;
+
+		return ifchannel->local_ifmembership == PIM_IFMEMBERSHIP_NOINFO;
+	}
+
+	return false;
+}

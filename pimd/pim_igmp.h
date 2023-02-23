@@ -89,6 +89,14 @@ struct gm_sock {
 	bool mtrace_only;
 
 	struct igmp_stats igmp_stats;
+
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	/**
+	 * (PIM southbound) Join event timer to trigger emulation of
+	 * receiving a IGMP/MLD join packet.
+	 */
+	struct thread *join_event;
+#endif /* VENDOR_SOUTHBOUND */
 };
 
 struct pim_interface;

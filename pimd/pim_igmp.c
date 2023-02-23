@@ -968,13 +968,16 @@ static void sock_close(struct gm_sock *igmp)
 	}
 	THREAD_OFF(igmp->t_igmp_read);
 
-	if (close(igmp->fd)) {
-		flog_err(
-			EC_LIB_SOCKET,
-			"Failure closing IGMP socket %pI4 fd=%d on interface %s: errno=%d: %s",
-			&igmp->ifaddr, igmp->fd,
-			igmp->interface->name, errno, safe_strerror(errno));
-	}
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (!pim_southbound_enabled)
+#endif /* VENDOR_SOUTHBOUND */
+		if (close(igmp->fd)) {
+			flog_err(
+				EC_LIB_SOCKET,
+				"Failure closing IGMP socket %pI4 fd=%d on interface %s: errno=%d: %s",
+				&igmp->ifaddr, igmp->fd, igmp->interface->name,
+				errno, safe_strerror(errno));
+		}
 
 	if (PIM_DEBUG_GM_TRACE_DETAIL) {
 		zlog_debug("Deleted IGMP socket %pI4 fd=%d on interface %s",

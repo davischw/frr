@@ -63,7 +63,7 @@ void pim_if_init(struct pim_instance *pim)
 {
 	int i;
 
-	for (i = 0; i < MAXVIFS; i++)
+	for (i = 0; i < system_maxvifs(); i++)
 		pim->iface_vif_index[i] = 0;
 }
 
@@ -569,6 +569,13 @@ void pim_if_addr_add(struct connected *ifc)
 
 			for (ALL_LIST_ELEMENTS(pim_ifp->gm_join_list, node,
 					       nextnode, ij)) {
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+				if (pim_southbound_enabled) {
+					pimsb_igmp_join(pim_ifp);
+					continue;
+				}
+#endif /* VENDOR_SOUTHBOUND */
+
 				/* Close socket and reopen with Source and Group
 				 */
 				close(ij->sock_fd);
@@ -963,11 +970,11 @@ static int pim_iface_next_vif_index(struct interface *ifp)
 	if (ifp->ifindex == PIM_OIF_PIM_REGISTER_VIF)
 		return 0;
 
-	for (i = 1; i < MAXVIFS; i++) {
+	for (i = 1; i < system_maxvifs(); i++) {
 		if (pim->iface_vif_index[i] == 0)
 			return i;
 	}
-	return MAXVIFS;
+	return system_maxvifs();
 }
 
 /*
@@ -1009,10 +1016,10 @@ int pim_if_add_vif(struct interface *ifp, bool ispimreg, bool is_vxlan_term)
 
 	pim_ifp->mroute_vif_index = pim_iface_next_vif_index(ifp);
 
-	if (pim_ifp->mroute_vif_index >= MAXVIFS) {
+	if (pim_ifp->mroute_vif_index >= system_maxvifs()) {
 		zlog_warn(
 			"%s: Attempting to configure more than MAXVIFS=%d on pim enabled interface %s",
-			__func__, MAXVIFS, ifp->name);
+			__func__, system_maxvifs(), ifp->name);
 		return -3;
 	}
 
@@ -1291,21 +1298,29 @@ static struct gm_join *igmp_join_new(struct interface *ifp,
 	pim_ifp = ifp->info;
 	assert(pim_ifp);
 
-	join_fd = igmp_join_sock(ifp->name, ifp->ifindex, group_addr,
-				 source_addr, pim_ifp);
-	if (join_fd < 0) {
-		char group_str[INET_ADDRSTRLEN];
-		char source_str[INET_ADDRSTRLEN];
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled) {
+		join_fd = -1;
+	} else {
+#endif /* VENDOR_SOUTHBOUND */
+		join_fd = igmp_join_sock(ifp->name, ifp->ifindex, group_addr,
+					 source_addr, pim_ifp);
+		if (join_fd < 0) {
+			char group_str[INET_ADDRSTRLEN];
+			char source_str[INET_ADDRSTRLEN];
 
-		pim_inet4_dump("<grp?>", group_addr, group_str,
-			       sizeof(group_str));
-		pim_inet4_dump("<src?>", source_addr, source_str,
-			       sizeof(source_str));
-		zlog_warn(
-			"%s: igmp_join_sock() failure for IGMP group %s source %s on interface %s",
-			__func__, group_str, source_str, ifp->name);
-		return 0;
+			pim_inet4_dump("<grp?>", group_addr, group_str,
+				       sizeof(group_str));
+			pim_inet4_dump("<src?>", source_addr, source_str,
+				       sizeof(source_str));
+			zlog_warn(
+				"%s: igmp_join_sock() failure for IGMP group %s source %s on interface %s",
+				__func__, group_str, source_str, ifp->name);
+			return 0;
+		}
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
 	}
+#endif /* VENDOR_SOUTHBOUND */
 
 	ij = XCALLOC(MTYPE_PIM_IGMP_JOIN, sizeof(*ij));
 
@@ -1313,6 +1328,10 @@ static struct gm_join *igmp_join_new(struct interface *ifp,
 	ij->group_addr = group_addr;
 	ij->source_addr = source_addr;
 	ij->sock_creation = pim_time_monotonic_sec();
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		pimsb_igmp_join(pim_ifp);
+#endif /* VENDOR_SOUTHBOUND */
 
 	listnode_add(pim_ifp->gm_join_list, ij);
 
@@ -1397,19 +1416,24 @@ int pim_if_igmp_join_del(struct interface *ifp, struct in_addr group_addr,
 		return -3;
 	}
 
-	if (close(ij->sock_fd)) {
-		char group_str[INET_ADDRSTRLEN];
-		char source_str[INET_ADDRSTRLEN];
-		pim_inet4_dump("<grp?>", group_addr, group_str,
-			       sizeof(group_str));
-		pim_inet4_dump("<src?>", source_addr, source_str,
-			       sizeof(source_str));
-		zlog_warn(
-			"%s: failure closing sock_fd=%d for IGMP group %s source %s on interface %s: errno=%d: %s",
-			__func__, ij->sock_fd, group_str, source_str, ifp->name,
-			errno, safe_strerror(errno));
-		/* warning only */
-	}
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		pimsb_igmp_leave(pim_ifp, &source_addr, &group_addr);
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		if (close(ij->sock_fd)) {
+			char group_str[INET_ADDRSTRLEN];
+			char source_str[INET_ADDRSTRLEN];
+			pim_inet4_dump("<grp?>", group_addr, group_str,
+				       sizeof(group_str));
+			pim_inet4_dump("<src?>", source_addr, source_str,
+				       sizeof(source_str));
+			zlog_warn(
+				"%s: failure closing sock_fd=%d for IGMP group %s source %s on interface %s: errno=%d: %s",
+				__func__, ij->sock_fd, group_str, source_str,
+				ifp->name, errno, safe_strerror(errno));
+			/* warning only */
+		}
 	listnode_delete(pim_ifp->gm_join_list, ij);
 	igmp_join_free(ij);
 	if (listcount(pim_ifp->gm_join_list) < 1) {
@@ -1662,12 +1686,12 @@ static int pim_ifp_create(struct interface *ifp)
 
 	if (!strncmp(ifp->name, PIM_VXLAN_TERM_DEV_NAME,
 		     sizeof(PIM_VXLAN_TERM_DEV_NAME))) {
-		if (pim->mcast_if_count < MAXVIFS)
+		if (pim->mcast_if_count < system_maxvifs())
 			pim_vxlan_add_term_dev(pim, ifp);
 		else
 			zlog_warn(
 				"%s: Cannot enable pim on %s. MAXVIFS(%d) reached. Deleting and readding the vxlan termimation device after unconfiguring pim from other interfaces may succeed.",
-				__func__, ifp->name, MAXVIFS);
+				__func__, ifp->name, system_maxvifs());
 	}
 #endif
 

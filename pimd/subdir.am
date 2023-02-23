@@ -185,3 +185,15 @@ pimd_mtracebis_SOURCES = pimd/mtracebis.c \
 			 pimd/mtracebis_netlink.c \
 			 pimd/mtracebis_routeget.c \
 			 # end
+
+if VENDOR_SOUTHBOUND
+pimd_pimd_SOURCES += \
+  pimd/pim_igmp_packet.c \
+  pimd/pim_southbound.c \
+  # end
+
+noinst_HEADERS += \
+  pimd/pim_igmp_packet.h \
+  pimd/pim_southbound.h \
+  # end
+endif

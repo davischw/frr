@@ -147,6 +147,38 @@ typedef struct sioc_sg_req6 pim_sioc_sg_req;
 #define VIFF_REGISTER MIFF_REGISTER
 #endif
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#include "pimd/pim_southbound.h"
+
+#define MAXVIFS_VENDOR (4096)
+
+static inline int system_maxvifs(void)
+{
+	if (pim_southbound_enabled)
+		return MAXVIFS_VENDOR;
+
+	return MAXVIFS;
+}
+
+struct mfcctl_vendor {
+	struct in_addr mfcc_origin;		 /* Origin of mcast      */
+	struct in_addr mfcc_mcastgrp;		 /* Group in question    */
+	vifi_t mfcc_parent;			 /* Where it arrived     */
+	unsigned char mfcc_ttls[MAXVIFS_VENDOR]; /* Where it is going    */
+	unsigned int mfcc_pkt_cnt;		 /* pkt count for src-grp */
+	unsigned int mfcc_byte_cnt;
+	unsigned int mfcc_wrong_if;
+	int mfcc_expire;
+};
+#else
+#define MAXVIFS_VENDOR (MAXVIFS)
+
+static inline int system_maxvifs(void)
+{
+	return MAXVIFS;
+}
+#endif /* VENDOR_SOUTHBOUND */
+
 
 /*
   Above: from <linux/mroute.h>

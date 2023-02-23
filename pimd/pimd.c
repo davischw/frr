@@ -152,6 +152,11 @@ void pim_terminate(void)
 
 	bfd_protocol_integration_set_shutdown(true);
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		pimsb_shutdown();
+#endif /* VENDOR_SOUTHBOUND */
+
 	/* reverse prefix_list_init */
 	prefix_list_add_hook(NULL);
 	prefix_list_delete_hook(NULL);

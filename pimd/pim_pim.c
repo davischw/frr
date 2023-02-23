@@ -385,13 +385,51 @@ static void pim_sock_read(struct thread *t)
 			goto done;
 		}
 
-		/*
-		 * What?  So with vrf's the incoming packet is received
-		 * on the vrf interface but recvfromto above returns
-		 * the right ifindex, so just use it.  We know
-		 * it's the right interface because we bind to it
-		 */
-		ifp = if_lookup_by_index(ifindex, pim_ifp->pim->vrf->vrf_id);
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+		if (pim_southbound_enabled) {
+#if PIM_IPV == 4
+			const struct sockaddr_in *sin_from =
+				(const struct sockaddr_in *)&from;
+			const struct sockaddr_in *sin_to =
+				(const struct sockaddr_in *)&to;
+#else
+			const struct sockaddr_in6 *sin6_from =
+				(const struct sockaddr_in6 *)&from;
+			const struct sockaddr_in6 *sin6_to =
+				(const struct sockaddr_in6 *)&to;
+#endif
+			ifp = orig_ifp;
+			if (PIM_DEBUG_PIM_PACKETS) {
+				zlog_debug(
+#if PIM_IPV == 4
+					"%s: from:%pI4 to:%pI4 fd:%d ifindex:%d ifp:%p[name:%s index:%d vif_index:%d] orig_ifp[name:%s index:%d vif_index:%d]",
+#else
+					"%s: from:%pI6 to:%pI6 fd:%d ifindex:%d ifp:%p[name:%s index:%d vif_index:%d] orig_ifp[name:%s index:%d vif_index:%d]",
+#endif
+					__func__,
+#if PIM_IPV == 4
+					&sin_from->sin_addr, &sin_to->sin_addr,
+#else
+					&sin6_from->sin6_addr,
+					&sin6_to->sin6_addr,
+#endif
+					fd, ifindex, ifp,
+					ifp ? ifp->name : "none",
+					ifp ? ifp->ifindex : -1,
+					ifp ? ifp->vif_index : -1,
+					orig_ifp->name, orig_ifp->ifindex,
+					orig_ifp->vif_index);
+			}
+		} else
+#endif /* VENDOR_SOUTHBOUND */
+			/*
+			 * What?  So with vrf's the incoming packet is received
+			 * on the vrf interface but recvfromto above returns
+			 * the right ifindex, so just use it.  We know
+			 * it's the right interface because we bind to it
+			 */
+			ifp = if_lookup_by_index(ifindex,
+						 pim_ifp->pim->vrf->vrf_id);
 		if (!ifp || !ifp->info) {
 			if (PIM_DEBUG_PIM_PACKETS)
 				zlog_debug(
@@ -458,11 +496,15 @@ static int pim_sock_open(struct interface *ifp)
 	if (fd < 0)
 		return -1;
 
-	if (pim_socket_join(fd, qpim_all_pim_routers_addr,
-			    pim_ifp->primary_address, ifp->ifindex, pim_ifp)) {
-		close(fd);
-		return -2;
-	}
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (!pim_southbound_enabled)
+#endif /* VENDOR_SOUTHBOUND */
+		if (pim_socket_join(fd, qpim_all_pim_routers_addr,
+				    pim_ifp->primary_address, ifp->ifindex,
+				    pim_ifp)) {
+			close(fd);
+			return -2;
+		}
 
 	return fd;
 }
@@ -730,8 +772,13 @@ int pim_msg_send(int fd, pim_addr src, pim_addr dst, uint8_t *pim_msg,
 		pim_pkt_dump(__func__, pim_msg, pim_msg_size);
 	}
 
-	pim_msg_send_frame(fd, (char *)buffer, sendlen, (struct sockaddr *)&to,
-			   tolen, ifp->name);
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		pimsb_msg_send_frame(ifp, ip, pim_msg, pim_msg_size);
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		pim_msg_send_frame(fd, (char *)buffer, sendlen,
+				   (struct sockaddr *)&to, tolen, ifp->name);
 	return 0;
 
 #else
@@ -968,7 +1015,12 @@ int pim_sock_add(struct interface *ifp)
 		return -1;
 	}
 
-	pim_ifp->pim_sock_fd = pim_sock_open(ifp);
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		pim_ifp->pim_sock_fd = pim_socket_get();
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		pim_ifp->pim_sock_fd = pim_sock_open(ifp);
 	if (pim_ifp->pim_sock_fd < 0) {
 		if (PIM_DEBUG_PIM_PACKETS)
 			zlog_debug("Could not open PIM socket on interface %s",
@@ -1000,7 +1052,10 @@ int pim_sock_add(struct interface *ifp)
 	/*
 	 * Start receiving PIM messages
 	 */
-	pim_sock_read_on(ifp);
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (!pim_southbound_enabled)
+#endif /* VENDOR_SOUTHBOUND */
+		pim_sock_read_on(ifp);
 
 	/*
 	 * Start sending PIM hello's

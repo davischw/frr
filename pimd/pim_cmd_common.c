@@ -1188,7 +1188,7 @@ void pim_show_state(struct pim_instance *pim, struct vty *vty,
 				in_ifname);
 #endif
 
-		for (oif_vif_index = 0; oif_vif_index < MAXVIFS;
+		for (oif_vif_index = 0; oif_vif_index < system_maxvifs();
 		     ++oif_vif_index) {
 			struct interface *ifp_out;
 			char oif_uptime[10];
@@ -3724,7 +3724,7 @@ void show_mroute(struct pim_instance *pim, struct vty *vty, pim_sgaddr *sg,
 			json_oil = NULL;
 		}
 
-		for (oif_vif_index = 0; oif_vif_index < MAXVIFS;
+		for (oif_vif_index = 0; oif_vif_index < system_maxvifs();
 		     ++oif_vif_index) {
 			struct interface *ifp_out;
 			int ttl;
@@ -3902,7 +3902,7 @@ void show_mroute(struct pim_instance *pim, struct vty *vty, pim_sgaddr *sg,
 			strlcpy(proto, "STATIC", sizeof(proto));
 		}
 
-		for (oif_vif_index = 0; oif_vif_index < MAXVIFS;
+		for (oif_vif_index = 0; oif_vif_index < system_maxvifs();
 		     ++oif_vif_index) {
 			struct interface *ifp_out;
 			char oif_uptime[10];

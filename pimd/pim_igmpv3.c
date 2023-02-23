@@ -1640,8 +1640,14 @@ void igmp_v3_send_query(struct gm_group *group, int fd, const char *ifname,
 	to.sin_addr = dst_addr;
 	tolen = sizeof(to);
 
-	sent = sendto(fd, query_buf, msg_size, MSG_DONTWAIT,
-		      (struct sockaddr *)&to, tolen);
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		sent = pimsb_igmp_sendto(ifname, query_buf, msg_size,
+					 (struct sockaddr *)&to, tolen);
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		sent = sendto(fd, query_buf, msg_size, MSG_DONTWAIT,
+			      (struct sockaddr *)&to, tolen);
 	if (sent != (ssize_t)msg_size) {
 		char dst_str[INET_ADDRSTRLEN];
 		char group_str[INET_ADDRSTRLEN];

@@ -269,7 +269,7 @@ int pim_static_write_mroute(struct pim_instance *pim, struct vty *vty,
 	for (ALL_LIST_ELEMENTS_RO(pim->static_routes, node, sroute)) {
 		if (sroute->iif == pim_ifp->mroute_vif_index) {
 			int i;
-			for (i = 0; i < MAXVIFS; i++)
+			for (i = 0; i < system_maxvifs(); i++)
 				if (sroute->oif_ttls[i]) {
 					struct interface *oifp =
 						pim_if_find_by_vif_index(pim,

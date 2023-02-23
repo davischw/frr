@@ -455,6 +455,28 @@ static void pim_zebra_capabilities(struct zclient_capabilities *cap)
 	router->multipath = cap->ecmp;
 }
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+static int pim_zebra_fpm_sync(ZAPI_CALLBACK_ARGS)
+{
+	struct pim_instance *pim;
+	struct channel_oil *oil;
+
+	if (pim_southbound_enabled)
+		return 0;
+
+	pim = pim_get_pim_instance(vrf_id);
+	if (pim == NULL)
+		return 0;
+
+	frr_each (rb_pim_oil, &pim->channel_oil_head, oil) {
+		if (oil->installed)
+			pimsb_mroute_do(oil, true);
+	}
+
+	return 0;
+}
+#endif /* VENDOR_SOUTHBOUND */
+
 static zclient_handler *const pim_handlers[] = {
 	[ZEBRA_INTERFACE_ADDRESS_ADD] = pim_zebra_if_address_add,
 	[ZEBRA_INTERFACE_ADDRESS_DELETE] = pim_zebra_if_address_del,
@@ -471,6 +493,10 @@ static zclient_handler *const pim_handlers[] = {
 	[ZEBRA_MLAG_PROCESS_DOWN] = pim_zebra_mlag_process_down,
 	[ZEBRA_MLAG_FORWARD_MSG] = pim_zebra_mlag_handle_msg,
 #endif
+
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	[ZEBRA_PIM_FPM_SYNC] = pim_zebra_fpm_sync,
+#endif /* VENDOR_SOUTHBOUND */
 };
 
 void pim_zebra_init(void)
@@ -488,6 +514,11 @@ void pim_zebra_init(void)
 	}
 
 	zclient_lookup_new();
+
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		pimsb_init(zclient);
+#endif /* VENDOR_SOUTHBOUND */
 }
 
 void pim_forward_start(struct pim_ifchannel *ch)

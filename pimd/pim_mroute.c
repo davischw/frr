@@ -227,13 +227,18 @@ int pim_mroute_msg_nocache(int fd, struct interface *ifp, const kernmsg *msg)
 			   __func__, up->sg_str);
 	}
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		up->flags |= PIM_UPSTREAM_FLAG_MASK_DATA_START;
+#endif /* VENDOR_SOUTHBOUND */
+
 	PIM_UPSTREAM_FLAG_SET_SRC_STREAM(up->flags);
 	pim_upstream_keep_alive_timer_start(up, pim_ifp->pim->keep_alive_time);
 
 	up->channel_oil->cc.pktcnt++;
 	// resolve mfcc_parent prior to mroute_add in channel_add_oif
 	if (up->rpf.source_nexthop.interface &&
-	    *oil_parent(up->channel_oil) >= MAXVIFS) {
+	    *oil_parent(up->channel_oil) >= system_maxvifs()) {
 		pim_upstream_mroute_iif_update(up->channel_oil, __func__);
 	}
 	pim_register_join(up);
@@ -694,7 +699,12 @@ int pim_mroute_msg(struct pim_instance *pim, const char *buf, size_t buf_size,
 #endif
 		msg = (const kernmsg *)buf;
 
-		ifp = pim_if_find_by_vif_index(pim, msg->msg_im_vif);
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+		if (pim_southbound_enabled)
+			ifp = pim_if_find_by_vif_index(pim, ifindex);
+		else
+#endif /* VENDOR_SOUTHBOUND */
+			ifp = pim_if_find_by_vif_index(pim, msg->msg_im_vif);
 
 		if (!ifp)
 			return 0;
@@ -795,6 +805,11 @@ static void mroute_read_off(struct pim_instance *pim)
 int pim_mroute_socket_enable(struct pim_instance *pim)
 {
 	int fd;
+
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		return pimsb_mroute_socket_enable(pim);
+#endif /* VENDOR_SOUTHBOUND */
 
 	frr_with_privs(&pimd_privs) {
 
@@ -899,6 +914,11 @@ int pim_mroute_add_vif(struct interface *ifp, pim_addr ifaddr,
 			   pim_ifp->mroute_vif_index, ifp->name,
 			   pim_ifp->pim->vrf->name);
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		return 0;
+#endif /* VENDOR_SOUTHBOUND */
+
 	memset(&vc, 0, sizeof(vc));
 	vc.vc_vifi = pim_ifp->mroute_vif_index;
 #if PIM_IPV == 4
@@ -952,6 +972,11 @@ int pim_mroute_del_vif(struct interface *ifp)
 		zlog_debug("%s: Del Vif %d (%s[%s])", __func__,
 			   pim_ifp->mroute_vif_index, ifp->name,
 			   pim_ifp->pim->vrf->name);
+
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		return 0;
+#endif /* VENDOR_SOUTHBOUND */
 
 	memset(&vc, 0, sizeof(vc));
 	vc.vc_vifi = pim_ifp->mroute_vif_index;
@@ -1018,7 +1043,7 @@ static inline void pim_mroute_copy(struct channel_oil *out,
 	*oil_mcastgrp(out) = *oil_mcastgrp(in);
 	*oil_parent(out) = *oil_parent(in);
 
-	for (i = 0; i < MAXVIFS; ++i) {
+	for (i = 0; i < system_maxvifs(); ++i) {
 		if (*oil_parent(out) == i &&
 		    !pim_mroute_allow_iif_in_oil(in, i)) {
 			oil_if_set(out, i, 0);
@@ -1040,6 +1065,11 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 	struct pim_instance *pim = c_oil->pim;
 	struct channel_oil tmp_oil[1] = { };
 	int err;
+
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		return pimsb_mroute_add(c_oil, name);
+#endif /* VENDOR_SOUTHBOUND */
 
 	pim->mroute_add_last = pim_time_monotonic_sec();
 	++pim->mroute_add_events;
@@ -1069,15 +1099,30 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 		*oil_parent(tmp_oil) = 0;
 	}
 	/* For IPv6 MRT_ADD_MFC is defined to MRT6_ADD_MFC */
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	err = setsockopt(pim->mroute_socket, PIM_IPPROTO, MRT_ADD_MFC,
+			 &tmp_oil->oil, sizeof(tmp_oil->oil_generic));
+#else
 	err = setsockopt(pim->mroute_socket, PIM_IPPROTO, MRT_ADD_MFC,
 			 &tmp_oil->oil, sizeof(tmp_oil->oil));
+#endif /* VENDOR_SOUTHBOUND */
+	if (err)
+		zlog_warn(
+			"%s %s: failure: setsockopt(fd=%d,PIM_IPPROTO,MRT_ADD_MFC): errno=%d: %s",
+			__FILE__, __func__, pim->mroute_socket, errno,
+			safe_strerror(errno));
 
 	if (!err && !c_oil->installed
 	    && !pim_addr_is_any(*oil_origin(c_oil))
 	    && *oil_parent(c_oil) != 0) {
 		*oil_parent(tmp_oil) = *oil_parent(c_oil);
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+		err = setsockopt(pim->mroute_socket, PIM_IPPROTO, MRT_ADD_MFC,
+				 &tmp_oil->oil, sizeof(tmp_oil->oil_generic));
+#else
 		err = setsockopt(pim->mroute_socket, PIM_IPPROTO, MRT_ADD_MFC,
 				 &tmp_oil->oil, sizeof(tmp_oil->oil));
+#endif /* VENDOR_SOUTHBOUND */
 	}
 
 	if (err) {
@@ -1106,7 +1151,7 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 static int pim_upstream_get_mroute_iif(struct channel_oil *c_oil,
 		const char *name)
 {
-	vifi_t iif = MAXVIFS;
+	vifi_t iif = system_maxvifs();
 	struct interface *ifp = NULL;
 	struct pim_interface *pim_ifp;
 	struct pim_upstream *up = c_oil->up;
@@ -1132,7 +1177,7 @@ static int pim_upstream_mroute_update(struct channel_oil *c_oil,
 {
 	char buf[1000];
 
-	if (*oil_parent(c_oil) >= MAXVIFS) {
+	if (*oil_parent(c_oil) >= system_maxvifs()) {
 		/* the c_oil cannot be installed as a mroute yet */
 		if (PIM_DEBUG_MROUTE)
 			zlog_debug(
@@ -1188,6 +1233,11 @@ int pim_upstream_mroute_add(struct channel_oil *c_oil, const char *name)
 		*oil_parent(c_oil) = iif;
 	}
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		pimsb_set_input_interface(c_oil);
+#endif /* VENDOR_SOUTHBOUND */
+
 	return pim_upstream_mroute_update(c_oil, name);
 }
 
@@ -1215,6 +1265,12 @@ int pim_upstream_mroute_iif_update(struct channel_oil *c_oil, const char *name)
 				__func__, name,
 				pim_channel_oil_dump(c_oil, buf,
 					sizeof(buf)), iif);
+
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		pimsb_set_input_interface(c_oil);
+#endif /* VENDOR_SOUTHBOUND */
+
 	/* XXX: is this hack needed? */
 	c_oil->oil_inherited_rescan = 1;
 	return pim_upstream_mroute_update(c_oil, name);
@@ -1233,7 +1289,7 @@ void pim_static_mroute_iif_update(struct channel_oil *c_oil,
 		return;
 
 	*oil_parent(c_oil) = input_vif_index;
-	if (input_vif_index == MAXVIFS)
+	if (input_vif_index == system_maxvifs())
 		pim_mroute_del(c_oil, name);
 	else
 		pim_static_mroute_add(c_oil, name);
@@ -1258,8 +1314,18 @@ int pim_mroute_del(struct channel_oil *c_oil, const char *name)
 		return -2;
 	}
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		return pimsb_mroute_del(c_oil, name);
+#endif /* VENDOR_SOUTHBOUND */
+
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	err = setsockopt(pim->mroute_socket, PIM_IPPROTO, MRT_DEL_MFC,
+			 &c_oil->oil, sizeof(c_oil->oil_generic));
+#else
 	err = setsockopt(pim->mroute_socket, PIM_IPPROTO, MRT_DEL_MFC,
 			 &c_oil->oil, sizeof(c_oil->oil));
+#endif /* VENDOR_SOUTHBOUND */
 	if (err) {
 		if (PIM_DEBUG_MROUTE)
 			zlog_warn(
@@ -1316,18 +1382,22 @@ void pim_mroute_update_counters(struct channel_oil *c_oil)
 	sgreq.src = c_oil->oil.mf6cc_origin;
 	sgreq.grp = c_oil->oil.mf6cc_mcastgrp;
 #endif
-	if (ioctl(pim->mroute_socket, PIM_SIOCGETSGCNT, &sgreq)) {
-		pim_sgaddr sg;
 
-		sg.src = *oil_origin(c_oil);
-		sg.grp = *oil_mcastgrp(c_oil);
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (!pim_southbound_enabled)
+#endif /* VENDOR_SOUTHBOUND */
+		if (ioctl(pim->mroute_socket, PIM_SIOCGETSGCNT, &sgreq)) {
+			pim_sgaddr sg;
 
-		zlog_warn(
-			"ioctl(PIM_SIOCGETSGCNT=%lu) failure for (S,G)=%pSG: errno=%d: %s",
-			(unsigned long)PIM_SIOCGETSGCNT, &sg, errno,
-			safe_strerror(errno));
-		return;
-	}
+			sg.src = *oil_origin(c_oil);
+			sg.grp = *oil_mcastgrp(c_oil);
+
+			zlog_warn(
+				"ioctl(PIM_SIOCGETSGCNT=%lu) failure for (S,G)=%pSG: errno=%d: %s",
+				(unsigned long)PIM_SIOCGETSGCNT, &sg, errno,
+				safe_strerror(errno));
+			return;
+		}
 
 	c_oil->cc.pktcnt = sgreq.pktcnt;
 	c_oil->cc.bytecnt = sgreq.bytecnt;

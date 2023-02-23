@@ -30,6 +30,7 @@
 #include "pim_oil.h"
 #include "pim_str.h"
 #include "pim_iface.h"
+#include "pim_southbound.h"
 #include "pim_time.h"
 #include "pim_vxlan.h"
 
@@ -49,7 +50,7 @@ char *pim_channel_oil_dump(struct channel_oil *c_oil, char *buf, size_t size)
 		   ifp ? ifp->name : "(?)");
 
 	out = buf + strlen(buf);
-	for (i = 0; i < MAXVIFS; i++) {
+	for (i = 0; i < system_maxvifs(); i++) {
 		if (oil_if_has(c_oil, i) != 0) {
 			ifp = pim_if_find_by_vif_index(c_oil->pim, i);
 			snprintf(out, buf + size - out, "%s ",
@@ -94,6 +95,11 @@ void pim_oil_terminate(struct pim_instance *pim)
 
 void pim_channel_oil_free(struct channel_oil *c_oil)
 {
+	struct channel_if *oif;
+
+	while ((oif = SLIST_FIRST(&c_oil->oif_list)) != NULL)
+		channel_oif_free(c_oil, &oif);
+
 	XFREE(MTYPE_PIM_CHANNEL_OIL, c_oil);
 }
 
@@ -148,7 +154,7 @@ struct channel_oil *pim_channel_oil_add(struct pim_instance *pim,
 	*oil_mcastgrp(c_oil) = sg->grp;
 	*oil_origin(c_oil) = sg->src;
 
-	*oil_parent(c_oil) = MAXVIFS;
+	*oil_parent(c_oil) = system_maxvifs();
 	c_oil->oil_ref_count = 1;
 	c_oil->installed = 0;
 	c_oil->up = pim_upstream_find(pim, sg);
@@ -219,6 +225,8 @@ int pim_channel_del_oif(struct channel_oil *channel_oil, struct interface *oif,
 	assertf(pim_ifp->mroute_vif_index >= 0,
 		"trying to del OIF %s with VIF (%d)", oif->name,
 		pim_ifp->mroute_vif_index);
+
+	channel_oif_del(channel_oil, (int32_t)oif->ifindex, proto_mask);
 
 	/*
 	 * Don't do anything if we've been asked to remove a source
@@ -420,6 +428,8 @@ int pim_channel_add_oif(struct channel_oil *channel_oil, struct interface *oif,
 		return -1;
 	}
 
+	channel_oif_add(channel_oil, oif->ifindex, proto_mask);
+
 	pim_ifp = oif->info;
 
 	assertf(pim_ifp->mroute_vif_index >= 0,
@@ -510,7 +520,7 @@ int pim_channel_add_oif(struct channel_oil *channel_oil, struct interface *oif,
 	/* channel_oil->oil.mfcc_parent != MAXVIFS indicate this entry is not
 	 * valid to get installed in kernel.
 	 */
-	if (*oil_parent(channel_oil) != MAXVIFS) {
+	if (*oil_parent(channel_oil) != system_maxvifs()) {
 		if (pim_upstream_mroute_add(channel_oil, __func__)) {
 			if (PIM_DEBUG_MROUTE) {
 				zlog_debug(
@@ -561,4 +571,95 @@ int pim_channel_oil_empty(struct channel_oil *c_oil)
 		oil_if_set(&null_oil, 0, 0);
 
 	return !oil_if_cmp(&c_oil->oil, &null_oil.oil);
+}
+
+DEFINE_MTYPE_STATIC(PIMD, PIM_CHANNEL_IF, "PIM channel output interface");
+
+struct channel_if *channel_oif_find(struct channel_oil *oil, int32_t ifindex)
+{
+	struct channel_if *oif;
+
+	/* Map 0 to `pimreg` interface index. */
+	if (ifindex == 0)
+		ifindex = PIM_REG_IF_IDX;
+
+	/* Don't add duplicated entries. */
+	SLIST_FOREACH (oif, &oil->oif_list, entry)
+		if (oif->ifindex == ifindex)
+			return oif;
+
+	return NULL;
+}
+
+void channel_oif_add(struct channel_oil *oil, int32_t ifindex, uint32_t flag)
+{
+	struct channel_if *oif;
+
+	/* Map 0 to `pimreg` interface index. */
+	if (ifindex == 0) {
+		/* Don't add `pimreg` to output interfaces on LHR. */
+		if (oil->up && !PIM_UPSTREAM_FLAG_TEST_FHR(oil->up->flags) &&
+		    !pim_rp_i_am_rp(oil->pim, *oil_mcastgrp(oil)))
+			return;
+
+		ifindex = PIM_REG_IF_IDX;
+	}
+
+	/* Don't add duplicated entries, just update it. */
+	oif = channel_oif_find(oil, ifindex);
+	if (oif != NULL) {
+		oif->flags |= flag;
+		if (PIM_DEBUG_MROUTE)
+			zlog_debug("%s: adding flag 0x%08x to interface %d",
+				   __func__, flag, ifindex);
+		return;
+	}
+
+	/* Artificial limit: it can be removed when zebra is fixed. */
+	if (oil->oif_list_count >= MAXVIFS)
+		return;
+
+	oif = XCALLOC(MTYPE_PIM_CHANNEL_IF, sizeof(*oif));
+	oif->ifindex = ifindex;
+	oif->flags = flag;
+	SLIST_INSERT_HEAD(&oil->oif_list, oif, entry);
+	oil->oif_list_count++;
+	if (PIM_DEBUG_MROUTE)
+		zlog_debug("%s: adding flag 0x%08x to interface %d", __func__,
+			   flag, ifindex);
+}
+
+void channel_oif_free(struct channel_oil *oil, struct channel_if **oif)
+{
+	if (*oif == NULL)
+		return;
+
+	SLIST_REMOVE(&oil->oif_list, (*oif), channel_if, entry);
+	XFREE(MTYPE_PIM_CHANNEL_IF, (*oif));
+	oil->oif_list_count--;
+}
+
+void channel_oif_del(struct channel_oil *oil, int32_t ifindex, uint32_t flag)
+{
+	struct channel_if *oif = channel_oif_find(oil, ifindex);
+
+	if (oif == NULL)
+		return;
+
+	oif->flags &= ~flag;
+	if (oif->flags) {
+		if (PIM_DEBUG_MROUTE)
+			zlog_debug("%s: removing flag 0x%08x from interface %d",
+				   __func__, flag, ifindex);
+		return;
+	}
+
+	channel_oif_free(oil, &oif);
+	if (PIM_DEBUG_MROUTE)
+		zlog_debug("%s: removing interface %d", __func__, ifindex);
+
+	/* Make sure all output interfaces are unset. */
+	if (oil->oif_list_count == 0)
+		for (vifi_t i = 0; i < system_maxvifs(); i++)
+			oil_if_set(oil, i, 0);
 }
