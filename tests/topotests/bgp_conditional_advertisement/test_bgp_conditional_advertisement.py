@@ -434,7 +434,7 @@ def test_bgp_conditional_advertisement_tc_2_1():
           configure terminal
             router bgp 2
               address-family ipv4 unicast
-               neighbor 10.10.20.3 advertise-map ADV-MAP-1 exist-map EXIST-MAP
+               neighbor 10.10.20.3 advertise-map ADV-MAP-1 seq 10 exist-map EXIST-MAP
         """
     )
 
@@ -492,7 +492,7 @@ def test_bgp_conditional_advertisement_tc_2_3():
           configure terminal
            router bgp 2
             address-family ipv4 unicast
-             no neighbor 10.10.20.3 advertise-map ADV-MAP-1 exist-map EXIST-MAP
+             no neighbor 10.10.20.3 advertise-map ADV-MAP-1 seq 10 exist-map EXIST-MAP
         """
     )
 
@@ -521,7 +521,7 @@ def test_bgp_conditional_advertisement_tc_3_1():
           configure terminal
             router bgp 2
               address-family ipv4 unicast
-               neighbor 10.10.20.3 advertise-map ADV-MAP-1 non-exist-map EXIST-MAP
+               neighbor 10.10.20.3 advertise-map ADV-MAP-1 seq 10 non-exist-map EXIST-MAP
         """
     )
 
@@ -579,7 +579,7 @@ def test_bgp_conditional_advertisement_tc_3_3():
           configure terminal
            router bgp 2
             address-family ipv4 unicast
-             no neighbor 10.10.20.3 advertise-map ADV-MAP-1 non-exist-map EXIST-MAP
+             no neighbor 10.10.20.3 advertise-map ADV-MAP-1 seq 10 non-exist-map EXIST-MAP
         """
     )
 
@@ -610,7 +610,7 @@ def test_bgp_conditional_advertisement_tc_4_1():
           configure terminal
            router bgp 2
             address-family ipv4 unicast
-             neighbor 10.10.20.3 advertise-map ADV-MAP-1 non-exist-map EXIST-MAP
+             neighbor 10.10.20.3 advertise-map ADV-MAP-1 seq 10 non-exist-map EXIST-MAP
            no route-map EXIST-MAP permit 10
         """
     )
@@ -640,7 +640,7 @@ def test_bgp_conditional_advertisement_tc_4_2():
           configure terminal
             router bgp 2
               address-family ipv4 unicast
-               neighbor 10.10.20.3 advertise-map ADV-MAP-1 exist-map EXIST-MAP
+               neighbor 10.10.20.3 advertise-map ADV-MAP-1 seq 10 exist-map EXIST-MAP
         """
     )
 
@@ -732,7 +732,7 @@ def test_bgp_conditional_advertisement_tc_5_3():
             router bgp 2
               address-family ipv4 unicast
                neighbor 10.10.20.3 route-map RMAP-1 out
-               neighbor 10.10.20.3 advertise-map ADV-MAP-1 non-exist-map EXIST-MAP
+               neighbor 10.10.20.3 advertise-map ADV-MAP-1 seq 10 non-exist-map EXIST-MAP
         """
     )
 
@@ -799,7 +799,7 @@ def test_bgp_conditional_advertisement_tc_6_1():
            router bgp 2
             address-family ipv4 unicast
              neighbor 10.10.20.3 route-map RMAP-1 out
-             neighbor 10.10.20.3 advertise-map ADV-MAP-1 exist-map EXIST-MAP
+             neighbor 10.10.20.3 advertise-map ADV-MAP-1 seq 10 exist-map EXIST-MAP
         """
     )
 
@@ -858,7 +858,7 @@ def test_bgp_conditional_advertisement_tc_6_3():
            router bgp 2
             address-family ipv4 unicast
              neighbor 10.10.20.3 route-map RMAP-1 out
-             neighbor 10.10.20.3 advertise-map ADV-MAP-1 non-exist-map EXIST-MAP
+             neighbor 10.10.20.3 advertise-map ADV-MAP-1 seq 10 non-exist-map EXIST-MAP
         """
     )
 
@@ -927,7 +927,7 @@ def test_bgp_conditional_advertisement_tc_7_1():
            router bgp 2
             address-family ipv4 unicast
              neighbor 10.10.20.3 route-map RMAP-2 out
-             neighbor 10.10.20.3 advertise-map ADV-MAP-2 exist-map EXIST-MAP
+             neighbor 10.10.20.3 advertise-map ADV-MAP-2 seq 10 exist-map EXIST-MAP
         """
     )
 
@@ -986,7 +986,7 @@ def test_bgp_conditional_advertisement_tc_7_3():
            router bgp 2
             address-family ipv4 unicast
              neighbor 10.10.20.3 route-map RMAP-2 out
-             neighbor 10.10.20.3 advertise-map ADV-MAP-2 non-exist-map EXIST-MAP
+             neighbor 10.10.20.3 advertise-map ADV-MAP-2 seq 10 non-exist-map EXIST-MAP
         """
     )
 
@@ -1053,7 +1053,7 @@ def test_bgp_conditional_advertisement_tc_8_1():
            router bgp 2
             address-family ipv4 unicast
              neighbor 10.10.20.3 route-map RMAP-2 out
-             neighbor 10.10.20.3 advertise-map ADV-MAP-2 exist-map EXIST-MAP
+             neighbor 10.10.20.3 advertise-map ADV-MAP-2 seq 10 exist-map EXIST-MAP
         """
     )
 
@@ -1112,7 +1112,7 @@ def test_bgp_conditional_advertisement_tc_8_3():
            router bgp 2
             address-family ipv4 unicast
              neighbor 10.10.20.3 route-map RMAP-2 out
-             neighbor 10.10.20.3 advertise-map ADV-MAP-2 non-exist-map EXIST-MAP
+             neighbor 10.10.20.3 advertise-map ADV-MAP-2 seq 10 non-exist-map EXIST-MAP
         """
     )
 
@@ -1183,7 +1183,7 @@ def test_bgp_conditional_advertisement_tc_9_1():
            router bgp 2
             address-family ipv4 unicast
              neighbor 10.10.20.3 route-map RMAP-2 out
-             neighbor 10.10.20.3 advertise-map ADV-MAP-2 exist-map EXIST-MAP
+             neighbor 10.10.20.3 advertise-map ADV-MAP-2 seq 10 exist-map EXIST-MAP
         """
     )
 
@@ -1250,7 +1250,7 @@ def test_bgp_conditional_advertisement_tc_9_3():
            router bgp 2
             address-family ipv4 unicast
              network 203.0.113.1/32
-             neighbor 10.10.20.3 advertise-map ADV-MAP-2 non-exist-map EXIST-MAP
+             neighbor 10.10.20.3 advertise-map ADV-MAP-2 seq 10 non-exist-map EXIST-MAP
         """
     )
 

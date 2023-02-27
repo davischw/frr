@@ -7290,6 +7290,10 @@ static void peer_advertise_map_filter_update(struct peer *peer, afi_t afi,
 		if (!set) {
 			bgp_advmaps_del(filter->advmaps, advmap);
 			XFREE(MTYPE_BGP_ADVMAP, advmap);
+
+			/* Process peer route updates. */
+			peer_on_policy_change(peer, afi, safi, 1);
+
 			return;
 		}
 	} else {
@@ -7307,6 +7311,9 @@ static void peer_advertise_map_filter_update(struct peer *peer, afi_t afi,
 	advmap->cond = condition;
 	route_map_counter_increment(advmap->amap);
 	route_map_counter_increment(advmap->cmap);
+
+	/* Process peer route updates. */
+	peer_on_policy_change(peer, afi, safi, 1);
 }
 
 static void peer_advertise_map_bump(struct peer *peer, afi_t afi, safi_t safi)
