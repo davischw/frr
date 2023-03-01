@@ -988,7 +988,7 @@ static void bgp_damp_reset_peer_group(struct peer_group *group, afi_t afi,
 		return;
 
 	if (group->name)
-		zlog_debug("clearing dampened paths for peer-group %s (%s)\n",
+		zlog_debug("clearing dampened paths for peer-group %s (%s)",
 			   group->name, afi2str(afi));
 
 	for (ALL_LIST_ELEMENTS(group->peer, node, nnode, peer)) {
@@ -1077,7 +1077,7 @@ void bgp_damp_reset_peer(struct peer *peer, afi_t afi, safi_t safi)
 	}
 
 	if (peer->host)
-		zlog_debug("clearing dampened paths for peer %s (%s)\n",
+		zlog_debug("clearing dampened paths for peer %s (%s)",
 			   peer->host, afi2str(afi));
 
 	if (CHECK_FLAG(peer->af_flags[afi][safi], PEER_FLAG_CONFIG_DAMPENING)) {
