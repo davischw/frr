@@ -18464,18 +18464,8 @@ static void bgp_config_finish(struct thread *t)
 	struct listnode *node;
 	struct bgp *bgp;
 
-	zlog_debug("%s: start listening for BGP connections", __func__);
-
-	/* Mark the end of configuration. */
-	bm->listen_ready = true;
-
-	/* Start instance listening socket and unlock peers. */
-	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
-		struct vrf *vrf = vrf_lookup_by_id(bgp->vrf_id);
-
-		bgp_handle_socket(bgp, vrf, VRF_UNKNOWN, true);
+	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp))
 		hook_call(bgp_config_end, bgp);
-	}
 }
 
 static void bgp_config_start(void)
