@@ -2135,6 +2135,14 @@ static void ospf_ls_upd(struct ospf *ospf, struct ip *iph,
 			if (ospf_flood(oi->ospf, nbr, current, lsa)
 			    < 0) /* Trap NSSA later. */
 				DISCARD_LSA(lsa, 5);
+
+			/* GR: check for network topology change. */
+			if (ospf->gr_info.restart_in_progress &&
+			    ((lsa->data->type == OSPF_ROUTER_LSA ||
+			      lsa->data->type == OSPF_NETWORK_LSA)))
+				ospf_gr_check_lsdb_consistency(oi->ospf,
+							       oi->area);
+
 			continue;
 		}
 
@@ -2247,9 +2255,6 @@ static void ospf_ls_upd(struct ospf *ospf, struct ip *iph,
 
 	assert(listcount(lsas) == 0);
 	list_delete(&lsas);
-
-	if (ospf->gr_info.restart_in_progress)
-		ospf_gr_check_lsdb_consistency(oi->ospf, oi->area);
 }
 
 /* OSPF Link State Acknowledgment message read -- RFC2328 Section 13.7. */
