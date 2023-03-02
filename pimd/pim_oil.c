@@ -38,7 +38,6 @@ static void pim_channel_update_mute(struct channel_oil *c_oil);
 
 char *pim_channel_oil_dump(struct channel_oil *c_oil, char *buf, size_t size)
 {
-	char *out;
 	struct interface *ifp;
 	pim_sgaddr sg;
 	int i;
@@ -49,13 +48,14 @@ char *pim_channel_oil_dump(struct channel_oil *c_oil, char *buf, size_t size)
 	snprintfrr(buf, size, "%pSG IIF: %s, OIFS: ", &sg,
 		   ifp ? ifp->name : "(?)");
 
-	out = buf + strlen(buf);
 	for (i = 0; i < system_maxvifs(); i++) {
 		if (oil_if_has(c_oil, i) != 0) {
+			char interface_name[INTERFACE_NAMSIZ + 1];
+
 			ifp = pim_if_find_by_vif_index(c_oil->pim, i);
-			snprintf(out, buf + size - out, "%s ",
+			snprintf(interface_name, sizeof(interface_name), "%s ",
 				 ifp ? ifp->name : "(?)");
-			out += strlen(out);
+			strlcat(buf, interface_name, size);
 		}
 	}
 
