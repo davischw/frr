@@ -986,7 +986,7 @@ static int ospf_vl_set(struct ospf *ospf, struct ospf_vl_config_data *vl_config)
 	return CMD_SUCCESS;
 }
 
-void ospf_shutdown(struct ospf *ospf, bool shutdown)
+void ospf_shutdown(struct ospf *ospf, bool shutdown, bool graceful)
 {
 	struct ospf_area *area;
 	struct ospf_interface *oi;
@@ -1020,8 +1020,11 @@ void ospf_shutdown(struct ospf *ospf, bool shutdown)
 		}
 
 		SET_FLAG(ospf->config, OSPF_SHUTDOWN);
+		if (graceful)
+			SET_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL);
 	} else {
 		UNSET_FLAG(ospf->config, OSPF_SHUTDOWN);
+		UNSET_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL);
 
 		/* Bring interfaces back. */
 		for (ALL_LIST_ELEMENTS_RO(ospf->oiflist, inode, oi))
@@ -2717,8 +2720,33 @@ DEFPY(ospf_instance_shutdown, ospf_instance_shutdown_cmd,
       "Administrative shutdown\n")
 {
 	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
+	struct ospf_area *area;
+	struct ospf_interface *oi;
+	struct listnode *anode, *inode;
 
-	ospf_shutdown(ospf, !no);
+	if (no) {
+		if (ospf->gr_info.restart_support) {
+			/* Reenable routing instance in the GR mode. */
+			ospf_gr_restart_enter(
+				ospf, OSPF_GR_SWITCH_CONTROL_PROCESSOR,
+				time(NULL) + ospf->gr_info.grace_period);
+
+			/*
+			 * RFC 3623 - Section 5 ("Unplanned Outages"):
+			 * "The grace-LSAs are encapsulated in Link State Update
+			 * Packets and sent out to all interfaces, even though
+			 * the restarted router has no adjacencies and no
+			 * knowledge of previous adjacencies".
+			 */
+			for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area))
+				for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode,
+							  oi))
+					ospf_gr_unplanned_start_interface(oi);
+		}
+
+		ospf_shutdown(ospf, false, false);
+	} else
+		ospf_shutdown(ospf, true, !!ospf->gr_info.restart_support);
 
 	return CMD_SUCCESS;
 }

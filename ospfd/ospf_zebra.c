@@ -296,7 +296,8 @@ void ospf_zebra_add(struct ospf *ospf, struct prefix_ipv4 *p,
 	struct ospf_path *path;
 	struct listnode *node;
 
-	if (ospf->gr_info.restart_in_progress) {
+	if (ospf->gr_info.restart_in_progress
+	    || CHECK_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL)) {
 		if (IS_DEBUG_OSPF_GR)
 			zlog_debug(
 				"Zebra: Graceful Restart in progress -- not installing %pFX",
@@ -366,7 +367,8 @@ void ospf_zebra_delete(struct ospf *ospf, struct prefix_ipv4 *p,
 {
 	struct zapi_route api;
 
-	if (ospf->gr_info.restart_in_progress) {
+	if (ospf->gr_info.restart_in_progress
+	    || CHECK_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL)) {
 		if (IS_DEBUG_OSPF_GR)
 			zlog_debug(
 				"Zebra: Graceful Restart in progress -- not uninstalling %pFX",
@@ -391,7 +393,8 @@ void ospf_zebra_add_discard(struct ospf *ospf, struct prefix_ipv4 *p)
 {
 	struct zapi_route api;
 
-	if (ospf->gr_info.restart_in_progress) {
+	if (ospf->gr_info.restart_in_progress
+	    || CHECK_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL)) {
 		if (IS_DEBUG_OSPF_GR)
 			zlog_debug(
 				"Zebra: Graceful Restart in progress -- not installing %pFX",
@@ -417,7 +420,8 @@ void ospf_zebra_delete_discard(struct ospf *ospf, struct prefix_ipv4 *p)
 {
 	struct zapi_route api;
 
-	if (ospf->gr_info.restart_in_progress) {
+	if (ospf->gr_info.restart_in_progress
+	    || CHECK_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL)) {
 		if (IS_DEBUG_OSPF_GR)
 			zlog_debug(
 				"Zebra: Graceful Restart in progress -- not uninstalling %pFX",

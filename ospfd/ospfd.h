@@ -128,6 +128,7 @@ enum {
 	OSPF_LOG_ADJACENCY_DETAIL =	(1 << 4),
 	OSPF_SEND_EXTRA_DATA_TO_ZEBRA =	(1 << 5),
 	OSPF_SHUTDOWN =			(1 << 6),
+	OSPF_SHUTDOWN_GRACEFUL =	(1 << 7),
 };
 
 /* TI-LFA */
