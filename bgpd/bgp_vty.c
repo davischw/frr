@@ -132,6 +132,9 @@ FRR_CFG_DEFAULT_BOOL(BGP_HARD_ADMIN_RESET,
 	{ .val_bool = false, .match_version = "< 8.3", },
 	{ .val_bool = true },
 );
+FRR_CFG_DEFAULT_BOOL(BGP_APPLY_IMMEDIATELY,
+	{ .val_bool = true },
+);
 
 DEFINE_HOOK(bgp_inst_config_write,
 		(struct bgp *bgp, struct vty *vty),
@@ -600,6 +603,8 @@ int bgp_get_vty(struct bgp **bgp, as_t *as, const char *name,
 			SET_FLAG((*bgp)->flags, BGP_FLAG_GRACEFUL_NOTIFICATION);
 		if (DFLT_BGP_HARD_ADMIN_RESET)
 			SET_FLAG((*bgp)->flags, BGP_FLAG_HARD_ADMIN_RESET);
+		if (DFLT_BGP_APPLY_IMMEDIATELY)
+			SET_FLAG((*bgp)->flags, BGP_FLAG_APPLY_IMMEDIATELY);
 
 		ret = BGP_SUCCESS;
 	}
@@ -3129,7 +3134,7 @@ DEFPY (bgp_graceful_restart_notification,
 
 		SET_FLAG(bgp->flags, BGP_FLAG_GRACEFUL_NOTIFICATION);
 	}
-	
+
 	bgp_apply_immediately(vty, bgp);
 
 	return CMD_SUCCESS;
@@ -17996,8 +18001,13 @@ int bgp_config_write(struct vty *vty)
 				" bgp disable-ebgp-connected-route-check\n");
 
 		/* Apply immediately. */
-		if (CHECK_FLAG(bgp->flags, BGP_FLAG_APPLY_IMMEDIATELY))
-			vty_out(vty, " no bgp apply-immediately\n");
+		if (!!CHECK_FLAG(bgp->flags, BGP_FLAG_APPLY_IMMEDIATELY) !=
+		    SAVE_BGP_APPLY_IMMEDIATELY)
+			vty_out(vty, " %sbgp bgp apply-immediately\n",
+				CHECK_FLAG(bgp->flags,
+					   BGP_FLAG_APPLY_IMMEDIATELY)
+					? ""
+					: "no ");
 
 		/* Confederation identifier*/
 		if (CHECK_FLAG(bgp->config, BGP_CONFIG_CONFEDERATION))
