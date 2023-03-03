@@ -255,6 +255,10 @@ void ospf_hello_timer(struct thread *thread)
 	oi = THREAD_ARG(thread);
 	oi->t_hello = NULL;
 
+	/* Check if the GR hello-delay is active. */
+	if (oi->gr.hello_delay.t_grace_send)
+		return;
+
 	if (IS_DEBUG_OSPF(ism, ISM_TIMERS))
 		zlog_debug("ISM[%s]: Timer (Hello timer expire)", IF_NAME(oi));
 
@@ -293,6 +297,7 @@ static void ism_timer_set(struct ospf_interface *oi)
 		THREAD_OFF(oi->t_hello);
 		THREAD_OFF(oi->t_wait);
 		THREAD_OFF(oi->t_ls_ack);
+		THREAD_OFF(oi->gr.hello_delay.t_grace_send);
 		break;
 	case ISM_Loopback:
 		/* In this state, the interface may be looped back and will be
@@ -300,6 +305,7 @@ static void ism_timer_set(struct ospf_interface *oi)
 		THREAD_OFF(oi->t_hello);
 		THREAD_OFF(oi->t_wait);
 		THREAD_OFF(oi->t_ls_ack);
+		THREAD_OFF(oi->gr.hello_delay.t_grace_send);
 		break;
 	case ISM_Waiting:
 		/* The router is trying to determine the identity of DRouter and
