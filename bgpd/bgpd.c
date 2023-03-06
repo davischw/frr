@@ -8393,6 +8393,35 @@ static ssize_t printfrr_bp(struct fbuf *buf, struct printfrr_eargs *ea,
 	if (!peer)
 		return bputs(buf, "(null)");
 
+	struct address_list *al = NULL;
+	struct address_entry *ae = NULL;
+	const char *unknown = "Unknown";
+	static char neighbor[INET6_ADDRSTRLEN] = {};
+
+	if (peer_address_list_neighbor(peer)) {
+		al = address_list_lookup(peer->np->name);
+		if (al) {
+			ae = al->al_selected;
+			switch (ae->ae_ip.ipa_type) {
+			case IPADDR_NONE:
+				snprintfrr(neighbor, sizeof(neighbor), "%s",
+					   unknown);
+				break;
+			case IPADDR_V4:
+				snprintfrr(neighbor, sizeof(neighbor), "%pI4",
+					   &ae->ae_ip.ip._v4_addr);
+				break;
+			case IPADDR_V6:
+				snprintfrr(neighbor, sizeof(neighbor), "%pI6",
+					   &ae->ae_ip.ip._v6_addr);
+				break;
+			}
+
+			return bprintfrr(buf, "neighbor %s(%s)", peer->host,
+					 neighbor);
+		}
+	}
+
 	return bprintfrr(buf, "neighbor %s(%s)", peer->host,
-			 peer->hostname ? peer->hostname : "Unknown");
+			 peer->hostname ? peer->hostname : unknown);
 }
