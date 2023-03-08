@@ -63,6 +63,12 @@ struct external_info {
 	 */
 	bool to_be_processed;
 
+	/*
+	 * Indicates whether this is external information related to an NSSA
+	 * range.
+	 */
+	bool nssa_range;
+
 	/* Persistent default route. */
 	bool default_always;
 };
