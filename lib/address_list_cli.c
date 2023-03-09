@@ -73,9 +73,14 @@ DEFPY(address_list_append, address_list_append_cmd,
 {
 	char xpath[XPATH_MAXLEN], xpath_full[XPATH_MAXLEN];
 
-	/* Address list might not exist yet. */
 	snprintf(xpath_full, sizeof(xpath_full),
 		 "/frr-address-list:lib/address-list[name='%s']", name);
+
+	/*
+	 * Purge existing address entries by destroying and recreating
+	 * address-list in candidate configuration.
+	 */
+	nb_cli_enqueue_change(vty, xpath_full, NB_OP_DESTROY, NULL);
 	nb_cli_enqueue_change(vty, xpath_full, NB_OP_CREATE, NULL);
 
 	/* Create the address entry. */
