@@ -1176,6 +1176,7 @@ static void *grpc_pthread_start(void *arg)
 
 	zlog_notice("gRPC server listening on %s",
 		    server_address.str().c_str());
+	rcu_read_unlock();
 
 	/* Process inbound RPCs */
 	bool ok;
