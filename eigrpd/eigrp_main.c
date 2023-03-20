@@ -37,6 +37,7 @@
 #include "libfrr.h"
 #include "routemap.h"
 //#include "if_rmap.h"
+#include "lib/address_alias.h"
 
 #include "eigrpd/eigrp_structs.h"
 #include "eigrpd/eigrpd.h"
@@ -125,6 +126,7 @@ struct frr_signal_t eigrp_signals[] = {
 };
 
 static const struct frr_yang_module_info *const eigrpd_yang_modules[] = {
+	&frr_address_alias_info,
 	&frr_eigrpd_info,
 	&frr_filter_info,
 	&frr_interface_info,

@@ -21,6 +21,7 @@
 #include "lib/thread.h"
 #include "lib/vrf.h"
 #include "lib/vty.h"
+#include "lib/address_alias.h"
 
 #include "vrrp.h"
 #include "vrrp_debug.h"
@@ -100,6 +101,7 @@ struct frr_signal_t vrrp_signals[] = {
 };
 
 static const struct frr_yang_module_info *const vrrp_yang_modules[] = {
+	&frr_address_alias_info,
 	&frr_filter_info,
 	&frr_vrf_info,
 	&frr_interface_info,

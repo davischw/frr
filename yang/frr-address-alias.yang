@@ -1,0 +1,79 @@
+module frr-address-alias {
+  yang-version 1.1;
+  namespace "http://frrouting.org/yang/address-alias";
+  prefix frr-address-alias;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  organization
+    "Free Range Routing";
+  description
+    "This module defines a model for managing address aliases for CLI
+     configuration.
+
+     Copyright 2023 FRRouting
+
+     Redistribution and use in source and binary forms, with or without
+     modification, are permitted provided that the following conditions
+     are met:
+
+     1. Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in the
+     documentation and/or other materials provided with the distribution.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+     \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+     LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+     A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+     HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+     LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+     DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+     THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.";
+
+  revision 2023-03-13 {
+    description
+      "Initial revision.";
+  }
+
+  typedef address-alias-ref {
+    type leafref {
+      path
+        "/frr-address-alias:lib/frr-address-alias:address-alias/frr-address-alias:name";
+      require-instance false;
+    }
+    description
+      "Reference to an address alias.";
+  }
+
+  typedef address-alias-name {
+    type string {
+      length "1..64";
+    }
+    description "Address alias name format.";
+  }
+
+  container lib {
+    list address-alias {
+      description "Address alias to use as placeholder.";
+      key "name";
+
+      leaf name {
+        type address-alias-name;
+	description "Address alias name to use as reference.";
+      }
+
+      leaf address {
+        type inet:ip-address;
+	description "Internet Protocol Address.";
+      }
+    }
+  }
+}

@@ -7,6 +7,8 @@ lib_libfrr_la_LDFLAGS = $(LIB_LDFLAGS) -version-info 0:0:0 -Xlinker -e_libfrr_ve
 lib_libfrr_la_LIBADD = $(LIBCAP) $(UNWIND_LIBS) $(LIBYANG_LIBS) $(LUA_LIB) $(UST_LIBS) $(LIBCRYPT) $(LIBDL) $(LIBM)
 
 lib_libfrr_la_SOURCES = \
+	lib/address_alias_cli.c \
+	lib/address_alias_nb.c \
 	lib/admin_group.c \
 	lib/affinitymap.c \
 	lib/affinitymap_cli.c \
@@ -132,6 +134,7 @@ lib_libfrr_la_SOURCES = \
 	# end
 
 nodist_lib_libfrr_la_SOURCES = \
+	yang/frr-address-alias.yang.c \
 	yang/frr-affinity-map.yang.c \
 	yang/frr-filter.yang.c \
 	yang/frr-interface.yang.c \
@@ -152,6 +155,7 @@ lib_libfrr_la_SOURCES += lib/db.c
 endif
 
 clippy_scan += \
+	lib/address_alias_cli.c \
 	lib/affinitymap_cli.c \
 	lib/if.c \
 	lib/filter_cli.c \
@@ -167,6 +171,7 @@ clippy_scan += \
 	# end
 
 pkginclude_HEADERS += \
+	lib/address_alias.h \
 	lib/admin_group.h \
 	lib/affinitymap.h \
 	lib/agg_table.h \

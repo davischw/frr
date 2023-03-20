@@ -22,6 +22,7 @@
 #include "if_rmap.h"
 #include "libfrr.h"
 #include "routemap.h"
+#include "address_alias.h"
 
 #include "ripngd/ripngd.h"
 #include "ripngd/ripng_nb.h"
@@ -99,6 +100,7 @@ struct frr_signal_t ripng_signals[] = {
 };
 
 static const struct frr_yang_module_info *const ripngd_yang_modules[] = {
+	&frr_address_alias_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_ripngd_info,

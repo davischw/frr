@@ -34,6 +34,7 @@
 #include "northbound_cli.h"
 #include "network.h"
 #include "routemap.h"
+#include "address_alias.h"
 
 #include "frrscript.h"
 
@@ -2575,6 +2576,8 @@ void cmd_init(int terminal)
 
 		log_cmd_init();
 		vrf_install_commands();
+
+		address_alias_cli_init();
 	}
 
 #ifdef DEV_BUILD

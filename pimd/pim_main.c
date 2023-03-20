@@ -25,6 +25,7 @@
 #include "libfrr.h"
 #include "routemap.h"
 #include "routing_nb.h"
+#include "lib/address_alias.h"
 
 #include "pimd.h"
 #include "pim_instance.h"
@@ -60,6 +61,7 @@ struct zebra_privs_t pimd_privs = {
 	.cap_num_i = 0};
 
 static const struct frr_yang_module_info *const pimd_yang_modules[] = {
+	&frr_address_alias_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_route_map_info,

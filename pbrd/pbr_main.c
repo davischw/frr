@@ -29,6 +29,7 @@
 #include "routemap.h"
 #include "nexthop.h"
 #include "nexthop_group.h"
+#include "lib/address_alias.h"
 
 #include "pbr_nht.h"
 #include "pbr_map.h"
@@ -104,6 +105,7 @@ struct frr_signal_t pbr_signals[] = {
 #define PBR_VTY_PORT 2615
 
 static const struct frr_yang_module_info *const pbrd_yang_modules[] = {
+	&frr_address_alias_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_vrf_info,

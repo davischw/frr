@@ -21,6 +21,7 @@
 #include "affinitymap.h"
 #include "routemap.h"
 #include "routing_nb.h"
+#include "lib/address_alias.h"
 
 #include "zebra/zebra_router.h"
 #include "zebra/zebra_errors.h"
@@ -247,6 +248,7 @@ struct frr_signal_t zebra_signals[] = {
 
 /* clang-format off */
 static const struct frr_yang_module_info *const zebra_yang_modules[] = {
+	&frr_address_alias_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_route_map_info,

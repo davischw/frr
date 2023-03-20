@@ -19,6 +19,7 @@
 #include "nexthop.h"
 #include "filter.h"
 #include "routing_nb.h"
+#include "lib/address_alias.h"
 
 #include "static_vrf.h"
 #include "static_vty.h"
@@ -98,6 +99,7 @@ struct frr_signal_t static_signals[] = {
 };
 
 static const struct frr_yang_module_info *const staticd_yang_modules[] = {
+	&frr_address_alias_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_vrf_info,
