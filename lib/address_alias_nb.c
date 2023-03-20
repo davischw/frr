@@ -3,6 +3,9 @@
 #include "lib/northbound.h"
 #include "lib/address_alias.h"
 
+DECLARE_MTYPE(LIB, ADDRESS_ALIAS);
+DECLARE_MTYPE(LIB, ADDRESS_ALIAS_IP);
+
 DEFINE_MTYPE_STATIC(LIB, ADDRESS_ALIAS, "Address alias");
 DEFINE_MTYPE_STATIC(LIB, ADDRESS_ALIAS_IP, "Address alias IP address");
 
@@ -37,7 +40,8 @@ static void address_alias_free(struct address_alias **aa)
 
 static void address_alias_address_new(struct address_alias *aa)
 {
-	struct ipaddr aa_ip;
+	struct ipaddr *aa_ip;
+
 	if (aa) {
 		aa_ip = XCALLOC(MTYPE_ADDRESS_ALLIAS_IP, sizeof(struct ipaddr));
 		if (aa_ip) {
