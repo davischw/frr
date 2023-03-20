@@ -38,25 +38,30 @@ static void address_alias_free(struct address_alias **aa)
 	}
 }
 
-static void address_alias_address_new(struct address_alias *aa)
+static void address_alias_address_new(struct address_alias **aa)
 {
 	struct ipaddr *aa_ip;
 
 	if (aa) {
-		aa_ip = XCALLOC(MTYPE_ADDRESS_ALLIAS_IP, sizeof(struct ipaddr));
-		if (aa_ip) {
-			(*aa)->aa_ip = aa_ip;
-			hook_call(aadress_alias_changed, aa);
+		if (*aa) {
+			aa_ip = XCALLOC(MTYPE_ADDRESS_ALLIAS_IP,
+					sizeof(struct ipaddr));
+			if (aa_ip) {
+				(*aa)->aa_ip = aa_ip;
+				hook_call(aadress_alias_changed, aa);
+			}
 		}
 	}
 }
 
-static void address_alias_address_free(struct address_alias *aa)
+static void address_alias_address_free(struct address_alias **aa)
 {
 	if (aa) {
-		if (aa->aa_ip) {
-			XFREE(MTYPE_ADDRESS_ALIAS_IP, aa->aa_ip);
-			hook_call(address_alias_changed, aa);
+		if (*aa) {
+			if (aa->aa_ip) {
+				XFREE(MTYPE_ADDRESS_ALIAS_IP, aa->aa_ip);
+				hook_call(address_alias_changed, aa);
+			}
 		}
 	}
 }
@@ -93,8 +98,15 @@ static int lib_address_alias_create(struct nb_cb_create_args *args)
 			}
 		}
 	}
+	if (aa) {
 
 	return NB_OK;
+        :
+        :q
+        :q
+        ;
+        ;dq
+        :q<S-Tab>
 }
 
 static int lib_address_alias_destroy(struct nb_cb_destroy_args *args)
@@ -126,7 +138,7 @@ static int lib_address_alias_address_modify(struct nb_cb_modify_args *args)
 			aa = nb_running_get_entry(args->dnode, NULL, true);
 			if (aa) {
 				/* TODO: Implemenet. */
-
+	
 				address_alias_address_new(&aa);
 				/*
 				yang_dnode_get_ip(&aa->aa_ip, args->dnode,
