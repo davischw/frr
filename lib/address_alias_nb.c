@@ -4,6 +4,7 @@
 #include "lib/address_alias.h"
 
 DEFINE_MTYPE_STATIC(LIB, ADDRESS_ALIAS, "Address alias");
+DEFINE_MTYPE_STATIC(LIB, ADDRESS_ALIAS_IP, "Address alias IP address");
 
 DEFINE_HOOK(address_alias_changed, (const struct address_alias *aa), (aa));
 DEFINE_HOOK(address_alias_deleted, (const struct address_alias *aa), (aa));
@@ -34,12 +35,14 @@ static void address_alias_free(struct address_alias **aa)
 	}
 }
 
-static void address_alias_address_new(struct address_alias **aa)
+static void address_alias_address_new(struct address_alias *aa)
 {
+	struct ipaddr aa_ip;
 	if (aa) {
-		if (*aa) {
-			/* TODO: Implement */
-			while(false);
+		aa_ip = XCALLOC(MTYPE_ADDRESS_ALLIAS_IP, sizeof(struct ipaddr));
+		if (aa_ip) {
+			(*aa)->aa_ip = aa_ip;
+			hook_call(aadress_alias_changed, aa);
 		}
 	}
 }
@@ -48,8 +51,10 @@ static void address_alias_address_free(struct address_alias **aa)
 {
 	if (aa) {
 		if (*aa) {
-			/* TODO: Impelement */
-			while(false);
+			if ((*aa)->aa_ip) {
+				XFREE(MTYPE_ADDRESS_ALIAS_IP, (*aa)->aa_ip);
+				hook_call(address_alias_changed, aa);
+			}
 		}
 	}
 }
@@ -80,10 +85,10 @@ static int lib_address_alias_create(struct nb_cb_create_args *args)
 		if (args->event == NB_EV_APPLY) {
 			aa = address_alias_new(yang_dnode_get_string(args->dnode,
 								     "./name"));
-			if (aa)
+			if (aa) {
 				nb_running_set_entry(args->dnode, aa);
-
 				hook_call(address_alias_changed, aa);
+			}
 		}
 	}
 
@@ -97,8 +102,12 @@ static int lib_address_alias_destroy(struct nb_cb_destroy_args *args)
 	if (args) {
 		if (args->event == NB_EV_APPLY) {
 			aa = nb_running_get_entry(args->dnode, NULL, true);
-			if (aa)
+			if (aa) {
+				if (aa->aa_ip)
+					address_alias_address_free(aa);
+
 				address_alias_free(&aa);
+			}
 		}
 	}
 
