@@ -101,12 +101,6 @@ static int lib_address_alias_create(struct nb_cb_create_args *args)
 	if (aa) {
 
 	return NB_OK;
-        :
-        :q
-        :q
-        ;
-        ;dq
-        :q<S-Tab>
 }
 
 static int lib_address_alias_destroy(struct nb_cb_destroy_args *args)
