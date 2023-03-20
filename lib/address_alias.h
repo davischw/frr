@@ -19,7 +19,7 @@
 
 struct address_alias {
 	char aa_name[ADDRESS_ALIAS_NAME_LONGEST];
-	struct ipaddr aa_ip;
+	struct ipaddr *aa_ip;
 	TAILQ_ENTRY(address_alias) aa_entry;
 };
 
