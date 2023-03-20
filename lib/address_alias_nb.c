@@ -51,14 +51,12 @@ static void address_alias_address_new(struct address_alias *aa)
 	}
 }
 
-static void address_alias_address_free(struct address_alias **aa)
+static void address_alias_address_free(struct address_alias *aa)
 {
 	if (aa) {
-		if (*aa) {
-			if ((*aa)->aa_ip) {
-				XFREE(MTYPE_ADDRESS_ALIAS_IP, (*aa)->aa_ip);
-				hook_call(address_alias_changed, (*aa));
-			}
+		if (aa->aa_ip) {
+			XFREE(MTYPE_ADDRESS_ALIAS_IP, aa->aa_ip);
+			hook_call(address_alias_changed, aa);
 		}
 	}
 }
