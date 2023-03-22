@@ -371,8 +371,9 @@ static inline bool pim_rp_try_alist(struct rp_info *rp_info,
 /*
  * Given a group, return the rp_info for that group
  */
-struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
-					const struct prefix *group)
+static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
+						     const struct prefix *group,
+						     bool any)
 {
 	struct listnode *node;
 	struct rp_info *best = NULL;
@@ -384,7 +385,7 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 
 	bp = NULL;
 	for (ALL_LIST_ELEMENTS_RO(pim->rp_list, node, rp_info)) {
-		if (!rp_info->rp.source_nexthop.interface)
+		if (!rp_info->rp.source_nexthop.interface && !any)
 			continue;
 
 		if (rp_info->plist) {
@@ -437,7 +438,8 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 
 	for (rp_info = NULL; rn; rn = rn->parent, rp_info = NULL) {
 		rp_info = rn->info;
-		if (rp_info && rp_info->rp.source_nexthop.interface)
+
+		if (rp_info && (rp_info->rp.source_nexthop.interface || any))
 			break;
 	}
 
@@ -469,7 +471,7 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 	}
 
 	for (ALL_LIST_ELEMENTS_RO(pim->fb_rp_list, node, rp_info)) {
-		if (!rp_info->rp.source_nexthop.interface)
+		if (!rp_info->rp.source_nexthop.interface && !any)
 			continue;
 
 		if (rp_info->plist) {
@@ -517,7 +519,8 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 		for (; rn; rn = rn->parent, rp_info = NULL) {
 			rp_info = rn->info;
 
-			if (rp_info && rp_info->rp.source_nexthop.interface)
+			if (rp_info &&
+			    (rp_info->rp.source_nexthop.interface || any))
 				break;
 		}
 	}
@@ -545,6 +548,23 @@ struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
 	}
 
 	return best;
+}
+
+struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
+					const struct prefix *group)
+{
+	return pim_rp_find_match_group_inner(pim, group, false);
+}
+
+static struct rp_info *pim_rp_find_match_root(struct pim_instance *pim)
+{
+	struct rp_info *rpi;
+	struct prefix g;
+
+	pim_get_all_mcast_group(&g);
+	rpi = pim_rp_find_match_group_inner(pim, &g, true);
+	assertf(rpi, "cannot find dummy RP for all multicast");
+	return rpi;
 }
 
 /*
@@ -755,7 +775,6 @@ int pim_rp_valid(struct pim_instance *pim, pim_addr rp_addr,
 {
 	struct rp_info *rp_all;
 	struct rp_info *tmp_rp_info;
-	struct prefix group_all;
 
 	if (pim_addr_is_any(rp_addr))
 		return PIM_RP_BAD_ADDRESS;
@@ -790,9 +809,7 @@ int pim_rp_valid(struct pim_instance *pim, pim_addr rp_addr,
 			return PIM_RP_ACLIST_IN_USE;
 
 	} else {
-		if (!str2prefix("224.0.0.0/4", &group_all))
-			return PIM_GROUP_BAD_ADDRESS;
-		rp_all = pim_rp_find_match_group(pim, &group_all);
+		rp_all = pim_rp_find_match_root(pim);
 
 		/*
 		 * Barf if group is a non-multicast subnet
@@ -843,7 +860,6 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	struct route_table *table;
 	struct rp_info *rp_info;
 	struct rp_info *rp_all;
-	struct prefix group_all;
 	struct listnode *node, *nnode;
 	struct rp_info *tmp_rp_info;
 	char buffer[BUFSIZ];
@@ -960,11 +976,7 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	} else {
 		struct route_node *rn;
 
-		if (!pim_get_all_mcast_group(&group_all)) {
-			XFREE(MTYPE_PIM_RP, rp_info);
-			return PIM_GROUP_BAD_ADDRESS;
-		}
-		rp_all = pim_rp_find_match_group(pim, &group_all);
+		rp_all = pim_rp_find_match_root(pim);
 
 		/*
 		 * Barf if group is a non-multicast subnet
@@ -1179,7 +1191,6 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 {
 	struct list *list;
 	struct route_table *table;
-	struct prefix g_all;
 	struct rp_info *rp_info;
 	struct rp_info *rp_all;
 	pim_addr nht_p;
@@ -1262,10 +1273,7 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 			   &nht_p);
 	pim_delete_tracked_nexthop(pim, nht_p, NULL, rp_info);
 
-	if (!pim_get_all_mcast_group(&g_all))
-		return PIM_RP_BAD_ADDRESS;
-
-	rp_all = pim_rp_find_match_group(pim, &g_all);
+	rp_all = pim_rp_find_match_root(pim);
 
 	if (rp_all == rp_info && rp_src_flag != RP_SRC_FALLBACK) {
 		frr_each (rb_pim_upstream, &pim->upstream_head, up) {
