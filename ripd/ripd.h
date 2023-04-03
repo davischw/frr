@@ -187,7 +187,7 @@ struct rip {
 	struct route_table *distance_table;
 
 	/* RIP ECMP flag */
-	bool ecmp;
+	uint8_t ecmp;
 
 	/* Are we in passive-interface default mode? */
 	bool passive_default;
@@ -607,5 +607,6 @@ extern void rip_network_legacy_update(struct rip *rip, const char *interface,
 extern int ip_rip_interface_network_toggle(struct vty *vty,
 					   const struct prefix_ipv4 *network);
 extern int ip_rip_interface_name_toggle(struct vty *vty, const char *name);
+extern void rip_ecmp_change(struct rip *rip);
 
 #endif /* _ZEBRA_RIP_H */
