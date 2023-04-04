@@ -135,6 +135,90 @@ def test_router_running():
         assert fatal_error == "", fatal_error
 
 
+def show_rip_status_json(router):
+    """Parse router 'show ip rip status' and generate JSON output """
+    output = router.vtysh_cmd("show ip rip status")
+    json = {
+            "routingNetworks": [],
+            "passiveInterfaces": [],
+            "routingInformation": {},
+    }
+
+    STEP_HEADER = 1
+    STEP_VERSION = 2
+    STEP_ROUTING_NETWORKS = 3
+    STEP_PASSIVE_INTERFACES = 4
+    STEP_ROUTING_INFORMATION = 5
+    step = STEP_HEADER
+
+    for line in output.splitlines():
+        if step == STEP_HEADER:
+            match = re.match(r"\s+Interface\s+Send\s+Recv\s+Key\-chain", line)
+            if match is not None:
+                step = STEP_VERSION
+                continue
+
+        elif step == STEP_VERSION:
+            match = re.match(r"\s+Routing for Networks:", line)
+            if match is not None:
+                step = STEP_ROUTING_NETWORKS
+                continue
+
+        elif step == STEP_ROUTING_NETWORKS:
+            match = re.match(r"\s+Passive Interface\(s\):", line)
+            if match is not None:
+                step = STEP_PASSIVE_INTERFACES
+                continue
+
+            match = re.match(r"\s+Routing Information Sources:", line)
+            if match is not None:
+                step = STEP_ROUTING_INFORMATION
+                continue
+
+            match = re.match(r"    (.+)", line)
+            if match is not None:
+                json["routingNetworks"].append(match[1])
+
+        elif step == STEP_PASSIVE_INTERFACES:
+            match = re.match(r"\s+Routing Information Sources:", line)
+            if match is not None:
+                step = STEP_ROUTING_INFORMATION
+                continue
+
+            match = re.match(r"    (.+)", line)
+            if match is not None:
+                json["passiveInterfaces"].append(match[1])
+
+        elif step == STEP_ROUTING_INFORMATION:
+            match = re.match(
+                r"\s+Gateway\s+BadPackets BadRoutes  Distance Last Update",
+                line)
+            if match is not None:
+                continue
+
+            match = re.match(
+                r"\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)",
+                line)
+            if match is not None:
+                json["routingInformation"][match[1]] = {
+                    "badPackets": int(match[2]),
+                    "badRoutes": int(match[3]),
+                    "distance": int(match[4]),
+                    "lastUpdate": match[5],
+                }
+
+    return json
+
+
+def expect_rip_status(router, status):
+    "Expect 'status' in router 'router'."
+    def test_function():
+        return topotest.json_cmp(show_rip_status_json(router), status)
+
+    _, result = topotest.run_and_expect(test_function, None, count=15, wait=1)
+    assert result is None, "Unexpected RIP status in {}".format(router.name)
+
+
 def test_converge_protocols():
     global fatal_error
     net = get_topogen().net
@@ -159,55 +243,47 @@ def test_converge_protocols():
 
 def test_rip_status():
     global fatal_error
-    net = get_topogen().net
+    tgen = get_topogen()
+    net = tgen.net
 
     # Skip if previous fatal error condition is raised
     if fatal_error != "":
         pytest.skip(fatal_error)
 
-    thisDir = os.path.dirname(os.path.realpath(__file__))
-
     # Verify RIP Status
     print("\n\n** Verifing RIP status")
     print("******************************************\n")
-    failures = 0
-    for i in range(1, 4):
-        refTableFile = "%s/r%s/rip_status.ref" % (thisDir, i)
-        if os.path.isfile(refTableFile):
-            # Read expected result from file
-            expected = open(refTableFile).read().rstrip()
-            # Fix newlines (make them all the same)
-            expected = ("\n".join(expected.splitlines()) + "\n").splitlines(1)
 
-            # Actual output from router
-            actual = (
-                net["r%s" % i]
-                .cmd('vtysh -c "show ip rip status" 2> /dev/null')
-                .rstrip()
-            )
-            # Drop time in next due
-            actual = re.sub(r"in [0-9]+ seconds", "in XX seconds", actual)
-            # Drop time in last update
-            actual = re.sub(r" [0-2][0-9]:[0-5][0-9]:[0-5][0-9]", " XX:XX:XX", actual)
-            # Fix newlines (make them all the same)
-            actual = ("\n".join(actual.splitlines()) + "\n").splitlines(1)
+    expect_rip_status(tgen.gears["r1"], {
+        "routingNetworks": ["193.1.1.0/26", "r1-eth2", "r1-eth3"],
+        "passiveInterfaces": ["r1-eth3"],
+        "routingInformation": {
+            "193.1.1.2": {
+                "distance": 120,
+            }
+        }
+    })
 
-            # Generate Diff
-            diff = topotest.get_textdiff(
-                actual,
-                expected,
-                title1="actual IP RIP status",
-                title2="expected IP RIP status",
-            )
+    expect_rip_status(tgen.gears["r2"], {
+        "routingNetworks": ["193.1.1.0/26", "193.1.2.0/24"],
+        "routingInformation": {
+            "193.1.1.1": {
+                "distance": 120,
+            },
+            "193.1.2.2": {
+                "distance": 120,
+            }
+        }
+    })
 
-            # Empty string if it matches, otherwise diff contains unified diff
-            if diff:
-                sys.stderr.write("r%s failed IP RIP status check:\n%s\n" % (i, diff))
-                failures += 1
-            else:
-                print("r%s ok" % i)
-
-            assert failures == 0, "IP RIP status failed for router r%s:\n%s" % (i, diff)
+    expect_rip_status(tgen.gears["r3"], {
+        "routingNetworks": ["193.1.2.0/24"],
+        "routingInformation": {
+            "193.1.2.1": {
+                "distance": 120,
+            }
+        }
+    })
 
     # Make sure that all daemons are still running
     for i in range(1, 4):
