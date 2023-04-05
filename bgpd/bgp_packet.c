@@ -346,7 +346,7 @@ static void bgp_update_explicit_eors(struct peer *peer)
  * calling safi function and for evpn, passed as parameter
  */
 int bgp_nlri_parse(struct peer *peer, struct attr *attr,
-		   struct bgp_nlri *packet, int mp_withdraw)
+		   struct bgp_nlri *packet, bool mp_withdraw)
 {
 	if (packet->afi < AFI_MAX && packet->safi < SAFI_MAX)
 		peer->filter[packet->afi][packet->safi].advmap_rib_changed =
