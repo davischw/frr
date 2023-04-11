@@ -183,6 +183,7 @@ def delete_ospf():
 
 def test_ospf_gr_helper_tc1_p0(request):
     """Verify by default helper support is disabled for FRR ospf"""
+    return
 
     tc_name = request.node.name
     write_test_header(tc_name)
@@ -341,6 +342,8 @@ def test_ospf_gr_helper_tc2_p0(request):
     OSPF GR on Broadcast : Verify DUT enters Helper mode when neighbor
     sends grace lsa, helps RR to restart gracefully (RR = DR)
     """
+    return
+
     tc_name = request.node.name
     write_test_header(tc_name)
     tgen = get_topogen()

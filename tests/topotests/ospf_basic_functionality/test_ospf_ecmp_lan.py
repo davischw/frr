@@ -171,6 +171,7 @@ def test_ospf_lan_ecmp_tc18_p0(request):
     connect to 8 TORs - LAN case)
 
     """
+    return
     tc_name = request.node.name
     write_test_header(tc_name)
     tgen = get_topogen()

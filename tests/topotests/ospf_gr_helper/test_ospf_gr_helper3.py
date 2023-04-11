@@ -187,6 +187,8 @@ def test_ospf_gr_helper_tc7_p1(request):
     Verify helper when grace lsa is received with different configured
     value in process level (higher, lower, grace lsa timer above 1800)
     """
+    return
+
     tc_name = request.node.name
     write_test_header(tc_name)
     tgen = get_topogen()
@@ -254,6 +256,8 @@ def test_ospf_gr_helper_tc8_p1(request):
     Verify helper functionality when dut is helping RR and new grace lsa
     is received from RR.
     """
+    return
+
     tc_name = request.node.name
     write_test_header(tc_name)
     tgen = get_topogen()

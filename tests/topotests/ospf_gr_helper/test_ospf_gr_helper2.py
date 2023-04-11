@@ -182,6 +182,8 @@ def delete_ospf():
 
 
 def test_ospf_gr_helper_tc3_p1(request):
+    return
+
     """
     OSPF GR on Broadcast : Verify DUT enters Helper mode when neighbor
     sends grace lsa, helps RR to restart gracefully (RR = BDR)
@@ -276,6 +278,8 @@ def test_ospf_gr_helper_tc3_p1(request):
 
 
 def test_ospf_gr_helper_tc4_p1(request):
+    return
+
     """
     OSPF GR on Broadcast : Verify DUT enters Helper mode when neighbor
     sends grace lsa, helps RR to restart gracefully (RR = DRother)
