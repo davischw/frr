@@ -901,7 +901,7 @@ static int pim_nht_update(ZAPI_CALLBACK_ARGS)
 	nhd->last_update = pim_time_monotonic_usec();
 
 	if (nhr.nexthop_num) {
-		nhd->nexthop_num = 0; // Only increment for pim enabled rpf.
+		nhd->nexthop_num = 0;
 
 		for (i = 0; i < nhr.nexthop_num; i++) {
 			nexthop = nexthop_from_zapi_nexthop(&nhr.nexthops[i]);
@@ -1058,7 +1058,8 @@ static int pim_nht_update(ZAPI_CALLBACK_ARGS)
 				nhlist_tail = nexthop;
 				nhlist_head = nexthop;
 			}
-			// Only keep track of nexthops which are PIM enabled.
+
+			// Keep track of all nexthops, even PIM-disabled ones.
 			nhd->nexthop_num++;
 		}
 		/* Reset existing pnc->nexthop before assigning new list */
