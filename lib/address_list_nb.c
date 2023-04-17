@@ -95,10 +95,16 @@ static struct address_list *address_list_new(const char *name)
 	return al;
 }
 
-static void address_list_free(struct address_list **al)
+static void address_list_clear(struct address_list *al)
 {
 	struct address_entry *ae;
 
+	while ((ae = TAILQ_FIRST(&(al)->al_list)) != NULL)
+		address_entry_free(&ae);
+}
+
+static void address_list_free(struct address_list **al)
+{
 	if ((*al) == NULL)
 		return;
 
@@ -106,8 +112,7 @@ static void address_list_free(struct address_list **al)
 	TAILQ_REMOVE(&al_list, (*al), al_entry);
 
 	/* Free all other entries before the list itself (if any). */
-	while ((ae = TAILQ_FIRST(&(*al)->al_list)) != NULL)
-		address_entry_free(&ae);
+	address_list_clear(*al);
 
 	/* Free resources. */
 	XFREE(MTYPE_ADDRESS_LIST, (*al));
@@ -191,6 +196,8 @@ static int lib_address_list_addresses_create(struct nb_cb_create_args *args)
 		return NB_OK;
 
 	al = nb_running_get_entry(args->dnode, NULL, true);
+	/* HACK (#396): clear the address list first. */
+	address_list_clear(al);
 	ae = address_entry_new(al);
 	yang_dnode_get_ip(&ae->ae_ip, args->dnode, "./address");
 	nb_running_set_entry(args->dnode, ae);
@@ -217,6 +224,31 @@ static int lib_address_list_addresses_destroy(struct nb_cb_destroy_args *args)
 	return NB_OK;
 }
 
+static void lib_address_list_addresses_apply_finish(struct nb_cb_apply_finish_args *args)
+{
+	const struct lysc_node *snode;
+	struct lyd_node *dnode;
+
+	/*
+	 * HACK (#396): remove all addresses but the last one from the candidate
+	 * configuration.
+	 */
+	snode = args->dnode->schema;
+	dnode = lyd_first_sibling(args->dnode);
+	if (!dnode)
+		return;
+	while (dnode->next) {
+		struct lyd_node *next = dnode->next;
+
+		if (dnode->schema != snode)
+			goto next;
+
+		(void)nb_running_unset_entry(dnode);
+		lyd_free_tree(dnode);
+	next:
+		dnode = next;
+	}
+}
 
 /* clang-format off */
 const struct frr_yang_module_info frr_address_list_info = {
@@ -235,6 +267,7 @@ const struct frr_yang_module_info frr_address_list_info = {
 			.cbs = {
 				.create = lib_address_list_addresses_create,
 				.destroy = lib_address_list_addresses_destroy,
+				.apply_finish = lib_address_list_addresses_apply_finish,
 				.cli_show = address_list_address_show,
 			}
 		},

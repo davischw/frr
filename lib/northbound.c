@@ -907,6 +907,17 @@ void nb_candidate_commit_apply(struct nb_transaction *transaction,
 				     errmsg_len);
 	nb_transaction_apply_finish(transaction, errmsg, errmsg_len);
 
+	/*
+	 * HACK (#396): validate the candidate again because it might have been
+	 * changed during the transaction.
+	 */
+	if (nb_candidate_validate_yang(transaction->config, errmsg, errmsg_len)
+	    != NB_OK) {
+		flog_warn(EC_LIB_NB_CANDIDATE_INVALID,
+			  "%s: failed to validate candidate configuration",
+			  __func__);
+	}
+
 	/* Replace running by candidate. */
 	transaction->config->version++;
 	nb_config_replace(running_config, transaction->config, true);
