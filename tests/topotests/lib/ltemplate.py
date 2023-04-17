@@ -301,6 +301,18 @@ def ltemplateVersionCheck(
     return ret
 
 
+def ltemplateCLI():
+    """ Get a mininet cli promt """
+
+    tgen = get_topogen()
+
+    logger.info("calling mininet CLI")
+    tgen.mininet_cli()
+    logger.info("exited mininet CLI")
+
+    return 0
+
+
 # for testing
 if __name__ == "__main__":
     args = ["-s"] + sys.argv[1:]
