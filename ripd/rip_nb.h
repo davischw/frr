@@ -175,8 +175,9 @@ void cli_show_rip_passive_interface(struct vty *vty,
 void cli_show_rip_non_passive_interface(struct vty *vty,
 					const struct lyd_node *dnode,
 					bool show_defaults);
-void cli_show_rip_log_neighbor_changes(struct vty *vty, struct lyd_node *dnode,
-                    bool show_defaults);
+void cli_show_rip_log_neighbor_changes(struct vty *vty,
+				       const struct lyd_node *dnode,
+				       bool show_defaults);
 void cli_show_rip_redistribute(struct vty *vty, const struct lyd_node *dnode,
 			       bool show_defaults);
 void cli_show_rip_route(struct vty *vty, const struct lyd_node *dnode,

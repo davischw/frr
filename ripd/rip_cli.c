@@ -289,10 +289,11 @@ DEFPY_YANG(rip_log_neighbor_changes, rip_log_neighbor_changes_cmd, "[no] log-nei
         return nb_cli_apply_changes(vty, NULL);
 }
 
-void cli_show_rip_log_neighbor_changes(struct vty *vty, struct lyd_node *dnode,
-                                 bool show_defaults)
+void cli_show_rip_log_neighbor_changes(struct vty *vty,
+				       const struct lyd_node *dnode,
+				       bool show_defaults)
 {
-        if (!yang_dnode_get_bool(dnode, NULL))
+	if (!yang_dnode_get_bool(dnode, NULL))
                 vty_out(vty, " no");
         vty_out(vty, " log-neighbor-changes\n");
 }
