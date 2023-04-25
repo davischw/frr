@@ -3498,7 +3498,7 @@ void rip_distribute_update_interface(struct interface *ifp)
 	struct rip *rip = ri->rip;
 	struct distribute *dist;
 
-	if (!rip)
+	if (!rip || !rip->distribute_ctx)
 		return;
 	dist = distribute_lookup(rip->distribute_ctx, ifp->name);
 	if (dist)
