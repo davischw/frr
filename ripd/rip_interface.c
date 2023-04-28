@@ -42,6 +42,7 @@
 #include "ripd/ripd.h"
 #include "ripd/rip_debug.h"
 #include "ripd/rip_interface.h"
+#include "ripd/rip_southbound.h"
 
 DEFINE_MTYPE_STATIC(RIPD, RIP_INTERFACE, "RIP interface");
 DEFINE_MTYPE(RIPD, RIP_INTERFACE_STRING, "RIP Interface String");
@@ -126,6 +127,11 @@ void rip_interface_multicast_set(int sock, struct connected *connected)
 	struct in_addr addr;
 
 	assert(connected != NULL);
+
+#ifdef VENDOR_SOUTHBOUND
+	if (rip_southbound_enabled)
+		return;
+#endif /* VENDOR_SOUTHBOUND */
 
 	addr = CONNECTED_ID(connected)->u.prefix4;
 
@@ -232,6 +238,11 @@ static int rip_multicast_join(struct interface *ifp, int sock)
 		if (IS_RIP_DEBUG_EVENT)
 			zlog_debug("multicast join at %s", ifp->name);
 
+#ifdef VENDOR_SOUTHBOUND
+		if (rip_southbound_enabled)
+			return 0;
+#endif /* VENDOR_SOUTHBOUND */
+
 		for (ALL_LIST_ELEMENTS_RO(ifp->connected, cnode, ifc)) {
 			struct prefix_ipv4 *p;
 			struct in_addr group;
@@ -262,6 +273,11 @@ static void rip_multicast_leave(struct interface *ifp, int sock)
 	if (if_is_up(ifp) && if_is_multicast(ifp)) {
 		if (IS_RIP_DEBUG_EVENT)
 			zlog_debug("multicast leave from %s", ifp->name);
+
+#ifdef VENDOR_SOUTHBOUND
+		if (rip_southbound_enabled)
+			return;
+#endif /* VENDOR_SOUTHBOUND */
 
 		for (ALL_LIST_ELEMENTS_RO(ifp->connected, cnode, connected)) {
 			struct prefix_ipv4 *p;
