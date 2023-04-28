@@ -970,6 +970,8 @@ static void bfd_dplane_client_connect(struct thread *t)
 		_bfd_dplane_client_bootstrap(bdc);
 	}
 
+	return;
+
 reschedule_connect:
 	THREAD_OFF(bdc->inbufev);
 	THREAD_OFF(bdc->outbufev);
