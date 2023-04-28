@@ -666,7 +666,7 @@ void pimsb_packet_read(int sock)
 	enum ip_encap_packet_assemble_result erv;
 	enum ip_packet_assemble_result rv;
 	struct pim_interface *pim_ifp;
-	struct interface *ifp;
+	struct interface *ifp = NULL;
 	const uint8_t *packet;
 	struct vrf *vrf;
 	size_t packet_length;
@@ -887,7 +887,7 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 {
 	struct pim_interface *pim_ifp;
 	struct pim_upstream *up;
-	struct interface *ifp;
+	struct interface *ifp = NULL;
 	struct vrf *vrf;
 	int32_t input_index = ntohl(me->iif_idx);
 	pim_sgaddr sg_p = {};
@@ -1024,7 +1024,7 @@ static void pimsb_client_data_stop(const struct mroute_event *me)
 {
 	struct pim_interface *pim_ifp;
 	struct pim_upstream *up;
-	struct interface *ifp;
+	struct interface *ifp = NULL;
 	struct vrf *vrf;
 	pim_sgaddr sg = {};
 
@@ -1081,7 +1081,7 @@ static void pimsb_client_data_stop(const struct mroute_event *me)
 static void pimsb_client_wrong_if(const struct mroute_event *me)
 {
 	struct pim_interface *pim_ifp;
-	struct interface *ifp;
+	struct interface *ifp = NULL;
 	struct vrf *vrf;
 	int32_t input_index = ntohl(me->iif_idx);
 	struct igmpmsg im = {};
@@ -1111,7 +1111,7 @@ static void pimsb_client_spt_join(const struct mroute_event *me)
 {
 	struct pim_interface *pim_ifp;
 	struct pim_upstream *up;
-	struct interface *ifp;
+	struct interface *ifp = NULL;
 	struct vrf *vrf;
 	pim_sgaddr sg_p;
 
@@ -1364,7 +1364,7 @@ static void pimsb_pim_packet_read(int sock)
 	enum ip_packet_assemble_result rv;
 	const struct ipv4_header *ipv4;
 	struct pim_interface *pim_ifp;
-	struct interface *ifp;
+	struct interface *ifp = NULL;
 	struct vrf *vrf;
 	const uint8_t *packet;
 	size_t packet_length;
@@ -1523,7 +1523,7 @@ ssize_t pimsb_igmp_sendto(const char *ifname, const void *data, size_t datalen,
 {
 	struct sockaddr_in *dsin = (struct sockaddr_in *)sa;
 	struct pim_interface *pim_ifp;
-	struct interface *ifp;
+	struct interface *ifp = NULL;
 	struct vrf *vrf;
 	ssize_t bytes_sent;
 	struct ipv4_encap_params encap_params;
