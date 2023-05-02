@@ -360,7 +360,7 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 	uint32_t route_flags = 0;
 	uint32_t spt_threshold = 0;
 	struct prefix p = {};
-	char intf[32];
+	char intf[128];
 	char oifs[2048];
 
 	if (PIM_DEBUG_MROUTE) {

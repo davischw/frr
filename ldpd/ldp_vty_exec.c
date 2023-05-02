@@ -174,7 +174,7 @@ show_interface_msg_json(struct imsg *imsg, struct show_params *params,
 {
 	struct ctl_iface	*iface;
 	json_object		*json_iface;
-	char 			 key_name[64];
+	char 			 key_name[128];
 
 	switch (imsg->hdr.type) {
 	case IMSG_CTL_SHOW_INTERFACE:

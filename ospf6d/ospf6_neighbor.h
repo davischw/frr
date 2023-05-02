@@ -76,7 +76,7 @@ struct ospf6_virtual_link;
 /* Neighbor structure */
 struct ospf6_neighbor {
 	/* Neighbor Router ID String */
-	char name[36];
+	char name[128 + INTERFACE_NAMSIZ];
 
 	/* OSPFv3 Interface this neighbor belongs to */
 	struct ospf6_interface *ospf6_if;

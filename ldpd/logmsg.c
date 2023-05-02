@@ -167,7 +167,7 @@ log_time(time_t t)
 char *
 log_hello_src(const struct hello_source *src)
 {
-	static char buf[64];
+	static char buf[128];
 
 	switch (src->type) {
 	case HELLO_LINK:

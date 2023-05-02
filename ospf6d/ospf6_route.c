@@ -50,7 +50,7 @@ unsigned char conf_debug_ospf6_route = 0;
 
 static char *ospf6_route_table_name(struct ospf6_route_table *table)
 {
-	static char name[64];
+	static char name[128];
 	switch (table->scope_type) {
 	case OSPF6_SCOPE_TYPE_GLOBAL: {
 		switch (table->table_type) {

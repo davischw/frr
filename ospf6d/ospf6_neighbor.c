@@ -125,7 +125,7 @@ struct ospf6_neighbor *ospf6_neighbor_create(uint32_t router_id,
 					     struct ospf6_interface *oi)
 {
 	struct ospf6_neighbor *on;
-	char buf[16];
+	char buf[128];
 	int type;
 
 	on = XCALLOC(MTYPE_OSPF6_NEIGHBOR, sizeof(struct ospf6_neighbor));

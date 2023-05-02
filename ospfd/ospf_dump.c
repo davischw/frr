@@ -129,7 +129,7 @@ const char *ospf_area_desc_string(struct ospf_area *area)
 	return buf;
 }
 
-#define OSPF_IF_STRING_MAXLEN 40
+#define OSPF_IF_STRING_MAXLEN (INTERFACE_NAMSIZ + 64)
 
 /* Display both nbr and ism state of the ospf neighbor.*/
 const char *ospf_if_name_string(struct ospf_interface *oi)
