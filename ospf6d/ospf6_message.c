@@ -2102,7 +2102,8 @@ static void ospf6_fill_hdr_checksum(struct ospf6_interface *oi,
 	if (oi->at_data.flags != 0)
 		return;
 
-	memcpy(&ph.src, oi->linklocal_addr, sizeof(struct in6_addr));
+	if (oi->linklocal_addr)
+		memcpy(&ph.src, oi->linklocal_addr, sizeof(struct in6_addr));
 	memcpy(&ph.dst, &op->dst, sizeof(struct in6_addr));
 	ph.ulpl = htonl(op->length);
 	ph.next_hdr = IPPROTO_OSPFIGP;
