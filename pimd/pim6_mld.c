@@ -358,7 +358,8 @@ static const char *const gm_states[] = {
 };
 /* clang-format on */
 
-CPP_NOTICE("TODO: S,G entries in EXCLUDE (i.e. prune) unsupported");
+/* TODO: S,G entries in EXCLUDE (i.e. prune) unsupported" */
+
 /* tib_sg_gm_prune() below is an "un-join", it doesn't prune S,G when *,G is
  * joined.  Whether we actually want/need to support this is a separate
  * question - it is almost never used.  In fact this is exactly what RFC5790
@@ -659,7 +660,7 @@ static void gm_handle_v2_pass1(struct gm_packet_state *pkt,
 			 */
 			gm_packet_sg_drop(old_grp);
 			gm_sg_update(grp, false);
-			CPP_NOTICE("need S,G PRUNE => NO_INFO transition here");
+/* TODO "need S,G PRUNE => NO_INFO transition here" */
 		}
 		break;
 
@@ -807,7 +808,8 @@ static void gm_handle_v2_pass2_excl(struct gm_packet_state *pkt, size_t offs)
 	gm_sg_update(sg_grp, false);
 }
 
-CPP_NOTICE("TODO: QRV/QQIC are not copied from queries to local state");
+/* TODO: QRV/QQIC are not copied from queries to local state" */
+
 /* on receiving a query, we need to update our robustness/query interval to
  * match, so we correctly process group/source specific queries after last
  * member leaves
@@ -963,7 +965,8 @@ static void gm_handle_v1_report(struct gm_if *gm_ifp,
 
 	item = gm_packet_sg_setup(pkt, grp, true, false);
 	item->n_exclude = 0;
-	CPP_NOTICE("set v1-seen timer on grp here");
+
+/* TODO "set v1-seen timer on grp here" */
 
 	/* } */
 
@@ -1026,7 +1029,9 @@ static void gm_handle_v1_leave(struct gm_if *gm_ifp,
 		if (old_grp) {
 			gm_packet_sg_drop(old_grp);
 			gm_sg_update(grp, false);
-			CPP_NOTICE("need S,G PRUNE => NO_INFO transition here");
+
+/* TODO "need S,G PRUNE => NO_INFO transition here" */
+
 		}
 	}
 
