@@ -600,6 +600,34 @@ def test_srte_change_segment_list_check_mpls_table_step4():
         delete_candidate_path(rname, endpoint, 100)
 
 
+def test_srte_change_segment_list_check_mpls_table_step4():
+    setup_test("MARKER MARKER MARKER")
+
+    tgen = get_topogen()
+
+    cmds_debug_cli = [
+        "arp -a",
+        "ip address show",
+        "ip route show",
+        "ip -f mpls route show",
+        ]
+
+    cmds_debug_vtysh = [
+        "show running-config",
+        "show ip ospf summary",
+        "show mpls table json",
+        "show ip ospf mpls-te interface",
+        "show ip ospf mpls-te router",
+    ]
+
+    for rt in ["rt1", "rt2", "rt3", "rt4", "rt5", "rt6"]:
+        for cmd in cmds_debug_vtysh:
+            tgen.gears[rt].vtysh_cmd(cmd)
+
+        for cmd in cmds_debug_cli:
+            tgen.gears[rt].cmd(cmd)
+
+
 def test_srte_change_sl_priority_error_ted_check_mpls_table_step4():
     setup_testcase("Test (step 4): check MPLS table keeps low prio sl")
 
