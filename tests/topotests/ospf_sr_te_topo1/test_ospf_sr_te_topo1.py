@@ -601,7 +601,7 @@ def test_srte_change_segment_list_check_mpls_table_step4():
 
 
 def test_srte_change_segment_list_check_mpls_table_step4_debug():
-    setup_test("MARKER MARKER MARKER")
+    setup_testcase("MARKER MARKER MARKER")
 
     tgen = get_topogen()
 
@@ -610,7 +610,7 @@ def test_srte_change_segment_list_check_mpls_table_step4_debug():
         "ip address show",
         "ip route show",
         "ip -f mpls route show",
-        ]
+    ]
 
     cmds_debug_vtysh = [
         "show running-config",
