@@ -600,7 +600,7 @@ def test_srte_change_segment_list_check_mpls_table_step4():
         delete_candidate_path(rname, endpoint, 100)
 
 
-def test_srte_change_segment_list_check_mpls_table_step4():
+def test_srte_change_segment_list_check_mpls_table_step4_debug():
     setup_test("MARKER MARKER MARKER")
 
     tgen = get_topogen()
