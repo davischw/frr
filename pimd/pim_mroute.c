@@ -596,6 +596,10 @@ int pim_mroute_msg_wrvifwhole(int fd, struct interface *ifp, const char *buf,
 			return -2;
 		}
 		PIM_UPSTREAM_FLAG_SET_SRC_STREAM(up->flags);
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		up->flags |= PIM_UPSTREAM_FLAG_MASK_DATA_START;
+#endif /* VENDOR_SOUTHBOUND */
 		pim_upstream_keep_alive_timer_start(
 			up, pim_ifp->pim->keep_alive_time);
 		up->channel_oil->cc.pktcnt++;
