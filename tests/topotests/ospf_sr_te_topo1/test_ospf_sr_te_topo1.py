@@ -401,6 +401,35 @@ def check_bsid(rt, bsid, fn_name, positive):
     assert matched, assertmsg
 
 
+def _srte_topology_debug(tgen, routers):
+    """
+    Execute a bunch of commands to capture state of specified routers in log
+    files
+    """
+
+    cmds_debug_cli = [
+        "arp -a",
+        "ip address show",
+        "ip route show",
+        "ip -f mpls route show",
+    ]
+
+    cmds_debug_vtysh = [
+        "show running-config",
+        "show ip ospf summary",
+        "show mpls table json",
+        "show ip ospf mpls-te interface",
+        "show ip ospf mpls-te router",
+    ]
+
+    for rt in routers:
+        for cmd in cmds_debug_vtysh:
+            tgen.gears[rt].vtysh_cmd(cmd)
+
+        for cmd in cmds_debug_cli:
+            tgen.gears[rt].cmd(cmd)
+
+
 #
 # Step 1
 #
@@ -567,6 +596,10 @@ def test_srte_remove_best_candidate_step3():
 def test_srte_change_segment_list_check_mpls_table_step4():
     setup_testcase("Test (step 4): check MPLS table for changed Segment List")
 
+    tgen = get_topogen()
+    setup_testcase("MARKER MARKER MARKER")
+    _srte_topology_debug(tgen, ["rt1", "rt2", "rt3", "rt4", "rt5", "rt6"])
+
     for rname, endpoint in [("rt1", "6.6.6.6"), ("rt6", "1.1.1.1")]:
         add_candidate_path(rname, endpoint, 100, "default")
         # now change the segment list name
@@ -591,6 +624,9 @@ def test_srte_change_segment_list_check_mpls_table_step4():
             add_segment_adj(rname, "test", 20, "10.0.6.5", "10.0.6.4")
             add_segment_adj(rname, "test", 30, "10.0.2.4", "10.0.2.2")
             add_segment_adj(rname, "test", 40, "10.0.1.2", "10.0.1.1")
+
+        _srte_topology_debug(tgen, [rname])
+
         check_bsid(
             rname,
             "1111" if rname == "rt1" else "6666",
@@ -599,33 +635,7 @@ def test_srte_change_segment_list_check_mpls_table_step4():
         )
         delete_candidate_path(rname, endpoint, 100)
 
-
-def test_srte_change_segment_list_check_mpls_table_step4_debug():
-    setup_testcase("MARKER MARKER MARKER")
-
-    tgen = get_topogen()
-
-    cmds_debug_cli = [
-        "arp -a",
-        "ip address show",
-        "ip route show",
-        "ip -f mpls route show",
-    ]
-
-    cmds_debug_vtysh = [
-        "show running-config",
-        "show ip ospf summary",
-        "show mpls table json",
-        "show ip ospf mpls-te interface",
-        "show ip ospf mpls-te router",
-    ]
-
-    for rt in ["rt1", "rt2", "rt3", "rt4", "rt5", "rt6"]:
-        for cmd in cmds_debug_vtysh:
-            tgen.gears[rt].vtysh_cmd(cmd)
-
-        for cmd in cmds_debug_cli:
-            tgen.gears[rt].cmd(cmd)
+    _srte_topology_debug(tgen, ["rt1", "rt2", "rt3", "rt4", "rt5", "rt6"])
 
 
 def test_srte_change_sl_priority_error_ted_check_mpls_table_step4():
