@@ -2828,7 +2828,7 @@ void pim_show_interfaces_single(struct pim_instance *pim, struct vty *vty,
 		}
 	}
 
-	if (!found_ifname)
+	if (!found_ifname && !json)
 		vty_out(vty, "%% No such interface\n");
 }
 
@@ -3380,7 +3380,7 @@ void pim_show_neighbors_single(struct pim_instance *pim, struct vty *vty,
 		}
 	}
 
-	if (!found_neighbor)
+	if (!found_neighbor && !json)
 		vty_out(vty, "%% No such interface or neighbor\n");
 }
 
