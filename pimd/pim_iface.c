@@ -1758,7 +1758,9 @@ static int pim_ifp_up(struct interface *ifp)
 						__func__, vrf->name);
 					return 0;
 				}
+
 				pim_zebra_interface_set_master(master, ifp);
+				break;
 			}
 		}
 	}
