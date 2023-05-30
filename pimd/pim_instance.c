@@ -218,6 +218,7 @@ static int pim_vrf_enable(struct vrf *vrf)
 	zlog_debug("%s: for %s %u", __func__, vrf->name, vrf->vrf_id);
 
 	pim_bsm_socket_init(pim);
+	pim_mroute_socket_enable(pim);
 
 	FOR_ALL_INTERFACES (vrf, ifp) {
 		if (!ifp->info)
@@ -226,8 +227,6 @@ static int pim_vrf_enable(struct vrf *vrf)
 		pim_if_create_pimreg(pim);
 		break;
 	}
-
-	pim_mroute_socket_enable(pim);
 
 	return 0;
 }
