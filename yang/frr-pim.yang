@@ -296,6 +296,13 @@ module frr-pim {
     container msdp {
       description "Global MSDP configuration.";
       uses msdp-timers;
+
+      leaf shutdown {
+        type boolean;
+        default false;
+        description
+          "Shutdown MSDP functionality.";
+      }
     }
 
     list msdp-mesh-groups {
