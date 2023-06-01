@@ -758,6 +758,9 @@ static void pim_msdp_peer_state_chg_log(struct pim_msdp_peer *mp)
  * a tcp connection will be made */
 static void pim_msdp_peer_connect(struct pim_msdp_peer *mp)
 {
+	if (mp->pim->msdp.shutdown)
+		return;
+
 	mp->state = PIM_MSDP_CONNECTING;
 	if (PIM_DEBUG_MSDP_EVENTS) {
 		pim_msdp_peer_state_chg_log(mp);
@@ -769,6 +772,9 @@ static void pim_msdp_peer_connect(struct pim_msdp_peer *mp)
 /* 11.2.A3: passive peer - just listen for connections */
 static void pim_msdp_peer_listen(struct pim_msdp_peer *mp)
 {
+	if (mp->pim->msdp.shutdown)
+		return;
+
 	mp->state = PIM_MSDP_LISTEN;
 	if (PIM_DEBUG_MSDP_EVENTS) {
 		pim_msdp_peer_state_chg_log(mp);
@@ -1497,4 +1503,44 @@ struct pim_msdp_mg_mbr *pim_msdp_mg_mbr_add(struct pim_instance *pim,
 	++mg->mbr_cnt;
 
 	return mbr;
+}
+
+void pim_msdp_shutdown(struct pim_instance *pim, bool state)
+{
+	struct pim_msdp_peer *peer;
+	struct listnode *node;
+
+	/* Same value nothing to do. */
+	if (pim->msdp.shutdown == state)
+		return;
+
+	if (state) {
+		pim->msdp.shutdown = true;
+
+		for (ALL_LIST_ELEMENTS_RO(pim->msdp.peer_list, node, peer)) {
+			/* Stop the tcp connection and shutdown all timers */
+			pim_msdp_peer_stop_tcp_conn(peer, true);
+
+			/* Stop listening socket if any. */
+			THREAD_OFF(peer->auth_listen_ev);
+			if (peer->auth_listen_sock != -1)
+				close(peer->auth_listen_sock);
+
+			/* Disable and remove listener flag. */
+			UNSET_FLAG(pim->msdp.flags,
+				   PIM_MSDPF_ENABLE | PIM_MSDPF_LISTENER);
+		}
+	} else {
+		pim->msdp.shutdown = false;
+
+		for (ALL_LIST_ELEMENTS_RO(pim->msdp.peer_list, node, peer)) {
+			/* Start connection again. */
+			if (PIM_MSDP_PEER_IS_LISTENER(peer))
+				pim_msdp_peer_listen(peer);
+			else
+				pim_msdp_peer_connect(peer);
+
+			SET_FLAG(pim->msdp.flags, PIM_MSDPF_ENABLE);
+		}
+	}
 }

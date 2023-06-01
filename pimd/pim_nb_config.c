@@ -1416,6 +1416,32 @@ int pim_msdp_connection_retry_modify(struct nb_cb_modify_args *args)
 	return NB_OK;
 }
 
+/*
+ * XPath:
+ * /frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/msdp/shutdown
+ */
+int pim_msdp_shutdown_modify(struct nb_cb_modify_args *args)
+{
+	struct pim_instance *pim;
+	struct vrf *vrf;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_PREPARE:
+	case NB_EV_ABORT:
+		/* NOTHING */
+		break;
+
+	case NB_EV_APPLY:
+		vrf = nb_running_get_entry(args->dnode, NULL, true);
+		pim = vrf->info;
+		pim_msdp_shutdown(pim, yang_dnode_get_bool(args->dnode, NULL));
+		break;
+	}
+
+	return NB_OK;
+}
+
 pim6_msdp_err(pim_msdp_mesh_group_destroy, nb_cb_destroy_args);
 pim6_msdp_err(pim_msdp_mesh_group_create, nb_cb_create_args);
 pim6_msdp_err(pim_msdp_mesh_group_source_modify, nb_cb_modify_args);

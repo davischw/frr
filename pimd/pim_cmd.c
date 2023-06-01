@@ -7153,6 +7153,31 @@ DEFPY(no_ip_msdp_mesh_group,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+DEFPY(ip_msdp_shutdown,
+      ip_msdp_shutdown_cmd,
+      "[no] ip msdp shutdown",
+      NO_STR
+      IP_STR
+      CFG_MSDP_STR
+      "Shutdown MSDP operation\n")
+{
+	const char *vrfname;
+	char xpath_value[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	/* Get mesh group base XPath. */
+	snprintf(xpath_value, sizeof(xpath_value),
+		 FRR_PIM_VRF_XPATH "/msdp/shutdown", "frr-pim:pimd", "pim",
+		 vrfname, "frr-routing:ipv4");
+
+	nb_cli_enqueue_change(vty, xpath_value, NB_OP_MODIFY,
+			      no ? "false" : "true");
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 static void ip_msdp_show_mesh_group(struct vty *vty, struct pim_msdp_mg *mg,
 				    struct json_object *json)
 {
@@ -8684,6 +8709,8 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &no_ip_msdp_mesh_group_source_cmd);
 	install_element(CONFIG_NODE, &no_ip_msdp_mesh_group_cmd);
 	install_element(VRF_NODE, &no_ip_msdp_mesh_group_cmd);
+	install_element(CONFIG_NODE, &ip_msdp_shutdown_cmd);
+	install_element(VRF_NODE, &ip_msdp_shutdown_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_peer_detail_vrf_all_cmd);
 	install_element(VIEW_NODE, &show_ip_msdp_sa_detail_cmd);
