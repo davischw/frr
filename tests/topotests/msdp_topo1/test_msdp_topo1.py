@@ -177,7 +177,7 @@ def _test_mroute_install():
         "229.1.2.3": {
             "192.168.10.100": {
                 "iif": "r1-eth2",
-                "flags": "SFT",
+                "flags": "SFTM",
                 "oil": {
                     "r1-eth0": {"source": "192.168.10.100", "group": "229.1.2.3"},
                     "r1-eth1": None,
@@ -214,7 +214,7 @@ def _test_mroute_install():
         "229.1.2.3": {
             "192.168.10.100": {
                 "iif": "r2-eth0",
-                "flags": "S",
+                "flags": "SM",
                 "oil": {
                     "r2-eth1": {
                         "source": "192.168.10.100",
@@ -228,7 +228,7 @@ def _test_mroute_install():
         "229.1.2.3": {
             "192.168.10.100": {
                 "iif": "r3-eth0",
-                "flags": "S",
+                "flags": "SM",
                 "oil": {
                     "r3-eth1": {
                         "source": "192.168.10.100",
@@ -373,7 +373,6 @@ def test_msdp():
             "192.168.10.100": {
                 "source": "192.168.10.100",
                 "group": "229.1.2.3",
-                "rp": "192.168.1.1",
                 "local": "no",
                 "sptSetup": "no",
             }
@@ -408,7 +407,6 @@ def test_msdp():
             "192.168.10.100": {
                 "source": "192.168.10.100",
                 "group": "229.1.2.3",
-                "rp": "192.168.1.1",
                 "local": "no",
                 "sptSetup": "yes",
             }
