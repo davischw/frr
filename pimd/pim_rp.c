@@ -1676,8 +1676,9 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 				  const struct prefix *range, struct list *list,
 				  struct vty *vty, struct ttable *tt,
 				  json_object *json);
-static void pim_rp_show_info_ssm_plist(struct vty *vty, struct pim_ssm *ssm,
-				       json_object *json, struct prefix *range);
+static void pim_rp_show_info_ssm_plist(struct vty *vty, struct ttable *tt,
+				       struct pim_ssm *ssm, json_object *json,
+				       struct prefix *range);
 
 void pim_rp_show_information(struct pim_instance *pim, struct prefix *range,
 			     struct vty *vty, json_object *json)
@@ -1697,14 +1698,15 @@ void pim_rp_show_information(struct pim_instance *pim, struct prefix *range,
 
 	pim_rp_show_info_list(pim, range, pim->rp_list, vty, tt, json);
 	pim_rp_show_info_list(pim, range, pim->fb_rp_list, vty, tt, json);
-	pim_rp_show_info_ssm_plist(vty, (struct pim_ssm *)pim->ssm_info, json,
-				   range);
+	pim_rp_show_info_ssm_plist(vty, tt, (struct pim_ssm *)pim->ssm_info,
+				   json, range);
 
-	if (json) {
-		vty_out(vty, "%s\n",
-			json_object_to_json_string_ext(
-				json, JSON_C_TO_STRING_PRETTY));
-		json_object_free(json);
+	/* Dump the generated table. */
+	if (!json) {
+		char *table = ttable_dump(tt, "\n");
+		vty_out(vty, "%s\n", table);
+		XFREE(MTYPE_TMP, table);
+		ttable_del(tt);
 	}
 }
 
@@ -1754,8 +1756,9 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
 	}
 }
 
-static void pim_rp_show_info_ssm_plist(struct vty *vty, struct pim_ssm *ssm,
-				       json_object *json, struct prefix *range)
+static void pim_rp_show_info_ssm_plist(struct vty *vty, struct ttable *tt,
+				       struct pim_ssm *ssm, json_object *json,
+				       struct prefix *range)
 {
 	struct prefix_list_entry *pentry;
 	struct prefix_list *plist;
@@ -1781,14 +1784,15 @@ static void pim_rp_show_info_ssm_plist(struct vty *vty, struct pim_ssm *ssm,
 				continue;
 
 			p = &pentry->prefix;
+			prefix2str(p, buf, sizeof(buf));
 
 			if (range && !prefix_match(p, range))
 				continue;
 
 			if (!json)
-				vty_out(vty,
-					"%-15s  %-18pFX  (Unknown)         no         %s   %s\n",
-					no_rp, p, source, type);
+				ttable_add_row(tt, "%s|%s|%s|%s|%s|%s", no_rp,
+					       buf, "Unknown", "no", source,
+					       type);
 			else {
 				json_row = json_object_new_object();
 				if (!json_object_object_get_ex(json, no_rp, &json_rp_rows)) {
@@ -1804,8 +1808,7 @@ static void pim_rp_show_info_ssm_plist(struct vty *vty, struct pim_ssm *ssm,
 						       "Unknown");
 				json_object_boolean_false_add(json_row,
 							      "iAmRP");
-				json_object_string_add(json_row, "group",
-						       prefix2str(p, buf, 48));
+				json_object_string_add(json_row, "group", buf);
 				json_object_string_add(json_row, "source",
 						       source);
 				json_object_string_add(json_row, "groupType",
@@ -1822,9 +1825,9 @@ static void pim_rp_show_info_ssm_plist(struct vty *vty, struct pim_ssm *ssm,
 			return;
 
 		if (!json)
-			vty_out(vty,
-				"%-15s  %-18s  (Unknown)         no         %s   %s\n",
-				no_rp, PIM_SSM_STANDARD_RANGE, source, type);
+			ttable_add_row(tt, "%s|%s|%s|%s|%s|%s", no_rp,
+				       PIM_SSM_STANDARD_RANGE, "Unknown", "no",
+				       source, type);
 		else {
 			json_row = json_object_new_object();
 			if (!json_object_object_get_ex(json, no_rp, &json_rp_rows)) {
@@ -1853,9 +1856,9 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 {
 	struct rp_info *rp_info;
 	struct listnode *node;
-	char *table = NULL;
 	char source[9];
-	char grp[INET6_ADDRSTRLEN];
+	char grp[PREFIX2STR_BUFFER];
+	char rp_address[INET6_ADDRSTRLEN];
 
 	json_object *json_rp_rows = NULL;
 	json_object *json_row = NULL;
@@ -1884,18 +1887,20 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 		else
 			strlcpy(source, "None", sizeof(source));
 
-		char buf[PREFIX_STRLEN];
-		inet_ntop(PIM_AF, &group, buf, sizeof(buf));
+		prefix2str(&rp_info->group, grp, sizeof(grp));
 
 		if (json) {
-			if (!json_object_object_get_ex(json, buf, &json_rp_rows)) {
+			inet_ntop(PIM_AF, &rp_info->rp.rpf_addr, rp_address,
+				  sizeof(rp_address));
+
+			if (!json_object_object_get_ex(json, rp_address,
+						       &json_rp_rows)) {
 				json_rp_rows = json_object_new_array();
-				json_object_object_add(json_rp_rows, buf,
-						       json_rp_rows);
+				json_object_object_add(json, rp_address, json_rp_rows);
 			}
 
 			json_row = json_object_new_object();
-			json_object_string_add(json_row, "rpAddress", buf);
+			json_object_string_add(json_row, "rpAddress", rp_address);
 			if (rp_info->rp.source_nexthop.interface)
 				json_object_string_add(
 					json_row, "outboundInterface",
@@ -1923,16 +1928,13 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 				pim_rpinfo_show_alist(vty, rp_info,
 						      json_aclrules, range);
 			} else
-				json_object_string_add(
-					json_row, "group",
-					prefix2str(&rp_info->group, buf, 48));
+				json_object_string_add(json_row, "group", grp);
 
 			json_object_string_add(json_row, "source", source);
 			json_object_string_add(json_row, "groupType",
 					       group_type);
 			json_object_array_add(json_rp_rows, json_row);
 		} else {
-			prefix2str(&rp_info->group, grp, sizeof(grp));
 			ttable_add_row(tt, "%pPA|%s|%s|%s|%s|%s",
 					  &rp_info->rp.rpf_addr,
 					  rp_info->plist
@@ -1951,14 +1953,6 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 				pim_rpinfo_show_alist(vty, rp_info, json,
 						      range);
 		}
-	}
-
-	/* Dump the generated table. */
-	if (!json) {
-		table = ttable_dump(tt, "\n");
-		vty_out(vty, "%s\n", table);
-		XFREE(MTYPE_TMP, table);
-		ttable_del(tt);
 	}
 }
 
