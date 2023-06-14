@@ -1822,10 +1822,10 @@ static void pimsb_mrt_iif(struct pim_instance *pim, const struct in_addr group,
 		strlcpy(ifname_out, ifp->name, ifname_len);
 }
 
-static void pimsb_show_state_json(struct vty *vty, struct pim_instance *pim,
-				  const char *src_grp, const char *grp)
+void pimsb_show_state_json(struct vty *vty, struct pim_instance *pim,
+			   const char *src_grp, const char *grp,
+			   struct json_object *json)
 {
-	json_object *json = NULL;
 	json_object *json_group = NULL;
 	json_object *json_ifp_in = NULL;
 	json_object *json_source = NULL;
@@ -1844,7 +1844,6 @@ static void pimsb_show_state_json(struct vty *vty, struct pim_instance *pim,
 	char oif_uptime[16];
 
 	now = pim_time_monotonic_sec();
-	json = json_object_new_object();
 
 	frr_each (rb_pim_oil, &pim->channel_oil_head, oil) {
 		i_am_rp = pim_rp_i_am_rp(pim, oil->oil.mfcc_mcastgrp);
@@ -1961,10 +1960,6 @@ static void pimsb_show_state_json(struct vty *vty, struct pim_instance *pim,
 					       json_ifp_out);
 		}
 	}
-
-	vty_out(vty, "%s\n",
-		json_object_to_json_string_ext(json, JSON_C_TO_STRING_PRETTY));
-	json_object_free(json);
 }
 
 void pimsb_show_state(struct vty *vty, struct pim_instance *pim,
@@ -1986,7 +1981,9 @@ void pimsb_show_state(struct vty *vty, struct pim_instance *pim,
 
 	/* Process JSON output here. */
 	if (json_output) {
-		pimsb_show_state_json(vty, pim, src_grp, grp);
+		struct json_object *json = json_object_new_object();
+		pimsb_show_state_json(vty, pim, src_grp, grp, json);
+		vty_json(vty, json);
 		return;
 	}
 
@@ -2081,14 +2078,13 @@ void pimsb_show_state(struct vty *vty, struct pim_instance *pim,
 	vty_out(vty, "\n");
 }
 
-static void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
-				   struct prefix_sg *sg)
+void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
+			    const pim_sgaddr *sg, struct json_object *json)
 {
 	json_object *json_ifp_out = NULL;
 	json_object *json_source = NULL;
 	json_object *json_group = NULL;
 	json_object *json_oil = NULL;
-	json_object *json = NULL;
 	struct static_route *s_route;
 	struct interface *ifp_out;
 	struct channel_oil *oil, *i_oil;
@@ -2107,7 +2103,6 @@ static void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 	pim_sgaddr sg_star = {0};
 
 	now = pim_time_monotonic_sec();
-	json = json_object_new_object();
 
 	/* print list of PIM and IGMP routes */
 	frr_each (rb_pim_oil, &pim->channel_oil_head, oil) {
@@ -2367,14 +2362,10 @@ static void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 					       json_ifp_out);
 		}
 	}
-
-	vty_out(vty, "%s\n",
-		json_object_to_json_string_ext(json, JSON_C_TO_STRING_PRETTY));
-	json_object_free(json);
 }
 
 void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
-		       struct prefix_sg *sg, bool fill, bool json)
+		       const pim_sgaddr *sg, bool fill, bool json)
 {
 	struct static_route *s_route;
 	struct interface *ifp_out;
@@ -2396,7 +2387,9 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 	char state_str[PIM_REG_STATE_STR_LEN];
 
 	if (json) {
-		pimsb_show_mroute_json(vty, pim, sg);
+		struct json_object *json_parent = json_object_new_object();
+		pimsb_show_mroute_json(vty, pim, sg, json_parent);
+		vty_json(vty, json_parent);
 		return;
 	}
 

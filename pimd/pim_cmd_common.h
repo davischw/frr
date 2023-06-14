@@ -162,17 +162,19 @@ int pim_show_upstream_join_desired_helper(const char *vrf, struct vty *vty,
 					  bool uj);
 int pim_show_upstream_rpf_helper(const char *vrf, struct vty *vty, bool uj);
 int pim_show_state_helper(const char *vrf, struct vty *vty,
-			  const char *s_or_g_str, const char *g_str, bool json);
+			  const char *s_or_g_str, const char *g_str,
+			  bool dataplane, bool json);
 int pim_show_state_vrf_all_helper(struct vty *vty, const char *s_or_g_str,
-				  const char *g_str, bool json);
+				  const char *g_str, bool dataplane, bool json);
 int pim_show_multicast_helper(const char *vrf, struct vty *vty, bool use_json);
 int pim_show_multicast_vrf_all_helper(struct vty *vty, bool use_json);
 int pim_show_multicast_count_helper(const char *vrf, struct vty *vty,
 				    bool json);
 int pim_show_multicast_count_vrf_all_helper(struct vty *vty, bool json);
 int pim_show_mroute_helper(const char *vrf, struct vty *vty, pim_addr s_or_g,
-			   pim_addr g, bool fill, bool json);
-int pim_show_mroute_vrf_all_helper(struct vty *vty, bool fill, bool json);
+			   pim_addr g, bool fill, bool dataplane, bool json);
+int pim_show_mroute_vrf_all_helper(struct vty *vty, bool fill, bool dataplane,
+				   bool json);
 int pim_show_mroute_count_helper(const char *vrf, struct vty *vty, bool json);
 int pim_show_mroute_count_vrf_all_helper(struct vty *vty, bool json);
 int pim_show_mroute_summary_helper(const char *vrf, struct vty *vty, bool json);

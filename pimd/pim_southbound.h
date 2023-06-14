@@ -26,6 +26,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "pimd/pim_addr.h"
+
 /* Forward declarations */
 struct zclient;
 struct igmp_source;
@@ -157,8 +159,13 @@ void pimsb_msg_send_frame(const struct interface *ifp, const struct ip *ip,
 
 void pimsb_show_state(struct vty *vty, struct pim_instance *pim,
 		      const char *src_grp, const char *grp, bool json_output);
+void pimsb_show_state_json(struct vty *vty, struct pim_instance *pim,
+			   const char *src_grp, const char *grp,
+			   struct json_object *json);
 void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
-		       struct prefix_sg *sg, bool fill, bool json);
+		       const pim_sgaddr *sg, bool fill, bool json);
+void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
+			    const pim_sgaddr *sg, struct json_object *json);
 
 void pimsb_set_input_interface(struct channel_oil *oil);
 void pimsb_mroute_do(struct channel_oil *oil, bool install);

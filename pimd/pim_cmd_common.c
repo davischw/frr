@@ -4805,7 +4805,8 @@ int pim_show_upstream_rpf_helper(const char *vrf, struct vty *vty, bool uj)
 }
 
 int pim_show_state_helper(const char *vrf, struct vty *vty,
-			  const char *s_or_g_str, const char *g_str, bool json)
+			  const char *s_or_g_str, const char *g_str,
+			  bool dataplane, bool json)
 {
 	struct pim_instance *pim;
 	struct vrf *v;
@@ -4823,6 +4824,13 @@ int pim_show_state_helper(const char *vrf, struct vty *vty,
 		return CMD_WARNING;
 	}
 
+	if (dataplane) {
+#if PIM_IPV == 4
+		pimsb_show_state(vty, pim, s_or_g_str, g_str, json);
+#endif
+		return CMD_SUCCESS;
+	}
+
 	if (json)
 		json_parent = json_object_new_object();
 
@@ -4835,7 +4843,7 @@ int pim_show_state_helper(const char *vrf, struct vty *vty,
 }
 
 int pim_show_state_vrf_all_helper(struct vty *vty, const char *s_or_g_str,
-				  const char *g_str, bool json)
+				  const char *g_str, bool dataplane, bool json)
 {
 	struct vrf *vrf;
 	json_object *json_parent = NULL;
@@ -4849,7 +4857,21 @@ int pim_show_state_vrf_all_helper(struct vty *vty, const char *s_or_g_str,
 			vty_out(vty, "VRF: %s\n", vrf->name);
 		else
 			json_vrf = json_object_new_object();
-		pim_show_state(vrf->info, vty, s_or_g_str, g_str, json_vrf);
+
+		if (dataplane) {
+#if PIM_IPV == 4
+			if (json)
+				pimsb_show_state_json(vty, vrf->info,
+						      s_or_g_str, g_str,
+						      json_vrf);
+			else
+				pimsb_show_state(vty, vrf->info, s_or_g_str,
+						 g_str, false);
+#endif
+		} else
+			pim_show_state(vrf->info, vty, s_or_g_str, g_str,
+				       json_vrf);
+
 		if (json)
 			json_object_object_add(json_parent, vrf->name,
 					       json_vrf);
@@ -4981,7 +5003,7 @@ int pim_show_multicast_count_vrf_all_helper(struct vty *vty, bool json)
 }
 
 int pim_show_mroute_helper(const char *vrf, struct vty *vty, pim_addr s_or_g,
-			   pim_addr g, bool fill, bool json)
+			   pim_addr g, bool fill, bool dataplane, bool json)
 {
 	pim_sgaddr sg = {0};
 	struct pim_instance *pim;
@@ -4998,6 +5020,20 @@ int pim_show_mroute_helper(const char *vrf, struct vty *vty, pim_addr s_or_g,
 	if (!pim) {
 		vty_out(vty, "%% Unable to find pim instance\n");
 		return CMD_WARNING;
+	}
+
+	if (dataplane) {
+#if PIM_IPV == 4
+		char sg_str[INET6_ADDRSTRLEN];
+		char g_str[INET6_ADDRSTRLEN];
+
+		inet_ntop(PIM_AF, &s_or_g, sg_str, sizeof(sg_str));
+		inet_ntop(PIM_AF, &g, g_str, sizeof(g_str));
+		pimsb_show_state(vty, pim,
+				 pim_addr_is_any(s_or_g) ? NULL : sg_str,
+				 pim_addr_is_any(g) ? NULL : g_str, json);
+#endif
+		return CMD_SUCCESS;
 	}
 
 	if (json)
@@ -5019,7 +5055,8 @@ int pim_show_mroute_helper(const char *vrf, struct vty *vty, pim_addr s_or_g,
 	return CMD_SUCCESS;
 }
 
-int pim_show_mroute_vrf_all_helper(struct vty *vty, bool fill, bool json)
+int pim_show_mroute_vrf_all_helper(struct vty *vty, bool fill, bool dataplane,
+				   bool json)
 {
 	pim_sgaddr sg = {0};
 	struct vrf *vrf;
@@ -5034,7 +5071,18 @@ int pim_show_mroute_vrf_all_helper(struct vty *vty, bool fill, bool json)
 			vty_out(vty, "VRF: %s\n", vrf->name);
 		else
 			json_vrf = json_object_new_object();
-		show_mroute(vrf->info, vty, &sg, fill, json_vrf);
+
+		if (dataplane) {
+#if PIM_IPV == 4
+			if (json)
+				pimsb_show_mroute_json(vty, vrf->info, &sg,
+						       json_vrf);
+			else
+				pimsb_show_mroute(vty, vrf->info, &sg, fill,
+						  false);
+#endif
+		} else
+			show_mroute(vrf->info, vty, &sg, fill, json_vrf);
 		if (json)
 			json_object_object_add(json_parent, vrf->name,
 					       json_vrf);

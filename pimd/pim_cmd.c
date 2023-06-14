@@ -3545,7 +3545,7 @@ DEFPY (show_ip_pim_secondary,
 
 DEFPY (show_ip_pim_state,
        show_ip_pim_state_cmd,
-       "show ip pim [vrf NAME] state [A.B.C.D$s_or_g [A.B.C.D$g]] [json$json]",
+       "show ip pim [vrf NAME] state [A.B.C.D$s_or_g [A.B.C.D$g]] [dataplane$dataplane] [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -3553,14 +3553,16 @@ DEFPY (show_ip_pim_state,
        "PIM state information\n"
        "Unicast or Multicast address\n"
        "Multicast address\n"
+       "Dataplane state\n"
        JSON_STR)
 {
-	return pim_show_state_helper(vrf, vty, s_or_g_str, g_str, !!json);
+	return pim_show_state_helper(vrf, vty, s_or_g_str, g_str, !!dataplane,
+				     !!json);
 }
 
 DEFPY (show_ip_pim_state_vrf_all,
        show_ip_pim_state_vrf_all_cmd,
-       "show ip pim vrf all state [A.B.C.D$s_or_g [A.B.C.D$g]] [json$json]",
+       "show ip pim vrf all state [A.B.C.D$s_or_g [A.B.C.D$g]] [dataplane$dataplane] [json$json]",
        SHOW_STR
        IP_STR
        PIM_STR
@@ -3568,9 +3570,11 @@ DEFPY (show_ip_pim_state_vrf_all,
        "PIM state information\n"
        "Unicast or Multicast address\n"
        "Multicast address\n"
+       "Dataplane state\n"
        JSON_STR)
 {
-	return pim_show_state_vrf_all_helper(vty, s_or_g_str, g_str, !!json);
+	return pim_show_state_vrf_all_helper(vty, s_or_g_str, g_str,
+					     !!dataplane, !!json);
 }
 
 DEFPY (show_ip_pim_upstream,
@@ -3960,7 +3964,7 @@ DEFPY (show_ip_multicast_count_vrf_all,
 
 DEFPY (show_ip_mroute,
        show_ip_mroute_cmd,
-       "show ip mroute [vrf NAME] [A.B.C.D$s_or_g [A.B.C.D$g]] [fill$fill] [json$json]",
+       "show ip mroute [vrf NAME] [A.B.C.D$s_or_g [A.B.C.D$g]] [{fill$fill|dataplane$dataplane}] [json$json]",
        SHOW_STR
        IP_STR
        MROUTE_STR
@@ -3968,22 +3972,25 @@ DEFPY (show_ip_mroute,
        "The Source or Group\n"
        "The Group\n"
        "Fill in Assumed data\n"
+       "Dataplane state\n"
        JSON_STR)
 {
-	return pim_show_mroute_helper(vrf, vty, s_or_g, g, !!fill, !!json);
+	return pim_show_mroute_helper(vrf, vty, s_or_g, g, !!fill, !!dataplane,
+				      !!json);
 }
 
 DEFPY (show_ip_mroute_vrf_all,
        show_ip_mroute_vrf_all_cmd,
-       "show ip mroute vrf all [fill$fill] [json$json]",
+       "show ip mroute vrf all [{fill$fill|dataplane$dataplane}] [json$json]",
        SHOW_STR
        IP_STR
        MROUTE_STR
        VRF_CMD_HELP_STR
        "Fill in Assumed data\n"
+       "Dataplane state\n"
        JSON_STR)
 {
-	return pim_show_mroute_vrf_all_helper(vty, !!fill, !!json);
+	return pim_show_mroute_vrf_all_helper(vty, !!fill, !!dataplane, !!json);
 }
 
 DEFPY (clear_ip_mroute_count,

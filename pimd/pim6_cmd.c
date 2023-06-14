@@ -924,7 +924,8 @@ DEFPY (show_ipv6_pim_state,
        "Multicast address\n"
        JSON_STR)
 {
-	return pim_show_state_helper(vrf, vty, s_or_g_str, g_str, !!json);
+	return pim_show_state_helper(vrf, vty, s_or_g_str, g_str, false,
+				     !!json);
 }
 
 DEFPY (show_ipv6_pim_state_vrf_all,
@@ -939,7 +940,8 @@ DEFPY (show_ipv6_pim_state_vrf_all,
        "Multicast address\n"
        JSON_STR)
 {
-	return pim_show_state_vrf_all_helper(vty, s_or_g_str, g_str, !!json);
+	return pim_show_state_vrf_all_helper(vty, s_or_g_str, g_str, false,
+					     !!json);
 }
 
 DEFPY (show_ipv6_pim_channel,
@@ -1159,7 +1161,8 @@ DEFPY (show_ipv6_mroute,
        "Fill in Assumed data\n"
        JSON_STR)
 {
-	return pim_show_mroute_helper(vrf, vty, s_or_g, g, !!fill, !!json);
+	return pim_show_mroute_helper(vrf, vty, s_or_g, g, !!fill, false,
+				      !!json);
 }
 
 DEFPY (show_ipv6_mroute_vrf_all,
@@ -1172,7 +1175,7 @@ DEFPY (show_ipv6_mroute_vrf_all,
        "Fill in Assumed data\n"
        JSON_STR)
 {
-	return pim_show_mroute_vrf_all_helper(vty, !!fill, !!json);
+	return pim_show_mroute_vrf_all_helper(vty, !!fill, false, !!json);
 }
 
 DEFPY (show_ipv6_mroute_count,
