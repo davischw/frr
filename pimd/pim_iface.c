@@ -1720,6 +1720,7 @@ static int pim_ifp_up(struct interface *ifp)
 	uint32_t table_id;
 	struct pim_interface *pim_ifp;
 	struct pim_instance *pim;
+	bool is_pimreg = false;
 
 	if (PIM_DEBUG_ZEBRA) {
 		zlog_debug(
@@ -1736,8 +1737,12 @@ static int pim_ifp_up(struct interface *ifp)
 
 	pim_ifp = ifp->info;
 
+	if (sscanf(ifp->name, "" PIMREG "%" SCNu32, &table_id) == 1) {
+		is_pimreg = true;
+	}
+
 	/* don't up twice */
-	if (pim_ifp && pim_ifp->mroute_vif_index != -1)
+	if (pim_ifp && is_pimreg == false && pim_ifp->mroute_vif_index != -1)
 		return 0;
 
 	/*
@@ -1758,7 +1763,7 @@ static int pim_ifp_up(struct interface *ifp)
 	 * If we have a pimreg device callback and it's for a specific
 	 * table set the master appropriately
 	 */
-	if (sscanf(ifp->name, "" PIMREG "%" SCNu32, &table_id) == 1) {
+	if (is_pimreg) {
 		struct vrf *vrf;
 		RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name) {
 			if ((table_id == vrf->data.l.table_id)
