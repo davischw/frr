@@ -862,8 +862,9 @@ static void pimsb_client_connect_cb(struct thread *t)
 
 	/* Connection successful. */
 	if (rv == 0) {
-		thread_add_read(router->master, pimsb_client_read_cb, client,
-				client->sock, &client->in_ev);
+		if (client->in_ev == NULL)
+			thread_add_read(router->master, pimsb_client_read_cb,
+					client, client->sock, &client->in_ev);
 		return;
 	}
 
@@ -873,8 +874,10 @@ static void pimsb_client_connect_cb(struct thread *t)
 	case EALREADY:
 	case EINPROGRESS:
 		/* non error, wait more. */
-		thread_add_write(router->master, pimsb_client_connect_cb,
-				 client, client->sock, &client->out_ev);
+		if (client->out_ev == NULL)
+			thread_add_write(router->master,
+					 pimsb_client_connect_cb, client,
+					 client->sock, &client->out_ev);
 		return;
 
 	default:
