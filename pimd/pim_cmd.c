@@ -6106,7 +6106,8 @@ DEFPY_YANG (interface_ip_pim_joinprune_time, interface_ip_pim_joinprune_time_cmd
 		nb_cli_enqueue_change(vty, "./join-prune-interval",
 				      NB_OP_MODIFY, jpt_str);
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty, FRR_PIM_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
 }
 
 ALIAS(interface_ip_pim_joinprune_time, interface_no_ip_pim_joinprune_time_cmd,
@@ -6131,7 +6132,8 @@ DEFPY_YANG (interface_ip_pim_assert_interval, interface_ip_pim_assert_interval_c
 		nb_cli_enqueue_change(vty, "./assert-interval", NB_OP_MODIFY,
 				      at_str);
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty, FRR_PIM_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
 }
 
 ALIAS(interface_ip_pim_assert_interval, interface_no_ip_pim_assert_interval_cmd,
@@ -6156,7 +6158,8 @@ DEFPY_YANG (interface_ip_pim_assert_override, interface_ip_pim_assert_override_c
 		nb_cli_enqueue_change(vty, "./assert-override-interval",
 				      NB_OP_MODIFY, ao_str);
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty, FRR_PIM_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
 }
 
 ALIAS(interface_ip_pim_assert_override, interface_no_ip_pim_assert_override_cmd,
@@ -6183,7 +6186,8 @@ DEFPY_YANG (interface_ip_pim_neighbor_prefix_list,
 		nb_cli_enqueue_change(vty, "./neighbor-filter-prefix-list",
 				      NB_OP_MODIFY, prefix_list);
 
-	return nb_cli_apply_changes(vty, "./frr-pim:pim");
+	return nb_cli_apply_changes(vty, FRR_PIM_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
 }
 
 ALIAS (interface_ip_pim_neighbor_prefix_list,
