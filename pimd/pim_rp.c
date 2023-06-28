@@ -533,7 +533,7 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 		if (best == NULL)
 			best = rp_info;
 
-		if (!pim_addr_is_any(best->rp.rpf_addr))
+		if (pim_addr_is_any(best->rp.rpf_addr))
 			best = rp_info;
 		else if (rp_info->group.prefixlen < best->group.prefixlen)
 			best = rp_info;

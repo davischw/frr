@@ -328,7 +328,7 @@ static int pim_no_rp_cmd_worker(struct pim_instance *pim, pim_addr rp_addr,
 	prefix2str(&group, group_str, sizeof(group_str));
 
 	if (all) {
-		struct prefix dummy = {.family = AF_INET, .prefixlen = 0};
+		struct prefix dummy = {.family = PIM_AF, .prefixlen = 0};
 		int r1, r2;
 
 		r1 = pim_rp_del(pim, rp_addr, dummy, NULL, NULL, RP_SRC_STATIC);
