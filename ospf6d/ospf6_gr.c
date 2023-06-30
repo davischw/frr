@@ -534,6 +534,7 @@ static bool ospf6_gr_check_adjs(struct ospf6 *ospf6)
 					   lsa_self)) {
 			found = true;
 			if (!ospf6_gr_check_adjs_lsa(area, lsa_self)) {
+				ospf6_lsa_unlock(lsa_self);
 				found = false;
 				break;
 			}
