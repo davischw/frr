@@ -443,19 +443,6 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 			break;
 	}
 
-	/*
-	 * rp's with prefix lists have the group as 224.0.0.0/4 which will
-	 * match anything.  So if we have a rp_info that should match a prefix
-	 * list then if we do match then best should be the answer( even
-	 * if it is NULL )
-	 */
-	if (!rp_info || (rp_info && rp_info->plist))
-		return best;
-
-	/*
-	 * So we have a non plist rp_info found in the lookup and no plists
-	 * at all to be choosen, return it!
-	 */
 	if (rp_info && !rp_info->alist && !rp_info->plist) {
 		if (!best)
 			best = rp_info;
@@ -465,8 +452,9 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 
 	if (best && !pim_addr_is_any(best->rp.rpf_addr)) {
 		if (PIM_DEBUG_PIM_TRACE)
-			zlog_debug("Lookedup: group %pFX, rp_info %p group %pFX, RP %pFX",
-				   group, best, &best->group, &best->rp.rpf_addr);
+			zlog_debug(
+				"Lookedup: group %pFX, rp_info %p group %pFX, RP %pFX",
+				group, best, &best->group, &best->rp.rpf_addr);
 		return best;
 	}
 
