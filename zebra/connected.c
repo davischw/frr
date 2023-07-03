@@ -73,13 +73,6 @@ static void connected_announce(struct interface *ifp, struct connected *ifc)
 	if (!ifc)
 		return;
 
-	if (!if_is_loopback(ifp) && ifc->address->family == AF_INET) {
-		if (ifc->address->prefixlen == IPV4_MAX_BITLEN)
-			SET_FLAG(ifc->flags, ZEBRA_IFA_UNNUMBERED);
-		else
-			UNSET_FLAG(ifc->flags, ZEBRA_IFA_UNNUMBERED);
-	}
-
 	listnode_add(ifp->connected, ifc);
 
 	/* Update interface address information to protocol daemon. */
@@ -374,6 +367,11 @@ void connected_add_ipv4(struct interface *ifp, int flags,
 	/* For all that I know an IPv4 address is always ready when we receive
 	 * the notification. So it should be safe to set the REAL flag here. */
 	SET_FLAG(ifc->conf, ZEBRA_IFC_REAL);
+
+	/* Check if this is an unnumbered address. */
+	if (!if_is_loopback(ifp) && !IS_ZEBRA_IF_VRF(ifp)
+	    && ifc->address->prefixlen == IPV4_MAX_BITLEN)
+		SET_FLAG(ifc->flags, ZEBRA_IFA_UNNUMBERED);
 
 	connected_update(ifp, ifc);
 }
