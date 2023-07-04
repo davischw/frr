@@ -277,6 +277,10 @@ size_t pim_msg_build_jp_groups(struct pim_jp_groups *grp,
 		if (pim_addr_is_any(source->up->sg.src)) {
 			struct pim_instance *pim = source->up->channel_oil->pim;
 			struct pim_rpf *rpf = pim_rp_g(pim, source->up->sg.grp);
+
+			if (rpf == NULL)
+				continue;
+
 			bits = PIM_ENCODE_SPARSE_BIT | PIM_ENCODE_WC_BIT
 			       | PIM_ENCODE_RPT_BIT;
 			stosend = rpf->rpf_addr;
