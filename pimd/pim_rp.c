@@ -599,6 +599,7 @@ static void pim_rp_refresh_group_to_rp_mapping_thread(struct thread *t)
 			if (!trp_info ||
 			    pim_addr_is_any(trp_info->rp.rpf_addr)) {
 				pim_upstream_rpf_clear(pim, up);
+				pim_upstream_remove_address(up);
 				pim_rp_set_upstream_addr(pim, &up->upstream_addr,
 							 up->sg.src, up->sg.grp);
 			} else {
@@ -725,21 +726,8 @@ static void pim_upstream_update(struct pim_instance *pim,
 	if (!pim_addr_cmp(old_upstream_addr, new_upstream_addr))
 		return;
 
-	/* Lets consider a case, where a PIM upstream has a better RP as a
-	 * result of a new RP configuration with more precise group range.
-	 * This upstream has to be added to the upstream hash of new RP's
-	 * NHT(pnc) and has to be removed from old RP's NHT upstream hash
-	 */
-	if (!pim_addr_is_any(old_upstream_addr)) {
-		/* Deregister addr with Zebra NHT */
-		if (PIM_DEBUG_PIM_TRACE)
-			zlog_debug(
-				"%s: Deregister upstream %s addr %pPA with Zebra NHT",
-				__func__, up->sg_str, &old_upstream_addr);
-		pim_delete_tracked_nexthop(pim, old_upstream_addr, up, NULL);
-	}
-
 	/* Update the upstream address */
+	pim_upstream_remove_address(up);
 	up->upstream_addr = new_upstream_addr;
 
 	old_rpf.source_nexthop.interface = up->rpf.source_nexthop.interface;
@@ -1279,7 +1267,7 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 				trp_info = pim_rp_find_match_group(pim, &grp);
 				if (trp_info == rp_all) {
 					pim_upstream_rpf_clear(pim, up);
-					up->upstream_addr = PIMADDR_ANY;
+					pim_upstream_remove_address(up);
 				}
 			}
 		}

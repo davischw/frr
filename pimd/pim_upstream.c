@@ -186,6 +186,28 @@ static void pim_upstream_timers_stop(struct pim_upstream *up)
 	THREAD_OFF(up->t_join_timer);
 }
 
+void pim_upstream_remove_address(struct pim_upstream *upstream)
+{
+	pim_addr old_address = upstream->upstream_addr;
+
+	/* Lets consider a case, where a PIM upstream has a better RP as a
+	 * result of a new RP configuration with more precise group range.
+	 * This upstream has to be added to the upstream hash of new RP's
+	 * NHT(pnc) and has to be removed from old RP's NHT upstream hash
+	 */
+	if (!pim_addr_is_any(old_address)) {
+		/* Deregister addr with Zebra NHT */
+		if (PIM_DEBUG_PIM_TRACE)
+			zlog_debug(
+				"%s: Deregister upstream %s addr %pPA with Zebra NHT",
+				__func__, upstream->sg_str, &old_address);
+		pim_delete_tracked_nexthop(upstream->pim, old_address, upstream,
+					   NULL);
+	}
+
+	upstream->upstream_addr = PIMADDR_ANY;
+}
+
 struct pim_upstream *pim_upstream_del(struct pim_instance *pim,
 				      struct pim_upstream *up, const char *name)
 {

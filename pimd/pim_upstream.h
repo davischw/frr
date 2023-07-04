@@ -433,4 +433,5 @@ uint32_t pim_up_mlag_local_cost(struct pim_upstream *up);
 uint32_t pim_up_mlag_peer_cost(struct pim_upstream *up);
 void pim_upstream_reeval_use_rpt(struct pim_instance *pim);
 int pim_upstream_could_register(struct pim_upstream *up);
+void pim_upstream_remove_address(struct pim_upstream *upstream);
 #endif /* PIM_UPSTREAM_H */
