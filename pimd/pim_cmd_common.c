@@ -1479,8 +1479,19 @@ void pim_show_upstream(struct pim_instance *pim, struct vty *vty,
 				struct pim_rpf *rpg;
 
 				rpg = RP(pim, up->sg.grp);
-				json_object_string_addf(json_row, "rpfAddress",
-							"%pPA", &rpg->rpf_addr);
+				if (rpg)
+					json_object_string_addf(
+						json_row, "rpfAddress", "%pPA",
+						&rpg->rpf_addr);
+				else
+					json_object_string_add(json_row,
+							       "rpfAddress",
+#if PIM_IPV == 4
+							       "0.0.0.0"
+#else
+							       "::"
+#endif
+					);
 			} else {
 				json_object_string_add(json_row, "rpfAddress",
 						       src_str);
