@@ -460,6 +460,9 @@ int pim_joinprune_send(struct pim_rpf *rpf, struct list *groups)
 		return -1;
 	}
 
+	if (pim_ifp->pim_sock_fd == -1)
+		return 0;
+
 	if (pim_addr_is_any(rpf->rpf_addr)) {
 		if (PIM_DEBUG_PIM_J_P)
 			zlog_debug(

@@ -260,6 +260,9 @@ static pim_addr pim_rpf_find_rpf_addr(struct pim_upstream *up)
 
 int pim_rpf_addr_is_inaddr_any(struct pim_rpf *rpf)
 {
+	if (rpf == NULL)
+		return 1;
+
 	return pim_addr_is_any(rpf->rpf_addr);
 }
 
