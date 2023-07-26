@@ -1992,7 +1992,8 @@ static int netlink_route_nexthop_encap(struct nlmsghdr *n, size_t nlen,
 ssize_t netlink_route_multipath_msg_encode(int cmd,
 					   struct zebra_dplane_ctx *ctx,
 					   uint8_t *data, size_t datalen,
-					   bool fpm, bool force_nhg)
+					   bool fpm, bool force_nhg,
+					   bool force_rr)
 {
 	int bytelen;
 	struct nexthop *nexthop = NULL;
@@ -2027,8 +2028,9 @@ ssize_t netlink_route_multipath_msg_encode(int cmd,
 	req->n.nlmsg_flags = NLM_F_CREATE | NLM_F_REQUEST;
 	req->n.nlmsg_seq = dplane_ctx_get_seq(ctx);
 
-	if ((cmd == RTM_NEWROUTE) &&
-	    ((p->family == AF_INET) || v6_rr_semantics))
+	if (((cmd == RTM_NEWROUTE)
+	     && ((p->family == AF_INET) || v6_rr_semantics))
+	    || force_rr)
 		req->n.nlmsg_flags |= NLM_F_REPLACE;
 
 	req->n.nlmsg_type = cmd;
@@ -2911,14 +2913,14 @@ static ssize_t netlink_newroute_msg_encoder(struct zebra_dplane_ctx *ctx,
 					    void *buf, size_t buflen)
 {
 	return netlink_route_multipath_msg_encode(RTM_NEWROUTE, ctx, buf,
-						  buflen, false, false);
+						  buflen, false, false, false);
 }
 
 static ssize_t netlink_delroute_msg_encoder(struct zebra_dplane_ctx *ctx,
 					    void *buf, size_t buflen)
 {
 	return netlink_route_multipath_msg_encode(RTM_DELROUTE, ctx, buf,
-						  buflen, false, false);
+						  buflen, false, false, false);
 }
 
 enum netlink_msg_status

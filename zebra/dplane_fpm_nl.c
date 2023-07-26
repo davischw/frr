@@ -80,6 +80,7 @@ struct fpm_nl_ctx {
 	bool disabled;
 	bool connecting;
 	bool use_nhg;
+	bool use_route_replace;
 	struct sockaddr_storage addr;
 
 	/* data plane buffers. */
@@ -353,6 +354,25 @@ DEFUN(no_fpm_use_nhg, no_fpm_use_nhg_cmd,
 	return CMD_SUCCESS;
 }
 
+DEFUN(fpm_use_route_replace, fpm_use_route_replace_cmd,
+      "fpm use-route-replace",
+      FPM_STR
+      "Use netlink route replace semantics\n")
+{
+	gfnc->use_route_replace = true;
+	return CMD_SUCCESS;
+}
+
+DEFUN(no_fpm_use_route_replace, no_fpm_use_route_replace_cmd,
+      "no fpm use-route-replace",
+      NO_STR
+      FPM_STR
+      "Use netlink route replace semantics\n")
+{
+	gfnc->use_route_replace = false;
+	return CMD_SUCCESS;
+}
+
 DEFUN(fpm_reset_counters, fpm_reset_counters_cmd,
       "clear fpm counters",
       CLEAR_STR
@@ -464,6 +484,11 @@ static int fpm_write_config(struct vty *vty)
 
 	if (!gfnc->use_nhg) {
 		vty_out(vty, "no fpm use-next-hop-groups\n");
+		written = 1;
+	}
+
+	if (!gfnc->use_route_replace) {
+		vty_out(vty, "no fpm use-route-replace\n");
 		written = 1;
 	}
 
@@ -792,12 +817,19 @@ static int fpm_nl_enqueue(struct fpm_nl_ctx *fnc, struct zebra_dplane_ctx *ctx)
 
 	frr_mutex_lock_autounlock(&fnc->obuf_mutex);
 
+	/*
+	 * If route replace is enabled then directly encode the install which
+	 * is going to use `NLM_F_REPLACE` (instead of delete/add operations).
+	 */
+	if (fnc->use_route_replace && op == DPLANE_OP_ROUTE_UPDATE)
+		op = DPLANE_OP_ROUTE_INSTALL;
+
 	switch (op) {
 	case DPLANE_OP_ROUTE_UPDATE:
 	case DPLANE_OP_ROUTE_DELETE:
-		rv = netlink_route_multipath_msg_encode(RTM_DELROUTE, ctx,
-							nl_buf, sizeof(nl_buf),
-							true, fnc->use_nhg);
+		rv = netlink_route_multipath_msg_encode(
+			RTM_DELROUTE, ctx, nl_buf, sizeof(nl_buf), true,
+			fnc->use_nhg, false);
 		if (rv <= 0) {
 			zlog_err(
 				"%s: netlink_route_multipath_msg_encode failed",
@@ -815,7 +847,8 @@ static int fpm_nl_enqueue(struct fpm_nl_ctx *fnc, struct zebra_dplane_ctx *ctx)
 	case DPLANE_OP_ROUTE_INSTALL:
 		rv = netlink_route_multipath_msg_encode(
 			RTM_NEWROUTE, ctx, &nl_buf[nl_buf_len],
-			sizeof(nl_buf) - nl_buf_len, true, fnc->use_nhg);
+			sizeof(nl_buf) - nl_buf_len, true, fnc->use_nhg,
+			fnc->use_route_replace);
 		if (rv <= 0) {
 			zlog_err(
 				"%s: netlink_route_multipath_msg_encode failed",
@@ -1643,6 +1676,8 @@ static int fpm_nl_new(struct thread_master *tm)
 	install_element(CONFIG_NODE, &no_fpm_set_address_cmd);
 	install_element(CONFIG_NODE, &fpm_use_nhg_cmd);
 	install_element(CONFIG_NODE, &no_fpm_use_nhg_cmd);
+	install_element(CONFIG_NODE, &fpm_use_route_replace_cmd);
+	install_element(CONFIG_NODE, &no_fpm_use_route_replace_cmd);
 
 	return 0;
 }
@@ -1715,6 +1750,7 @@ static int fpm_nl_init(void)
 	/* Set defaults. */
 	gfnc->disabled = true;
 	gfnc->use_nhg = true;
+	gfnc->use_route_replace = true;
 
 	/* Get parameters from command line. */
 	fpm_load_argv(params, argv, &argvlen);
