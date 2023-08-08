@@ -1385,14 +1385,23 @@ DEFPY (show_ip_nht,
 	vrf_id_t vrf_id = VRF_DEFAULT;
 	struct prefix prefix, *p = NULL;
 	safi_t safi = mrib ? SAFI_MULTICAST : SAFI_UNICAST;
+	struct zebra_vrf *zvrf;
+	bool resolve_via_default = false;
 
 	if (vrf_all) {
 		struct vrf *vrf;
-		struct zebra_vrf *zvrf;
 
 		RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name)
 			if ((zvrf = vrf->info) != NULL) {
+				resolve_via_default =
+					(afi == AFI_IP)
+						? zvrf->zebra_rnh_ip_default_route
+						: zvrf->zebra_rnh_ipv6_default_route;
+
 				vty_out(vty, "\nVRF %s:\n", zvrf_name(zvrf));
+				vty_out(vty, " Resolve via default: %s\n",
+					resolve_via_default ? "on" : "off");
+
 				zebra_print_rnh_table(zvrf_id(zvrf), afi, safi,
 						      vty, NULL);
 			}
