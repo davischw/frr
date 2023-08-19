@@ -344,6 +344,8 @@ void cspf_clean(struct cspf *algo)
 	if (processed_count(&algo->processed)) {
 		frr_each_safe (processed, &algo->processed, path) {
 			processed_del(&algo->processed, path);
+			if (path == algo->pdst)
+				algo->pdst = NULL;
 			cpath_del(path);
 		}
 	}
@@ -355,6 +357,9 @@ void cspf_clean(struct cspf *algo)
 			vnode_del(vnode);
 		}
 	}
+
+	if (algo->pdst)
+		cpath_del(algo->pdst);
 
 	memset(&algo->csts, 0, sizeof(struct constraints));
 	algo->path = NULL;
