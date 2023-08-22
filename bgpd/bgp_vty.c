@@ -5032,6 +5032,7 @@ DEFUN (no_neighbor_interface_peer_group_remote_as,
 {
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
 	int idx_word = 2;
+	struct bgp_named_peer *np;
 	struct peer_group *group;
 	struct peer *peer;
 
@@ -5039,6 +5040,13 @@ DEFUN (no_neighbor_interface_peer_group_remote_as,
 	peer = peer_lookup_by_conf_if(bgp, argv[idx_word]->arg);
 	if (peer) {
 		peer_as_change(peer, 0, AS_UNSPECIFIED);
+		return CMD_SUCCESS;
+	}
+
+	/* Handle address list case. */
+	np = address_list_lookup_by_name(bgp, argv[idx_word]->arg);
+	if (np != NULL) {
+		address_list_peer_free(&np);
 		return CMD_SUCCESS;
 	}
 
