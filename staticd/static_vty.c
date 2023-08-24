@@ -1358,7 +1358,7 @@ static void nexthop_cli_show(struct vty *vty, const struct lyd_node *route,
 
 	uint32_t metric = yang_dnode_get_uint32(path, "./metric");
 	if (metric != 1)
-		vty_out(vty, "%" PRIu32, metric);
+		vty_out(vty, " metric %" PRIu32, metric);
 
 	iter.vty = vty;
 	iter.first = true;
