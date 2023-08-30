@@ -4138,7 +4138,8 @@ DEFUN_HIDDEN(show_cli_graph_vtysh,
 }
 
 DEFUNSH(VTYSH_ZEBRA | VTYSH_PIMD, ip_multicast_mode, ip_multicast_mode_cmd,
-        "ip multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance>",
+        "[no] ip multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance>",
+        NO_STR
         IP_STR
         "Multicast options\n"
         "RPF lookup behavior\n"
