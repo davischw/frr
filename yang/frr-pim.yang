@@ -539,7 +539,7 @@ module frr-pim {
     }
 
     leaf hello-interval {
-      type uint8 {
+      type uint16 {
         range "1..max";
       }
       default "30";
