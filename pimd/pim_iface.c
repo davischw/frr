@@ -1434,9 +1434,15 @@ int pim_if_igmp_join_del(struct interface *ifp, struct in_addr group_addr,
 	}
 
 #if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
-	if (pim_southbound_enabled)
-		pimsb_igmp_leave(pim_ifp, &source_addr, &group_addr);
-	else
+	if (pim_southbound_enabled) {
+		/*
+		 * Don't attempt to do southbound leave if source/group timer
+		 * wheel is gone. This situation happens during shutdown or
+		 * terminate signal.
+		 */
+		if (pim_ifp->pim->upstream_sg_wheel != NULL)
+			pimsb_igmp_leave(pim_ifp, &source_addr, &group_addr);
+	} else
 #endif /* VENDOR_SOUTHBOUND */
 		if (close(ij->sock_fd)) {
 			char group_str[INET_ADDRSTRLEN];
