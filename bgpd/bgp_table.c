@@ -127,6 +127,9 @@ static void bgp_node_destroy(route_table_delegate_t *delegate,
 					 rt->afi, rt->safi);
 	}
 
+	if (node->p.family == AF_FLOWSPEC)
+		prefix_flowspec_ptr_free(&node->p);
+
 	XFREE(MTYPE_BGP_NODE, bgp_node);
 }
 
