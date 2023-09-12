@@ -15896,43 +15896,6 @@ struct peer_rib_out_args {
 	bool first_peer;
 };
 
-static void bgp_peer_rib_out_print_aggregated(struct peer_rib_out_args *args,
-					      struct bgp_dest *dest_start,
-					      struct peer *peer,
-					      struct bgp_adj_out *adj_out)
-{
-	const struct bgp_rib_args *rib_args = args->rib_args;
-	const struct bgp_path_info *path =
-		bgp_dest_get_bgp_path_info(dest_start);
-	struct bgp_dest *dest;
-
-	/* Skip non aggregated routes. */
-	if (path->type != ZEBRA_ROUTE_BGP
-	    || path->sub_type != BGP_ROUTE_AGGREGATE)
-		return;
-
-	/* Aggregate address walk. */
-	dest = bgp_dest_lock_node(dest_start);
-	for (; dest; dest = bgp_route_next(dest)) {
-		/* Print only more specific networks. */
-		if (prefix_cmp(&dest_start->p, &dest->p) >= 0)
-			continue;
-
-		path = bgp_dest_get_bgp_path_info(dest);
-		if (path == NULL)
-			continue;
-
-		vty_out(args->vty, ",");
-		print_peer_out_route(args->vty, rib_args->bgp, peer, dest,
-				     adj_out);
-
-		args->rib_args->total++;
-		/* Enough routes, quit. */
-		if (args->rib_args->total == args->rib_args->maximum)
-			return;
-	}
-}
-
 static void bgp_peer_rib_out_print(struct peer_rib_out_args *args,
 				   const struct bgp_table *table,
 				   struct peer *peer)
@@ -15963,13 +15926,6 @@ static void bgp_peer_rib_out_print(struct peer_rib_out_args *args,
 						     peer, dest, adj_out);
 
 				args->rib_args->total++;
-				/* Enough routes, quit. */
-				if (args->rib_args->total
-				    == args->rib_args->maximum)
-					return;
-
-				bgp_peer_rib_out_print_aggregated(
-					args, dest, peer, adj_out);
 				/* Enough routes, quit. */
 				if (args->rib_args->total
 				    == args->rib_args->maximum)
