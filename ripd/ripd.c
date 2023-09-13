@@ -3535,6 +3535,8 @@ void rip_clean(struct rip *rip)
 		if (rip->redist[i].route_map.name)
 			free(rip->redist[i].route_map.name);
 
+	rip_vrf_unlink(rip, rip->vrf);
+
 	route_table_finish(rip->table);
 	route_table_finish(rip->neighbor);
 	list_delete(&rip->peer_list);
