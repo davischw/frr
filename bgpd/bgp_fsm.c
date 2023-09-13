@@ -1846,20 +1846,6 @@ int bgp_start(struct peer *peer)
 		return -1;
 	}
 
-	/* Scrub some information that might be left over from a previous,
-	 * session
-	 */
-	/* Connection information. */
-	if (peer->su_local) {
-		sockunion_free(peer->su_local);
-		peer->su_local = NULL;
-	}
-
-	if (peer->su_remote) {
-		sockunion_free(peer->su_remote);
-		peer->su_remote = NULL;
-	}
-
 	/* Clear remote router-id. */
 	peer->remote_id.s_addr = INADDR_ANY;
 
