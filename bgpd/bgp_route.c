@@ -2239,9 +2239,6 @@ bool subgroup_announce_check(struct bgp_dest *dest, struct bgp_path_info *pi,
 	    bgp_otc_egress(peer, attr))
 		return false;
 
-	bgp_peer_remove_private_as(bgp, afi, safi, peer, attr);
-	bgp_peer_as_override(bgp, afi, safi, peer, attr);
-
 	/* Route map & unsuppress-map apply. */
 	if (!post_attr &&
 	    (ROUTE_MAP_OUT_NAME(filter) || bgp_path_suppressed(pi))) {
@@ -2291,6 +2288,9 @@ bool subgroup_announce_check(struct bgp_dest *dest, struct bgp_path_info *pi,
 			return false;
 		}
 	}
+
+	bgp_peer_remove_private_as(bgp, afi, safi, peer, attr);
+	bgp_peer_as_override(bgp, afi, safi, peer, attr);
 
 	/* RFC 8212 to prevent route leaks.
 	 * This specification intends to improve this situation by requiring the
