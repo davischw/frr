@@ -170,12 +170,13 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 	 * 5. Otherwise use what PIM decided.
 	 */
 	if ((i_am_rp && star_source) ||
-	    *oil_parent(oil) == PIM_OIF_PIM_REGISTER_VIF)
+	    *oil_incoming_vif(oil) == PIM_OIF_PIM_REGISTER_VIF)
 		oil->iif.ifindex = PIM_REG_IF_IDX;
-	else if (*oil_parent(oil) == system_maxvifs())
+	else if (*oil_incoming_vif(oil) == system_maxvifs())
 		oil->iif.ifindex = 0;
 	else {
-		ifp = pim_if_find_by_vif_index(oil->pim, *oil_parent(oil));
+		ifp = pim_if_find_by_vif_index(oil->pim,
+					       *oil_incoming_vif(oil));
 		oil->iif.ifindex = ifp ? ifp->ifindex : PIM_REG_IF_IDX;
 		if (i_am_rp && has_rp_if && rp_if == oil->iif.ifindex)
 			oil->iif.ifindex = PIM_REG_IF_IDX;
@@ -300,7 +301,7 @@ static void pimsb_debug_oil(struct channel_oil *oil)
 	}
 
 	snprintfrr(buf, sizeof(buf), "  MFC(%pPA,%pPA)[iif:%d,",
-		   oil_origin(oil), oil_mcastgrp(oil), *oil_parent(oil));
+		   oil_origin(oil), oil_mcastgrp(oil), *oil_incoming_vif(oil));
 	for (index = 0; index < system_maxvifs(); index++) {
 		if (!oil_if_has(oil, index))
 			continue;
@@ -622,15 +623,15 @@ static void pim_mroute_copy(
 #if PIM_IPV == 4
 	oil->mfcc_origin = *oil_origin(c_oil);
 	oil->mfcc_mcastgrp = *oil_mcastgrp(c_oil);
-	oil->mfcc_parent = *oil_parent(c_oil);
+	oil->mfcc_parent = *oil_incoming_vif(c_oil);
 #else
 	oil->mf6cc_origin.sin6_addr = *oil_origin(c_oil);
 	oil->mf6cc_mcastgrp.sin6_addr = *oil_mcastgrp(c_oil);
-	oil->mf6cc_parent = *oil_parent(c_oil);
+	oil->mf6cc_parent = *oil_incoming_vif(c_oil);
 #endif
 
 	for (i = 0; i < system_maxvifs(); ++i) {
-		if ((*oil_parent(c_oil) == i) &&
+		if ((*oil_incoming_vif(c_oil) == i) &&
 		    !pim_mroute_allow_iif_in_oil(c_oil, i)) {
 #if PIM_IPV == 4
 			oil->mfcc_ttls[i] = 0;
@@ -709,7 +710,7 @@ int pimsb_mroute_del(struct channel_oil *c_oil, const char *name)
 			char buffer[2048];
 			zlog_debug(
 				"%s %s: vifi %d for route is %s not installed, do not need to send del req. ",
-				__FILE__, __func__, *oil_parent(c_oil),
+				__FILE__, __func__, *oil_incoming_vif(c_oil),
 				pim_channel_oil_dump(c_oil, buffer,
 						     sizeof(buffer)));
 		}
@@ -1231,7 +1232,7 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 
 		up->channel_oil->cc.pktcnt++;
 		if (up->rpf.source_nexthop.interface != NULL &&
-		    *oil_parent(up->channel_oil) >= system_maxvifs())
+		    *oil_incoming_vif(up->channel_oil) >= system_maxvifs())
 			pim_upstream_mroute_iif_update(up->channel_oil,
 						       __func__);
 
@@ -2548,7 +2549,7 @@ void pimsb_show_state_json(struct vty *vty, struct pim_instance *pim,
 
 		snprintfrr(grp_str, sizeof(grp_str), "%pPA", oil_mcastgrp(oil));
 		snprintfrr(src_str, sizeof(src_str), "%pPA", oil_origin(oil));
-		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_parent(oil),
+		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_incoming_vif(oil),
 			      in_ifname, sizeof(in_ifname));
 
 		if (src_grp) {
@@ -2696,7 +2697,7 @@ void pimsb_show_state(struct vty *vty, struct pim_instance *pim,
 
 		snprintfrr(grp_str, sizeof(grp_str), "%pPA", oil_mcastgrp(oil));
 		snprintfrr(src_str, sizeof(src_str), "%pPA", oil_origin(oil));
-		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_parent(oil),
+		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_incoming_vif(oil),
 			      in_ifname, sizeof(in_ifname));
 
 		if (src_grp) {
@@ -2828,7 +2829,7 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		if (pim_channel_oil_empty(oil))
 			strlcat(state_str, "P", sizeof(state_str));
 
-		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_parent(oil),
+		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_incoming_vif(oil),
 			      in_ifname, sizeof(in_ifname));
 		pim_time_uptime(mroute_uptime, sizeof(mroute_uptime),
 				now - oil->mroute_creation);
@@ -2883,7 +2884,7 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 			if (oil->oif_flags[oif_idx] & PIM_OIF_FLAG_MUTE)
 				continue;
 
-			if (*oil_parent(oil) == oif_idx &&
+			if (*oil_incoming_vif(oil) == oif_idx &&
 			    !pim_mroute_allow_iif_in_oil(oil, oif_idx))
 				continue;
 
@@ -2935,7 +2936,7 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 			json_object_string_add(json_ifp_out, "inboundInterface",
 					       in_ifname);
 			json_object_int_add(json_ifp_out, "iVifI",
-					    *oil_parent(oil));
+					    *oil_incoming_vif(oil));
 			json_object_string_add(json_ifp_out,
 					       "outboundInterface", out_ifname);
 			json_object_int_add(json_ifp_out, "oVifI", oif_idx);
@@ -3136,7 +3137,7 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 		if (pim_channel_oil_empty(oil))
 			strlcat(state_str, "P", sizeof(state_str));
 
-		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_parent(oil),
+		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_incoming_vif(oil),
 			      in_ifname, sizeof(in_ifname));
 		pim_time_uptime(mroute_uptime, sizeof(mroute_uptime),
 				now - oil->mroute_creation);
@@ -3153,7 +3154,7 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 			if (oil->oif_flags[oif_idx] & PIM_OIF_FLAG_MUTE)
 				continue;
 
-			if (*oil_parent(oil) == oif_idx &&
+			if (*oil_incoming_vif(oil) == oif_idx &&
 			    !pim_mroute_allow_iif_in_oil(oil, oif_idx))
 				continue;
 

@@ -272,7 +272,7 @@ int pim_mroute_msg_nocache(int fd, struct interface *ifp, const kernmsg *msg)
 	up->channel_oil->cc.pktcnt++;
 	// resolve mfcc_parent prior to mroute_add in channel_add_oif
 	if (up->rpf.source_nexthop.interface &&
-	    *oil_parent(up->channel_oil) >= system_maxvifs()) {
+	    *oil_incoming_vif(up->channel_oil) >= system_maxvifs()) {
 		pim_upstream_mroute_iif_update(up->channel_oil, __func__);
 	}
 	pim_register_join(up);
@@ -1092,10 +1092,10 @@ static inline void pim_mroute_copy(struct channel_oil *out,
 
 	*oil_origin(out) = *oil_origin(in);
 	*oil_mcastgrp(out) = *oil_mcastgrp(in);
-	*oil_parent(out) = *oil_parent(in);
+	*oil_incoming_vif(out) = *oil_incoming_vif(in);
 
 	for (i = 0; i < system_maxvifs(); ++i) {
-		if (*oil_parent(out) == i &&
+		if (*oil_incoming_vif(out) == i &&
 		    !pim_mroute_allow_iif_in_oil(in, i)) {
 			oil_if_set(out, i, 0);
 			continue;
@@ -1140,7 +1140,7 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 	 * in the case of a (*,G).
 	 */
 	if (pim_addr_is_any(*oil_origin(c_oil))) {
-		oil_if_set(tmp_oil, *oil_parent(c_oil), 1);
+		oil_if_set(tmp_oil, *oil_incoming_vif(c_oil), 1);
 	}
 
 	/*
@@ -1150,9 +1150,9 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 	 * the packets to be forwarded.  Then set it
 	 * to the correct IIF afterwords.
 	 */
-	if (!c_oil->installed && !pim_addr_is_any(*oil_origin(c_oil))
-	    && *oil_parent(c_oil) != 0) {
-		*oil_parent(tmp_oil) = 0;
+	if (!c_oil->installed && !pim_addr_is_any(*oil_origin(c_oil)) &&
+	    *oil_incoming_vif(c_oil) != 0) {
+		*oil_incoming_vif(tmp_oil) = 0;
 	}
 	/* For IPv6 MRT_ADD_MFC is defined to MRT6_ADD_MFC */
 #ifdef VENDOR_SOUTHBOUND
@@ -1168,10 +1168,9 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 			__FILE__, __func__, pim->mroute_socket, errno,
 			safe_strerror(errno));
 
-	if (!err && !c_oil->installed
-	    && !pim_addr_is_any(*oil_origin(c_oil))
-	    && *oil_parent(c_oil) != 0) {
-		*oil_parent(tmp_oil) = *oil_parent(c_oil);
+	if (!err && !c_oil->installed && !pim_addr_is_any(*oil_origin(c_oil)) &&
+	    *oil_incoming_vif(c_oil) != 0) {
+		*oil_incoming_vif(tmp_oil) = *oil_incoming_vif(c_oil);
 #ifdef VENDOR_SOUTHBOUND
 		err = setsockopt(pim->mroute_socket, PIM_IPPROTO, MRT_ADD_MFC,
 				 &tmp_oil->oil, sizeof(tmp_oil->oil_generic));
@@ -1233,7 +1232,7 @@ int pim_upstream_mroute_update(struct channel_oil *c_oil, const char *name)
 {
 	char buf[1000];
 
-	if (*oil_parent(c_oil) >= system_maxvifs()) {
+	if (*oil_incoming_vif(c_oil) >= system_maxvifs()) {
 		/* the c_oil cannot be installed as a mroute yet */
 		if (PIM_DEBUG_MROUTE)
 			zlog_debug(
@@ -1305,13 +1304,13 @@ int pim_upstream_mroute_add(struct channel_oil *c_oil, const char *name)
 	iif = pim_upstream_get_mroute_iif(c_oil, name, &iifp);
 	c_oil->filtered = pim_oil_check_filtered(c_oil, iifp);
 
-	if (*oil_parent(c_oil) != iif) {
-		*oil_parent(c_oil) = iif;
+	if (*oil_incoming_vif(c_oil) != iif) {
+		*oil_incoming_vif(c_oil) = iif;
 		if (pim_addr_is_any(*oil_origin(c_oil)) &&
 				c_oil->up)
 			pim_upstream_all_sources_iif_update(c_oil->up);
 	} else {
-		*oil_parent(c_oil) = iif;
+		*oil_incoming_vif(c_oil) = iif;
 	}
 
 #ifdef VENDOR_SOUTHBOUND
@@ -1337,11 +1336,11 @@ int pim_upstream_mroute_iif_update(struct channel_oil *c_oil, const char *name)
 
 	iif = (vifi_t)pim_upstream_get_mroute_iif(c_oil, name, &iifp);
 	filtered = pim_oil_check_filtered(c_oil, iifp);
-	if (*oil_parent(c_oil) == iif && c_oil->filtered == filtered) {
+	if (*oil_incoming_vif(c_oil) == iif && c_oil->filtered == filtered) {
 		/* no change */
 		return 0;
 	}
-	*oil_parent(c_oil) = iif;
+	*oil_incoming_vif(c_oil) = iif;
 	c_oil->filtered = filtered;
 
 	if (pim_addr_is_any(*oil_origin(c_oil)) &&
@@ -1403,10 +1402,10 @@ void pim_static_mroute_iif_update(struct channel_oil *c_oil,
 				int input_vif_index,
 				const char *name)
 {
-	if (*oil_parent(c_oil) == input_vif_index)
+	if (*oil_incoming_vif(c_oil) == input_vif_index)
 		return;
 
-	*oil_parent(c_oil) = input_vif_index;
+	*oil_incoming_vif(c_oil) = input_vif_index;
 	if (input_vif_index == system_maxvifs())
 		pim_mroute_del(c_oil, name);
 	else
@@ -1424,9 +1423,8 @@ int pim_mroute_del(struct channel_oil *c_oil, const char *name)
 	if (!c_oil->installed) {
 		if (PIM_DEBUG_MROUTE) {
 			char buf[1000];
-			struct interface *iifp =
-				pim_if_find_by_vif_index(pim,
-							 *oil_parent(c_oil));
+			struct interface *iifp = pim_if_find_by_vif_index(
+				pim, *oil_incoming_vif(c_oil));
 
 			zlog_debug("%s %s: incoming interface %s for route is %s not installed, do not need to send del req. ",
 				   __FILE__, __func__,
