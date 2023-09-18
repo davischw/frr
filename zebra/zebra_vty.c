@@ -1417,6 +1417,15 @@ DEFPY (show_ip_nht,
 			return CMD_WARNING;
 	}
 
+	zvrf = zebra_vrf_lookup_by_id(vrf_id);
+	resolve_via_default = (afi == AFI_IP)
+				      ? zvrf->zebra_rnh_ip_default_route
+				      : zvrf->zebra_rnh_ipv6_default_route;
+
+	vty_out(vty, "VRF %s:\n", zvrf_name(zvrf));
+	vty_out(vty, " Resolve via default: %s\n",
+		resolve_via_default ? "on" : "off");
+
 	zebra_print_rnh_table(vrf_id, afi, safi, vty, p);
 	return CMD_SUCCESS;
 }
