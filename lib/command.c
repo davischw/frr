@@ -1797,6 +1797,16 @@ DEFUN (show_running_config,
 	return result;
 }
 
+DEFUN_HIDDEN(show_running_config_no_secrets,
+             show_running_config_no_secrets_cmd,
+             "show running-config no-secrets",
+             SHOW_STR
+             "running configuration (same as write terminal)\n"
+             "Don't hide secrets\n")
+{
+	return vty_write_config(vty);
+}
+
 /* ALIAS_FIXME for 'write file' */
 DEFUN (copy_runningconf_startupconf,
        copy_runningconf_startupconf_cmd,
@@ -2473,6 +2483,7 @@ void install_default(enum node_type node)
 
 	_install_element(node, &config_write_cmd);
 	_install_element(node, &show_running_config_cmd);
+	_install_element(node, &show_running_config_no_secrets_cmd);
 
 	_install_element(node, &autocomplete_cmd);
 
@@ -2559,6 +2570,8 @@ void cmd_init(int terminal)
 		install_element(ENABLE_NODE, &copy_runningconf_startupconf_cmd);
 		install_element(ENABLE_NODE, &config_write_cmd);
 		install_element(ENABLE_NODE, &show_running_config_cmd);
+		install_element(ENABLE_NODE,
+				&show_running_config_no_secrets_cmd);
 		install_element(ENABLE_NODE, &config_logmsg_cmd);
 
 		install_default(CONFIG_NODE);

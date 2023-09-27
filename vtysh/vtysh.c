@@ -3236,7 +3236,17 @@ DEFUN (vtysh_write_terminal,
 	unsigned int i;
 	char line[] = "do write terminal\n";
 	char line_show_running[] = "do show running-config\n";
+	char line_show_running_no_secrets[] =
+		"do show running-config no-secrets\n";
 	char *line_selection = line;
+	int argi = 0;
+	bool no_secrets = false;
+
+	argi = 0;
+	if (argv_find(argv, argc, "no-secrets", &argi)) {
+		no_secrets = true;
+		argc--;
+	}
 
 	if (!strcmp(argv[argc - 1]->arg, "no-header"))
 		argc--;
@@ -3247,7 +3257,8 @@ DEFUN (vtysh_write_terminal,
 	}
 
 	if (strcmp(argv[1]->text, "running-config") == 0)
-		line_selection = line_show_running;
+		line_selection = no_secrets ? line_show_running_no_secrets
+					    : line_show_running;
 
 	for (i = 0; i < array_size(vtysh_client); i++)
 		if ((argc < 3)
@@ -3271,6 +3282,18 @@ DEFUN (vtysh_show_running_config,
        "Current operating configuration\n"
        DAEMONS_STR
        "Skip \"Building configuration...\" header\n")
+{
+	return vtysh_write_terminal(self, vty, argc, argv);
+}
+
+DEFUN_HIDDEN(vtysh_show_running_config_no_secrets,
+             vtysh_show_running_config_no_secrets_cmd,
+             "show running-config ["DAEMONS_LIST"] [no-header] no-secrets",
+             SHOW_STR
+             "Current operating configuration\n"
+             DAEMONS_STR
+             "Skip \"Building configuration...\" header\n"
+             "Don't hide secrets\n")
 {
 	return vtysh_write_terminal(self, vty, argc, argv);
 }
@@ -4908,6 +4931,7 @@ void vtysh_init_vty(void)
 	install_element(SRV6_LOC_NODE, &vtysh_end_all_cmd);
 
 	install_element(ENABLE_NODE, &vtysh_show_running_config_cmd);
+	install_element(ENABLE_NODE, &vtysh_show_running_config_no_secrets_cmd);
 	install_element(ENABLE_NODE, &vtysh_copy_running_config_cmd);
 	install_element(ENABLE_NODE, &vtysh_copy_to_running_cmd);
 
