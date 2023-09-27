@@ -1768,10 +1768,14 @@ DEFUN (config_write,
        "Write configuration to terminal\n")
 {
 	const int idx_type = 1;
+	int result;
 
 	// if command was 'write terminal' or 'write memory'
 	if (argc == 2 && (!strcmp(argv[idx_type]->text, "terminal"))) {
-		return vty_write_config(vty);
+		vty->is_show_running = true;
+		result = vty_write_config(vty);
+		vty->is_show_running = false;
+		return result;
 	}
 
 	return file_write_config(vty);
