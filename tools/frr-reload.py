@@ -148,7 +148,7 @@ class Vtysh(object):
         cmd = "show running-config"
         if daemon:
             cmd += " %s" % daemon
-        cmd += " no-header"
+        cmd += " no-header no-secrets"
         show_run = self._call_cmd(cmd, stdout=subprocess.PIPE)
         mark = self._call(
             ["-m", "-f", "-"], stdin=show_run.stdout, stdout=subprocess.PIPE
