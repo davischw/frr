@@ -6100,14 +6100,9 @@ DEFPY_YANG (interface_ip_pim_joinprune_time, interface_ip_pim_joinprune_time_cmd
       "Seconds\n")
 {
 	if (no)
-		nb_cli_enqueue_change(vty, "./join-prune-interval",
-				      NB_OP_DESTROY, NULL);
-	else
-		nb_cli_enqueue_change(vty, "./join-prune-interval",
-				      NB_OP_MODIFY, jpt_str);
+		return pim_interface_no_join_prune(vty);
 
-	return nb_cli_apply_changes(vty, FRR_PIM_INTERFACE_XPATH,
-				    FRR_PIM_AF_XPATH_VAL);
+	return pim_interface_join_prune(vty, jpt_str);
 }
 
 ALIAS(interface_ip_pim_joinprune_time, interface_no_ip_pim_joinprune_time_cmd,

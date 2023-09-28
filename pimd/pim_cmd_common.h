@@ -55,6 +55,8 @@ int pim_process_no_ip_pim_drprio_cmd(struct vty *vty);
 int pim_process_ip_pim_hello_cmd(struct vty *vty, const char *hello_str,
 				 const char *hold_str);
 int pim_process_no_ip_pim_hello_cmd(struct vty *vty);
+int pim_interface_join_prune(struct vty *vty, const char *join_prune_interval);
+int pim_interface_no_join_prune(struct vty *vty);
 int pim_process_ip_pim_activeactive_cmd(struct vty *vty, const char *no);
 int pim_process_ip_pim_boundary_oil_cmd(struct vty *vty, const char *oil);
 int pim_process_no_ip_pim_boundary_oil_cmd(struct vty *vty);
