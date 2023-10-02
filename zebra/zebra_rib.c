@@ -3188,11 +3188,22 @@ static wq_item_status meta_queue_process(struct work_queue *dummy, void *data)
 		return WQ_QUEUE_BLOCKED;
 	}
 
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		vendor_southbound_lock();
+#endif /* VENDOR_SOUTHBOUND */
+
 	for (i = 0; i < MQ_SIZE; i++)
 		if (process_subq(mq->subq[i], i)) {
 			mq->size--;
 			break;
 		}
+
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		vendor_southbound_unlock();
+#endif /* VENDOR_SOUTHBOUND */
+
 	return mq->size ? WQ_REQUEUE : WQ_SUCCESS;
 }
 
