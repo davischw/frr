@@ -479,7 +479,7 @@ static int pim_zebra_fpm_sync(ZAPI_CALLBACK_ARGS)
 	struct pim_instance *pim;
 	struct channel_oil *oil;
 
-	if (pim_southbound_enabled)
+	if (!pim_southbound_enabled)
 		return 0;
 
 	pim = pim_get_pim_instance(vrf_id);
