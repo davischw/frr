@@ -616,7 +616,12 @@ int pim_register_recv(struct interface *ifp, pim_addr dest_addr,
 		}
 	}
 
-	rp_addr = (RP(pim, sg.grp))->rpf_addr;
+	struct pim_rpf *rp = RP(pim, sg.grp);
+	if (rp)
+		rp_addr = rp->rpf_addr;
+	else
+		rp_addr = PIMADDR_ANY;
+
 	if (i_am_rp && (!pim_addr_cmp(dest_addr, rp_addr))) {
 		sentRegisterStop = 0;
 
