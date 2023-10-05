@@ -15442,6 +15442,8 @@ struct route_parameters {
 	struct attr attr;
 	/** Received from peer. */
 	struct peer *peer;
+	/* Show path flags. */
+	bool path_flags;
 };
 
 static bool bgp_route_belongs_to_aggregate(const struct route_parameters *args)
@@ -15662,6 +15664,13 @@ static void print_route_inner_detailed(struct vty *vty,
 			attr->lcommunity->str);
 	else
 		vty_out(vty, "\"largeCommunity\":\"none\",");
+
+	if (args->path_flags) {
+		vty_out(vty, "\"bestPath\":%s,",
+			CHECK_FLAG(args->path->flags, BGP_PATH_SELECTED)
+				? "true"
+				: "false");
+	}
 
 	vty_out(vty, "\"weight\":%u", attr->weight);
 }
@@ -16277,6 +16286,28 @@ static size_t bgp_local_rib_count(const struct bgp_rib_args *args)
 	return total;
 }
 
+static void print_local_route_detailed(struct vty *vty,
+				       struct route_parameters *args,
+				       const struct bgp_path_info *path)
+{
+	args->path_flags = true;
+
+	vty_out(vty, "\"%pFX\":[{", args->prefix);
+	print_route_inner_detailed(vty, args);
+	vty_out(vty, "}");
+
+	for (path = path->next; path; path = path->next) {
+		args->path = path;
+		args->attr = *path->attr;
+
+		vty_out(vty, ",{");
+		print_route_inner_detailed(vty, args);
+		vty_out(vty, "}");
+	}
+
+	vty_out(vty, "]");
+}
+
 DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
       "show bgp rib-local [{"
       "<ipv4|ipv6>$afi"
@@ -16390,7 +16421,8 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 					else
 						vty_out(vty, ",");
 
-					print_route_detailed(vty, &route_args);
+					print_local_route_detailed(
+						vty, &route_args, path);
 
 					args.total++;
 					if (args.total >= args.maximum)
