@@ -15477,13 +15477,13 @@ static bool bgp_route_belongs_to_aggregate(const struct route_parameters *args)
 	return belongs;
 }
 
-static void print_route_detailed(struct vty *vty, struct route_parameters *args)
+static void print_route_inner_detailed(struct vty *vty,
+				       struct route_parameters *args)
 {
 	struct bgp_path_info *path = bgp_dest_get_bgp_path_info(args->dest);
 	/* Ugly hack so we can use BGP_ATTR_NEXTHOP_AFI_IP6() macro. */
 	struct attr *attr = &args->attr;
 
-	vty_out(vty, "\"%pFX\":{", args->prefix);
 	if (BGP_ATTR_NEXTHOP_AFI_IP6(attr))
 		vty_out(vty, "\"nextHop\":\"%pI6\",", &attr->mp_nexthop_global);
 	else
@@ -15659,6 +15659,12 @@ static void print_route_detailed(struct vty *vty, struct route_parameters *args)
 		vty_out(vty, "\"largeCommunity\":\"none\",");
 
 	vty_out(vty, "\"weight\":%u", attr->weight);
+}
+
+static void print_route_detailed(struct vty *vty, struct route_parameters *args)
+{
+	vty_out(vty, "\"%pFX\":{", args->prefix);
+	print_route_inner_detailed(vty, args);
 	vty_out(vty, "}");
 }
 
