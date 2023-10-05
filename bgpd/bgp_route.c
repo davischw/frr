@@ -134,7 +134,7 @@ DEFINE_HOOK(bgp_process,
 	    (bgp, afi, safi, bn, peer, withdraw));
 
 /** Test if path is suppressed. */
-static bool bgp_path_suppressed(struct bgp_path_info *pi)
+static bool bgp_path_suppressed(const struct bgp_path_info *pi)
 {
 	if (pi->extra == NULL || pi->extra->aggr_suppressors == NULL)
 		return false;

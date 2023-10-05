@@ -84,7 +84,7 @@ static void bgp_damp_info_claim(struct bgp_damp_info *bdi,
 	bdi->safi = bdc->safi;
 }
 
-struct bgp_damp_config *get_active_bdc_from_pi(struct bgp_path_info *pi,
+struct bgp_damp_config *get_active_bdc_from_pi(const struct bgp_path_info *pi,
 					       afi_t afi, safi_t safi)
 {
 	if (!pi)

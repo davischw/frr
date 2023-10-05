@@ -141,8 +141,8 @@ extern int bgp_damp_enable(struct bgp *bgp, afi_t afi, safi_t safi, time_t half,
 			   time_t max);
 extern int bgp_damp_disable(struct bgp *bgp, afi_t afi, safi_t safi);
 
-extern struct bgp_damp_config *get_active_bdc_from_pi(struct bgp_path_info *pi,
-						      afi_t afi, safi_t safi);
+extern struct bgp_damp_config *
+get_active_bdc_from_pi(const struct bgp_path_info *pi, afi_t afi, safi_t safi);
 extern int bgp_damp_withdraw(struct bgp_path_info *path, struct bgp_dest *dest,
 			     afi_t afi, safi_t safi, int attr_change);
 extern int bgp_damp_update(struct bgp_path_info *path, struct bgp_dest *dest,
