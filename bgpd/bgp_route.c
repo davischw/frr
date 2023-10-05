@@ -15856,7 +15856,8 @@ static inline bool bgp_rib_in_filter_entry(const struct bgp_rib_args *args,
 
 static void print_peer_out_route(struct vty *vty, struct bgp *bgp,
 				 struct peer *peer, struct bgp_dest *dest,
-				 struct bgp_adj_out *adj_out)
+				 struct bgp_adj_out *adj_out, afi_t afi,
+				 safi_t safi)
 {
 	const struct bgp_path_info *path = bgp_dest_get_bgp_path_info(dest);
 	struct attr *attr = NULL;
@@ -15865,8 +15866,8 @@ static void print_peer_out_route(struct vty *vty, struct bgp *bgp,
 		.dest = dest,
 		.prefix = bgp_dest_get_prefix(dest),
 		.bgp = bgp,
-		.afi = AFI_IP,
-		.safi = SAFI_UNICAST,
+		.afi = afi,
+		.safi = safi,
 		.attr = *adj_out->attr,
 	};
 
@@ -15923,7 +15924,8 @@ static void bgp_peer_rib_out_print(struct peer_rib_out_args *args,
 					vty_out(args->vty, ",");
 
 				print_peer_out_route(args->vty, table->bgp,
-						     peer, dest, adj_out);
+						     peer, dest, adj_out,
+						     table->afi, table->safi);
 
 				args->rib_args->total++;
 				/* Enough routes, quit. */
@@ -16360,8 +16362,8 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 					route_args.prefix =
 						bgp_dest_get_prefix(dest);
 					route_args.bgp = bgp;
-					route_args.afi = AFI_IP;
-					route_args.safi = SAFI_UNICAST;
+					route_args.afi = afi_i;
+					route_args.safi = safi_i;
 					route_args.attr = *attr;
 					route_args.peer =
 						dest->adj_in
