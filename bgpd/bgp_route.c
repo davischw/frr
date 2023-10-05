@@ -15430,6 +15430,8 @@ struct route_parameters {
 	const struct prefix *prefix;
 	/** BGP route data structure pointer. */
 	struct bgp_dest *dest;
+	/** BGP route path pointer. */
+	const struct bgp_path_info *path;
 	/** BGP instance pointer. */
 	struct bgp *bgp;
 	/** Route AFI. */
@@ -15480,7 +15482,6 @@ static bool bgp_route_belongs_to_aggregate(const struct route_parameters *args)
 static void print_route_inner_detailed(struct vty *vty,
 				       struct route_parameters *args)
 {
-	struct bgp_path_info *path = bgp_dest_get_bgp_path_info(args->dest);
 	/* Ugly hack so we can use BGP_ATTR_NEXTHOP_AFI_IP6() macro. */
 	struct attr *attr = &args->attr;
 
@@ -15494,32 +15495,35 @@ static void print_route_inner_detailed(struct vty *vty,
 	else
 		vty_out(vty, "\"path\":\"unavailable\",");
 
-	if (path && path->peer)
-		vty_out(vty, "\"receivedFrom\":\"%s\",", path->peer->host);
+	if (args->path && args->path->peer)
+		vty_out(vty, "\"receivedFrom\":\"%s\",",
+			args->path->peer->host);
 	else
 		vty_out(vty, "\"receivedFrom\":\"unknown\",");
 
 	if (CHECK_FLAG(args->dest->flags, BGP_NODE_PROCESS_SCHEDULED)) {
-		if (path == NULL || (!CHECK_FLAG(path->flags, BGP_PATH_VALID))
-		    || CHECK_FLAG(path->flags, BGP_PATH_REMOVED))
+		if (args->path == NULL
+		    || (!CHECK_FLAG(args->path->flags, BGP_PATH_VALID))
+		    || CHECK_FLAG(args->path->flags, BGP_PATH_REMOVED))
 			vty_out(vty,
 				"\"advertiseStatus\":\"pendingWithdrawal\",");
 		else
 			vty_out(vty, "\"advertiseStatus\":\"suppressed\",");
 	} else {
-		if (path == NULL || (!CHECK_FLAG(path->flags, BGP_PATH_VALID))
-		    || CHECK_FLAG(path->flags, BGP_PATH_REMOVED))
+		if (args->path == NULL
+		    || (!CHECK_FLAG(args->path->flags, BGP_PATH_VALID))
+		    || CHECK_FLAG(args->path->flags, BGP_PATH_REMOVED))
 			vty_out(vty, "\"advertiseStatus\":\"withdrawn\",");
 		else
 			vty_out(vty, "\"advertiseStatus\":\"advertised\",");
 	}
 
-	if (path) {
-		if (path->type == ZEBRA_ROUTE_BGP
-		    && path->sub_type == BGP_ROUTE_AGGREGATE)
+	if (args->path) {
+		if (args->path->type == ZEBRA_ROUTE_BGP
+		    && args->path->sub_type == BGP_ROUTE_AGGREGATE)
 			vty_out(vty,
 				"\"aggregationStatus\":\"aggregateRoute\",");
-		else if (bgp_path_suppressed(path))
+		else if (bgp_path_suppressed(args->path))
 			vty_out(vty,
 				"\"suppressedAggregatedRoute\":\"suppressedAggregatedRoute\",");
 		else if (bgp_route_belongs_to_aggregate(args))
@@ -15564,13 +15568,13 @@ static void print_route_inner_detailed(struct vty *vty,
 	vty_out(vty, "\"aggregatorAs\":%u,", attr->aggregator_as);
 	vty_out(vty, "\"aggregatorId\":\"%pI4\",", &attr->aggregator_addr);
 
-	if (path && path->extra && path->extra->damp_info) {
+	if (args->path && args->path->extra && args->path->extra->damp_info) {
 		struct bgp_damp_config *bdc;
 		struct bgp_damp_info *bdi;
 		time_t diff, now, reuse_time, uptime;
 		struct tm tm;
 
-		bdi = path->extra->damp_info;
+		bdi = args->path->extra->damp_info;
 
 		vty_out(vty, "\"dampening\":true,");
 		vty_out(vty, "\"flaps\":%u,", bdi->flap);
@@ -15599,9 +15603,10 @@ static void print_route_inner_detailed(struct vty *vty,
 				tm.tm_yday - ((tm.tm_yday / 7) * 7));
 
 		/* bgp_damp_reuse_time_vty + bgp_get_reuse_time */
-		bdc = get_active_bdc_from_pi(path, args->afi, args->safi);
-		if (bdc != NULL && CHECK_FLAG(path->flags, BGP_PATH_DAMPED)
-		    && !CHECK_FLAG(path->flags, BGP_PATH_HISTORY)) {
+		bdc = get_active_bdc_from_pi(args->path, args->afi, args->safi);
+		if (bdc != NULL
+		    && CHECK_FLAG(args->path->flags, BGP_PATH_DAMPED)
+		    && !CHECK_FLAG(args->path->flags, BGP_PATH_HISTORY)) {
 			unsigned int penalty;
 
 			/* Calculate new penalty.  */
@@ -15874,6 +15879,7 @@ static void print_peer_out_route(struct vty *vty, struct bgp *bgp,
 		.bgp = bgp,
 		.afi = afi,
 		.safi = safi,
+		.path = path,
 		.attr = *adj_out->attr,
 	};
 
@@ -16368,6 +16374,7 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 					route_args.prefix =
 						bgp_dest_get_prefix(dest);
 					route_args.bgp = bgp;
+					route_args.path = path;
 					route_args.afi = afi_i;
 					route_args.safi = safi_i;
 					route_args.attr = *attr;
