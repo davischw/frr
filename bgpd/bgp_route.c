@@ -15500,7 +15500,23 @@ static void print_route_inner_detailed(struct vty *vty,
 	if (args->path && args->path->peer)
 		vty_out(vty, "\"receivedFrom\":\"%s\",",
 			args->path->peer->host);
-	else
+	else if (args->peer) {
+		if (args->peer->np)
+			vty_out(vty, "\"receivedFrom\":\"%s\",",
+				args->peer->host);
+		else {
+			switch (args->peer->su.sa.sa_family) {
+			case AF_INET:
+				vty_out(vty, "\"receivedFrom\":\"%pI4\",",
+					&args->peer->su.sin.sin_addr);
+				break;
+			case AF_INET6:
+				vty_out(vty, "\"receivedFrom\":\"%pI6\",",
+					&args->peer->su.sin6.sin6_addr);
+				break;
+			}
+		}
+	} else
 		vty_out(vty, "\"receivedFrom\":\"unknown\",");
 
 	if (CHECK_FLAG(args->dest->flags, BGP_NODE_PROCESS_SCHEDULED)) {
@@ -15536,24 +15552,6 @@ static void print_route_inner_detailed(struct vty *vty,
 				"\"aggregationStatus\":\"noAggregation\",");
 	} else
 		vty_out(vty, "\"aggregationStatus\":\"noAggregation\",");
-
-	if (args->peer) {
-		if (args->peer->np)
-			vty_out(vty, "\"receivedFrom\":\"%s\",",
-				args->peer->host);
-		else {
-			switch (args->peer->su.sa.sa_family) {
-			case AF_INET:
-				vty_out(vty, "\"receivedFrom\":\"%pI4\",",
-					&args->peer->su.sin.sin_addr);
-				break;
-			case AF_INET6:
-				vty_out(vty, "\"receivedFrom\":\"%pI6\",",
-					&args->peer->su.sin6.sin6_addr);
-				break;
-			}
-		}
-	}
 
 	vty_out(vty, "\"originatorId\":\"%pI4\",", &attr->originator_id);
 	vty_out(vty, "\"bgpOriginCode\":\"%s\",", bgp_origin_str[attr->origin]);
