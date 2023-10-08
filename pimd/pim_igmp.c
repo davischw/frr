@@ -1292,6 +1292,15 @@ struct gm_sock *pim_igmp_sock_add(struct list *igmp_sock_list,
 	struct sockaddr_in sin;
 	int fd;
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	/* Vendor southbound doesn't need individual IGMP socket. */
+	if (pim_southbound_enabled) {
+		igmp = igmp_sock_new(-1, ifaddr, ifp, mtrace_only);
+		listnode_add(igmp_sock_list, igmp);
+		return igmp;
+	}
+#endif /* VENDOR_SOUTHBOUND */
+
 	fd = igmp_sock_open(ifaddr, ifp);
 	if (fd < 0) {
 		zlog_warn("Could not open IGMP socket for %pI4 on %s",
