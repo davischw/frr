@@ -257,6 +257,7 @@ static int pim_next_address(const struct address_list *al,
 void pim_address_list_init(void)
 {
 	hook_register(address_entry_next, pim_next_address);
+	address_list_cli_init();
 }
 
 void pim_msdp_address_list_exit(struct pim_instance *pim)

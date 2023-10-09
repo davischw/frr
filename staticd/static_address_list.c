@@ -182,4 +182,5 @@ static int static_next_address_entry(const struct address_list *al,
 void static_address_list_init(void)
 {
 	hook_register(address_entry_next, static_next_address_entry);
+	address_list_cli_init();
 }

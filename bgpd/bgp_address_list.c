@@ -403,4 +403,5 @@ static int peer_group_next_address(const struct address_list *al,
 void bgp_address_list_init(void)
 {
 	hook_register(address_entry_next, peer_group_next_address);
+	address_list_cli_init();
 }
