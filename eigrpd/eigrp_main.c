@@ -141,7 +141,6 @@ struct frr_signal_t eigrp_signals[] = {
 };
 
 static const struct frr_yang_module_info *const eigrpd_yang_modules[] = {
-	&frr_address_list_info,
 	&frr_eigrpd_info,
 	&frr_filter_info,
 	&frr_interface_info,

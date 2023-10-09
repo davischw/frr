@@ -117,7 +117,6 @@ struct frr_signal_t sharp_signals[] = {
 #define SHARP_VTY_PORT 2614
 
 static const struct frr_yang_module_info *const sharpd_yang_modules[] = {
-	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_route_map_info,

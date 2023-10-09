@@ -114,7 +114,6 @@ struct frr_signal_t vrrp_signals[] = {
 };
 
 static const struct frr_yang_module_info *const vrrp_yang_modules[] = {
-	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_vrf_info,
 	&frr_interface_info,

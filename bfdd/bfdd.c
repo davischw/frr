@@ -124,7 +124,6 @@ static struct frr_signal_t bfd_signals[] = {
 };
 
 static const struct frr_yang_module_info *const bfdd_yang_modules[] = {
-	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_bfdd_info,

@@ -169,7 +169,6 @@ struct frr_signal_t isisd_signals[] = {
 
 
 static const struct frr_yang_module_info *const isisd_yang_modules[] = {
-	&frr_address_list_info,
 	&frr_filter_info,
 	&frr_interface_info,
 #ifndef FABRICD
