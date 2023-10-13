@@ -741,9 +741,12 @@ static int vrf_write_host(struct vty *vty)
 	if (debug_vrf)
 		vty_out(vty, "debug vrf\n");
 
-	dnode = yang_dnode_get(running_config->dnode, "/frr-address-list:lib");
-	if (dnode)
-		nb_cli_show_dnode_cmds(vty, dnode, false);
+	if (yang_module_find("frr-address-list")) {
+		dnode = yang_dnode_get(running_config->dnode,
+				       "/frr-address-list:lib");
+		if (dnode)
+			nb_cli_show_dnode_cmds(vty, dnode, false);
+	}
 
 	return 1;
 }
