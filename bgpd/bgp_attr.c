@@ -3123,10 +3123,13 @@ static int bgp_attr_check(struct peer *peer, struct attr *attr,
 	uint8_t type = 0;
 
 	/* BGP Graceful-Restart End-of-RIB for IPv4 unicast is signaled as an
-	 * empty UPDATE.  */
+	 * empty UPDATE. Treat-as-withdraw, otherwise if we just ignore it,
+	 * we will pass it to be processed as a normal UPDATE without mandatory
+	 * attributes, that could lead to harmful behavior.
+	 */
 	if (CHECK_FLAG(peer->cap, PEER_CAP_RESTART_RCV) && !attr->flag &&
 	    !length)
-		return BGP_ATTR_PARSE_PROCEED;
+		return BGP_ATTR_PARSE_WITHDRAW;
 
 	if (!CHECK_FLAG(attr->flag, ATTR_FLAG_BIT(BGP_ATTR_ORIGIN)))
 		type = BGP_ATTR_ORIGIN;
@@ -3616,7 +3619,13 @@ done:
 	aspath_unintern(&as4_path);
 
 	transit = bgp_attr_get_transit(attr);
-	if (ret != BGP_ATTR_PARSE_ERROR) {
+	/* If we received an UPDATE with mandatory attributes, then
+	 * the unrecognized transitive optional attribute of that
+	 * path MUST be passed. Otherwise, it's an error, and from
+	 * security perspective it might be very harmful if we continue
+	 * here with the unrecognized attributes.
+	 */
+	if (ret == BGP_ATTR_PARSE_PROCEED) {
 		/* Finally intern unknown attribute. */
 		if (transit)
 			bgp_attr_set_transit(attr, transit_intern(transit));
