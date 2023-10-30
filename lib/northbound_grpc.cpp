@@ -57,6 +57,11 @@ static struct frr_pthread *fpt;
 
 static bool grpc_running;
 
+static struct {
+	struct nb_config *candidate;
+	struct thread *timeout;
+} pending_commit;
+
 #define grpc_debug(...)                                                        \
 	do {                                                                   \
 		if (nb_dbg_client_grpc)                                        \
@@ -544,6 +549,25 @@ static grpc::Status get_path(frr::DataTree *dt, const std::string &path,
 	return grpc::Status::OK;
 }
 
+static void commit_timeout(struct thread *thread)
+{
+	struct nb_context context = {};
+	context.client = NB_CLIENT_GRPC;
+	char errmsg[BUFSIZ] = {0};
+	int ret;
+
+	grpc_debug("commit timeout");
+
+	// Commit candidate.
+	ret = nb_candidate_commit(&context, pending_commit.candidate, true,
+				  NULL, NULL, errmsg, sizeof(errmsg));
+	grpc_debug("`-> Result: %s (message: '%s')",
+		   nb_err_name((enum nb_error)ret), errmsg);
+
+	// Release candidate configuration.
+	nb_config_free(pending_commit.candidate);
+	pending_commit.candidate = NULL;
+}
 
 // ------------------------------------------------------
 //       RPC Callback Functions: run on main thread
@@ -899,6 +923,43 @@ HandleUnaryCommit(UnaryRpcState<frr::CommitRequest, frr::CommitResponse> *tag)
 	return status;
 }
 
+grpc::Status HandleUnaryCommitEnqueue(
+	UnaryRpcState<frr::CommitEnqueueRequest, frr::CommitEnqueueResponse>
+		*tag)
+{
+	// Create new candidate if necessary.
+	if (!pending_commit.candidate)
+		pending_commit.candidate = nb_config_dup(running_config);
+	struct nb_config *candidate = pending_commit.candidate;
+
+	// Request: DataTree config = 1;
+	auto config = tag->request.config();
+	// Request: uint32 timeout = 2;
+	uint32_t timeout = tag->request.timeout();
+	if (timeout == 0)
+		// Use default value if not specified.
+		timeout = 500;
+
+	// Merge configuration changes to internal candidate.
+	struct lyd_node *dnode = dnode_from_data_tree(&config, true);
+	if (!dnode)
+		return grpc::Status(grpc::StatusCode::INTERNAL,
+				    "Failed to parse the configuration");
+
+	struct nb_config *loaded_config = nb_config_new(dnode);
+	if (nb_config_merge(candidate, loaded_config, false) != NB_OK)
+		return grpc::Status(grpc::StatusCode::INTERNAL,
+				    "Failed to merge the loaded configuration");
+
+	// Schedule commit.
+	THREAD_OFF(pending_commit.timeout);
+	thread_add_timer_msec(main_master, commit_timeout,
+			      pending_commit.candidate, timeout,
+			      &pending_commit.timeout);
+
+	return grpc::Status::OK;
+}
+
 grpc::Status HandleUnaryLockConfig(
 	UnaryRpcState<frr::LockConfigRequest, frr::LockConfigResponse> *tag)
 {
@@ -1165,6 +1226,7 @@ static void *grpc_pthread_start(void *arg)
 	REQUEST_NEWRPC(EditCandidate, &candidates);
 	REQUEST_NEWRPC(LoadToCandidate, &candidates);
 	REQUEST_NEWRPC(Commit, &candidates);
+	REQUEST_NEWRPC(CommitEnqueue, &candidates);
 	REQUEST_NEWRPC(GetTransaction, NULL);
 	REQUEST_NEWRPC(LockConfig, NULL);
 	REQUEST_NEWRPC(UnlockConfig, NULL);
@@ -1256,6 +1318,9 @@ static int frr_grpc_finish(void)
 
 	if (!fpt)
 		return 0;
+
+	if (pending_commit.candidate)
+		nb_config_free(pending_commit.candidate);
 
 	/*
 	 * Shut the server down here in main thread. This will cause the wait on
