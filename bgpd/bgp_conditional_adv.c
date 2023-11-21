@@ -258,8 +258,9 @@ static void bgp_advmaps_evaluate(struct bgp_table *table, struct peer *peer,
 					bgp_addpath_id_for_peer(
 						peer, afi, safi,
 						&pi->tx_addpath));
+
+				bgp_attr_flush(&advmap_attr);
 			}
-			bgp_attr_flush(&advmap_attr);
 		}
 	}
 	UNSET_FLAG(subgrp->sflags, SUBGRP_STATUS_TABLE_REPARSING);
