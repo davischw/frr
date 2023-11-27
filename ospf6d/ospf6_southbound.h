@@ -64,9 +64,8 @@ ssize_t ospf6_sb_sendmsg(struct ospf6 *ospf6, const struct in6_addr *src,
 			 struct iovec *message, int ospf6_sock);
 
 /** Receive OSPFv3 message southbound semantics. */
-ssize_t ospf6_sb_recvmsg(struct in6_addr *src, struct in6_addr *dst,
-			 ifindex_t *ifindex, struct iovec *message,
-			 int ospf6_sock);
+enum ospf6_read_return_enum
+ospf6_sb_read_helper(int ospf6_sock, uint8_t *msgbuf, size_t msgbuflen);
 
 /** Schedule socket read based on descriptor. */
 void ospf6_sb_schedule(int fd);

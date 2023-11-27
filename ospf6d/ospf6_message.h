@@ -178,6 +178,17 @@ extern int ospf6_iobuf_size(unsigned int size);
 extern void ospf6_message_terminate(void);
 extern void ospf6_receive(struct thread *thread);
 
+enum ospf6_read_return_enum {
+	OSPF6_READ_ERROR,
+	OSPF6_READ_CONTINUE,
+};
+
+struct ospf6;
+extern enum ospf6_read_return_enum
+ospf6_read_message(struct ospf6 *ospf6, struct ospf6_interface *oi,
+		   struct in6_addr *src, struct in6_addr *dst, int ifindex,
+		   int len);
+
 extern void ospf6_hello_send(struct thread *thread);
 extern void ospf6_dbdesc_send(struct thread *thread);
 extern void ospf6_dbdesc_send_newone(struct thread *thread);

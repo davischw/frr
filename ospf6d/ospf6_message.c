@@ -1851,11 +1851,6 @@ void ospf6_message_terminate(void)
 	iobuflen = 0;
 }
 
-enum ospf6_read_return_enum {
-	OSPF6_READ_ERROR,
-	OSPF6_READ_CONTINUE,
-};
-
 static int ospf6_rxpacket_process(struct in6_addr *src, struct in6_addr *dst,
 				  struct ospf6_interface *oi,
 				  struct ospf6_header *oh, int len,
@@ -1916,10 +1911,6 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 	ifindex_t ifindex;
 	struct iovec iovector[2];
 	struct ospf6_interface *oi;
-	struct ospf6_header *oh;
-	enum ospf6_auth_err ret = OSPF6_AUTH_PROCESS_NORMAL;
-	uint32_t at_len = 0;
-	uint32_t lls_len = 0;
 
 	/* initialize */
 	memset(&src, 0, sizeof(src));
@@ -1940,13 +1931,6 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 		return OSPF6_READ_ERROR;
 	}
 
-	/* ensure some zeroes past the end, just as a security precaution */
-	memset(recvbuf + len, 0, MIN(128, iobuflen - len));
-
-	if (!IN6_IS_ADDR_LINKLOCAL(&dst) && !IN6_IS_ADDR_MULTICAST(&dst))
-		return ospf6_rxpacket_vlink(&src, &dst, ospf6, ifindex, len,
-					    at_len, lls_len);
-
 	oi = ospf6_interface_lookup_by_ifindex(ifindex, ospf6->vrf_id);
 	if (oi == NULL || oi->area == NULL
 	    || CHECK_FLAG(oi->flag, OSPF6_INTERFACE_DISABLE)) {
@@ -1955,6 +1939,28 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 			zlog_debug("Message received on disabled interface");
 		return OSPF6_READ_CONTINUE;
 	}
+
+	return ospf6_read_message(ospf6, oi, &src, &dst, ifindex, len);
+}
+
+enum ospf6_read_return_enum ospf6_read_message(struct ospf6 *ospf6,
+					       struct ospf6_interface *oi,
+					       struct in6_addr *src,
+					       struct in6_addr *dst,
+					       int ifindex, int len)
+{
+	struct ospf6_header *oh;
+	enum ospf6_auth_err ret;
+	uint32_t at_len = 0;
+	uint32_t lls_len = 0;
+
+	/* ensure some zeroes past the end, just as a security precaution */
+	memset(recvbuf + len, 0, MIN(128, iobuflen - len));
+
+	if (!IN6_IS_ADDR_LINKLOCAL(dst) && !IN6_IS_ADDR_MULTICAST(dst))
+		return ospf6_rxpacket_vlink(src, dst, ospf6, ifindex, len, 0,
+					    0);
+
 	if (CHECK_FLAG(oi->flag, OSPF6_INTERFACE_PASSIVE)) {
 		if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_UNKNOWN,
 					   RECV_HDR))
@@ -1974,7 +1980,7 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 	ret = ospf6_auth_validate_pkt(oi, (uint32_t *)&len, oh, &at_len,
 				      &lls_len);
 	if (ret == OSPF6_AUTH_VALIDATE_SUCCESS) {
-		ret = ospf6_auth_check_digest(oh, oi, &src, lls_len);
+		ret = ospf6_auth_check_digest(oh, oi, src, lls_len);
 		if (ret == OSPF6_AUTH_VALIDATE_FAILURE) {
 			if (IS_OSPF6_DEBUG_AUTH_RX)
 				zlog_err(
@@ -1990,7 +1996,7 @@ static int ospf6_read_helper(int sockfd, struct ospf6 *ospf6)
 
 	if (ospf6_rxpacket_examin(oi, oh, len) != MSG_OK)
 		return OSPF6_READ_CONTINUE;
-	return ospf6_rxpacket_process(&src, &dst, oi, oh, len, at_len, lls_len);
+	return ospf6_rxpacket_process(src, dst, oi, oh, len, at_len, lls_len);
 }
 
 static int ospf6_rxpacket_process(struct in6_addr *src, struct in6_addr *dst,
@@ -2074,9 +2080,22 @@ void ospf6_receive(struct thread *thread)
 	sockfd = THREAD_FD(thread);
 
 #ifdef VENDOR_SOUTHBOUND
-	if (ospf6_southbound_enabled)
+	if (ospf6_southbound_enabled) {
 		ospf6_sb_schedule(sockfd);
-	else
+
+		for (count = 0; count < OSPF6_WRITE_INTERFACE_COUNT_DEFAULT;
+		     count++) {
+			switch (ospf6_sb_read_helper(sockfd, recvbuf,
+						     iobuflen)) {
+			case OSPF6_READ_ERROR:
+				return;
+			case OSPF6_READ_CONTINUE:
+				continue;
+			}
+		}
+
+		return;
+	} else
 #endif /* VENDOR_SOUTHBOUND */
 		thread_add_read(master, ospf6_receive, ospf6, ospf6->fd,
 				&ospf6->t_ospf6_receive);

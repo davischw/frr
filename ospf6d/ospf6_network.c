@@ -242,11 +242,6 @@ int ospf6_recvmsg(struct in6_addr *src, struct in6_addr *dst,
 	struct in6_pktinfo *pktinfo;
 	struct sockaddr_in6 src_sin6;
 
-#ifdef VENDOR_SOUTHBOUND
-	if (ospf6_southbound_enabled)
-		return ospf6_sb_recvmsg(src, dst, ifindex, message, ospf6_sock);
-#endif /* VENDOR_SOUTHBOUND */
-
 	rcmsgp = (struct cmsghdr *)cmsgbuf;
 	pktinfo = (struct in6_pktinfo *)(CMSG_DATA(rcmsgp));
 	memset(&src_sin6, 0, sizeof(src_sin6));

@@ -290,21 +290,30 @@ ssize_t ospf6_sb_sendmsg(struct ospf6 *ospf6, const struct in6_addr *src,
 	return message[0].iov_len;
 }
 
-ssize_t ospf6_sb_recvmsg(struct in6_addr *src, struct in6_addr *dst,
-			 ifindex_t *ifindex, struct iovec *message,
-			 int ospf6_sock)
+enum ospf6_read_return_enum
+ospf6_sb_read_helper(int ospf6_sock, uint8_t *msgbuf, size_t msgbuflen)
 {
+	struct ospf6_interface *oi;
 	struct in6_pktinfo *ipi6;
+	struct listnode *node;
 	struct cmsghdr *cmsg;
+	struct ospf6 *ospf6;
 	int flowinfo = -1;
 	ssize_t rv;
+	int ifindex = 0;
+	struct iovec iov;
+	struct in6_addr src;
+	struct in6_addr dst;
 	struct sockaddr_in6 src_sin6 = {};
 	uint8_t cmsgbuf[128] = {};
 	struct msghdr msg = {};
 
+	iov.iov_base = msgbuf;
+	iov.iov_len = msgbuflen;
+
 	/* Message header for receiving. */
-	msg.msg_iov = message;
-	msg.msg_iovlen = iov_count(message);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
 	msg.msg_name = &src_sin6;
 	msg.msg_namelen = sizeof(src_sin6);
 	msg.msg_control = cmsgbuf;
@@ -313,12 +322,11 @@ ssize_t ospf6_sb_recvmsg(struct in6_addr *src, struct in6_addr *dst,
 	rv = recvmsg(ospf6_sock, &msg, 0);
 	if (rv == -1) {
 		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
-			return -1;
+			return OSPF6_READ_CONTINUE;
 
 		zlog_warn("recvmsg failed: %s", safe_strerror(errno));
-		return -1;
-	} else if (rv == iov_totallen(message))
-		zlog_warn("recvmsg read full buffer size: %zd", rv);
+		return OSPF6_READ_ERROR;
+	}
 
 	/* Parse cmsg and extract required info. */
 	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL;
@@ -329,8 +337,8 @@ ssize_t ospf6_sb_recvmsg(struct in6_addr *src, struct in6_addr *dst,
 		switch (cmsg->cmsg_type) {
 		case IPV6_PKTINFO:
 			ipi6 = (struct in6_pktinfo *)CMSG_DATA(cmsg);
-			*ifindex = (ifindex_t)ipi6->ipi6_ifindex;
-			memcpy(dst, &ipi6->ipi6_addr, sizeof(*dst));
+			ifindex = (ifindex_t)ipi6->ipi6_ifindex;
+			memcpy(&dst, &ipi6->ipi6_addr, sizeof(dst));
 			break;
 		case IPV6_FLOWINFO:
 			memcpy(&flowinfo, CMSG_DATA(cmsg), sizeof(flowinfo));
@@ -339,18 +347,29 @@ ssize_t ospf6_sb_recvmsg(struct in6_addr *src, struct in6_addr *dst,
 		}
 	}
 
-	/* source address */
-	memcpy(src, &src_sin6.sin6_addr, sizeof(*src));
-
+	memcpy(&src, &src_sin6.sin6_addr, sizeof(src));
 	if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_SB, RECV))
 		zlog_debug("%s: src=%pI6 dst=%pI6 ifindex=%d flowinfo=0x%08x",
-			   __func__, src, dst, *ifindex, flowinfo);
+			   __func__, &src, &dst, ifindex, flowinfo);
 
-	*ifindex = flowinfo;
+	ifindex = flowinfo;
 
-	return rv;
+	oi = NULL;
+	for (ALL_LIST_ELEMENTS_RO(om6->ospf6, node, ospf6)) {
+		oi = ospf6_interface_lookup_by_ifindex(ifindex, ospf6->vrf_id);
+		if (oi)
+			break;
+	}
+	if (oi == NULL || oi->area == NULL ||
+	    CHECK_FLAG(oi->flag, OSPF6_INTERFACE_DISABLE)) {
+		if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_UNKNOWN,
+					   RECV_HDR))
+			zlog_debug("Message received on disabled interface");
+		return OSPF6_READ_CONTINUE;
+	}
+
+	return ospf6_read_message(ospf6, oi, &src, &dst, ifindex, rv);
 }
-
 
 void ospf6_sb_schedule(int fd)
 {
