@@ -1,4 +1,5 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
+# SPDX-License-Identifier: ISC
 
 #
 # test_bgp_ecmp_topo1.py
