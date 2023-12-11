@@ -368,6 +368,11 @@ ospf6_sb_read_helper(int ospf6_sock, uint8_t *msgbuf, size_t msgbuflen)
 		return OSPF6_READ_CONTINUE;
 	}
 
+	if (ospf6_sock == sb_ctx.dr_sock)
+		memcpy(&dst, &alldrouters6, sizeof(dst));
+	else if (ospf6_sock == sb_ctx.spf_sock)
+		memcpy(&dst, &allspfrouters6, sizeof(dst));
+
 	return ospf6_read_message(ospf6, oi, &src, &dst, ifindex, rv);
 }
 
