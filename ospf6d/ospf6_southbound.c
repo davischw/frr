@@ -376,7 +376,7 @@ ospf6_sb_read_helper(int ospf6_sock, uint8_t *msgbuf, size_t msgbuflen)
 	return ospf6_read_message(ospf6, oi, &src, &dst, ifindex, rv);
 }
 
-void ospf6_sb_schedule(int fd)
+void ospf6_sb_schedule(int fd, struct ospf6 *ospf6)
 {
 	if (fd == sb_ctx.dr_sock)
 		thread_add_read(master, ospf6_receive, NULL, sb_ctx.dr_sock,
@@ -384,6 +384,11 @@ void ospf6_sb_schedule(int fd)
 	else if (fd == sb_ctx.spf_sock)
 		thread_add_read(master, ospf6_receive, NULL, sb_ctx.spf_sock,
 				&sb_ctx.spf_ev);
+	else if (ospf6 != NULL)
+		thread_add_read(master, ospf6_receive, ospf6, fd,
+				&ospf6->t_ospf6_receive);
+	else
+		zlog_err("orphan southbound file descriptor %d", fd);
 }
 
 int ospf6_sb_get_fd(const struct ospf6 *ospf6,

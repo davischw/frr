@@ -2081,7 +2081,7 @@ void ospf6_receive(struct thread *thread)
 
 #ifdef VENDOR_SOUTHBOUND
 	if (ospf6_southbound_enabled) {
-		ospf6_sb_schedule(sockfd);
+		ospf6_sb_schedule(sockfd, ospf6);
 
 		for (count = 0; count < OSPF6_WRITE_INTERFACE_COUNT_DEFAULT;
 		     count++) {
