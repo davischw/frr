@@ -15665,7 +15665,8 @@ static void print_route_inner_detailed(struct vty *vty,
 
 	if (args->path_flags) {
 		vty_out(vty, "\"bestPath\":%s,",
-			CHECK_FLAG(args->path->flags, BGP_PATH_SELECTED)
+			(args->path
+			 && CHECK_FLAG(args->path->flags, BGP_PATH_SELECTED))
 				? "true"
 				: "false");
 	}
