@@ -16295,6 +16295,11 @@ static void print_local_route_detailed(struct vty *vty,
 	print_route_inner_detailed(vty, args);
 	vty_out(vty, "}");
 
+	if (path == NULL) {
+		vty_out(vty, "]");
+		return;
+	}
+
 	for (path = path->next; path; path = path->next) {
 		args->path = path;
 		args->attr = *path->attr;
