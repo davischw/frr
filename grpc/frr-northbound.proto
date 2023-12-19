@@ -302,8 +302,11 @@ message CommitEnqueueRequest {
   // Configuration data to be merged.
   DataTree config = 1;
 
+  // Paths to be deleted.
+  repeated PathValue delete = 2;
+
   // Commit timeout (default = 500ms if not specified).
-  uint32 timeout = 2;
+  uint32 timeout = 3;
 }
 
 message CommitEnqueueResponse {

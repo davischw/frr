@@ -934,22 +934,35 @@ grpc::Status HandleUnaryCommitEnqueue(
 
 	// Request: DataTree config = 1;
 	auto config = tag->request.config();
-	// Request: uint32 timeout = 2;
+	// Request: uint32 timeout = 3;
 	uint32_t timeout = tag->request.timeout();
 	if (timeout == 0)
 		// Use default value if not specified.
 		timeout = 500;
 
 	// Merge configuration changes to internal candidate.
-	struct lyd_node *dnode = dnode_from_data_tree(&config, true);
-	if (!dnode)
-		return grpc::Status(grpc::StatusCode::INTERNAL,
-				    "Failed to parse the configuration");
+	if (!config.data().empty()) {
+		struct lyd_node *dnode = dnode_from_data_tree(&config, true);
+		if (!dnode)
+			return grpc::Status(
+				grpc::StatusCode::INTERNAL,
+				"Failed to parse the configuration");
 
-	struct nb_config *loaded_config = nb_config_new(dnode);
-	if (nb_config_merge(candidate, loaded_config, false) != NB_OK)
-		return grpc::Status(grpc::StatusCode::INTERNAL,
-				    "Failed to merge the loaded configuration");
+		struct nb_config *loaded_config = nb_config_new(dnode);
+		if (nb_config_merge(candidate, loaded_config, false) != NB_OK)
+			return grpc::Status(
+				grpc::StatusCode::INTERNAL,
+				"Failed to merge the loaded configuration");
+	}
+
+	// Delete requested paths.
+	auto pvs = tag->request.delete_();
+	for (const frr::PathValue &pv : pvs) {
+		if (yang_dnode_delete(candidate->dnode, pv.path()) != 0)
+			return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+					    "Failed to remove \"" + pv.path() +
+						    "\"");
+	}
 
 	// Schedule commit.
 	THREAD_OFF(pending_commit.timeout);
