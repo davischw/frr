@@ -1506,7 +1506,8 @@ static bool rib_route_match_ctx(const struct route_entry *re,
 			 */
 			if (re->type == ZEBRA_ROUTE_STATIC &&
 			    (re->distance != dplane_ctx_get_old_distance(ctx) ||
-			     re->tag != dplane_ctx_get_old_tag(ctx))) {
+			     re->tag != dplane_ctx_get_old_tag(ctx) ||
+			     re->metric != dplane_ctx_get_old_metric(ctx))) {
 				result = false;
 			} else if (re->type == ZEBRA_ROUTE_KERNEL &&
 				   re->metric !=
@@ -1534,7 +1535,8 @@ static bool rib_route_match_ctx(const struct route_entry *re,
 			 */
 			if (re->type == ZEBRA_ROUTE_STATIC &&
 			    (re->distance != dplane_ctx_get_distance(ctx) ||
-			     re->tag != dplane_ctx_get_tag(ctx))) {
+			     re->tag != dplane_ctx_get_tag(ctx) ||
+			     re->metric != dplane_ctx_get_metric(ctx))) {
 				result = false;
 			} else if (re->type == ZEBRA_ROUTE_KERNEL &&
 				   re->metric != dplane_ctx_get_metric(ctx)) {
