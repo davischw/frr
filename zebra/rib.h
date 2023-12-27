@@ -168,6 +168,9 @@ struct route_entry {
 	/* Distance. */
 	uint8_t distance;
 
+	/* Stale route acknowledgements from southbound. */
+	uint32_t stale_acks;
+
 	struct re_opaque *opaque;
 };
 

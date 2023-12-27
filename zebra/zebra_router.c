@@ -148,17 +148,17 @@ void zebra_router_show_table_summary(struct vty *vty)
 	struct zebra_router_table *zrt;
 
 	vty_out(vty,
-		"VRF             NS ID    VRF ID     AFI            SAFI    Table      Count\n");
+		"VRF             NS ID    VRF ID     AFI            SAFI    Table      Count    Stale ACKS\n");
 	vty_out(vty,
-		"---------------------------------------------------------------------------\n");
+		"-----------------------------------------------------------------------------------------\n");
 	RB_FOREACH (zrt, zebra_router_table_head, &zrouter.tables) {
 		struct rib_table_info *info = route_table_get_info(zrt->table);
 
-		vty_out(vty, "%-16s%5d %9d %7s %15s %8d %10lu\n", info->zvrf->vrf->name,
+		vty_out(vty, "%-16s%5d %9d %7s %15s %8d %10lu %13" PRIu64 "\n", info->zvrf->vrf->name,
 			zrt->ns_id, info->zvrf->vrf->vrf_id,
 			afi2str(zrt->afi), safi2str(zrt->safi),
 			zrt->tableid,
-			zrt->table->count);
+			zrt->table->count, info->zvrf->stale_acks);
 	}
 }
 

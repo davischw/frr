@@ -181,6 +181,7 @@ struct zebra_vrf {
 	uint64_t lsp_removals_queued;
 	uint64_t lsp_installs;
 	uint64_t lsp_removals;
+	uint64_t stale_acks;
 
 	struct table_manager *tbl_mgr;
 

@@ -2022,6 +2022,9 @@ static void rib_process_result(struct zebra_dplane_ctx *ctx)
 					"%s(%u):%pRN Stale dplane result for re %p",
 					VRF_LOGNAME(vrf),
 					dplane_ctx_get_vrf(ctx), rn, re);
+
+			re->stale_acks++;
+			zvrf->stale_acks++;
 		} else {
 			if (!zrouter.asic_offloaded ||
 			    (CHECK_FLAG(re->flags, ZEBRA_FLAG_OFFLOADED) ||
