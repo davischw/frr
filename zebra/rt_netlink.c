@@ -2035,7 +2035,19 @@ ssize_t netlink_route_multipath_msg_encode(int cmd,
 
 	req->n.nlmsg_type = cmd;
 
-	req->n.nlmsg_pid = nl->snl.nl_pid;
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * Vendor southbound only ever has a single PID and a single
+	 * socket, but it may go away for a few seconds when the socket
+	 * disconnects for any reason. So lets simplify and not attempt
+	 * to expect it to be available here (when southbound lock is
+	 * not hold).
+	 */
+	if (vendor_southbound_enabled)
+		req->n.nlmsg_pid = pid;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		req->n.nlmsg_pid = nl->snl.nl_pid;
 
 	req->r.rtm_family = p->family;
 	req->r.rtm_dst_len = p->prefixlen;
@@ -2445,7 +2457,20 @@ ssize_t netlink_mroute_encode(const struct zebra_dplane_ctx *ctx, void *nl_buf,
 	memset(nl_buf, 0, nl_buf_len);
 	req->n.nlmsg_len = NLMSG_LENGTH(sizeof(struct ndmsg));
 	req->n.nlmsg_flags = NLM_F_REQUEST;
-	req->n.nlmsg_pid = nl->snl.nl_pid;
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * Vendor southbound only ever has a single PID and a single
+	 * socket, but it may go away for a few seconds when the socket
+	 * disconnects for any reason. So lets simplify and not attempt
+	 * to expect it to be available here (when southbound lock is
+	 * not hold).
+	 */
+	if (vendor_southbound_enabled)
+		req->n.nlmsg_pid = pid;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		req->n.nlmsg_pid = nl->snl.nl_pid;
+
 	if (dplane_ctx_get_op(ctx) == DPLANE_OP_MROUTE_INSTALL)
 		req->n.nlmsg_type = RTM_NEWROUTE;
 	else
@@ -2622,7 +2647,19 @@ ssize_t netlink_nexthop_msg_encode(uint16_t cmd,
 		req->n.nlmsg_flags |= NLM_F_REPLACE;
 
 	req->n.nlmsg_type = cmd;
-	req->n.nlmsg_pid = nl->snl.nl_pid;
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * Vendor southbound only ever has a single PID and a single
+	 * socket, but it may go away for a few seconds when the socket
+	 * disconnects for any reason. So lets simplify and not attempt
+	 * to expect it to be available here (when southbound lock is
+	 * not hold).
+	 */
+	if (vendor_southbound_enabled)
+		req->n.nlmsg_pid = pid;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		req->n.nlmsg_pid = nl->snl.nl_pid;
 
 	req->nhm.nh_family = AF_UNSPEC;
 	/* TODO: Scope? */
@@ -4567,7 +4604,19 @@ ssize_t netlink_mpls_multipath_msg_encode(int cmd, struct zebra_dplane_ctx *ctx,
 	req->n.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
 	req->n.nlmsg_flags = NLM_F_CREATE | NLM_F_REQUEST;
 	req->n.nlmsg_type = cmd;
-	req->n.nlmsg_pid = nl->snl.nl_pid;
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * Vendor southbound only ever has a single PID and a single
+	 * socket, but it may go away for a few seconds when the socket
+	 * disconnects for any reason. So lets simplify and not attempt
+	 * to expect it to be available here (when southbound lock is
+	 * not hold).
+	 */
+	if (vendor_southbound_enabled)
+		req->n.nlmsg_pid = pid;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		req->n.nlmsg_pid = nl->snl.nl_pid;
 
 	req->r.rtm_family = AF_MPLS;
 	req->r.rtm_table = RT_TABLE_MAIN;
