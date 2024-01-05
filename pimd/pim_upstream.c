@@ -962,7 +962,7 @@ static struct pim_upstream *pim_upstream_new(struct pim_instance *pim,
 			 * Set the right RPF so that future changes will
 			 * be right
 			 */
-			rpf_result = pim_rpf_update(pim, up, NULL, __func__);
+			(void)pim_rpf_update(pim, up, NULL, __func__);
 			pim_upstream_keep_alive_timer_start(
 				up, pim->keep_alive_time);
 		}
