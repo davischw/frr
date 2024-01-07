@@ -3522,7 +3522,7 @@ Debugging
    information on BGP events such as peer connection / disconnection, session
    establishment / teardown, and capability negotiation.
 
-.. clicmd:: debug bgp updates
+.. clicmd:: debug bgp updates [detail]
 
    Enable or disable debugging for BGP updates. This provides information on
    BGP UPDATE messages transmitted and received between local and remote
