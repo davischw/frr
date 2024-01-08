@@ -955,9 +955,19 @@ grpc::Status HandleUnaryCommitEnqueue(
 				"Failed to merge the loaded configuration");
 	}
 
+	// Process update list.
+	auto pvs_update = tag->request.update();
+	for (const frr::PathValue &pv : pvs_update) {
+		if (yang_dnode_edit(candidate->dnode, pv.path(),
+				    pv.value().c_str()) != 0)
+			return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+					    "Failed to update \"" + pv.path() +
+						    "\"");
+	}
+
 	// Delete requested paths.
-	auto pvs = tag->request.delete_();
-	for (const frr::PathValue &pv : pvs) {
+	auto pvs_delete = tag->request.delete_();
+	for (const frr::PathValue &pv : pvs_delete) {
 		if (yang_dnode_delete(candidate->dnode, pv.path()) != 0)
 			return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
 					    "Failed to remove \"" + pv.path() +
