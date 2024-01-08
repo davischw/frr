@@ -934,8 +934,8 @@ void subgroup_default_originate(struct update_subgroup *subgrp, int withdraw)
 						bgp_attr_flush(new_attr);
 						new_attr = bgp_attr_intern(
 							tmp_pi.attr);
-						bgp_attr_flush(tmp_pi.attr);
 					}
+					bgp_attr_flush(tmp_pi.attr);
 					subgroup_announce_reset_nhop(
 						(peer_cap_enhe(peer, afi, safi)
 							 ? AF_INET6
