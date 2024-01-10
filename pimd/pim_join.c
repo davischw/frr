@@ -56,7 +56,7 @@ static void recv_join(struct interface *ifp, struct pim_neighbor *neigh,
 {
 	struct pim_interface *pim_ifp = NULL;
 
-	if (PIM_DEBUG_PIM_TRACE)
+	if (PIM_DEBUG_PIM_J_P)
 		zlog_debug(
 			"%s: join (S,G)=%pSG rpt=%d wc=%d upstream=%pPAs holdtime=%d from %pPA on %s",
 			__func__, sg, !!(source_flags & PIM_RPT_BIT_MASK),
@@ -129,7 +129,7 @@ static void recv_prune(struct interface *ifp, struct pim_neighbor *neigh,
 {
 	struct pim_interface *pim_ifp = NULL;
 
-	if (PIM_DEBUG_PIM_TRACE)
+	if (PIM_DEBUG_PIM_J_P)
 		zlog_debug(
 			"%s: prune (S,G)=%pSG rpt=%d wc=%d upstream=%pPAs holdtime=%d from %pPA on %s",
 			__func__, sg, source_flags & PIM_RPT_BIT_MASK,
@@ -162,7 +162,7 @@ static void recv_prune(struct interface *ifp, struct pim_neighbor *neigh,
 		 * Received Prune(*,G) messages are processed even if the
 		 * RP in the message does not match RP(G).
 		 */
-		if (PIM_DEBUG_PIM_TRACE)
+		if (PIM_DEBUG_PIM_J_P)
 			zlog_debug("%s: Prune received with RP(%pPAs) for %pSG",
 				   __func__, &sg->src, sg);
 
