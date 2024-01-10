@@ -437,6 +437,17 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 		return best;
 	}
 
+	rp_info = rn->info;
+	if (PIM_DEBUG_PIM_TRACE_DETAIL) {
+		if (best)
+			zlog_debug(
+				"Lookedup(%pFX): prefix_list match %s, rn %p found: %pFX",
+				group, best->plist, rn, &rp_info->group);
+		else
+			zlog_debug("Lookedup(%pFX): rn %p found:%pFX", group,
+				   rn, &rp_info->group);
+	}
+
 	route_unlock_node(rn);
 
 	for (rp_info = NULL; rn; rn = rn->parent, rp_info = NULL) {
