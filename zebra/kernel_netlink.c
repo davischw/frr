@@ -1578,7 +1578,19 @@ enum netlink_msg_status netlink_batch_add_msg(
 
 	msgh = (struct nlmsghdr *)bth->buf_head;
 	msgh->nlmsg_seq = seq;
-	msgh->nlmsg_pid = nl->snl.nl_pid;
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * Vendor southbound only ever has a single PID and a single
+	 * socket, but it may go away for a few seconds when the socket
+	 * disconnects for any reason. So lets simplify and not attempt
+	 * to expect it to be available here (when southbound lock is
+	 * not hold).
+	 */
+	if (vendor_southbound_enabled)
+		msgh->nlmsg_pid = pid;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		msgh->nlmsg_pid = nl->snl.nl_pid;
 
 	bth->zns = dplane_ctx_get_ns(ctx);
 	bth->buf_head = ((char *)bth->buf_head) + size;

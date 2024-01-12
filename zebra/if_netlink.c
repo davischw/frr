@@ -2259,7 +2259,19 @@ ssize_t netlink_intf_msg_encode(uint16_t cmd,
 	req->n.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
 	req->n.nlmsg_flags = NLM_F_REQUEST;
 	req->n.nlmsg_type = cmd;
-	req->n.nlmsg_pid = nl->snl.nl_pid;
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * Vendor southbound only ever has a single PID and a single
+	 * socket, but it may go away for a few seconds when the socket
+	 * disconnects for any reason. So lets simplify and not attempt
+	 * to expect it to be available here (when southbound lock is
+	 * not hold).
+	 */
+	if (vendor_southbound_enabled)
+		req->n.nlmsg_pid = pid;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		req->n.nlmsg_pid = nl->snl.nl_pid;
 
 	req->ifa.ifi_index = ifindex;
 

@@ -217,7 +217,19 @@ static ssize_t netlink_qdisc_msg_encode(int cmd, struct zebra_dplane_ctx *ctx,
 
 	req->n.nlmsg_type = cmd;
 
-	req->n.nlmsg_pid = nl->snl.nl_pid;
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * Vendor southbound only ever has a single PID and a single
+	 * socket, but it may go away for a few seconds when the socket
+	 * disconnects for any reason. So lets simplify and not attempt
+	 * to expect it to be available here (when southbound lock is
+	 * not hold).
+	 */
+	if (vendor_southbound_enabled)
+		req->n.nlmsg_pid = pid;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		req->n.nlmsg_pid = nl->snl.nl_pid;
 
 	req->t.tcm_family = AF_UNSPEC;
 	req->t.tcm_ifindex = dplane_ctx_get_ifindex(ctx);
@@ -273,7 +285,19 @@ static ssize_t netlink_tclass_msg_encode(int cmd, struct zebra_dplane_ctx *ctx,
 
 	req->n.nlmsg_type = cmd;
 
-	req->n.nlmsg_pid = nl->snl.nl_pid;
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * Vendor southbound only ever has a single PID and a single
+	 * socket, but it may go away for a few seconds when the socket
+	 * disconnects for any reason. So lets simplify and not attempt
+	 * to expect it to be available here (when southbound lock is
+	 * not hold).
+	 */
+	if (vendor_southbound_enabled)
+		req->n.nlmsg_pid = pid;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		req->n.nlmsg_pid = nl->snl.nl_pid;
 
 	req->t.tcm_family = AF_UNSPEC;
 	req->t.tcm_ifindex = dplane_ctx_get_ifindex(ctx);
@@ -359,7 +383,19 @@ static ssize_t netlink_tfilter_msg_encode(int cmd, struct zebra_dplane_ctx *ctx,
 
 	req->n.nlmsg_type = cmd;
 
-	req->n.nlmsg_pid = nl->snl.nl_pid;
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * Vendor southbound only ever has a single PID and a single
+	 * socket, but it may go away for a few seconds when the socket
+	 * disconnects for any reason. So lets simplify and not attempt
+	 * to expect it to be available here (when southbound lock is
+	 * not hold).
+	 */
+	if (vendor_southbound_enabled)
+		req->n.nlmsg_pid = pid;
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		req->n.nlmsg_pid = nl->snl.nl_pid;
 
 	req->t.tcm_family = AF_UNSPEC;
 	req->t.tcm_ifindex = dplane_ctx_get_ifindex(ctx);
