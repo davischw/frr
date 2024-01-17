@@ -1486,6 +1486,11 @@ static void nl_batch_send(struct nl_batch *bth)
 	struct zebra_dplane_ctx *ctx;
 	bool err = false;
 
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		vendor_southbound_lock();
+#endif /* VENDOR_SOUTHBOUND */
+
 	if (bth->curlen != 0 && bth->zns != NULL) {
 		struct nlsock *nl =
 			kernel_netlink_nlsock_lookup(bth->zns->sock);
@@ -1518,6 +1523,11 @@ static void nl_batch_send(struct nl_batch *bth)
 					err = true;
 		}
 	}
+
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		vendor_southbound_unlock();
+#endif /* VENDOR_SOUTHBOUND */
 
 	/* Move remaining contexts to the outbound queue. */
 	while (true) {
