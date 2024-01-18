@@ -5997,10 +5997,6 @@ static int kernel_dplane_process_func(struct zebra_dplane_provider *prov)
 	struct dplane_ctx_q work_list;
 	int counter, limit;
 
-#ifdef VENDOR_SOUTHBOUND
-	VENDOR_SOUTHBOUND_LOCK_AUTOUNLOCK();
-#endif /* VENDOR_SOUTHBOUND */
-
 	TAILQ_INIT(&work_list);
 
 	limit = dplane_provider_get_work_limit(prov);
