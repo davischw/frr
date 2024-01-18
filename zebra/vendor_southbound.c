@@ -798,6 +798,7 @@ dequeue_buf:
 
 		flog_err(EC_ZEBRA_RECVMSG_OVERRUN, "%s send overrun: %s",
 			 ns->name, safe_strerror(errno));
+		vendor_southbound_socket_data_reset(ns);
 		return -1;
 	}
 	if (wlen == 0) {
