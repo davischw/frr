@@ -1483,17 +1483,35 @@ static void nl_batch_init(struct nl_batch *bth, struct dplane_ctx_q *ctx_out_q)
 
 static void nl_batch_send(struct nl_batch *bth)
 {
+	struct zebra_ns *zns = NULL;
 	struct zebra_dplane_ctx *ctx;
 	bool err = false;
 
 #ifdef VENDOR_SOUTHBOUND
-	if (vendor_southbound_enabled)
+	if (vendor_southbound_enabled) {
 		vendor_southbound_lock();
+
+		if (bth->zns != NULL)
+			zns = zebra_ns_lookup(bth->zns->ns_id);
+		if (zns == NULL) {
+			if (bth->zns != NULL)
+				zlog_debug("%s: namespace %d gone during batch",
+					   __func__, bth->zns->ns_id);
+
+			err = true;
+		}
+	}
 #endif /* VENDOR_SOUTHBOUND */
 
-	if (bth->curlen != 0 && bth->zns != NULL) {
-		struct nlsock *nl =
-			kernel_netlink_nlsock_lookup(bth->zns->sock);
+	if (err == false && bth->curlen != 0 && bth->zns != NULL) {
+		struct nlsock *nl;
+
+#ifdef VENDOR_SOUTHBOUND
+		if (vendor_southbound_enabled)
+			nl = &zns->netlink;
+		else
+#endif /* VENDOR_SOUTHBOUND */
+			nl = kernel_netlink_nlsock_lookup(bth->zns->sock);
 
 		if (IS_ZEBRA_DEBUG_KERNEL)
 			zlog_debug("%s: %s, batch size=%zu, msg cnt=%zu",
