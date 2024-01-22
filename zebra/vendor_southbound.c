@@ -239,7 +239,8 @@ static int vendor_southbound_socket(void)
 					__func__, errno_copy,
 					strerror(errno_copy));
 				if (errno_copy != ECONNREFUSED &&
-				    errno_copy != ECONNRESET)
+				    errno_copy != ECONNRESET &&
+				    errno_copy != ECONNABORTED)
 					exit(-1);
 
 				/* Sleep a bit to avoid log message flooding. */
