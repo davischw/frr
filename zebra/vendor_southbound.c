@@ -171,6 +171,10 @@ static void vendor_southbound_socket_data_reset(const struct nlsock *nsc)
 	ns->sock = vendor_southbound_socket();
 	kernel_netlink_nlsock_insert(ns);
 
+	ns->zns->netlink_cmd.sock = ns->sock;
+	ns->zns->netlink_dplane_in.sock = ns->sock;
+	ns->zns->netlink_dplane_out.sock = ns->sock;
+
 	/* Reset input buffer, otherwise we'll parse mixed messages. */
 	stream_reset(ns->nsbuf);
 
