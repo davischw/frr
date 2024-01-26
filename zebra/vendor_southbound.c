@@ -1016,8 +1016,8 @@ void vendor_southbound_poll_write(struct zebra_ns *zns, int enabled)
 	if (!enabled)
 		return;
 
-	thread_add_read(zrouter.master, vendor_southbound_write, zns,
-			zns->netlink.sock, &zns->t_netlinkout);
+	thread_add_write(zrouter.master, vendor_southbound_write, zns,
+			 zns->netlink.sock, &zns->t_netlinkout);
 }
 
 void netlink_buf_enqueue(struct list *l, uint32_t seq, const void *data,
