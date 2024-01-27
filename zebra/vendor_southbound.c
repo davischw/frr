@@ -1052,6 +1052,14 @@ void netlink_buf_del(struct nlbuf *nb)
 	XFREE(MTYPE_ZEBRA_NETLINK, nb);
 }
 
+/**
+ * Select whether the message should be sent to southbound or not.
+ */
+bool vendor_southbound_skip_ctx(const struct zebra_dplane_ctx *ctx)
+{
+	return true;
+}
+
 /*
  * Mark all RIB routes as unselected so we can remove after data plane
  * refresh.

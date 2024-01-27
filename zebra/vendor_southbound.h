@@ -87,6 +87,8 @@ extern int vendor_southbound_request(struct nlsock *ns, void *msg);
 extern int vendor_southbound_information_fetch(struct nlmsghdr *h,
 					       ns_id_t ns_id, int startup);
 
+extern bool vendor_southbound_skip_ctx(const struct zebra_dplane_ctx *ctx);
+
 extern bool vendor_southbound_enabled;
 
 #endif /* VENDOR_SOUTHBOUND_H */

@@ -1634,6 +1634,12 @@ static enum netlink_msg_status nl_put_msg(struct nl_batch *bth,
 	if (dplane_ctx_is_skip_kernel(ctx))
 		return FRR_NETLINK_SUCCESS;
 
+#ifdef VENDOR_SOUTHBOUND
+	if (vendor_southbound_enabled)
+		if (vendor_southbound_skip_ctx(ctx))
+			return FRR_NETLINK_SUCCESS;
+#endif /* VENDOR_SOUTHBOUND */
+
 	switch (dplane_ctx_get_op(ctx)) {
 
 	case DPLANE_OP_ROUTE_INSTALL:
