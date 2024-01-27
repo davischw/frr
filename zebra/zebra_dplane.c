@@ -5501,6 +5501,12 @@ static void dplane_incoming_request(struct thread *event)
  */
 static void dplane_kernel_info_request(struct dplane_zns_info *zi)
 {
+#ifdef VENDOR_SOUTHBOUND
+	/* Vendor southbound does not use netconf. */
+	if (vendor_southbound_enabled)
+		return;
+#endif /* VENDOR_SOUTHBOUND */
+
 	/* If we happen to encounter an enabled zns before the dplane
 	 * pthread is running, we'll initiate this later on.
 	 */

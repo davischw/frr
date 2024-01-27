@@ -277,6 +277,27 @@ static struct nlsock *vendor_southbound_namespace(const struct nlsock *ns)
 	return &ns->zns->netlink;
 }
 
+/**
+ * Filter netlink messages based on their header type.
+ */
+static bool vendor_southbound_skip_netlink(const struct nlmsghdr *nlmsg)
+{
+	switch (nlmsg->nlmsg_type) {
+	case RTM_GETLINK:
+	case RTM_GETADDR:
+	case RTM_GETROUTE:
+	case RTM_GETRULE:
+	case RTM_GETNEIGH:
+		return false;
+	}
+
+	zlog_debug("%s: unexpected request type %d", __func__,
+		   nlmsg->nlmsg_type);
+	zlog_backtrace(LOG_DEBUG);
+	return true;
+}
+
+
 /*
  * Exported
  */
@@ -447,6 +468,9 @@ int vendor_southbound_request(struct nlsock *ns, void *msg)
 	ssize_t wlen = 0;
 	struct nlmsghdr *nlmsg = msg;
 
+	if (vendor_southbound_skip_netlink(nlmsg))
+		return 0;
+
 	ns = vendor_southbound_namespace(ns);
 
 	/* Check netlink socket. */
@@ -603,6 +627,9 @@ int vendor_southbound_talk_info(int (*filter)(struct nlmsghdr *, ns_id_t,
 {
 	ssize_t wlen = 0;
 	struct nlsock *ns;
+
+	if (vendor_southbound_skip_netlink(nlmsg))
+		return 0;
 
 	ns = kernel_netlink_nlsock_lookup(dp_info->sock);
 

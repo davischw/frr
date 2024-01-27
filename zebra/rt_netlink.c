@@ -3298,6 +3298,15 @@ int netlink_nexthop_read(struct zebra_ns *zns)
 	int ret;
 	struct zebra_dplane_info dp_info;
 
+#ifdef VENDOR_SOUTHBOUND
+	/* Vendor southbound does not use next hops yet. */
+	if (vendor_southbound_enabled) {
+		supports_nh = false;
+		zebra_router_set_supports_nhgs(supports_nh);
+		return 0;
+	}
+#endif /* VENDOR_SOUTHBOUND */
+
 	zebra_dplane_info_from_zns(&dp_info, zns, true /*is_cmd*/);
 
 	/* Get nexthop objects */
