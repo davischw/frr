@@ -693,11 +693,17 @@ ssize_t vendor_southbound_recv(const struct nlsock *ns, filter_cb filter,
 	rlen = stream_read_try(ns->nsbuf, ns->sock,
 			       STREAM_WRITEABLE(ns->nsbuf));
 	if (rlen <= -1) {
+		int errno_copy = errno;
 		if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
 			return 0;
 
 		flog_err(EC_ZEBRA_RECVMSG_OVERRUN, "%s recv overrun: %s",
 			 ns->name, safe_strerror(errno));
+
+		/* Wait a second before retrying to connect. */
+		if (errno_copy == ECONNRESET)
+			sleep(1);
+
 		vendor_southbound_socket_data_reset(ns);
 		return 0;
 	}
