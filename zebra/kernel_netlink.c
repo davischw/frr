@@ -1498,12 +1498,12 @@ static void nl_batch_send(struct nl_batch *bth)
 				zlog_debug("%s: namespace %d gone during batch",
 					   __func__, bth->zns->ns_id);
 
-			err = true;
+			goto skip_send;
 		}
 	}
 #endif /* VENDOR_SOUTHBOUND */
 
-	if (err == false && bth->curlen != 0 && bth->zns != NULL) {
+	if (bth->curlen != 0 && bth->zns != NULL) {
 		struct nlsock *nl;
 
 #ifdef VENDOR_SOUTHBOUND
@@ -1543,6 +1543,7 @@ static void nl_batch_send(struct nl_batch *bth)
 	}
 
 #ifdef VENDOR_SOUTHBOUND
+skip_send:
 	if (vendor_southbound_enabled)
 		vendor_southbound_unlock();
 #endif /* VENDOR_SOUTHBOUND */
