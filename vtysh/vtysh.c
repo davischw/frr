@@ -3372,7 +3372,7 @@ static void backup_config_file(const char *fbackup)
 int vtysh_write_config_integrated(void)
 {
 	unsigned int i;
-	char line[] = "do write terminal";
+	char line[] = "do show running-config no-secrets\n";
 	FILE *fp;
 	int fd;
 #ifdef FRR_USER
