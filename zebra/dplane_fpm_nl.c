@@ -254,6 +254,38 @@ static void fpm_enqueue_all(struct fpm_nl_ctx *fnc);
  */
 #define FPM_STR "Forwarding Plane Manager configuration\n"
 
+static bool fpm_same_address(const struct fpm_nl_ctx *fnc, const char *address,
+			     uint16_t port)
+{
+	const struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&fnc->addr;
+	const struct sockaddr_in *sin = (struct sockaddr_in *)&fnc->addr;
+	int family = AF_UNSPEC;
+	uint8_t addr[INET6_BUFSIZ];
+
+	if (inet_pton(AF_INET, address, addr) == 1)
+		family = AF_INET;
+	else if (inet_pton(AF_INET6, address, addr) == 1)
+		family = AF_INET6;
+
+	switch (family) {
+	case AF_INET:
+		if (memcmp(addr, &sin->sin_addr, sizeof(sin->sin_addr)))
+			return false;
+		if (port != sin->sin_port)
+			return false;
+		return true;
+
+	case AF_INET6:
+		if (memcmp(addr, &sin6->sin6_addr, sizeof(sin6->sin6_addr)))
+			return false;
+		if (port != sin->sin_port)
+			return false;
+		return true;
+	}
+
+	return false;
+}
+
 DEFUN(fpm_set_address, fpm_set_address_cmd,
       "fpm address <A.B.C.D|X:X::X:X> [port (1-65535)]",
       FPM_STR
@@ -265,11 +297,14 @@ DEFUN(fpm_set_address, fpm_set_address_cmd,
 {
 	struct sockaddr_in *sin;
 	struct sockaddr_in6 *sin6;
-	uint16_t port = 0;
+	uint16_t port = htons(SOUTHBOUND_DEFAULT_PORT);
 	uint8_t naddr[INET6_BUFSIZ];
 
 	if (argc == 5)
-		port = strtol(argv[4]->arg, NULL, 10);
+		port = htons(strtol(argv[4]->arg, NULL, 10));
+
+	if (fpm_same_address(gfnc, argv[2]->arg, port))
+		return CMD_SUCCESS;
 
 	/* Handle IPv4 addresses. */
 	if (inet_pton(AF_INET, argv[2]->arg, naddr) == 1) {
@@ -277,8 +312,7 @@ DEFUN(fpm_set_address, fpm_set_address_cmd,
 
 		memset(sin, 0, sizeof(*sin));
 		sin->sin_family = AF_INET;
-		sin->sin_port =
-			port ? htons(port) : htons(SOUTHBOUND_DEFAULT_PORT);
+		sin->sin_port = port;
 #ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
 		sin->sin_len = sizeof(*sin);
 #endif /* HAVE_STRUCT_SOCKADDR_SA_LEN */
@@ -296,7 +330,7 @@ DEFUN(fpm_set_address, fpm_set_address_cmd,
 	sin6 = (struct sockaddr_in6 *)&gfnc->addr;
 	memset(sin6, 0, sizeof(*sin6));
 	sin6->sin6_family = AF_INET6;
-	sin6->sin6_port = port ? htons(port) : htons(SOUTHBOUND_DEFAULT_PORT);
+	sin6->sin6_port = port;
 #ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
 	sin6->sin6_len = sizeof(*sin6);
 #endif /* HAVE_STRUCT_SOCKADDR_SA_LEN */
