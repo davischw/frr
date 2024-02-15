@@ -868,7 +868,9 @@ static void do_show_route_helper(struct vty *vty, struct zebra_vrf *zvrf,
 	struct route_node *rn;
 	struct route_entry *re;
 	int first = 1;
+	/*
 	rib_dest_t *dest;
+	*/
 	json_object *json = NULL;
 	json_object *json_prefix = NULL;
 	uint32_t addr;
@@ -890,7 +892,9 @@ static void do_show_route_helper(struct vty *vty, struct zebra_vrf *zvrf,
 
 	/* Show all routes. */
 	for (rn = route_top(table); rn; rn = srcdest_route_next(rn)) {
+		/*
 		dest = rib_dest_from_rnode(rn);
+		*/
 
 		RNODE_FOREACH_RE (rn, re) {
 			/*
