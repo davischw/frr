@@ -893,8 +893,10 @@ static void do_show_route_helper(struct vty *vty, struct zebra_vrf *zvrf,
 		dest = rib_dest_from_rnode(rn);
 
 		RNODE_FOREACH_RE (rn, re) {
+			/*
 			if (use_fib && re != dest->selected_fib)
 				continue;
+			*/
 
 			if (tag && re->tag != tag)
 				continue;
