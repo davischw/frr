@@ -3234,3 +3234,112 @@ void vty_terminate(void)
 	vtyservs_fini(vty_servs);
 	vtyservs_init(vty_servs);
 }
+
+static void vtysh_aliveness_peak(struct vty *vty)
+{
+	ssize_t rbytes;
+	char buf[64];
+
+	rbytes = recv(vty->fd, buf, sizeof(buf), MSG_PEEK | MSG_DONTWAIT);
+	/* On failure do nothing and let regular vty flow handle it */
+	if (rbytes == -1 || rbytes == 0)
+		return;
+
+	buf[rbytes] = 0;
+	if (strcasestr(buf, "echo") == NULL)
+		return;
+
+	thread_execute(vty_master, vtysh_read, vty, vty->fd);
+}
+
+void vtysh_aliveness_poll(int timeout)
+{
+	struct vty_serv *serv;
+	struct vty *cli;
+	size_t fd_pos;
+	size_t fd_total;
+	int events;
+	int remaining = timeout;
+	struct timespec tv_begin, tv_end, tv_diff;
+	struct pollfd fds[64];
+
+	memset(&tv_diff, 0, sizeof(tv_diff));
+	clock_gettime(CLOCK_MONOTONIC, &tv_begin);
+
+poll_start:
+	/* Poll servers for new vtysh clients. */
+	memset(fds, 0, sizeof(fds));
+	fd_pos = 0;
+	frr_each (vtyservs, vty_servs, serv) {
+		if (serv->vtysh == false || serv->t_accept == NULL)
+			continue;
+
+		fds[fd_pos].fd = serv->sock;
+		fds[fd_pos].events = POLLIN;
+		fd_pos++;
+	}
+
+	fd_total = fd_pos;
+
+	events = poll(fds, fd_total, remaining);
+	if (events == -1) {
+		zlog_debug("%s: poll: %s", __func__, strerror(errno));
+		return;
+	}
+	if (events > 0) {
+		for (fd_pos = 0; fd_pos < fd_total; fd_pos++) {
+			if ((fds[fd_pos].revents & POLLIN) != POLLIN)
+				continue;
+
+			frr_each (vtyservs, vty_servs, serv) {
+				if (!serv->vtysh || serv->t_accept == NULL)
+					continue;
+				if (serv->sock != fds[fd_pos].fd)
+					continue;
+
+				thread_execute(vty_master, vtysh_accept, serv,
+					       serv->sock);
+			}
+		}
+	}
+
+	/* Poll clients for new commands. */
+	memset(fds, 0, sizeof(fds));
+	fd_pos = 0;
+	frr_each (vtys, vtysh_sessions, cli) {
+		if (cli->t_read == NULL)
+			continue;
+
+		fds[fd_pos].fd = cli->fd;
+		fds[fd_pos].events = POLLIN;
+		fd_pos++;
+	}
+
+	fd_total = fd_pos;
+
+	events = poll(fds, fd_total, 0);
+	if (events == -1) {
+		zlog_debug("%s: poll: %s", __func__, strerror(errno));
+		return;
+	}
+	if (events > 0) {
+		for (fd_pos = 0; fd_pos < fd_total; fd_pos++) {
+			if ((fds[fd_pos].revents & POLLIN) != POLLIN)
+				continue;
+
+			frr_each_safe (vtys, vtysh_sessions, cli) {
+				if (cli->fd != fds[fd_pos].fd)
+					continue;
+
+				vtysh_aliveness_peak(cli);
+			}
+		}
+	}
+
+	/* Check if enough time lapsed */
+	clock_gettime(CLOCK_MONOTONIC, &tv_end);
+	timespecsub(&tv_end, &tv_begin, &tv_diff);
+	remaining = timeout - (tv_diff.tv_sec * 1000);
+	if (remaining > 0)
+		goto poll_start;
+}
