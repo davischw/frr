@@ -381,6 +381,8 @@ extern void vty_stdio_suspend(void);
 extern void vty_stdio_resume(void);
 extern void vty_stdio_close(void);
 
+extern void vtysh_aliveness_poll(int timeout);
+
 #ifdef __cplusplus
 }
 #endif
