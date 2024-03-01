@@ -1914,6 +1914,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Execute 'clear bgp * soft' after changing the configuration",
     )
+    parser.add_argument(
+        "--logfile",
+	help="logfile for frr-reload",
+	default="/var/log/frr/frr-reload.log"
+    )
 
     # Route tag ignoring command line options
     parser.add_argument(
@@ -1944,11 +1949,11 @@ if __name__ == "__main__":
         )
 
     elif args.reload:
-        if not os.path.isdir("/var/log/frr/"):
-            os.makedirs("/var/log/frr/", mode=0o0755)
+        if not os.path.isdir(os.path.dirname(args.logfile)):
+            os.makedirs(os.path.dirname(args.logfile), mode=0o0755)
 
         logging.basicConfig(
-            filename="/var/log/frr/frr-reload.log",
+            filename=args.logfile,
             format="%(asctime)s %(levelname)5s: %(message)s",
         )
 
