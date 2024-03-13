@@ -1397,6 +1397,11 @@ struct peer {
 	/* `local-role` configured */
 #define PEER_FLAG_ROLE (1ULL << 32)
 #define PEER_FLAG_PORT (1ULL << 33)
+#define PEER_FLAG_AIGP (1ULL << 34)
+#define PEER_FLAG_GRACEFUL_SHUTDOWN (1ULL << 35)
+#define PEER_FLAG_CAPABILITY_SOFT_VERSION (1ULL << 36)
+#define PEER_FLAG_CAPABILITY_FQDN (1ULL << 37)  /* fqdn capability */
+#define PEER_FLAG_AS_LOOP_DETECTION (1ULL << 38) /* as path loop detection */
 
 	/*
 	 *GR-Disabled mode means unset PEER_FLAG_GRACEFUL_RESTART
@@ -1766,9 +1771,6 @@ struct peer {
 	/* hostname and domainname advertised by host */
 	char *hostname;
 	char *domainname;
-
-	/* Sender side AS path loop detection. */
-	bool as_path_loop_detection;
 
 	/* Extended Message Support */
 	uint16_t max_packet_size;
