@@ -653,6 +653,14 @@ static void rip_interface_wakeup(struct thread *t)
 
 	ri = ifp->info;
 
+	/* Check if RIP instance is initialized */
+	if (!ri->rip) {
+		flog_err_sys(EC_LIB_SOCKET,
+			     "multicast join for iface %s failed, RIP instance uninitialized",
+			     ifp->name);
+		return;
+	}
+
 	/* Join to multicast group. */
 	if (rip_multicast_join(ifp, ri->rip->sock) < 0) {
 		flog_err_sys(EC_LIB_SOCKET,
@@ -676,6 +684,12 @@ static void rip_connect_set(struct interface *ifp, int set)
 	struct connected *connected;
 	struct prefix_ipv4 address;
 	struct nexthop nh;
+
+	if (!rip) {
+		zlog_warn("Redistributing connected routes for iface %s failed, RIP instance uninitialized",
+			  ifp->name);
+		return;
+	}
 
 	memset(&nh, 0, sizeof(nh));
 
