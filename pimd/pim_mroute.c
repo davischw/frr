@@ -1317,6 +1317,9 @@ int pim_upstream_mroute_iif_update(struct channel_oil *c_oil, const char *name)
 	bool filtered;
 	char buf[1000];
 
+	if (c_oil == NULL)
+		return 0;
+
 	iif = (vifi_t)pim_upstream_get_mroute_iif(c_oil, name, &iifp);
 	filtered = pim_oil_check_filtered(c_oil, iifp);
 	if (*oil_parent(c_oil) == iif && c_oil->filtered == filtered) {
