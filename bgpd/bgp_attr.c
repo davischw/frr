@@ -1253,6 +1253,7 @@ bgp_attr_malformed(struct bgp_attr_parser_args *args, uint8_t subcode,
 	 * the caller therefore signals this with the seperate length argument
 	 */
 	uint8_t *notify_datap = (length > 0 ? args->startp : NULL);
+	bool unhandled_attr = false;
 
 	if (bgp_debug_update(peer, NULL, NULL, 1)) {
 		char attr_str[BUFSIZ] = {0};
@@ -1312,6 +1313,15 @@ bgp_attr_malformed(struct bgp_attr_parser_args *args, uint8_t subcode,
 		bgp_notify_send_with_data(peer, BGP_NOTIFY_UPDATE_ERR, subcode,
 					  notify_datap, length);
 		return BGP_ATTR_PARSE_ERROR;
+	default:
+		/* Unknown attributes, that are handled by this function
+		 * should be treated as withdraw, to prevent one more CVE
+		 * from being introduced.
+		 */
+		flog_err(EC_BGP_ATTR_FLAG,
+			 "%s attribute received, while it is not known how to handle it, treating as withdraw",
+			 lookup_msg(attr_str, args->type, NULL));
+		unhandled_attr = true;
 	}
 
 	/* Partial optional attributes that are malformed should not cause
@@ -1323,8 +1333,8 @@ bgp_attr_malformed(struct bgp_attr_parser_args *args, uint8_t subcode,
 	    && CHECK_FLAG(flags, BGP_ATTR_FLAG_PARTIAL))
 		return BGP_ATTR_PARSE_WITHDRAW;
 
-	/* default to reset */
-	return BGP_ATTR_PARSE_ERROR_NOTIFYPLS;
+	return unhandled_attr ? BGP_ATTR_PARSE_WITHDRAW
+			      : BGP_ATTR_PARSE_ERROR_NOTIFYPLS;
 }
 
 /* Find out what is wrong with the path attribute flag bits and log the error.
