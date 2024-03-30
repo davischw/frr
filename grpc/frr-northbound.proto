@@ -59,9 +59,6 @@ service Northbound {
   // Create a new configuration transaction using a two-phase commit protocol.
   rpc Commit(CommitRequest) returns (CommitResponse) {}
 
-  // Enqueue configuration changes to be committed once a timeout expires.
-  rpc CommitEnqueue(CommitEnqueueRequest) returns (CommitEnqueueResponse) {}
-
   // List the metadata of all configuration transactions recorded in the
   // transactions database.
   rpc ListTransactions(ListTransactionsRequest) returns (stream ListTransactionsResponse) {}
@@ -293,32 +290,6 @@ message CommitResponse {
 
   // Human-readable error or warning message(s).
   string error_message = 2;
-}
-
-//
-// RPC: CommitEnqueue()
-//
-message CommitEnqueueRequest {
-  // Configuration data to be merged.
-  DataTree config = 1;
-
-  // Data elements to be created or updated.
-  //
-  // If the `config` parameter is also specified, the update list is processed
-  // after the configuration merge.
-  repeated PathValue update = 2;
-
-  // Paths to be deleted.
-  repeated PathValue delete = 3;
-
-  // Commit timeout (default = 500ms if not specified).
-  uint32 timeout = 4;
-}
-
-message CommitEnqueueResponse {
-  // Return values:
-  // - grpc::StatusCode::OK: Success.
-  // - grpc::StatusCode::INVALID_ARGUMENT: Validation error.
 }
 
 //
