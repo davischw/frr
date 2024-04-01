@@ -178,6 +178,12 @@ module frr-gmp {
         "Filter multicast with referenced route-map.";
     }
 
+    leaf access-list {
+      type frr-route-map:access-list-ref;
+      description
+        "Pass multicast join through specified access list.";
+    }
+
     leaf immediate-leave {
       when "../frr-gmp:address-family = 'frr-rt:ipv4'";
       type boolean;

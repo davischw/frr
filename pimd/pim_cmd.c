@@ -5672,6 +5672,22 @@ DEFPY_YANG (interface_no_ip_igmp_last_member_query_interval,
 	return gm_process_no_last_member_query_interval_cmd(vty);
 }
 
+static void gmp_interface_enable(struct vty *vty)
+{
+	const struct lyd_node *pim_enable_dnode;
+
+	pim_enable_dnode = yang_dnode_getf(vty->candidate_config->dnode,
+					   FRR_PIM_ENABLE_XPATH, VTY_CURR_XPATH,
+					   FRR_PIM_AF_XPATH_VAL);
+	if (!pim_enable_dnode) {
+		nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY, "true");
+	} else {
+		if (!yang_dnode_get_bool(pim_enable_dnode, "."))
+			nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY,
+					      "true");
+	}
+}
+
 DEFPY_YANG (interface_ip_igmp_limits,
       interface_ip_igmp_limits_cmd,
       "[no] ip igmp <max-sources$do_src (0-4294967295)$val"
@@ -5686,6 +5702,8 @@ DEFPY_YANG (interface_ip_igmp_limits,
 {
 	const char *xpath;
 
+	gmp_interface_enable(vty);
+
 	assert(do_src || do_grp);
 	if (do_src)
 		xpath = "./max-sources";
@@ -5697,7 +5715,8 @@ DEFPY_YANG (interface_ip_igmp_limits,
 	else
 		nb_cli_enqueue_change(vty, xpath, NB_OP_MODIFY, val_str);
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
 }
 
 ALIAS(interface_ip_igmp_limits,
@@ -5716,10 +5735,13 @@ DEFPY_YANG (interface_ip_igmp_require_ra, interface_ip_igmp_require_ra_cmd,
       IFACE_IGMP_STR
       "Require IP Router Alert option for IGMP packets\n")
 {
+	gmp_interface_enable(vty);
+
 	nb_cli_enqueue_change(vty, "./require-router-alert", NB_OP_MODIFY,
 			      no ? "false" : "true");
 
-	return nb_cli_apply_changes(vty, "./frr-gmp:gmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
 }
 
 DEFPY_YANG (interface_ip_igmp_immediate_leave_ra,
@@ -5730,10 +5752,13 @@ DEFPY_YANG (interface_ip_igmp_immediate_leave_ra,
       IFACE_IGMP_STR
       "Immediately drop group memberships on receiving Leave (IGMPv2 only)\n")
 {
+	gmp_interface_enable(vty);
+
 	nb_cli_enqueue_change(vty, "./immediate-leave", NB_OP_MODIFY,
 			      no ? "false" : "true");
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
 }
 
 DEFPY_YANG (interface_ip_igmp_rmap, interface_ip_igmp_rmap_cmd,
@@ -5744,6 +5769,8 @@ DEFPY_YANG (interface_ip_igmp_rmap, interface_ip_igmp_rmap_cmd,
       "Filter joins through route-map\n"
       "Route-map name\n")
 {
+	gmp_interface_enable(vty);
+
 	if (no)
 		nb_cli_enqueue_change(vty, "./route-map", NB_OP_DESTROY,
 				      NULL);
@@ -5751,7 +5778,8 @@ DEFPY_YANG (interface_ip_igmp_rmap, interface_ip_igmp_rmap_cmd,
 		nb_cli_enqueue_change(vty, "./route-map", NB_OP_MODIFY,
 				      rmap_name);
 
-	return nb_cli_apply_changes(vty, "./frr-igmp:igmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
 }
 
 ALIAS (interface_ip_igmp_rmap,
@@ -5771,14 +5799,17 @@ DEFPY_YANG (interface_ip_igmp_alist,
       "Filter joins through access-list\n"
       "Access-list name\n")
 {
+	gmp_interface_enable(vty);
+
 	if (no)
-		nb_cli_enqueue_change(vty, "./igmp-access-list", NB_OP_DESTROY,
+		nb_cli_enqueue_change(vty, "./access-list", NB_OP_DESTROY,
 				      NULL);
 	else
-		nb_cli_enqueue_change(vty, "./igmp-access-list", NB_OP_MODIFY,
+		nb_cli_enqueue_change(vty, "./access-list", NB_OP_MODIFY,
 				      alist_name);
 
-	return nb_cli_apply_changes(vty, "./frr-gmp:gmp");
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
 }
 
 ALIAS(interface_ip_igmp_alist,
@@ -9185,6 +9216,10 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &ip_mfib_rmap_cmd);
 	install_element(CONFIG_NODE, &no_ip_mfib_rmap_cmd);
 	install_element(VRF_NODE, &no_ip_mfib_rmap_cmd);
+	install_element(CONFIG_NODE, &ip_mfib_alist_cmd);
+	install_element(VRF_NODE, &ip_mfib_alist_cmd);
+	install_element(CONFIG_NODE, &no_ip_mfib_alist_cmd);
+	install_element(VRF_NODE, &no_ip_mfib_alist_cmd);
 
 	install_element(CONFIG_NODE, &ip_pim_rmap_cmd);
 	install_element(VRF_NODE, &ip_pim_rmap_cmd);
@@ -9289,6 +9324,8 @@ void pim_cmd_init(void)
 	install_element(INTERFACE_NODE, &interface_ip_igmp_require_ra_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_igmp_rmap_cmd);
 	install_element(INTERFACE_NODE, &no_interface_ip_igmp_rmap_cmd);
+	install_element(INTERFACE_NODE, &interface_ip_igmp_alist_cmd);
+	install_element(INTERFACE_NODE, &no_interface_ip_igmp_alist_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_igmp_immediate_leave_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_pim_activeactive_cmd);
 	install_element(INTERFACE_NODE, &interface_ip_pim_ssm_cmd);

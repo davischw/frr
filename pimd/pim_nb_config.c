@@ -4452,6 +4452,68 @@ int lib_interface_gm_rmap_destroy(struct nb_cb_destroy_args *args)
 	return NB_OK;
 }
 
+int lib_interface_igmp_alist_modify(struct nb_cb_modify_args *args)
+{
+	const struct lyd_node *if_dnode;
+	const char *ifp_name;
+	struct interface *ifp;
+	struct pim_interface *pim_ifp;
+	const char *alist;
+
+	alist = yang_dnode_get_string(args->dnode, NULL);
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+		if_dnode = yang_dnode_get_parent(args->dnode, "interface");
+		if (!is_pim_interface(if_dnode)) {
+			ifp_name = yang_dnode_get_string(if_dnode, "name");
+			snprintf(args->errmsg, args->errmsg_len,
+				 "multicast not enabled on interface %s",
+				 ifp_name);
+			return NB_ERR_VALIDATION;
+		}
+		break;
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		ifp = nb_running_get_entry(args->dnode, NULL, true);
+		pim_ifp = ifp->info;
+
+		if (!pim_ifp)
+			break;
+
+		pim_filter_ref_set_alist(&pim_ifp->igmp_filter, alist);
+		break;
+	}
+
+	return NB_OK;
+}
+
+int lib_interface_igmp_alist_destroy(struct nb_cb_destroy_args *args)
+{
+	struct interface *ifp;
+	struct pim_interface *pim_ifp;
+
+	switch (args->event) {
+	case NB_EV_VALIDATE:
+	case NB_EV_ABORT:
+	case NB_EV_PREPARE:
+		break;
+	case NB_EV_APPLY:
+		ifp = nb_running_get_entry(args->dnode, NULL, true);
+		pim_ifp = ifp->info;
+
+		if (!pim_ifp)
+			break;
+
+		pim_filter_ref_set_alist(&pim_ifp->igmp_filter, NULL);
+		break;
+	}
+
+	return NB_OK;
+}
+
 /*
  * XPath: /frr-interface:lib/interface/frr-gmp:gmp/address-family/static-group
  */
