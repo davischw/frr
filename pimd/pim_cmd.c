@@ -4751,35 +4751,100 @@ DEFPY_YANG (no_ip_pim_v6_secondary,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+static bool rp_has_other(const struct lyd_node *dnode, const char *rp_xpath,
+			 const char *fallback)
+{
+	char group_list_xpath[XPATH_MAXLEN + 32];
+	char prefix_list_xpath[XPATH_MAXLEN + 32];
+
+	snprintf(group_list_xpath, sizeof(group_list_xpath), "%s/%sgroup-list",
+		 rp_xpath, fallback ? "" : "fallback-");
+	snprintf(prefix_list_xpath, sizeof(prefix_list_xpath),
+		 "%s/%sprefix-list", rp_xpath, fallback ? "" : "fallback-");
+
+	return yang_dnode_exists(dnode, group_list_xpath)
+		|| yang_dnode_exists(dnode, prefix_list_xpath);
+}
+
 DEFPY_YANG (ip_pim_rp,
        ip_pim_rp_cmd,
-       "ip pim rp A.B.C.D$rp [A.B.C.D/M]$gp",
+       "ip pim rp A.B.C.D [fallback$fallback] [A.B.C.D/M$group]",
        IP_STR
        "pim multicast routing\n"
        "Rendezvous Point\n"
        "ip address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "Group Address range to cover\n")
 {
-	const char *group_str = (gp_str) ? gp_str : "224.0.0.0/4";
+	const char *vrfname;
+	char rp_group_xpath[XPATH_MAXLEN];
+	int result = 0;
+	struct in_addr rp_addr;
 
 	vty_out(vty, "%% [VENDOR] use extended access list to configure RPs to avoid bugs\n");
 
-	return pim_process_rp_cmd(vty, rp_str, group_str);
+	if (group_str) {
+		struct prefix temp;
+
+		prefix_copy(&temp, group);
+		apply_mask(&temp);
+		if (!prefix_same(group, &temp)) {
+			vty_out(vty, "%% Inconsistent address and mask: %s\n",
+				group_str);
+			return CMD_WARNING_CONFIG_FAILED;
+		}
+	} else
+		group_str = "224.0.0.0/4";
+
+	result = inet_pton(AF_INET, rp_str, &rp_addr);
+	if (result <= 0) {
+		vty_out(vty, "%% Bad RP address specified: %s\n", rp_str);
+		return CMD_WARNING_CONFIG_FAILED;
+	}
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(rp_group_xpath, sizeof(rp_group_xpath),
+		 FRR_PIM_STATIC_RP_XPATH "/%sgroup-list",
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str, fallback ? "fallback-" : "");
+
+	nb_cli_enqueue_change(vty, rp_group_xpath, NB_OP_CREATE, group_str);
+
+	return nb_cli_apply_changes(vty, NULL);
 }
 
 DEFPY_YANG (ip_pim_rp_prefix_list,
        ip_pim_rp_prefix_list_cmd,
-       "ip pim rp A.B.C.D$rp prefix-list WORD$plist",
+       "ip pim rp A.B.C.D [fallback$fallback] prefix-list WORD",
        IP_STR
        "pim multicast routing\n"
        "Rendezvous Point\n"
        "ip address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
+	const char *vrfname;
+	char rp_plist_xpath[XPATH_MAXLEN];
+
 	vty_out(vty, "%% [VENDOR] use extended access list to configure RPs to avoid bugs\n");
 
-	return pim_process_rp_plist_cmd(vty, rp_str, plist);
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(rp_plist_xpath, sizeof(rp_plist_xpath),
+		 FRR_PIM_STATIC_RP_XPATH "/%sprefix-list",
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str, fallback ? "fallback-" : "");
+
+	nb_cli_enqueue_change(vty, rp_plist_xpath, NB_OP_MODIFY,
+			      prefix_list);
+
+	return nb_cli_apply_changes(vty, NULL);
 }
 
 DEFPY_YANG (ip_pim_rp_access_list,
@@ -4787,7 +4852,7 @@ DEFPY_YANG (ip_pim_rp_access_list,
        "ip pim rp A.B.C.D [fallback$fallback] access-list WORD$acl",
        IP_STR
        "pim multicast routing\n"
-       "Rendevous Point\n"
+       "Rendezvous Point\n"
        "ip address of RP\n"
        "Use RP for these groups only if BSR provides none\n"
        "group prefix-list filter\n"
@@ -4801,9 +4866,9 @@ DEFPY_YANG (ip_pim_rp_access_list,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(rp_acl_xpath, sizeof(rp_acl_xpath),
-		 FRR_PIM_STATIC_RP_XPATH "/%saccess-list", "frr-pim:pimd",
-		 "pim", vrfname, "frr-routing:ipv4", rp_str,
-		 fallback ? "fallback-" : "");
+		 FRR_PIM_STATIC_RP_XPATH "/%saccess-list",
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str, fallback ? "fallback-" : "");
 
 	nb_cli_enqueue_change(vty, rp_acl_xpath, NB_OP_MODIFY, acl);
 
@@ -4812,50 +4877,108 @@ DEFPY_YANG (ip_pim_rp_access_list,
 
 DEFPY_YANG (no_ip_pim_rp,
        no_ip_pim_rp_cmd,
-       "no ip pim rp A.B.C.D$rp [A.B.C.D/M]$gp",
+       "no ip pim rp A.B.C.D [fallback$fallback] [A.B.C.D/M$group]",
        NO_STR
        IP_STR
        "pim multicast routing\n"
        "Rendezvous Point\n"
        "ip address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "Group Address range to cover\n")
 {
-	const char *group_str = (gp_str) ? gp_str : "224.0.0.0/4";
+	char group_list_xpath[XPATH_MAXLEN + 32];
+	char group_xpath[XPATH_MAXLEN + 64];
+	char rp_xpath[XPATH_MAXLEN];
+	const char *vrfname;
+	const struct lyd_node *group_dnode;
 
 	vty_out(vty, "%% [VENDOR] use extended access list to configure RPs to avoid bugs\n");
 
-	return pim_process_no_rp_cmd(vty, rp_str, group_str);
+	if (!group_str)
+		group_str = "224.0.0.0/4";
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(rp_xpath, sizeof(rp_xpath), FRR_PIM_STATIC_RP_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str);
+
+	snprintf(group_list_xpath, sizeof(group_list_xpath), "%s/%sgroup-list",
+		 rp_xpath, fallback ? "fallback-" : "");
+
+	snprintf(group_xpath, sizeof(group_xpath), "%s[.='%s']",
+		 group_list_xpath, group_str);
+
+	if (!yang_dnode_exists(vty->candidate_config->dnode, group_xpath)) {
+		vty_out(vty, "%% Unable to find specified RP\n");
+		return NB_OK;
+	}
+
+	group_dnode = yang_dnode_get(vty->candidate_config->dnode, group_xpath);
+
+	if (yang_is_last_list_dnode(group_dnode)
+	    && !rp_has_other(vty->candidate_config->dnode, rp_xpath, fallback))
+		nb_cli_enqueue_change(vty, rp_xpath, NB_OP_DESTROY, NULL);
+	else
+		nb_cli_enqueue_change(vty, group_list_xpath, NB_OP_DESTROY,
+				      group_str);
+
+	return nb_cli_apply_changes(vty, NULL);
 }
 
 DEFPY_YANG (no_ip_pim_rp_prefix_list,
        no_ip_pim_rp_prefix_list_cmd,
-       "no ip pim rp A.B.C.D$rp prefix-list WORD$plist",
+       "no ip pim rp A.B.C.D [fallback$fallback] prefix-list WORD",
        NO_STR
        IP_STR
        "pim multicast routing\n"
        "Rendezvous Point\n"
        "ip address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
+	char rp_xpath[XPATH_MAXLEN];
+	char plist_xpath[XPATH_MAXLEN];
+	const char *vrfname;
+	const struct lyd_node *plist_dnode;
+	const char *plist;
+	const char *destroy;
+
 	vty_out(vty, "%% [VENDOR] use extended access list to configure RPs to avoid bugs\n");
 
-	return pim_process_no_rp_plist_cmd(vty, rp_str, plist);
-}
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
 
-static bool rp_has_other(const struct lyd_node *dnode, const char *rp_xpath,
-			 const char *fallback)
-{
-	char group_list_xpath[XPATH_MAXLEN + 32];
-	char prefix_list_xpath[XPATH_MAXLEN + 32];
+	snprintf(rp_xpath, sizeof(rp_xpath), FRR_PIM_STATIC_RP_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str);
 
-	snprintf(group_list_xpath, sizeof(group_list_xpath), "%s/%sgroup-list",
-		 rp_xpath, fallback ? "" : "fallback-");
-	snprintf(prefix_list_xpath, sizeof(prefix_list_xpath),
-		 "%s/%sprefix-list", rp_xpath, fallback ? "" : "fallback-");
+	snprintf(plist_xpath, sizeof(plist_xpath),
+		 FRR_PIM_STATIC_RP_XPATH "/%sprefix-list",
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str, fallback ? "fallback-" : "");
 
-	return yang_dnode_exists(dnode, group_list_xpath) ||
-	       yang_dnode_exists(dnode, prefix_list_xpath);
+	plist_dnode = yang_dnode_get(vty->candidate_config->dnode, plist_xpath);
+	if (!plist_dnode) {
+		vty_out(vty, "%% Unable to find specified RP\n");
+		return NB_OK;
+	}
+
+	plist = yang_dnode_get_string(plist_dnode, plist_xpath);
+	if (strcmp(prefix_list, plist)) {
+		vty_out(vty, "%% Unable to find specified RP\n");
+		return NB_OK;
+	}
+
+	destroy = rp_has_other(vty->candidate_config->dnode, rp_xpath,
+			       fallback) ? plist_xpath : rp_xpath;
+	nb_cli_enqueue_change(vty, destroy, NB_OP_DESTROY, NULL);
+
+	return nb_cli_apply_changes(vty, NULL);
 }
 
 DEFPY_YANG (no_ip_pim_rp_access_list,
@@ -4864,7 +4987,7 @@ DEFPY_YANG (no_ip_pim_rp_access_list,
        NO_STR
        IP_STR
        "pim multicast routing\n"
-       "Rendevous Point\n"
+       "Rendezvous Point\n"
        "ip address of RP\n"
        "Use RP for these groups only if BSR provides none\n"
        "group prefix-list filter\n"
@@ -4882,12 +5005,13 @@ DEFPY_YANG (no_ip_pim_rp_access_list,
 		return CMD_WARNING_CONFIG_FAILED;
 
 	snprintf(rp_xpath, sizeof(rp_xpath), FRR_PIM_STATIC_RP_XPATH,
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", rp_str);
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str);
 
 	snprintf(acl_xpath, sizeof(acl_xpath),
-		 FRR_PIM_STATIC_RP_XPATH "/%saccess-list", "frr-pim:pimd",
-		 "pim", vrfname, "frr-routing:ipv4", rp_str,
-		 fallback ? "fallback-" : "");
+		 FRR_PIM_STATIC_RP_XPATH "/%saccess-list",
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str, fallback ? "fallback-" : "");
 
 	acl_dnode = yang_dnode_get(vty->candidate_config->dnode, acl_xpath);
 	if (!acl_dnode) {
@@ -4901,9 +5025,8 @@ DEFPY_YANG (no_ip_pim_rp_access_list,
 		return NB_OK;
 	}
 
-	destroy = rp_has_other(vty->candidate_config->dnode, rp_xpath, fallback)
-			  ? acl_xpath
-			  : rp_xpath;
+	destroy = rp_has_other(vty->candidate_config->dnode, rp_xpath,
+			       fallback) ? acl_xpath : rp_xpath;
 	nb_cli_enqueue_change(vty, destroy, NB_OP_DESTROY, NULL);
 
 	return nb_cli_apply_changes(vty, NULL);
