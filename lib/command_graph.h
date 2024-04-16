@@ -74,9 +74,9 @@ enum cmd_token_type {
 
 /* Command attributes */
 enum { CMD_ATTR_NORMAL,
+       CMD_ATTR_YANG,
        CMD_ATTR_DEPRECATED,
        CMD_ATTR_HIDDEN,
-       CMD_ATTR_YANG,
 };
 
 enum varname_src {
