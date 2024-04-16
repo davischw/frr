@@ -1095,11 +1095,6 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 
 	listnode_add_sort(list, rp_info);
 
-	if (!rp_info->plist) {
-		rn = route_node_get(table, &rp_info->group);
-		rn->info = rp_info;
-	}
-
 	if (PIM_DEBUG_PIM_TRACE)
 		zlog_debug("Allocated: %p for rp_info: %p(%pFX) Lock: %d", rn,
 			   rp_info, &rp_info->group,
