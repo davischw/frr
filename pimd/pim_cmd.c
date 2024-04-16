@@ -4532,7 +4532,7 @@ DEFPY_YANG (ip_pim_joinprune_time,
        ip_pim_joinprune_time_cmd,
        "ip pim join-prune-interval (1-65535)$jpi",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Join Prune Send Interval\n"
        "Seconds\n")
 {
@@ -4544,7 +4544,7 @@ DEFUN (no_ip_pim_joinprune_time,
        "no ip pim join-prune-interval [(1-65535)]",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Join Prune Send Interval\n"
        IGNORED_IN_NO_STR)
 {
@@ -4555,7 +4555,7 @@ DEFPY_YANG (ip_pim_register_suppress,
        ip_pim_register_suppress_cmd,
        "ip pim register-suppress-time (1-65535)$rst",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Register Suppress Timer\n"
        "Seconds\n")
 {
@@ -4567,7 +4567,7 @@ DEFUN (no_ip_pim_register_suppress,
        "no ip pim register-suppress-time [(1-65535)]",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Register Suppress Timer\n"
        IGNORED_IN_NO_STR)
 {
@@ -4578,7 +4578,7 @@ DEFPY_YANG (ip_pim_rp_keep_alive,
        ip_pim_rp_keep_alive_cmd,
        "ip pim rp keep-alive-timer (1-65535)$kat",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Rendezvous Point\n"
        "Keep alive Timer\n"
        "Seconds\n")
@@ -4591,7 +4591,7 @@ DEFUN (no_ip_pim_rp_keep_alive,
        "no ip pim rp keep-alive-timer [(1-65535)]",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Rendezvous Point\n"
        "Keep alive Timer\n"
        IGNORED_IN_NO_STR)
@@ -4603,7 +4603,7 @@ DEFPY_YANG (ip_pim_keep_alive,
        ip_pim_keep_alive_cmd,
        "ip pim keep-alive-timer (1-65535)$kat",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Keep alive Timer\n"
        "Seconds\n")
 {
@@ -4615,7 +4615,7 @@ DEFUN (no_ip_pim_keep_alive,
        "no ip pim keep-alive-timer [(1-65535)]",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Keep alive Timer\n"
        IGNORED_IN_NO_STR)
 {
@@ -4626,7 +4626,7 @@ DEFPY_YANG (ip_pim_packets,
        ip_pim_packets_cmd,
        "ip pim packets (1-255)",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "packets to process at one time per fd\n"
        "Number of packets\n")
 {
@@ -4638,7 +4638,7 @@ DEFPY_YANG (no_ip_pim_packets,
        "no ip pim packets [(1-255)]",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "packets to process at one time per fd\n"
        IGNORED_IN_NO_STR)
 {
@@ -4679,7 +4679,7 @@ DEFPY_YANG (ip_pim_shutdown,
        "[no] ip pim shutdown",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Disable PIM operation\n")
 {
 	const char *vrfname;
@@ -4702,7 +4702,7 @@ DEFPY_YANG (ip_pim_v6_secondary,
        ip_pim_v6_secondary_cmd,
        "ip pim send-v6-secondary",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Send v6 secondary addresses\n")
 {
 	const char *vrfname;
@@ -4729,7 +4729,7 @@ DEFPY_YANG (no_ip_pim_v6_secondary,
        "no ip pim send-v6-secondary",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Send v6 secondary addresses\n")
 {
 	const char *vrfname;
@@ -4770,7 +4770,7 @@ DEFPY_YANG (ip_pim_rp,
        ip_pim_rp_cmd,
        "ip pim rp A.B.C.D [fallback$fallback] [A.B.C.D/M$group]",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Rendezvous Point\n"
        "ip address of RP\n"
        "Use RP for these groups only if BSR provides none\n"
@@ -4820,7 +4820,7 @@ DEFPY_YANG (ip_pim_rp_prefix_list,
        ip_pim_rp_prefix_list_cmd,
        "ip pim rp A.B.C.D [fallback$fallback] prefix-list WORD",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Rendezvous Point\n"
        "ip address of RP\n"
        "Use RP for these groups only if BSR provides none\n"
@@ -4851,7 +4851,7 @@ DEFPY_YANG (ip_pim_rp_access_list,
        ip_pim_rp_access_list_cmd,
        "ip pim rp A.B.C.D [fallback$fallback] access-list WORD$acl",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Rendezvous Point\n"
        "ip address of RP\n"
        "Use RP for these groups only if BSR provides none\n"
@@ -4880,7 +4880,7 @@ DEFPY_YANG (no_ip_pim_rp,
        "no ip pim rp A.B.C.D [fallback$fallback] [A.B.C.D/M$group]",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Rendezvous Point\n"
        "ip address of RP\n"
        "Use RP for these groups only if BSR provides none\n"
@@ -4933,7 +4933,7 @@ DEFPY_YANG (no_ip_pim_rp_prefix_list,
        "no ip pim rp A.B.C.D [fallback$fallback] prefix-list WORD",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Rendezvous Point\n"
        "ip address of RP\n"
        "Use RP for these groups only if BSR provides none\n"
@@ -4986,7 +4986,7 @@ DEFPY_YANG (no_ip_pim_rp_access_list,
        "no ip pim rp A.B.C.D [fallback$fallback] access-list WORD$acl",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Rendezvous Point\n"
        "ip address of RP\n"
        "Use RP for these groups only if BSR provides none\n"
@@ -5037,7 +5037,7 @@ DEFPY_YANG (ip_pim_candidate_rp,
        "[no] ip pim candidate-rp [{priority (0-255)|interval (1-4294967295)|source <address A.B.C.D|interface IFNAME|loopback$loopback|any$any>}]",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Make this router a Candidate RP\n"
        "RP Priority (lower wins)\n"
        "RP Priority (lower wins)\n"
@@ -5121,7 +5121,7 @@ DEFPY_YANG (ip_pim_candidate_rp_group,
        "[no] ip pim candidate-rp group access-list WORD$group_str",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Make this router a Candidate RP\n"
        "Configure groups to become candidate RP for\n"
        "Use access-list as configuration source\n"
@@ -5163,7 +5163,7 @@ DEFPY_YANG (ip_pim_ssm_prefix_list,
        ip_pim_ssm_prefix_list_cmd,
        "ip pim ssm prefix-list WORD",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Source Specific Multicast\n"
        "group range prefix-list filter\n"
        "Name of a prefix-list\n")
@@ -5189,7 +5189,7 @@ DEFPY_YANG (no_ip_pim_ssm_prefix_list,
        "no ip pim ssm prefix-list",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Source Specific Multicast\n"
        "group range prefix-list filter\n")
 {
@@ -5215,7 +5215,7 @@ DEFPY_YANG (no_ip_pim_ssm_prefix_list_name,
        "no ip pim ssm prefix-list WORD",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Source Specific Multicast\n"
        "group range prefix-list filter\n"
        "Name of a prefix-list\n")
@@ -5383,7 +5383,7 @@ DEFPY_YANG (ip_pim_ecmp,
        ip_pim_ecmp_cmd,
        "ip pim ecmp",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Enable PIM ECMP \n")
 {
 	const char *vrfname;
@@ -5406,7 +5406,7 @@ DEFPY_YANG (no_ip_pim_ecmp,
        "no ip pim ecmp",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Disable PIM ECMP \n")
 {
 	const char *vrfname;
@@ -5429,7 +5429,7 @@ DEFPY_YANG (ip_pim_ecmp_rebalance,
        ip_pim_ecmp_rebalance_cmd,
        "ip pim ecmp rebalance",
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Enable PIM ECMP \n"
        "Enable PIM ECMP Rebalance\n")
 {
@@ -5461,7 +5461,7 @@ DEFPY_YANG (no_ip_pim_ecmp_rebalance,
        "no ip pim ecmp rebalance",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Disable PIM ECMP \n"
        "Disable PIM ECMP Rebalance\n")
 {
@@ -6249,7 +6249,7 @@ DEFPY_YANG (interface_ip_pim_joinprune_time, interface_ip_pim_joinprune_time_cmd
       "[no] ip pim join-prune-interval (5-600)$jpt",
       NO_STR
       IP_STR
-      "pim multicast routing\n"
+      PIM_STR
       "Join Prune Send Interval\n"
       "Seconds\n")
 {
@@ -6263,14 +6263,14 @@ ALIAS(interface_ip_pim_joinprune_time, interface_no_ip_pim_joinprune_time_cmd,
       "no ip pim join-prune-interval",
       NO_STR
       IP_STR
-      "pim multicast routing\n"
+      PIM_STR
       "Join Prune Send Interval\n")
 
 DEFPY_YANG (interface_ip_pim_assert_interval, interface_ip_pim_assert_interval_cmd,
       "[no] ip pim assert-interval (1000-86400000)$at",
       NO_STR
       IP_STR
-      "pim multicast routing\n"
+      PIM_STR
       "Assert timer\n"
       "Milliseconds, default 180000\n")
 {
@@ -6289,14 +6289,14 @@ ALIAS(interface_ip_pim_assert_interval, interface_no_ip_pim_assert_interval_cmd,
       "no ip pim assert-interval",
       NO_STR
       IP_STR
-      "pim multicast routing\n"
+      PIM_STR
       "Assert timer\n")
 
 DEFPY_YANG (interface_ip_pim_assert_override, interface_ip_pim_assert_override_cmd,
       "[no] ip pim assert-override-interval (1000-86400000)$ao",
       NO_STR
       IP_STR
-      "pim multicast routing\n"
+      PIM_STR
       "Assert override interval\n"
       "Milliseconds, default calculated as 3000\n")
 {
@@ -6315,7 +6315,7 @@ ALIAS(interface_ip_pim_assert_override, interface_no_ip_pim_assert_override_cmd,
       "no ip pim assert-override-interval",
       NO_STR
       IP_STR
-      "pim multicast routing\n"
+      PIM_STR
       "Assert override interval\n")
 
 DEFPY_YANG (interface_ip_pim_neighbor_prefix_list,
@@ -6323,7 +6323,7 @@ DEFPY_YANG (interface_ip_pim_neighbor_prefix_list,
        "[no] ip pim allowed-neighbors prefix-list WORD",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Restrict allowed PIM neighbors\n"
        "Use prefix-list to filter neighbors\n"
        "Name of a prefix-list\n")
@@ -6344,7 +6344,7 @@ ALIAS (interface_ip_pim_neighbor_prefix_list,
        "no ip pim allowed-neighbors [prefix-list]",
        NO_STR
        IP_STR
-       "pim multicast routing\n"
+       PIM_STR
        "Restrict allowed PIM neighbors\n"
        "Use prefix-list to filter neighbors\n")
 
