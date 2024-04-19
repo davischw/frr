@@ -269,7 +269,7 @@ static int pim_rp_errmsg(int result, char *errmsg, size_t errmsg_len,
 			"The same access-list cannot be applied to multiple RPs");
 		return NB_ERR_VALIDATION;
 	case PIM_RP_BAD_ADDRESS:
-		snprintfrr(errmsg, errmsg_len, "Bad RP address specified: %pI4",
+		snprintfrr(errmsg, errmsg_len, "Bad RP address specified: %pPA",
 			   rp_addr);
 		return NB_ERR_VALIDATION;
 	case PIM_RP_NOT_FOUND:

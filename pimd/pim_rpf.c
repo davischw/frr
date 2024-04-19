@@ -311,7 +311,7 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t asn,
        ri = zclient_route_lookup(pim, &addr);
        if (ri == NULL) {
                if (PIM_DEBUG_ZEBRA)
-                       zlog_debug("%s: could not find route for address %pI4",
+                       zlog_debug("%s: could not find route for address %pPA",
                                   __func__, &addr);
                return false;
        }
@@ -337,7 +337,7 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t asn,
                if (ri->ri_type != ZEBRA_ROUTE_BGP) {
                        if (PIM_DEBUG_ZEBRA)
                                zlog_debug(
-                                       "%s: expected BGP route for %pI4 (got %d)",
+                                       "%s: expected BGP route for %pPA (got %d)",
                                        __func__, &addr, ri->ri_type);
                        goto free_and_exit;
                }
@@ -360,7 +360,7 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t asn,
                if (first_asn != asn) {
                        if (PIM_DEBUG_ZEBRA)
                                zlog_debug(
-                                       "%s: next hop AS did not match for address %pI4 (%u != %lld)",
+                                       "%s: next hop AS did not match for address %pPA (%u != %lld)",
                                        __func__, &addr, asn, first_asn);
                        goto free_and_exit;
                }
@@ -368,7 +368,7 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t asn,
                /* Proceed to validate next hop. */
                if (PIM_DEBUG_ZEBRA)
                        zlog_debug(
-                               "%s: next hop AS matched for address %pI4 (AS %u)",
+                               "%s: next hop AS matched for address %pPA (AS %u)",
                                __func__, &addr, asn);
        }
 
@@ -377,14 +377,14 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t asn,
                if (ifp == NULL) {
                        if (PIM_DEBUG_ZEBRA)
                                zlog_debug(
-                                       "%s: could not find interface for ifindex %d (address %pI4)",
+                                       "%s: could not find interface for ifindex %d (address %pPA)",
                                        __func__, rni->rni_ifindex, &addr);
                        continue;
                }
                if (ifp->info == NULL) {
                        if (PIM_DEBUG_ZEBRA)
                                zlog_debug(
-                                       "%s: multicast not enabled on input interface %s (ifindex=%d, RPF for source %pI4)",
+                                       "%s: multicast not enabled on input interface %s (ifindex=%d, RPF for source %pPA)",
                                        __func__, ifp->name, rni->rni_ifindex,
                                        &addr);
                        continue;
@@ -396,7 +396,7 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t asn,
                case NEXTHOP_TYPE_IPV4_IFINDEX:
                        if (PIM_DEBUG_ZEBRA)
                                zlog_debug(
-                                       "%s: found nexthop %pI4 for address %pI4: interface %s ifindex=%d metric=%d pref=%d",
+                                       "%s: found nexthop %pI4 for address %pPA: interface %s ifindex=%d metric=%d pref=%d",
                                        __func__,
                                        &rni->rni_addr.v4, &addr, ifp->name,
                                        rni->rni_ifindex, ri->ri_metric,
@@ -410,8 +410,8 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t asn,
                case NEXTHOP_TYPE_IPV6_IFINDEX:
                        if (PIM_DEBUG_ZEBRA)
                                zlog_debug(
-                                       "%s: found nexthop %pI6 for address %pI4: interface %s ifindex=%d metric=%d pref=%d",
-                                       __func__, &rni->rni_addr, &addr,
+                                       "%s: found nexthop %pI6 for address %pPA: interface %s ifindex=%d metric=%d pref=%d",
+                                       __func__, &rni->rni_addr.v6, &addr,
                                        ifp->name, rni->rni_ifindex,
                                        ri->ri_metric, ri->ri_distance);
 

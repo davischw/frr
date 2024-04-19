@@ -257,7 +257,7 @@ void igmp_source_reset_gmi(struct gm_group *group, struct gm_source *source)
 			      NULL)) {
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
-				"Timer for %pSG4 on %s not refreshed due to route-map reject",
+				"Timer for %pPSG4 on %s not refreshed due to route-map reject",
 				&sg, ifp->name);
 		return;
 	}
@@ -484,7 +484,7 @@ struct gm_source *igmp_get_source_by_addr(struct gm_group *group,
 			      group->interface, NULL)) {
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
-				"rejected join source %pSG4 on %s due to route-map",
+				"rejected join source %pPSG4 on %s due to route-map",
 				&sg, group->interface->name);
 		return NULL;
 	}
@@ -570,7 +570,7 @@ static bool source_group_is_empty(const struct gm_sock *igmp,
 
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
-				"rejected join source %pSG4 on %s due to route-map",
+				"rejected join source %pPSG4 on %s due to route-map",
 				&source_group, igmp->interface->name);
 	}
 
@@ -780,7 +780,7 @@ void igmpv3_report_isex(struct gm_sock *igmp, struct in_addr from,
 			      NULL)) {
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
-				"Rejected ISEX %pSG4 on %s due to route-map",
+				"Rejected ISEX %pPSG4 on %s due to route-map",
 				&sg, ifp->name);
 		return;
 	}
@@ -1093,7 +1093,7 @@ void igmpv3_report_toex(struct gm_sock *igmp, struct in_addr from,
 			      NULL)) {
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
-				"Rejected TOEX %pSG4 on %s due to route-map",
+				"Rejected TOEX %pPSG4 on %s due to route-map",
 				&sg, ifp->name);
 		return;
 	}

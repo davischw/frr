@@ -1367,7 +1367,7 @@ void pim_mroute_filter_refresh(struct pim_instance *pim)
 				sg.src = c_oil->oil.mfcc_origin;
 				sg.grp = c_oil->oil.mfcc_mcastgrp;
 				zlog_debug(
-					"route-map changed: now %s %pSG4 on %s",
+					"route-map changed: now %s %pPSG4 on %s",
 					filtered ? "denies" : "permits",
 					&sg, iifp ? iifp->name : "Unknown");
 			}

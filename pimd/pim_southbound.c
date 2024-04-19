@@ -306,7 +306,7 @@ static void pimsb_debug_upstream(const struct pim_upstream *up)
 	PRINT_FLAG(PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED, "SPT_DESIRED");
 	PRINT_FLAG(PIM_UPSTREAM_FLAG_MASK_DATA_START, "DATA_START");
 	zlog_debug("%s]", buf);
-	zlog_debug("  RPF[if:%s nh:%pFX rpf_addr:%pFX]",
+	zlog_debug("  RPF[if:%s nh:%pPA rpf_addr:%pPA]",
 		   up->rpf.source_nexthop.interface != NULL
 			   ? up->rpf.source_nexthop.interface->name
 			   : "unknown",

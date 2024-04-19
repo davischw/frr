@@ -315,7 +315,7 @@ bool pim_nht_bsr_rpf_check(struct pim_instance *pim, pim_addr bsr_addr,
 
 	pnc = hash_lookup(pim->rpf_hash, &lookup);
 	if (!pnc) {
-		zlog_warn("BSR check has no NHT entry (%pFX)",
+		zlog_warn("BSR check has no NHT entry (%pPA)",
 			  &lookup.rpf.rpf_addr);
 		pnc = pnc_alloc = pim_nht_get(pim, lookup.rpf.rpf_addr);
 	}
@@ -431,7 +431,7 @@ static void pim_update_rp_nh(struct pim_instance *pim,
 
 	if (changed) {
 		if (PIM_DEBUG_PIM_NHT)
-			zlog_debug("NHT validity change for %pFX triggering group-to-RP reeval",
+			zlog_debug("NHT validity change for %pPA triggering group-to-RP reeval",
 				   &pnc->rpf.rpf_addr);
 
 		pim_rp_refresh_group_to_rp_mapping(pim);
@@ -786,7 +786,7 @@ static void pim_nht_late_register(struct thread *t)
 	struct pim_nexthop_cache *pnc = THREAD_ARG(t);
 
 	if (PIM_DEBUG_PIM_NHT)
-		zlog_debug("%s: ask for %pFX NHT update", __func__,
+		zlog_debug("%s: ask for %pPA NHT update", __func__,
 			   &pnc->rpf.rpf_addr);
 
 	pim_sendmsg_zebra_rnh(pnc->pim, pnc, ZEBRA_NEXTHOP_REGISTER);
@@ -797,7 +797,7 @@ static void pim_nht_update_retry_later(struct pim_nexthop_cache *pnc)
 	const int delay = 5000;
 
 	if (PIM_DEBUG_PIM_NHT)
-		zlog_debug("%s: delay %dms %pFX NHT update", __func__, delay,
+		zlog_debug("%s: delay %dms %pPA NHT update", __func__, delay,
 			   &pnc->rpf.rpf_addr);
 
 	pim_sendmsg_zebra_rnh(pnc->pim, pnc, ZEBRA_NEXTHOP_UNREGISTER);
@@ -1082,7 +1082,7 @@ bool pim_nexthop_cache_wait(struct pim_instance *pim,
 	}
 
 	if (PIM_DEBUG_PIM_NHT)
-		zlog_debug("NHT %pFX(%s) state needed immediately, waiting %ums",
+		zlog_debug("NHT %pPA(%s) state needed immediately, waiting %ums",
 			   &pnc->rpf.rpf_addr, pim->vrf->name, timeout_ms);
 
 	monotime(&deadline);
@@ -1110,7 +1110,7 @@ bool pim_nexthop_cache_wait(struct pim_instance *pim,
 
 	nht_wait_cancelled = true;
 	if (PIM_DEBUG_PIM_NHT)
-		zlog_debug("NHT %pFX(%s) wait timed out", &pnc->rpf.rpf_addr,
+		zlog_debug("NHT %pPA(%s) wait timed out", &pnc->rpf.rpf_addr,
 			   pim->vrf->name);
 	return false;
 }
@@ -1231,7 +1231,7 @@ bool pim_nexthop_lookup(struct pim_instance *pim, struct pim_nexthop *nexthop,
 	rpf.rpf_addr = addr;
 	pnc = pim_nexthop_cache_find(pim, &rpf);
 	if (!pnc) {
-		zlog_debug("pim_nexthop_lookup(%pI4): no NHT entry, temp reg",
+		zlog_debug("pim_nexthop_lookup(%pPA): no NHT entry, temp reg",
 			   &addr);
 		pnc = pnc_alloc = pim_nht_get(pim, rpf.rpf_addr);
 	}

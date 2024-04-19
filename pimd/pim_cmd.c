@@ -9253,7 +9253,7 @@ DEFPY (debug_rmap_apply,
 	pim_filter_ref_set_rmap(&ref, rmap_name);
 
 	res = pim_filter_match(&ref, &sg, gen_ifp, iifp);
-	vty_out(vty, "route-map %s for %pSG4, iface:%s, iif:%s: %s\n",
+	vty_out(vty, "route-map %s for %pPSG4, iface:%s, iif:%s: %s\n",
 		rmap_name, &sg, gen_ifp ? gen_ifp->name : "*",
 		iifp ? iifp->name : "*", res ? "permitted" : "denied");
 

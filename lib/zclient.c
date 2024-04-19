@@ -4451,7 +4451,7 @@ struct zroute_info *zapi_route_lookup(struct zclient *zc, vrf_id_t vrf_id,
 	/* Initial checks and logging. */
 	switch (family) {
 	case AF_INET:
-		zlog_debug("%s: lookup %pI4", __func__, addr);
+		zlog_debug("%s: lookup %pI4", __func__, &address->ia);
 
 		/* `0.0.0.0` is unroutable. */
 		if (address->ia.s_addr == INADDR_NONE)

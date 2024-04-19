@@ -1604,7 +1604,7 @@ static void pim_cand_rp_adv_stop_maybe(struct bsm_scope *scope)
 		return;
 	}
 
-	zlog_debug("Candidate-RP (-, %pI4) deregistering self to %pI4",
+	zlog_debug("Candidate-RP (-, %pPA) deregistering self to %pPA",
 		   &scope->cand_rp_prev_addr, &scope->current_bsr);
 
 	struct cand_rp_msg *msg;
@@ -1738,7 +1738,7 @@ static void pim_cand_rp_adv(struct thread *t)
 
 	scope->cand_rp_prev_addr = scope->cand_rp_addrsel.run_addr;
 
-	zlog_debug("Candidate-RP (%u, %pI4) advertising %d groups to %pI4",
+	zlog_debug("Candidate-RP (%u, %pPA) advertising %d groups to %pPA",
 		   scope->cand_rp_prio, &scope->cand_rp_addrsel.run_addr,
 		   msg->prefix_cnt, &scope->current_bsr);
 
@@ -1804,7 +1804,7 @@ void pim_cand_rp_apply(struct bsm_scope *scope)
 		return;
 	}
 
-	zlog_debug("Candidate RP: %pI4, priority %u",
+	zlog_debug("Candidate RP: %pPA, priority %u",
 		   &scope->cand_rp_addrsel.run_addr, scope->cand_rp_prio);
 
 	pim_cand_rp_trigger(scope);
@@ -1847,7 +1847,7 @@ static void cand_addrsel_config_write(struct vty *vty,
 		vty_out(vty, " source interface %s", addrsel->cfg_ifname);
 		break;
 	case CAND_ADDR_EXPLICIT:
-		vty_out(vty, " source address %pI4", &addrsel->cfg_addr);
+		vty_out(vty, " source address %pPA", &addrsel->cfg_addr);
 		break;
 	}
 }

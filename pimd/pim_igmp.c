@@ -1411,7 +1411,7 @@ void igmp_group_timer_on(struct gm_group *group, long interval_msec,
 					       group->interface, NULL)) {
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
-				"Timer for %pSG4 on %s not refreshed due to route-map reject",
+				"Timer for %pPSG4 on %s not refreshed due to route-map reject",
 				&sg, ifname);
 
 		return;

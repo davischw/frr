@@ -453,7 +453,7 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 	if (best && !pim_addr_is_any(best->rp.rpf_addr)) {
 		if (PIM_DEBUG_PIM_TRACE)
 			zlog_debug(
-				"Lookedup: group %pFX, rp_info %p group %pFX, RP %pFX",
+				"Lookedup: group %pFX, rp_info %p group %pFX, RP %pPA",
 				group, best, &best->group, &best->rp.rpf_addr);
 		return best;
 	}
@@ -529,7 +529,7 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 
 	if (PIM_DEBUG_PIM_TRACE) {
 		if (best)
-			zlog_debug("Lookedup: group %pFX, fallback rp_info %p group %pFX, RP %pFX",
+			zlog_debug("Lookedup: group %pFX, fallback rp_info %p group %pFX, RP %pPA",
 				   group, best, &best->group, &best->rp.rpf_addr);
 		else
 			zlog_debug("Lookedup: group %pFX, no RP found", group);
