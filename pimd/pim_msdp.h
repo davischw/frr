@@ -215,6 +215,8 @@ struct pim_msdp_listener {
 	struct thread *thread;
 };
 
+PREDECL_HASH(msdp_rp_cache);
+
 struct pim_msdp {
 	enum pim_msdp_flags flags;
 	struct thread_master *master;
@@ -239,6 +241,8 @@ struct pim_msdp {
 
 	/** List of mesh groups. */
 	struct pim_mesh_group_list mglist;
+
+	struct msdp_rp_cache_head rp_cache[1];
 
 	/** MSDP global hold time period. */
 	uint32_t hold_time;
