@@ -296,10 +296,10 @@ bool pim_rpf_equal(const void *arg1, const void *arg2)
 	return (!pim_addr_cmp(r1->rpf.rpf_addr, r2->rpf.rpf_addr));
 }
 
+#if PIM_IPV == 4 /* MSDP only */
 bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t *asn,
 		      struct pim_nexthop *pn)
 {
-       struct interface *ifp;
        struct zroute_info *ri;
        struct zroute_nh_info *rni;
        bool found = false;
@@ -335,54 +335,24 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t *asn,
        }
 
        SLIST_FOREACH (rni, &ri->ri_nhlist, rni_entry) {
-               ifp = if_lookup_by_index(rni->rni_ifindex, pim->vrf->vrf_id);
-               if (ifp == NULL) {
-                       if (PIM_DEBUG_ZEBRA)
-                               zlog_debug(
-                                       "%s: could not find interface for ifindex %d (address %pPA)",
-                                       __func__, rni->rni_ifindex, &addr);
-                       continue;
-               }
-               if (ifp->info == NULL) {
-                       if (PIM_DEBUG_ZEBRA)
-                               zlog_debug(
-                                       "%s: multicast not enabled on input interface %s (ifindex=%d, RPF for source %pPA)",
-                                       __func__, ifp->name, rni->rni_ifindex,
-                                       &addr);
-                       continue;
-               }
-
                /* Fill next hop parameter and return. */
                switch (rni->rni_type) {
                case NEXTHOP_TYPE_IPV4:
                case NEXTHOP_TYPE_IPV4_IFINDEX:
                        if (PIM_DEBUG_ZEBRA)
                                zlog_debug(
-                                       "%s: found nexthop %pI4 for address %pPA: interface %s ifindex=%d metric=%d pref=%d",
+                                       "%s: found nexthop %pI4 for address %pPA: ifindex=%d metric=%d pref=%d",
                                        __func__,
-                                       &rni->rni_addr.v4, &addr, ifp->name,
+                                       &rni->rni_addr.v4, &addr,
                                        rni->rni_ifindex, ri->ri_metric,
                                        ri->ri_distance);
 
-#if PIM_IPV == 4
 		       pn->mrib_nexthop_addr = rni->rni_addr.v4;
-#endif
 		       break;
                case NEXTHOP_TYPE_IPV6:
                case NEXTHOP_TYPE_IPV6_IFINDEX:
-                       if (PIM_DEBUG_ZEBRA)
-                               zlog_debug(
-                                       "%s: found nexthop %pI6 for address %pPA: interface %s ifindex=%d metric=%d pref=%d",
-                                       __func__, &rni->rni_addr.v6, &addr,
-                                       ifp->name, rni->rni_ifindex,
-                                       ri->ri_metric, ri->ri_distance);
-
-#if PIM_IPV == 6
-		       pn->mrib_nexthop_addr = rni->rni_addr.v6;
-#endif
-		       break;
                case NEXTHOP_TYPE_IFINDEX:
-                       break;
+		       continue;
 
                default:
                        zlog_warn("%s: invalid next hop address type %d",
@@ -390,7 +360,6 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t *asn,
                        continue;
                }
 
-               pn->interface = ifp;
                pn->mrib_metric_preference = ri->ri_distance;
                pn->mrib_route_metric = ri->ri_metric;
                pn->last_lookup = addr;
@@ -403,3 +372,4 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t *asn,
        zroute_info_free(&ri);
        return found;
 }
+#endif
