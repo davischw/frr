@@ -243,9 +243,8 @@ static int vendor_southbound_socket(void)
 				    errno_copy != ECONNABORTED)
 					exit(-1);
 
-
 				/* Sleep a bit to avoid log message flooding. */
-				vtysh_aliveness_poll(5000);
+				sleep(1);
 				continue;
 			}
 			break;
@@ -703,7 +702,7 @@ ssize_t vendor_southbound_recv(const struct nlsock *ns, filter_cb filter,
 
 		/* Wait a second before retrying to connect. */
 		if (errno_copy == ECONNRESET)
-			vtysh_aliveness_poll(5000);
+			sleep(1);
 
 		vendor_southbound_socket_data_reset(ns);
 		return 0;
