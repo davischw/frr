@@ -8420,7 +8420,7 @@ static ssize_t printfrr_bp(struct fbuf *buf, struct printfrr_eargs *ea,
 
 	if (peer_address_list_neighbor(peer)) {
 		al = address_list_lookup(peer->np->name);
-		if (al) {
+		if (al && al->al_selected) {
 			ae = al->al_selected;
 			switch (ae->ae_ip.ipa_type) {
 			case IPADDR_NONE:
