@@ -5066,14 +5066,15 @@ int pim_show_mroute_helper(const char *vrf, struct vty *vty, pim_addr s_or_g,
 
 	if (dataplane) {
 #if PIM_IPV == 4
-		char sg_str[INET6_ADDRSTRLEN];
-		char g_str[INET6_ADDRSTRLEN];
+		if (!pim_addr_is_any(s_or_g)) {
+			if (!pim_addr_is_any(g)) {
+				sg.src = s_or_g;
+				sg.grp = g;
+			} else
+				sg.grp = s_or_g;
+		}
 
-		inet_ntop(PIM_AF, &s_or_g, sg_str, sizeof(sg_str));
-		inet_ntop(PIM_AF, &g, g_str, sizeof(g_str));
-		pimsb_show_state(vty, pim,
-				 pim_addr_is_any(s_or_g) ? NULL : sg_str,
-				 pim_addr_is_any(g) ? NULL : g_str, json);
+		pimsb_show_mroute(vty, pim, &sg, false, json);
 #endif
 		return CMD_SUCCESS;
 	}

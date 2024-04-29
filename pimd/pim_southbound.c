@@ -2394,7 +2394,10 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 
 	if (json) {
 		struct json_object *json_parent = json_object_new_object();
-		pimsb_show_mroute_json(vty, pim, sg, json_parent);
+		pim_sgaddr sg_all = {};
+
+		pimsb_show_mroute_json(vty, pim, sg ? sg : &sg_all,
+				       json_parent);
 		vty_json(vty, json_parent);
 		return;
 	}
