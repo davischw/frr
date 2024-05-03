@@ -415,6 +415,7 @@ in one shot. */
 	struct iovec iov[MAX_CHUNKS];
 	size_t iovcnt = 0;
 	size_t nbyte = 0;
+	struct msghdr msg;
 
 	if (fd < 0)
 		return BUFFER_ERROR;
@@ -430,7 +431,15 @@ in one shot. */
 		return BUFFER_EMPTY;
 
 	/* only place where written should be sign compared */
-	if ((ssize_t)(written = writev(fd, iov, iovcnt)) < 0) {
+	if (fd != STDOUT_FILENO) {
+		memset(&msg, 0, sizeof(msg));
+		msg.msg_iov = iov;
+		msg.msg_iovlen = iovcnt;
+		written = sendmsg(fd, &msg, MSG_NOSIGNAL);
+	} else
+		written = writev(fd, iov, iovcnt);
+
+	if ((ssize_t)written < 0) {
 		if (ERRNO_IO_RETRY(errno))
 			/* Calling code should try again later. */
 			return BUFFER_PENDING;
