@@ -421,7 +421,7 @@ static int parse_multipath_attr(struct netlink_msg_ctx *ctx,
 	for (; len > 0;
 	     len -= NLMSG_ALIGN(rtnh->rtnh_len), rtnh = RTNH_NEXT(rtnh)) {
 
-		if (!RTNH_OK(rtnh, len)) {
+		if (!RTNH_OK(rtnh, (long)len)) {
 			netlink_msg_ctx_set_err(ctx, "Malformed nh");
 			return 0;
 		}
