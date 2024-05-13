@@ -145,26 +145,28 @@ static void _ptm_bfd_session_del(struct bfd_session *bs, uint8_t diag)
 	if (bglobal.debug_peer_event)
 		zlog_debug("session-delete: %s", bs_to_string(bs));
 
-	/* Change state and notify peer. */
-	bs->ses_state = PTM_BFD_DOWN;
-	bs->local_diag = diag;
-	ptm_bfd_snd(bs, 0);
+	if (bs->refcount > 0)
+		return;
 
 	/* Session reached refcount == 0, lets delete it. */
-	if (bs->refcount == 0) {
-		/*
-		 * Sanity check: if there is a refcount bug, we can't delete
-		 * the session a user configured manually. Lets leave a
-		 * message here so we can catch the bug if it exists.
-		 */
-		if (CHECK_FLAG(bs->flags, BFD_SESS_FLAG_CONFIG)) {
-			zlog_err(
-				"ptm-del-session: [%s] session refcount is zero but it was configured by CLI",
-				bs_to_string(bs));
-		} else {
-			control_notify_config(BCM_NOTIFY_CONFIG_DELETE, bs);
-			bfd_session_free(bs);
-		}
+
+	/*
+	 * Sanity check: if there is a refcount bug, we can't delete
+	 * the session a user configured manually. Lets leave a
+	 * message here so we can catch the bug if it exists.
+	 */
+	if (CHECK_FLAG(bs->flags, BFD_SESS_FLAG_CONFIG)) {
+		zlog_err(
+			"ptm-del-session: [%s] session refcount is zero but it was configured by CLI",
+			bs_to_string(bs));
+	} else {
+		/* Change state and notify peer. */
+		bs->ses_state = PTM_BFD_DOWN;
+		bs->local_diag = diag;
+		ptm_bfd_snd(bs, 0);
+
+		control_notify_config(BCM_NOTIFY_CONFIG_DELETE, bs);
+		bfd_session_free(bs);
 	}
 }
 
