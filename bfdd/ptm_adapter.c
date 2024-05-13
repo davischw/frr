@@ -43,6 +43,7 @@ TAILQ_HEAD(pcnqueue, ptm_client_notification);
 
 struct ptm_client {
 	uint32_t pc_pid;
+	uint32_t pc_proto;
 	struct pcnqueue pc_pcnqueue;
 
 	TAILQ_ENTRY(ptm_client) pc_entry;
@@ -63,7 +64,7 @@ static int _ptm_msg_read(struct stream *msg, int command, vrf_id_t vrf_id,
 			 struct bfd_peer_cfg *bpc, struct ptm_client **pc);
 
 static struct ptm_client *pc_lookup(uint32_t pid);
-static struct ptm_client *pc_new(uint32_t pid);
+static struct ptm_client *pc_new(uint32_t pid, uint32_t proto);
 static void pc_free(struct ptm_client *pc);
 static void pc_free_all(void);
 static struct ptm_client_notification *pcn_new(struct ptm_client *pc,
@@ -381,7 +382,7 @@ static int _ptm_msg_read(struct stream *msg, int command, vrf_id_t vrf_id,
 	/* Find or allocate process context data. */
 	STREAM_GETL(msg, pid);
 
-	*pc = pc_new(pid);
+	*pc = pc_new(pid, bpc->bpc_origin_daemon);
 
 	/* Register/update peer information. */
 	_ptm_msg_read_address(msg, &bpc->bpc_peer);
@@ -565,11 +566,13 @@ static void bfdd_dest_deregister(struct stream *msg, vrf_id_t vrf_id)
 static void bfdd_client_register(struct stream *msg)
 {
 	uint32_t pid;
+	uint32_t proto;
 
 	/* Find or allocate process context data. */
 	STREAM_GETL(msg, pid);
+	STREAM_GETL(msg, proto);
 
-	pc_new(pid);
+	pc_new(pid, proto);
 
 	return;
 
@@ -912,7 +915,7 @@ static struct ptm_client *pc_lookup(uint32_t pid)
 	return pc;
 }
 
-static struct ptm_client *pc_new(uint32_t pid)
+static struct ptm_client *pc_new(uint32_t pid, uint32_t proto)
 {
 	struct ptm_client *pc;
 
@@ -925,6 +928,7 @@ static struct ptm_client *pc_new(uint32_t pid)
 	pc = XCALLOC(MTYPE_BFDD_CONTROL, sizeof(*pc));
 
 	pc->pc_pid = pid;
+	pc->pc_proto = proto;
 	TAILQ_INSERT_HEAD(&pcqueue, pc, pc_entry);
 	return pc;
 }
@@ -992,6 +996,7 @@ static struct ptm_client_notification *pcn_lookup(struct ptm_client *pc,
 static void pcn_free(struct ptm_client_notification *pcn)
 {
 	struct ptm_client *pc;
+	struct ptm_client *pc_next;
 	struct bfd_session *bs;
 
 	/* Handle session de-registration. */
@@ -1011,6 +1016,17 @@ static void pcn_free(struct ptm_client_notification *pcn)
 	pc = pcn->pcn_pc;
 	pcn->pcn_pc = NULL;
 	TAILQ_REMOVE(&pc->pc_pcnqueue, pcn, pcn_entry);
-
 	XFREE(MTYPE_BFDD_NOTIFICATION, pcn);
+
+	/* Update session to point to next daemon using it. */
+	TAILQ_FOREACH (pc_next, &pcqueue, pc_entry) {
+		pcn = pcn_lookup(pc_next, bs);
+		if (pcn == NULL)
+			continue;
+
+		/* set daemons name in bs */
+		bs->origin_daemon = pc_next->pc_proto;
+		bfd_dplane_update_session(bs);
+		break;
+	}
 }
