@@ -1697,9 +1697,9 @@ int ospf_apiserver_handle_originate_request(struct ospf_apiserver *apiserv,
 	/* Determine if LSA is new or an update for an existing one. */
 	old = ospf_lsdb_lookup(lsdb, new);
 
-	if (!old || !ospf_opaque_is_owned(old)) {
+	if (!old) {
 		/* New LSA install in LSDB. */
-		rc = ospf_apiserver_originate1(new, old);
+		rc = ospf_apiserver_originate1(new);
 	} else {
 		/*
 		 * Keep the new LSA instance in the "waiting place" until the
@@ -1766,43 +1766,17 @@ void ospf_apiserver_flood_opaque_lsa(struct ospf_lsa *lsa)
 	}
 }
 
-int ospf_apiserver_originate1(struct ospf_lsa *lsa, struct ospf_lsa *old)
+int ospf_apiserver_originate1(struct ospf_lsa *lsa)
 {
 	struct ospf *ospf;
 
 	ospf = ospf_lookup_by_vrf_id(VRF_DEFAULT);
 	assert(ospf);
 
-	if (old) {
-		/*
-		 * An old LSA exists that we didn't originate it in this
-		 * session. Dump it, but increment past it's seqnum.
-		 */
-		assert(!ospf_opaque_is_owned(old));
-		if (IS_DEBUG_OSPF_CLIENT_API)
-			zlog_debug(
-				"LSA[Type%d:%pI4]: OSPF API Server Originate LSA Old Seq: 0x%x Age: %d",
-				old->data->type, &old->data->id,
-				ntohl(old->data->ls_seqnum),
-				ntohl(old->data->ls_age));
-		if (IS_LSA_MAX_SEQ(old)) {
-			flog_warn(EC_OSPF_LSA_INSTALL_FAILURE,
-				  "%s: old LSA at maxseq", __func__);
-			return -1;
-		}
-		lsa->data->ls_seqnum = lsa_seqnum_increment(old);
-		ospf_discard_from_db(ospf, old->lsdb, old);
-	}
-	if (IS_DEBUG_OSPF_CLIENT_API)
-		zlog_debug(
-			"LSA[Type%d:%pI4]: OSPF API Server Originate LSA New Seq: 0x%x Age: %d",
-			lsa->data->type, &lsa->data->id,
-			ntohl(lsa->data->ls_seqnum), ntohl(lsa->data->ls_age));
-
 	/* Install this LSA into LSDB. */
 	if (ospf_lsa_install(ospf, lsa->oi, lsa) == NULL) {
 		flog_warn(EC_OSPF_LSA_INSTALL_FAILURE,
-			  "%s: ospf_lsa_install failed", __func__);
+			  "ospf_apiserver_originate1: ospf_lsa_install failed");
 		return -1;
 	}
 
