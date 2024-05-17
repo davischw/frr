@@ -42,6 +42,4 @@ int pim_ssm_range_set(struct pim_instance *pim, vrf_id_t vrf_id,
 void *pim_ssm_init(void);
 void pim_ssm_terminate(struct pim_ssm *ssm);
 
-bool pim_is_sg_ssm(const struct pim_instance *pim, pim_sgaddr *source_group);
-
 #endif

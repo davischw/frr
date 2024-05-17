@@ -2112,11 +2112,6 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 
 	/* print list of PIM and IGMP routes */
 	frr_each (rb_pim_oil, &pim->channel_oil_head, oil) {
-		pim_sgaddr source_group = {
-			.src = oil->oil.mfcc_origin,
-			.grp = oil->oil.mfcc_mcastgrp,
-		};
-
 		i_am_rp = pim_rp_i_am_rp(pim, oil->oil.mfcc_mcastgrp);
 		if (oil->up)
 			i_am_lhr =
@@ -2139,7 +2134,11 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		pim_inet4_dump("<source?>", oil->oil.mfcc_origin, src_str,
 			       sizeof(src_str));
 
-		strlcpy(state_str, "S", sizeof(state_str));
+		if (pim_is_grp_ssm(pim, *oil_mcastgrp(oil)))
+			strlcpy(state_str, "M", sizeof(state_str));
+		else
+			strlcpy(state_str, "S", sizeof(state_str));
+
 		/* When a non DR receives a igmp join, it creates a (*,G)
 		 * channel_oil without any upstream creation */
 		if (oil->up) {
@@ -2151,8 +2150,6 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 				strlcat(state_str, "F", sizeof(state_str));
 			if (oil->up->sptbit == PIM_UPSTREAM_SPTBIT_TRUE)
 				strlcat(state_str, "T", sizeof(state_str));
-			if (pim_is_sg_ssm(pim, &source_group))
-				strlcat(state_str, "M", sizeof(state_str));
 		}
 		if (pim_channel_oil_empty(oil))
 			strlcat(state_str, "P", sizeof(state_str));
@@ -2413,11 +2410,6 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 
 	/* print list of PIM and IGMP routes */
 	frr_each (rb_pim_oil, &pim->channel_oil_head, oil) {
-		pim_sgaddr source_group = {
-			.src = oil->oil.mfcc_origin,
-			.grp = oil->oil.mfcc_mcastgrp,
-		};
-
 		first = true;
 		found_oif = false;
 		i_am_rp = pim_rp_i_am_rp(pim, oil->oil.mfcc_mcastgrp);
@@ -2442,7 +2434,11 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 		pim_inet4_dump("<source?>", oil->oil.mfcc_origin, src_str,
 			       sizeof(src_str));
 
-		strlcpy(state_str, "S", sizeof(state_str));
+		if (pim_is_grp_ssm(pim, *oil_mcastgrp(oil)))
+			strlcpy(state_str, "M", sizeof(state_str));
+		else
+			strlcpy(state_str, "S", sizeof(state_str));
+
 		/* When a non DR receives a igmp join, it creates a (*,G)
 		 * channel_oil without any upstream creation */
 		if (oil->up) {
@@ -2454,8 +2450,6 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 				strlcat(state_str, "F", sizeof(state_str));
 			if (oil->up->sptbit == PIM_UPSTREAM_SPTBIT_TRUE)
 				strlcat(state_str, "T", sizeof(state_str));
-			if (pim_is_sg_ssm(pim, &source_group))
-				strlcat(state_str, "M", sizeof(state_str));
 		}
 		if (pim_channel_oil_empty(oil))
 			strlcat(state_str, "P", sizeof(state_str));
