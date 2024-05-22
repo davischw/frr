@@ -1,6 +1,6 @@
 /*
  * PIM southbound implementation.
- * Copyright (C) 2021-2023 Network Education Foundation
+ * Copyright (C) 2021-2024 Network Education Foundation
  *                         Rafael Zalamena
  *
  * This program is free software; you can redistribute it and/or modify
@@ -56,7 +56,7 @@
 bool pim_southbound_enabled;
 
 static struct zclient *zclient;
-static const struct in_addr ia_zero;
+static const pim_addr pim_addr_any = PIMADDR_ANY;
 
 /* IGMP global data. */
 static int igmp_fd = -1;
@@ -134,13 +134,11 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 	struct pim_nexthop pn = {};
 
 	/* Figure out what part of the topology we are. */
-	star_source = oil->oil.mfcc_origin.s_addr == INADDR_ANY;
-	i_am_rp = pim_rp_i_am_rp(oil->pim, oil->oil.mfcc_mcastgrp);
+	star_source = pim_addr_is_any(*oil_origin(oil));
+	i_am_rp = pim_rp_i_am_rp(oil->pim, *oil_mcastgrp(oil));
 
 	/* Figure out RP information. */
-	p.family = AF_INET;
-	p.prefixlen = 32;
-	p.u.prefix4.s_addr = oil->oil.mfcc_mcastgrp.s_addr;
+	pim_addr_to_prefix(&p, *oil_mcastgrp(oil));
 	rp = pim_rp_find_match_group(oil->pim, &p);
 	if (rp && rp->rp.source_nexthop.interface) {
 		has_rp_if = true;
@@ -156,12 +154,13 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 	 *    use `pimreg` (also see item (2)).
 	 * 5. Otherwise use what PIM decided.
 	 */
-	if ((i_am_rp && star_source) || oil->oil.mfcc_parent == 0)
+	if ((i_am_rp && star_source) ||
+	    *oil_parent(oil) == PIM_OIF_PIM_REGISTER_VIF)
 		oil->iif.ifindex = PIM_REG_IF_IDX;
-	else if (oil->oil.mfcc_parent == system_maxvifs())
+	else if (*oil_parent(oil) == system_maxvifs())
 		oil->iif.ifindex = 0;
 	else {
-		ifp = pim_if_find_by_vif_index(oil->pim, oil->oil.mfcc_parent);
+		ifp = pim_if_find_by_vif_index(oil->pim, *oil_parent(oil));
 		oil->iif.ifindex = ifp ? ifp->ifindex : PIM_REG_IF_IDX;
 		if (i_am_rp && has_rp_if && rp_if == oil->iif.ifindex)
 			oil->iif.ifindex = PIM_REG_IF_IDX;
@@ -180,9 +179,9 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 
 	if (PIM_DEBUG_MROUTE)
 		zlog_debug(
-			"%s: SG(%pI4, %pI4) IAmRP:%s RPIF:%d use_notifif:%s upstream:%s",
-			__func__, &oil->oil.mfcc_origin,
-			&oil->oil.mfcc_mcastgrp, i_am_rp ? "yes" : "no", rp_if,
+			"%s: SG(%pPA, %pPA) IAmRP:%s RPIF:%d use_notifif:%s upstream:%s",
+			__func__, oil_origin(oil), oil_mcastgrp(oil),
+			i_am_rp ? "yes" : "no", rp_if,
 			use_notifif ? "yes" : "no", upstream ? "yes" : "no");
 
 	/* We need more information to process further. */
@@ -225,7 +224,7 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 	}
 
 	/* Figure out the SPT path. */
-	if (pim_nexthop_lookup(oil->pim, &pn, oil->oil.mfcc_origin, 0) &&
+	if (pim_nexthop_lookup(oil->pim, &pn, *oil_origin(oil), 0) &&
 	    oil->iif.ifindex != pn.interface->ifindex)
 		oil->notifif.ifindex = pn.interface->ifindex;
 	else
@@ -250,7 +249,7 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 	}
 }
 
-static void pimsb_debug_oil(const struct channel_oil *oil)
+static void pimsb_debug_oil(struct channel_oil *oil)
 {
 	struct interface *ifp;
 	int index;
@@ -285,11 +284,10 @@ static void pimsb_debug_oil(const struct channel_oil *oil)
 		zlog_debug("%s", buf);
 	}
 
-	snprintfrr(buf, sizeof(buf), "  MFC(%pI4,%pI4)[iif:%d,",
-		   &oil->oil.mfcc_origin, &oil->oil.mfcc_mcastgrp,
-		   oil->oil.mfcc_parent);
+	snprintfrr(buf, sizeof(buf), "  MFC(%pPA,%pPA)[iif:%d,",
+		   oil_origin(oil), oil_mcastgrp(oil), *oil_parent(oil));
 	for (index = 0; index < system_maxvifs(); index++) {
-		if (oil->oil.mfcc_ttls[index] == 0)
+		if (!oil_if_has(oil, index))
 			continue;
 
 		ifp = pim_if_find_by_vif_index(oil->pim, index);
@@ -418,8 +416,8 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 		is_static = true;
 
 	/* Figure out what part of the topology we are. */
-	star_source = oil->oil.mfcc_origin.s_addr == INADDR_ANY;
-	i_am_rp = pim_rp_i_am_rp(oil->pim, oil->oil.mfcc_mcastgrp);
+	star_source = pim_addr_is_any(*oil_origin(oil));
+	i_am_rp = pim_rp_i_am_rp(oil->pim, *oil_mcastgrp(oil));
 	if (upstream) {
 		i_am_lhr = !!(upstream->flags &
 			      (PIM_UPSTREAM_FLAG_MASK_SRC_LHR |
@@ -430,9 +428,7 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 	i_am_mhr = !i_am_lhr && !i_am_rp && !i_am_fhr;
 
 	/* Figure out RP information. */
-	p.family = AF_INET;
-	p.prefixlen = 32;
-	p.u.prefix4.s_addr = oil->oil.mfcc_mcastgrp.s_addr;
+	pim_addr_to_prefix(&p, *oil_mcastgrp(oil));
 	rp = pim_rp_find_match_group(oil->pim, &p);
 	if (rp != NULL && rp->rp.source_nexthop.interface != NULL &&
 	    rp->rp.source_nexthop.interface->info != NULL)
@@ -495,9 +491,9 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 
 	zclient_create_header(s, ZEBRA_MROUTE_EVENT, oil->pim->vrf->vrf_id);
 	stream_putw(s, install ? 0 : 1);
-	stream_putw(s, AF_INET);
-	stream_putl(s, oil->oil.mfcc_origin.s_addr);
-	stream_putl(s, oil->oil.mfcc_mcastgrp.s_addr);
+	stream_putw(s, PIM_AF);
+	stream_put(s, oil_origin(oil), sizeof(pim_addr));
+	stream_put(s, oil_mcastgrp(oil), sizeof(pim_addr));
 
 	/* Input interface. */
 	stream_putl(s, oil->iif.ifindex);
@@ -532,17 +528,17 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 	if (has_pimreg && has_rp_if) {
 		pim_ifp = rp->rp.source_nexthop.interface->info;
 		/* Interface address in the way to the RP. */
-		stream_putl(s, pim_ifp->primary_address.s_addr);
+		stream_put(s, &pim_ifp->primary_address, sizeof(pim_addr));
 	} else
-		stream_putl(s, ia_zero.s_addr);
+		stream_put(s, &pim_addr_any, sizeof(pim_addr));
 
 	/* Remote RP address. */
 	if (has_pimreg && has_rp_if) {
-		stream_putl(s, rp->rp.rpf_addr.s_addr);
+		stream_put(s, &rp->rp.rpf_addr, sizeof(pim_addr));
 		upstream->sb_register_to = rp->rp.rpf_addr;
 	} else {
-		stream_putl(s, ia_zero.s_addr);
-		upstream->sb_register_to = ia_zero;
+		stream_put(s, &pim_addr_any, sizeof(pim_addr));
+		upstream->sb_register_to = pim_addr_any;
 	}
 
 	stream_putw_at(s, 0, (uint16_t)stream_get_endp(s));
@@ -568,14 +564,14 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 			oifs[strlen(oifs) - 1] = 0;
 
 		zlog_debug(
-			"%s: %s SG(%pI4, %pI4) iif:%d notifif:%d flags:0x%04x OIFS_AMOUNT:%zu OIF:[%s] encap:(local:%pI4, rp:%pI4) rp:%s fhr:%s lhr:%s",
+			"%s: %s SG(%pPA, %pPA) iif:%d notifif:%d flags:0x%04x OIFS_AMOUNT:%zu OIF:[%s] encap:(local:%pPA, rp:%pPA) rp:%s fhr:%s lhr:%s",
 			__func__, install ? "INSTALL" : "DELETE",
-			&oil->oil.mfcc_origin, &oil->oil.mfcc_mcastgrp,
-			oil->iif.ifindex, oil->notifif.ifindex, route_flags,
-			oif_count, oifs,
+			oil_origin(oil), oil_mcastgrp(oil), oil->iif.ifindex,
+			oil->notifif.ifindex, route_flags, oif_count, oifs,
 			has_pimreg && has_rp_if ? &pim_ifp->primary_address
-						: &ia_zero,
-			has_pimreg && has_rp_if ? &rp->rp.rpf_addr : &ia_zero,
+						: &pim_addr_any,
+			has_pimreg && has_rp_if ? &rp->rp.rpf_addr
+						: &pim_addr_any,
 			i_am_rp ? "yes" : "no", i_am_fhr ? "yes" : "no",
 			i_am_lhr ? "yes" : "no");
 	}
@@ -595,12 +591,12 @@ static void pim_mroute_copy(struct mfcctl_vendor *oil,
 {
 	int i;
 
-	oil->mfcc_origin = c_oil->oil.mfcc_origin;
-	oil->mfcc_mcastgrp = c_oil->oil.mfcc_mcastgrp;
-	oil->mfcc_parent = c_oil->oil.mfcc_parent;
+	oil->mfcc_origin = *oil_origin(c_oil);
+	oil->mfcc_mcastgrp = *oil_mcastgrp(c_oil);
+	oil->mfcc_parent = *oil_parent(c_oil);
 
 	for (i = 0; i < system_maxvifs(); ++i) {
-		if ((oil->mfcc_parent == i) &&
+		if ((*oil_parent(c_oil) == i) &&
 		    !pim_mroute_allow_iif_in_oil(c_oil, i)) {
 			oil->mfcc_ttls[i] = 0;
 			continue;
@@ -659,7 +655,7 @@ int pimsb_mroute_del(struct channel_oil *c_oil, const char *name)
 			char buffer[2048];
 			zlog_debug(
 				"%s %s: vifi %d for route is %s not installed, do not need to send del req. ",
-				__FILE__, __func__, c_oil->oil.mfcc_parent,
+				__FILE__, __func__, *oil_parent(c_oil),
 				pim_channel_oil_dump(c_oil, buffer,
 						     sizeof(buffer)));
 		}
@@ -963,7 +959,7 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 	/* Handle simplest case first. */
 	if (pim_if_connected_to_source(ifp, sg_p.src)) {
 		if (PIM_DEBUG_MROUTE)
-			zlog_debug("%s: source connected (%s, %pI4)", __func__,
+			zlog_debug("%s: source connected (%s, %pPA)", __func__,
 				   ifp->name, &sg_p.src);
 
 		if (!(PIM_I_am_DR(pim_ifp))) {
@@ -991,7 +987,7 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 
 		up->channel_oil->cc.pktcnt++;
 		if (up->rpf.source_nexthop.interface != NULL &&
-		    up->channel_oil->oil.mfcc_parent >= system_maxvifs())
+		    *oil_parent(up->channel_oil) >= system_maxvifs())
 			pim_upstream_mroute_iif_update(up->channel_oil,
 						       __func__);
 
@@ -1004,7 +1000,7 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 	/* Figure out what case this is by looking at upstream. */
 	up = pim_upstream_find(pim_ifp->pim, &sg_p);
 	if (PIM_DEBUG_MROUTE)
-		zlog_debug("%s: unconnected source (%s, %pI4) %s", __func__,
+		zlog_debug("%s: unconnected source (%s, %pPA) %s", __func__,
 			   ifp->name, &sg_p.src,
 			   up ? (up->flags & PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED)
 					   ? "upstream switch"
@@ -1134,7 +1130,7 @@ static void pimsb_client_wrong_if(const struct mroute_event *me)
 	struct interface *ifp = NULL;
 	struct vrf *vrf;
 	int32_t input_index = ntohl(me->iif_idx);
-	struct igmpmsg im = {};
+	kernmsg im = {};
 
 	im.im_msgtype = IGMPMSG_WRONGVIF;
 	im.im_src = me->source.v4;
@@ -1853,7 +1849,7 @@ void pimsb_msg_send_frame(const struct interface *ifp, const struct ip *ip,
 	ipv4_output(&params, msg, msglen);
 }
 
-static void pimsb_mrt_iif(struct pim_instance *pim, const struct in_addr group,
+static void pimsb_mrt_iif(struct pim_instance *pim, const pim_addr *group,
 			  vifi_t input, char *ifname_out, size_t ifname_len)
 {
 	struct rp_info *rp = NULL;
@@ -1868,15 +1864,13 @@ static void pimsb_mrt_iif(struct pim_instance *pim, const struct in_addr group,
 		return;
 
 	/* I'm not RP so it doesn't matter. */
-	if (!pim_rp_i_am_rp(pim, group)) {
+	if (!pim_rp_i_am_rp(pim, *group)) {
 		strlcpy(ifname_out, ifp->name, ifname_len);
 		return;
 	}
 
 	/* Look up our RP and see if it matches our interface. */
-	p.family = AF_INET;
-	p.prefixlen = 32;
-	p.u.prefix4 = group;
+	pim_addr_to_prefix(&p, *group);
 	rp = pim_rp_find_match_group(pim, &p);
 
 	/* Return PIMREG if it matches our RP interface. */
@@ -1911,7 +1905,7 @@ void pimsb_show_state_json(struct vty *vty, struct pim_instance *pim,
 	now = pim_time_monotonic_sec();
 
 	frr_each (rb_pim_oil, &pim->channel_oil_head, oil) {
-		i_am_rp = pim_rp_i_am_rp(pim, oil->oil.mfcc_mcastgrp);
+		i_am_rp = pim_rp_i_am_rp(pim, *oil_mcastgrp(oil));
 		if (oil->up)
 			i_am_lhr =
 				!PIM_UPSTREAM_FLAG_TEST_FHR(oil->up->flags) &&
@@ -1920,16 +1914,14 @@ void pimsb_show_state_json(struct vty *vty, struct pim_instance *pim,
 			i_am_lhr = false;
 		if ((oil->up &&
 		     PIM_UPSTREAM_FLAG_TEST_USE_RPT(oil->up->flags)) ||
-		    oil->oil.mfcc_origin.s_addr == INADDR_ANY)
+		    pim_addr_is_any(*oil_origin(oil)))
 			isRpt = true;
 		else
 			isRpt = false;
 
-		pim_inet4_dump("<group?>", oil->oil.mfcc_mcastgrp, grp_str,
-			       sizeof(grp_str));
-		pim_inet4_dump("<source?>", oil->oil.mfcc_origin, src_str,
-			       sizeof(src_str));
-		pimsb_mrt_iif(pim, oil->oil.mfcc_mcastgrp, oil->oil.mfcc_parent,
+		snprintfrr(grp_str, sizeof(grp_str), "%pPA", oil_mcastgrp(oil));
+		snprintfrr(src_str, sizeof(src_str), "%pPA", oil_origin(oil));
+		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_parent(oil),
 			      in_ifname, sizeof(in_ifname));
 
 		if (src_grp) {
@@ -1991,7 +1983,7 @@ void pimsb_show_state_json(struct vty *vty, struct pim_instance *pim,
 		}
 
 		for (oif_idx = 0; oif_idx < system_maxvifs(); ++oif_idx) {
-			if (oil->oil.mfcc_ttls[oif_idx] < 1)
+			if (!oil_if_has(oil, oif_idx))
 				continue;
 
 			ifp_out = pim_if_find_by_vif_index(pim, oif_idx);
@@ -2061,7 +2053,7 @@ void pimsb_show_state(struct vty *vty, struct pim_instance *pim,
 
 	frr_each (rb_pim_oil, &pim->channel_oil_head, oil) {
 		first_oif = true;
-		i_am_rp = pim_rp_i_am_rp(pim, oil->oil.mfcc_mcastgrp);
+		i_am_rp = pim_rp_i_am_rp(pim, *oil_mcastgrp(oil));
 		if (oil->up)
 			i_am_lhr =
 				!PIM_UPSTREAM_FLAG_TEST_FHR(oil->up->flags) &&
@@ -2070,16 +2062,14 @@ void pimsb_show_state(struct vty *vty, struct pim_instance *pim,
 			i_am_lhr = false;
 		if ((oil->up &&
 		     PIM_UPSTREAM_FLAG_TEST_USE_RPT(oil->up->flags)) ||
-		    oil->oil.mfcc_origin.s_addr == INADDR_ANY)
+		    pim_addr_is_any(*oil_origin(oil)))
 			isRpt = true;
 		else
 			isRpt = false;
 
-		pim_inet4_dump("<group?>", oil->oil.mfcc_mcastgrp, grp_str,
-			       sizeof(grp_str));
-		pim_inet4_dump("<source?>", oil->oil.mfcc_origin, src_str,
-			       sizeof(src_str));
-		pimsb_mrt_iif(pim, oil->oil.mfcc_mcastgrp, oil->oil.mfcc_parent,
+		snprintfrr(grp_str, sizeof(grp_str), "%pPA", oil_mcastgrp(oil));
+		snprintfrr(src_str, sizeof(src_str), "%pPA", oil_origin(oil));
+		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_parent(oil),
 			      in_ifname, sizeof(in_ifname));
 
 		if (src_grp) {
@@ -2094,7 +2084,7 @@ void pimsb_show_state(struct vty *vty, struct pim_instance *pim,
 			src_str, grp_str, isRpt ? "y" : "n", in_ifname);
 
 		for (oif_idx = 0; oif_idx < system_maxvifs(); ++oif_idx) {
-			if (oil->oil.mfcc_ttls[oif_idx] < 1)
+			if (!oil_if_has(oil, oif_idx))
 				continue;
 
 			ifp_out = pim_if_find_by_vif_index(pim, oif_idx);
@@ -2171,7 +2161,7 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 
 	/* print list of PIM and IGMP routes */
 	frr_each (rb_pim_oil, &pim->channel_oil_head, oil) {
-		i_am_rp = pim_rp_i_am_rp(pim, oil->oil.mfcc_mcastgrp);
+		i_am_rp = pim_rp_i_am_rp(pim, *oil_mcastgrp(oil));
 		if (oil->up)
 			i_am_lhr =
 				!PIM_UPSTREAM_FLAG_TEST_FHR(oil->up->flags) &&
@@ -2181,17 +2171,15 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		if (!oil->installed)
 			continue;
 
-		if (sg->grp.s_addr != INADDR_ANY &&
-		    sg->grp.s_addr != oil->oil.mfcc_mcastgrp.s_addr)
+		if (!pim_addr_is_any(sg->grp) &&
+		    pim_addr_cmp(sg->grp, *oil_mcastgrp(oil)))
 			continue;
-		if (sg->src.s_addr != INADDR_ANY &&
-		    sg->src.s_addr != oil->oil.mfcc_origin.s_addr)
+		if (!pim_addr_is_any(sg->src) &&
+		    pim_addr_cmp(sg->src, *oil_origin(oil)))
 			continue;
 
-		pim_inet4_dump("<group?>", oil->oil.mfcc_mcastgrp, grp_str,
-			       sizeof(grp_str));
-		pim_inet4_dump("<source?>", oil->oil.mfcc_origin, src_str,
-			       sizeof(src_str));
+		snprintfrr(grp_str, sizeof(grp_str), "%pPA", oil_mcastgrp(oil));
+		snprintfrr(src_str, sizeof(src_str), "%pPA", oil_origin(oil));
 
 		if (pim_is_grp_ssm(pim, *oil_mcastgrp(oil)))
 			strlcpy(state_str, "M", sizeof(state_str));
@@ -2213,7 +2201,7 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		if (pim_channel_oil_empty(oil))
 			strlcat(state_str, "P", sizeof(state_str));
 
-		pimsb_mrt_iif(pim, oil->oil.mfcc_mcastgrp, oil->oil.mfcc_parent,
+		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_parent(oil),
 			      in_ifname, sizeof(in_ifname));
 		pim_time_uptime(mroute_uptime, sizeof(mroute_uptime),
 				now - oil->mroute_creation);
@@ -2221,7 +2209,7 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		/* If we have an inherited OIL for (S,G), we should check
 		 * (*,G) for an accurate protocol.
 		 */
-		sg_star.grp = oil->oil.mfcc_mcastgrp;
+		sg_star.grp = *oil_mcastgrp(oil);
 		i_oil = pim_find_channel_oil(pim, &sg_star);
 
 		/* Find the group, create it if it doesn't exist */
@@ -2261,14 +2249,14 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 			if (oil->filtered)
 				break;
 
-			if (oil->oil.mfcc_ttls[oif_idx] < 1)
+			if (!oil_if_has(oil, oif_idx))
 				continue;
 
 			/* do not display muted OIFs */
 			if (oil->oif_flags[oif_idx] & PIM_OIF_FLAG_MUTE)
 				continue;
 
-			if (oil->oil.mfcc_parent == oif_idx &&
+			if (*oil_parent(oil) == oif_idx &&
 			    !pim_mroute_allow_iif_in_oil(oil, oif_idx))
 				continue;
 
@@ -2320,7 +2308,7 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 			json_object_string_add(json_ifp_out, "inboundInterface",
 					       in_ifname);
 			json_object_int_add(json_ifp_out, "iVifI",
-					    oil->oil.mfcc_parent);
+					    *oil_parent(oil));
 			json_object_string_add(json_ifp_out,
 					       "outboundInterface", out_ifname);
 			json_object_int_add(json_ifp_out, "oVifI", oif_idx);
@@ -2351,11 +2339,9 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		if (!s_route->c_oil.installed)
 			continue;
 
-		pim_inet4_dump("<group?>", s_route->group, grp_str,
-			       sizeof(grp_str));
-		pim_inet4_dump("<source?>", s_route->source, src_str,
-			       sizeof(src_str));
-		pimsb_mrt_iif(pim, s_route->group, s_route->iif, in_ifname,
+		snprintfrr(grp_str, sizeof(grp_str), "%pPA", &s_route->group);
+		snprintfrr(src_str, sizeof(src_str), "%pPA", &s_route->source);
+		pimsb_mrt_iif(pim, &s_route->group, s_route->iif, in_ifname,
 			      sizeof(in_ifname));
 
 		/* Find the group, create it if it doesn't exist */
@@ -2471,7 +2457,7 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 	frr_each (rb_pim_oil, &pim->channel_oil_head, oil) {
 		first = true;
 		found_oif = false;
-		i_am_rp = pim_rp_i_am_rp(pim, oil->oil.mfcc_mcastgrp);
+		i_am_rp = pim_rp_i_am_rp(pim, *oil_mcastgrp(oil));
 		if (oil->up)
 			i_am_lhr =
 				!PIM_UPSTREAM_FLAG_TEST_FHR(oil->up->flags) &&
@@ -2481,17 +2467,15 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 		if (!oil->installed)
 			continue;
 
-		if (sg->grp.s_addr != INADDR_ANY &&
-		    sg->grp.s_addr != oil->oil.mfcc_mcastgrp.s_addr)
+		if (!pim_addr_is_any(sg->grp) &&
+		    pim_addr_cmp(sg->grp, *oil_mcastgrp(oil)))
 			continue;
-		if (sg->src.s_addr != INADDR_ANY &&
-		    sg->src.s_addr != oil->oil.mfcc_origin.s_addr)
+		if (!pim_addr_is_any(sg->src) &&
+		    pim_addr_cmp(sg->src, *oil_origin(oil)))
 			continue;
 
-		pim_inet4_dump("<group?>", oil->oil.mfcc_mcastgrp, grp_str,
-			       sizeof(grp_str));
-		pim_inet4_dump("<source?>", oil->oil.mfcc_origin, src_str,
-			       sizeof(src_str));
+		snprintfrr(grp_str, sizeof(grp_str), "%pPA", oil_mcastgrp(oil));
+		snprintfrr(src_str, sizeof(src_str), "%pPA", oil_origin(oil));
 
 		if (pim_is_grp_ssm(pim, *oil_mcastgrp(oil)))
 			strlcpy(state_str, "M", sizeof(state_str));
@@ -2513,7 +2497,7 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 		if (pim_channel_oil_empty(oil))
 			strlcat(state_str, "P", sizeof(state_str));
 
-		pimsb_mrt_iif(pim, oil->oil.mfcc_mcastgrp, oil->oil.mfcc_parent,
+		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_parent(oil),
 			      in_ifname, sizeof(in_ifname));
 		pim_time_uptime(mroute_uptime, sizeof(mroute_uptime),
 				now - oil->mroute_creation);
@@ -2523,14 +2507,14 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 			if (oil->filtered)
 				break;
 
-			if (oil->oil.mfcc_ttls[oif_idx] < 1)
+			if (!oil_if_has(oil, oif_idx))
 				continue;
 
 			/* do not display muted OIFs */
 			if (oil->oif_flags[oif_idx] & PIM_OIF_FLAG_MUTE)
 				continue;
 
-			if (oil->oil.mfcc_parent == oif_idx &&
+			if (*oil_parent(oil) == oif_idx &&
 			    !pim_mroute_allow_iif_in_oil(oil, oif_idx))
 				continue;
 
@@ -2603,11 +2587,9 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 		if (!s_route->c_oil.installed)
 			continue;
 
-		pim_inet4_dump("<group?>", s_route->group, grp_str,
-			       sizeof(grp_str));
-		pim_inet4_dump("<source?>", s_route->source, src_str,
-			       sizeof(src_str));
-		pimsb_mrt_iif(pim, s_route->group, s_route->iif, in_ifname,
+		snprintfrr(grp_str, sizeof(grp_str), "%pPA", &s_route->group);
+		snprintfrr(src_str, sizeof(src_str), "%pPA", &s_route->source);
+		pimsb_mrt_iif(pim, &s_route->group, s_route->iif, in_ifname,
 			      sizeof(in_ifname));
 		found_oif = false;
 

@@ -304,8 +304,8 @@ struct pim_upstream {
 
 	int64_t state_transition; /* Record current state uptime */
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
-	struct in_addr sb_register_to;
+#ifdef VENDOR_SOUTHBOUND
+	pim_addr sb_register_to;
 #endif
 };
 
