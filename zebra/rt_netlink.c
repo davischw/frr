@@ -2449,6 +2449,7 @@ ssize_t netlink_mroute_encode(const struct zebra_dplane_ctx *ctx, void *nl_buf,
 	struct rtattr *rta;
 	const struct ipaddr *ipa;
 	size_t output_ifs_num;
+	int family = dplane_ctx_get_mroute_source(ctx)->ipa_type;
 	struct mrt_extra_attr met = {};
 	struct {
 		struct nlmsghdr n;
@@ -2477,9 +2478,15 @@ ssize_t netlink_mroute_encode(const struct zebra_dplane_ctx *ctx, void *nl_buf,
 	else
 		req->n.nlmsg_type = RTM_DELROUTE;
 
-	req->rtm.rtm_family = RTNL_FAMILY_IPMR;
-	req->rtm.rtm_dst_len = 32;
-	req->rtm.rtm_src_len = 32;
+	if (family == AF_INET) {
+		req->rtm.rtm_family = RTNL_FAMILY_IPMR;
+		req->rtm.rtm_dst_len = IPV4_MAX_BITLEN;
+		req->rtm.rtm_src_len = IPV4_MAX_BITLEN;
+	} else {
+		req->rtm.rtm_family = RTNL_FAMILY_IP6MR;
+		req->rtm.rtm_dst_len = IPV6_MAX_BITLEN;
+		req->rtm.rtm_src_len = IPV6_MAX_BITLEN;
+	}
 	req->rtm.rtm_tos = 0;
 	req->rtm.rtm_table = RT_TABLE_UNSPEC;
 	req->rtm.rtm_protocol = RTPROT_MROUTED;
@@ -2488,10 +2495,21 @@ ssize_t netlink_mroute_encode(const struct zebra_dplane_ctx *ctx, void *nl_buf,
 
 	nl_attr_put32(&req->n, (unsigned int)nl_buf_len, RTA_IIF,
 		      dplane_ctx_get_mroute_if_input(ctx));
-	nl_attr_put32(&req->n, (unsigned int)nl_buf_len, RTA_SRC,
-		      dplane_ctx_get_mroute_source(ctx)->ipaddr_v4.s_addr);
-	nl_attr_put32(&req->n, (unsigned int)nl_buf_len, RTA_DST,
-		      dplane_ctx_get_mroute_group(ctx)->ipaddr_v4.s_addr);
+	if (family == AF_INET) {
+		nl_attr_put32(
+			&req->n, (unsigned int)nl_buf_len, RTA_SRC,
+			dplane_ctx_get_mroute_source(ctx)->ipaddr_v4.s_addr);
+		nl_attr_put32(
+			&req->n, (unsigned int)nl_buf_len, RTA_DST,
+			dplane_ctx_get_mroute_group(ctx)->ipaddr_v4.s_addr);
+	} else {
+		nl_attr_put(&req->n, (unsigned int)nl_buf_len, RTA_SRC,
+			    &dplane_ctx_get_mroute_source(ctx)->ipaddr_v6,
+			    sizeof(struct in6_addr));
+		nl_attr_put(&req->n, (unsigned int)nl_buf_len, RTA_DST,
+			    &dplane_ctx_get_mroute_group(ctx)->ipaddr_v6,
+			    sizeof(struct in6_addr));
+	}
 	nl_attr_put32(&req->n, (unsigned int)nl_buf_len, RTA_TABLE,
 		      dplane_ctx_get_table(ctx));
 

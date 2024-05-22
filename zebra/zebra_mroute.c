@@ -145,10 +145,17 @@ void zmroute_event(ZAPI_HANDLER_ARGS)
 	STREAM_GETW(msg, family);
 	if (family == AF_INET) {
 		ipa.ipa_type = AF_INET;
-		STREAM_GETL(msg, ipa.ipaddr_v4.s_addr);
+		STREAM_GET(&ipa.ipaddr_v4, msg, sizeof(struct in_addr));
 		args.source = ipa;
 
-		STREAM_GETL(msg, ipa.ipaddr_v4.s_addr);
+		STREAM_GET(&ipa.ipaddr_v4, msg, sizeof(struct in_addr));
+		args.group = ipa;
+	} else {
+		ipa.ipa_type = AF_INET6;
+		STREAM_GET(&ipa.ipaddr_v6, msg, sizeof(struct in6_addr));
+		args.source = ipa;
+
+		STREAM_GET(&ipa.ipaddr_v6, msg, sizeof(struct in6_addr));
 		args.group = ipa;
 	}
 
@@ -174,10 +181,17 @@ void zmroute_event(ZAPI_HANDLER_ARGS)
 
 	STREAM_GETL(msg, args.spt_threshold);
 
-	STREAM_GETL(msg, ipa.ipaddr_v4.s_addr);
-	args.local = ipa;
-	STREAM_GETL(msg, ipa.ipaddr_v4.s_addr);
-	args.remote = ipa;
+	if (family == AF_INET) {
+		STREAM_GET(&ipa.ipaddr_v4, msg, sizeof(struct in_addr));
+		args.local = ipa;
+		STREAM_GET(&ipa.ipaddr_v4, msg, sizeof(struct in_addr));
+		args.remote = ipa;
+	} else {
+		STREAM_GET(&ipa.ipaddr_v6, msg, sizeof(struct in6_addr));
+		args.local = ipa;
+		STREAM_GET(&ipa.ipaddr_v6, msg, sizeof(struct in6_addr));
+		args.remote = ipa;
+	}
 
 	dplane_mroute_enqueue(&args);
 	mroute_oif_list_free_all(&args.oif_list);
