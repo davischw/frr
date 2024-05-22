@@ -145,8 +145,7 @@ void pimsb_igmp_leave(const struct pim_interface *pim_interface,
 void pimsb_igmp_join(const struct pim_interface *pim_interface);
 
 int pim_socket_get(void);
-int pimsb_socket_mcast(int protocol, struct in_addr ifaddr,
-		       struct interface *ifp, uint8_t loop);
+int pimsb_socket_bind(int fd, pim_addr address);
 
 void pimsb_init(struct zclient *zc);
 void pimsb_shutdown(void);
@@ -154,8 +153,17 @@ int pimsb_mroute_socket_enable(struct pim_instance *pim);
 
 void pimsb_socket_parse(const char *arg);
 
+#if PIM_IPV == 4
 void pimsb_msg_send_frame(const struct interface *ifp, const struct ip *ip,
 			  const void *msg, const size_t msglen);
+#else
+void pimsb_msg_send_frame(const pim_addr *src, const pim_addr *dst,
+			  const struct interface *ifp, struct iovec *iov);
+
+struct gm_if;
+int pimsb_send_query(const struct gm_if *gm_ifp, struct msghdr *msg,
+		     struct in6_pktinfo *ipi6, int proto);
+#endif
 
 void pimsb_show_state(struct vty *vty, struct pim_instance *pim,
 		      const char *src_grp, const char *grp, bool json_output);

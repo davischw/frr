@@ -201,6 +201,10 @@ pimd_pimd_SOURCES += \
   pimd/pim_southbound.c \
   # end
 
+pimd_pim6d_SOURCES += \
+  pimd/pim_southbound.c \
+  # end
+
 noinst_HEADERS += \
   pimd/pim_igmp_packet.h \
   pimd/pim_southbound.h \

@@ -32,7 +32,7 @@ struct static_route {
 
 	struct channel_oil c_oil;
 	ifindex_t iif;
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	unsigned char oif_ttls[MAXVIFS_VENDOR];
 #else
 	unsigned char oif_ttls[MAXVIFS];

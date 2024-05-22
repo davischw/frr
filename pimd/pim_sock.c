@@ -232,11 +232,6 @@ int pim_socket_mcast(int protocol, pim_addr ifaddr, struct interface *ifp,
 	int fd;
 	int ret;
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
-	if (pim_southbound_enabled)
-		return pimsb_socket_mcast(protocol, ifaddr, ifp, loop);
-#endif /* VENDOR_SOUTHBOUND */
-
 	fd = pim_socket_raw(protocol);
 	if (fd < 0) {
 		zlog_warn("Could not create multicast socket: errno=%d: %s",
@@ -244,10 +239,15 @@ int pim_socket_mcast(int protocol, pim_addr ifaddr, struct interface *ifp,
 		return PIM_SOCK_ERR_SOCKET;
 	}
 
-	/* XXX: if SO_BINDTODEVICE isn't available, use IP_PKTINFO / IP_RECVIF
-	 * to emulate behaviour?  Or change to only use 1 socket for all
-	 * interfaces? */
-	ret = pim_socket_bind(fd, ifp);
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled) {
+		ret = pimsb_socket_bind(fd, ifaddr);
+	} else
+#endif /* VENDOR_SOUTHBOUND */
+		/* XXX: if SO_BINDTODEVICE isn't available, use IP_PKTINFO /
+		 * IP_RECVIF to emulate behaviour?  Or change to only use 1
+		 * socket for all interfaces? */
+		ret = pim_socket_bind(fd, ifp);
 	if (ret) {
 		close(fd);
 		zlog_warn("Could not set fd: %d for interface: %s to device",

@@ -613,7 +613,7 @@ static void pim_rp_refresh_group_to_rp_mapping_thread(struct thread *t)
 			/* pim_upstream_reeval_use_rpt(pim); */
 			pim_upstream_update_use_rpt(up, true /*update_mroute*/);
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 			if (trp_info && IPV4_ADDR_CMP(&trp_info->rp.rpf_addr,
 						      &up->sb_register_to))
 				pim_upstream_mroute_add(up->channel_oil,

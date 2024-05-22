@@ -132,14 +132,26 @@ FRR_DAEMON_INFO(pim6d, PIM6,
 );
 /* clang-format on */
 
+#define OPTION_DPLANEADDR 2000
+
 int main(int argc, char **argv, char **envp)
 {
 	static struct option longopts[] = {
-		{},
+#ifdef VENDOR_SOUTHBOUND
+	{"dplaneaddr", required_argument, NULL, OPTION_DPLANEADDR},
+#endif /* VENDOR_SOUTHBOUND */
+	{0}
 	};
+#ifdef VENDOR_SOUTHBOUND
+	char dplane_addr[512];
+#endif /* VENDOR_SOUTHBOUND */
 
 	frr_preinit(&pim6d_di, argc, argv);
-	frr_opt_add("", longopts, "");
+	frr_opt_add(""
+#ifdef VENDOR_SOUTHBOUND
+		"      --dplaneaddr   Specify PIM data plane address\n"
+#endif /* VENDOR_SOUTHBOUND */
+			, longopts, "");
 
 	/* this while just reads the options */
 	while (1) {
@@ -151,6 +163,12 @@ int main(int argc, char **argv, char **envp)
 			break;
 
 		switch (opt) {
+#ifdef VENDOR_SOUTHBOUND
+		case OPTION_DPLANEADDR:
+			strlcpy(dplane_addr, optarg, sizeof(dplane_addr));
+			pim_southbound_enabled = true;
+			break;
+#endif /* VENDOR_SOUTHBOUND */
 		case 0:
 			break;
 		default:
@@ -194,6 +212,12 @@ int main(int argc, char **argv, char **envp)
 	routing_control_plane_protocols_register_vrf_dependency();
 
 	frr_config_fork();
+
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled)
+		pimsb_socket_parse(dplane_addr);
+#endif /* VENDOR_SOUTHBOUND */
+
 	frr_run(router->master);
 
 	/* never reached */

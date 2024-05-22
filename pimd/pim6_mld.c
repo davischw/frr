@@ -29,6 +29,7 @@
 #include <netinet/ip6.h>
 
 #include "lib/memory.h"
+#include "lib/network.h"
 #include "lib/jhash.h"
 #include "lib/prefix.h"
 #include "lib/checksum.h"
@@ -1420,8 +1421,12 @@ static void gm_handle_query(struct gm_if *gm_ifp,
 	/* accepting queries unicast to us (or addressed to a wrong group)
 	 * can mess up querier election as well as cause us to terminate
 	 * traffic (since after a unicast query no reports will be coming in)
+	 *
+	 * In southbound enabled FRR the vendor is responsible for filtering
+	 * incoming packets with wrong address.
 	 */
-	if (!IPV6_ADDR_SAME(pkt_dst, &gm_all_hosts)) {
+	if (!pim_southbound_enabled &&
+	    !IPV6_ADDR_SAME(pkt_dst, &gm_all_hosts)) {
 		if (pim_addr_is_any(hdr->grp)) {
 			zlog_warn(
 				log_pkt_src(
@@ -1511,9 +1516,8 @@ static void gm_handle_query(struct gm_if *gm_ifp,
 	}
 }
 
-static void gm_rx_process(struct gm_if *gm_ifp,
-			  const struct sockaddr_in6 *pkt_src, pim_addr *pkt_dst,
-			  void *data, size_t pktlen)
+void gm_rx_process(struct gm_if *gm_ifp, const struct sockaddr_in6 *pkt_src,
+		   pim_addr *pkt_dst, int proto, void *data, size_t pktlen)
 {
 	struct icmp6_plain_hdr *icmp6 = data;
 	uint16_t pkt_csum, ref_csum;
@@ -1521,7 +1525,7 @@ static void gm_rx_process(struct gm_if *gm_ifp,
 		.src = pkt_src->sin6_addr,
 		.dst = *pkt_dst,
 		.ulpl = htons(pktlen),
-		.next_hdr = IPPROTO_ICMPV6,
+		.next_hdr = proto,
 	};
 
 	pkt_csum = icmp6->icmp6_cksum;
@@ -1715,8 +1719,14 @@ static void gm_t_recv(struct thread *t)
 		goto out_free;
 	}
 
-	gm_rx_process(gm_ifp, pkt_src, &pktinfo->ipi6_addr, iov->iov_base,
-		      pktlen);
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled &&
+	    IN6_IS_ADDR_MULTICAST(&pktinfo->ipi6_addr))
+		goto out_free;
+#endif /* VENDOR_SOUTHBOUND */
+
+	gm_rx_process(gm_ifp, pkt_src, &pktinfo->ipi6_addr, IPPROTO_ICMPV6,
+		      iov->iov_base, pktlen);
 
 out_free:
 	if (iov->iov_base != rxbuf)
@@ -1752,7 +1762,11 @@ static void gm_send_query(struct gm_if *gm_ifp, pim_addr grp,
 	};
 	union {
 		char buf[CMSG_SPACE(8) /* hop options */ +
-			 CMSG_SPACE(sizeof(struct in6_pktinfo))];
+			 CMSG_SPACE(sizeof(struct in6_pktinfo))
+#ifdef VENDOR_SOUTHBOUND
+			 + CMSG_SPACE(sizeof(uint32_t))
+#endif /* VENDOR_SOUTHBOUND */
+		];
 		struct cmsghdr align;
 	} cmsg = {};
 	struct cmsghdr *cmh;
@@ -1767,9 +1781,12 @@ static void gm_send_query(struct gm_if *gm_ifp, pim_addr grp,
 		/* Linux is a bit odd with multicast on loopback */
 		ph6.src = in6addr_loopback;
 		dstaddr.sin6_addr = in6addr_loopback;
-	} else if (pim_addr_is_any(grp))
+	} else if (pim_addr_is_any(grp)) {
 		dstaddr.sin6_addr = gm_all_hosts;
-	else
+#ifdef VENDOR_SOUTHBOUND
+		ph6.next_hdr = MLD_QUERY_ENCAP_PROTO;
+#endif /* VENDOR_SOUTHBOUND */
+	} else
 		dstaddr.sin6_addr = grp;
 
 	query.v2_query.max_resp_code =
@@ -1841,7 +1858,13 @@ static void gm_send_query(struct gm_if *gm_ifp, pim_addr grp,
 		expect_ret += iov[2].iov_len;
 
 	frr_with_privs (&pimd_privs) {
-		ret = sendmsg(gm_ifp->pim->gm_socket, mh, 0);
+#ifdef VENDOR_SOUTHBOUND
+		if (pim_southbound_enabled)
+			ret = pimsb_send_query(gm_ifp, mh, pktinfo,
+					       ph6.next_hdr);
+		else
+#endif /* VENDOR_SOUTHBOUND */
+			ret = sendmsg(gm_ifp->pim->gm_socket, mh, 0);
 	}
 
 	if (ret != expect_ret) {
@@ -2106,6 +2129,11 @@ static void gm_start(struct interface *ifp)
 	gm_packet_expires_init(gm_ifp->expires);
 	gm_grp_pends_init(gm_ifp->grp_pends);
 	gm_gsq_pends_init(gm_ifp->gsq_pends);
+
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled)
+		return;
+#endif /* VENDOR_SOUTHBOUND */
 
 	frr_with_privs (&pimd_privs) {
 		struct ipv6_mreq mreq;

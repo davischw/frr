@@ -21,6 +21,7 @@
 #include "lib/zebra.h"
 
 #include <linux/mroute.h>
+#include <netinet/ip6.h>
 #include <sys/un.h>
 
 #include <err.h>
@@ -37,6 +38,7 @@
 #include "pimd/pimd.h"
 #include "pimd/pim_errors.h"
 #include "pimd/pim_iface.h"
+#include "pimd/pim_hello.h"
 #include "pimd/pim_igmp.h"
 #include "pimd/pim_igmp_packet.h"
 #include "pimd/pim_igmpv3.h"
@@ -49,8 +51,11 @@
 #include "pimd/pim_southbound.h"
 #include "pimd/pim_ssm.h"
 #include "pimd/pim_static.h"
+#include "pimd/pim_util.h"
 #include "pimd/pim_time.h"
 #include "pimd/pim_nht.h"
+#include "pimd/pim6_mld.h"
+#include "pimd/pim6_mld_protocol.h"
 
 /** Global variable to keep state of user implemented southbound. */
 bool pim_southbound_enabled;
@@ -58,9 +63,15 @@ bool pim_southbound_enabled;
 static struct zclient *zclient;
 static const pim_addr pim_addr_any = PIMADDR_ANY;
 
+#if PIM_IPV == 4
 /* IGMP global data. */
 static int igmp_fd = -1;
 static struct thread *igmp_read_ev;
+#else
+/* MLD global data. */
+static int mld_fds[3] = {-1, -1, -1};
+static struct thread *mld_read_evs[3];
+#endif
 
 /* PIM global data. */
 static int pim_fd = -1;
@@ -110,6 +121,10 @@ struct pimsb_ctx {
 	struct sockaddr_storage ss;
 	/** Address length. */
 	socklen_t sslen;
+	/** Packet read buffer */
+	char *pktbuf;
+	/** Packet read buffer size */
+	size_t pktbuflen;
 };
 
 static struct pimsb_ctx pimsb_ctx;
@@ -291,6 +306,7 @@ static void pimsb_debug_oil(struct channel_oil *oil)
 			continue;
 
 		ifp = pim_if_find_by_vif_index(oil->pim, index);
+#if PIM_IPV == 4
 		if (ifp == NULL)
 			snprintf(line, sizeof(line), "X(%d:X:ttl=%d),", index,
 				 oil->oil.mfcc_ttls[index]);
@@ -298,6 +314,13 @@ static void pimsb_debug_oil(struct channel_oil *oil)
 			snprintf(line, sizeof(line), "%s(%d,%d,ttl=%d),",
 				 ifp->name, index, ifp->ifindex,
 				 oil->oil.mfcc_ttls[index]);
+#else
+		if (ifp == NULL)
+			snprintf(line, sizeof(line), "X(%d:X),", index);
+		else
+			snprintf(line, sizeof(line), "%s(%d,%d),", ifp->name,
+				 index, ifp->ifindex);
+#endif
 		strlcat(buf, line, sizeof(buf));
 	}
 	zlog_debug("%s]", buf);
@@ -311,7 +334,7 @@ static void pimsb_debug_upstream(const struct pim_upstream *up)
 
 	snprintfrr(
 		buf, sizeof(buf),
-		"UP[up:%pI4 register:%pI4 sg:%s join:%d reg:%d spt:%d flags:",
+		"UP[up:%pPA register:%pPA sg:%s join:%d reg:%d spt:%d flags:",
 		&up->upstream_addr, &up->upstream_register, up->sg_str,
 		up->join_state, up->reg_state, up->sptbit);
 
@@ -586,33 +609,64 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 		oil->installed = 0;
 }
 
-static void pim_mroute_copy(struct mfcctl_vendor *oil,
-			    struct channel_oil *c_oil)
+static void pim_mroute_copy(
+#if PIM_IPV == 4
+	struct mfcctl_vendor *oil,
+#else
+	struct mf6cctl_vendor *oil,
+#endif
+	struct channel_oil *c_oil)
 {
 	int i;
 
+#if PIM_IPV == 4
 	oil->mfcc_origin = *oil_origin(c_oil);
 	oil->mfcc_mcastgrp = *oil_mcastgrp(c_oil);
 	oil->mfcc_parent = *oil_parent(c_oil);
+#else
+	oil->mf6cc_origin.sin6_addr = *oil_origin(c_oil);
+	oil->mf6cc_mcastgrp.sin6_addr = *oil_mcastgrp(c_oil);
+	oil->mf6cc_parent = *oil_parent(c_oil);
+#endif
 
 	for (i = 0; i < system_maxvifs(); ++i) {
 		if ((*oil_parent(c_oil) == i) &&
 		    !pim_mroute_allow_iif_in_oil(c_oil, i)) {
+#if PIM_IPV == 4
 			oil->mfcc_ttls[i] = 0;
+#else
+			IF_CLR(i, &oil->mf6cc_ifset);
+#endif
 			continue;
 		}
 
-		if (c_oil->oif_flags[i] & PIM_OIF_FLAG_MUTE)
+		if (c_oil->oif_flags[i] & PIM_OIF_FLAG_MUTE) {
+#if PIM_IPV == 4
 			oil->mfcc_ttls[i] = 0;
-		else
+#else
+			IF_CLR(i, &oil->mf6cc_ifset);
+#endif
+		} else {
+#if PIM_IPV == 4
 			oil->mfcc_ttls[i] = c_oil->oil.mfcc_ttls[i];
+#else
+			if (oil_if_has(c_oil, i))
+				IF_SET(i, &oil->mf6cc_ifset);
+			else
+				IF_CLR(i, &oil->mf6cc_ifset);
+#endif
+		}
 	}
 }
 
 int pimsb_mroute_add(struct channel_oil *c_oil, const char *name)
 {
 	struct pim_instance *pim = c_oil->pim;
+#if PIM_IPV == 4
 	struct mfcctl_vendor tmp_oil = {};
+#else
+	struct mf6cctl_vendor tmp_oil = {};
+#endif
 	int err = 0;
 
 	pim->mroute_add_last = pim_time_monotonic_sec();
@@ -675,6 +729,7 @@ int pimsb_mroute_del(struct channel_oil *c_oil, const char *name)
 	return 0;
 }
 
+#if PIM_IPV == 4
 /*
  * IGMP socket.
  */
@@ -810,6 +865,182 @@ static void pimsb_init_igmp(void)
 	igmp_fd = sock;
 	pimsb_igmp_add_read();
 }
+#else
+/*
+ * MLD socket.
+ */
+static void pimsb_mld_read(struct thread *t)
+{
+	struct pim_interface *pim_ifp;
+	struct interface *ifp;
+	struct vrf *vrf;
+	struct cmsghdr *cmsg;
+	ssize_t brecv;
+	int mld_fd = THREAD_FD(t);
+	int proto = 0;
+	uint32_t flowinfo;
+	struct iovec iov;
+	struct msghdr msg;
+	struct sockaddr_in6 src;
+	struct in6_pktinfo ipi6;
+	char cmsgbuf[
+		CMSG_SPACE(sizeof(struct in6_pktinfo)) +
+		CMSG_SPACE(sizeof(uint32_t))
+	];
+
+	if (mld_fds[0] == mld_fd) {
+		thread_add_read(router->master, pimsb_mld_read, NULL, mld_fd,
+				&mld_read_evs[0]);
+		proto = MLD_QUERY_ENCAP_PROTO;
+	} else if (mld_fds[1] == mld_fd) {
+		thread_add_read(router->master, pimsb_mld_read, NULL, mld_fd,
+				&mld_read_evs[1]);
+		proto = MLDV1_DONE_ENCAP_PROTO;
+	} else if (mld_fds[2] == mld_fd) {
+		thread_add_read(router->master, pimsb_mld_read, NULL, mld_fd,
+				&mld_read_evs[2]);
+		proto = MLD_REPORT_ENCAP_PROTO;
+	} else {
+		zlog_warn("%s: unhandled fd %d", __func__, mld_fd);
+		return;
+	}
+
+	iov.iov_base = pimsb_ctx.pktbuf;
+	iov.iov_len = pimsb_ctx.pktbuflen;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_name = &src;
+	msg.msg_namelen = sizeof(src);
+	msg.msg_control = cmsgbuf;
+	msg.msg_controllen = sizeof(cmsgbuf);
+
+	brecv = recvmsg(mld_fd, &msg, 0);
+	if (brecv == -1) {
+		zlog_warn("%s: recvmsg: %s", __func__, strerror(errno));
+		return;
+	}
+	if (brecv == 0) {
+		zlog_warn("%s: recvmsg: EOF", __func__);
+		return;
+	}
+
+	flowinfo = 0;
+	memset(&ipi6, 0, sizeof(ipi6));
+	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+		if (cmsg->cmsg_level != IPPROTO_IPV6)
+			continue;
+
+		switch (cmsg->cmsg_type) {
+		case IPV6_FLOWINFO:
+			memcpy(&flowinfo, CMSG_DATA(cmsg), sizeof(flowinfo));
+			flowinfo = ntohl(flowinfo) & 0x0FFFFF;
+			break;
+		case IPV6_PKTINFO:
+			memcpy(&ipi6, CMSG_DATA(cmsg), sizeof(ipi6));
+			break;
+		}
+	}
+
+	ifp = NULL;
+	RB_FOREACH (vrf, vrf_id_head, &vrfs_by_id) {
+		ifp = if_lookup_by_index(flowinfo, vrf->vrf_id);
+		if (ifp)
+			break;
+	}
+	if (ifp == NULL) {
+		if (PIM_DEBUG_GM_PACKETS)
+			zlog_debug("%s: could not find interface %d", __func__,
+				   flowinfo);
+		return;
+	}
+
+	pim_ifp = ifp->info;
+	if (pim_ifp == NULL || pim_ifp->mld == NULL) {
+		if (PIM_DEBUG_GM_PACKETS)
+			zlog_debug("%s: interface %s has MLD disabled",
+				   __func__, ifp->name);
+		return;
+	}
+
+	if ((size_t)brecv < sizeof(struct icmp6_plain_hdr)) {
+		if (PIM_DEBUG_GM_PACKETS)
+			zlog_debug(
+				"%s: %s: packet too small (%zd expected %zu)",
+				__func__, ifp->name, brecv,
+				sizeof(struct icmp6_plain_hdr));
+		return;
+	}
+
+	if (IN6_IS_ADDR_UNSPECIFIED(&src.sin6_addr)) {
+		/*
+		 * reports from :: happen in normal operation for DAD, so
+		 * don't spam log messages about this
+		 */
+		return;
+	}
+
+	if (!IN6_IS_ADDR_LINKLOCAL(&src.sin6_addr)) {
+		if (PIM_DEBUG_GM_PACKETS)
+			zlog_debug("%s: %s: invalid source %pI6", __func__,
+				   ifp->name, &src.sin6_addr);
+		return;
+	}
+
+	gm_rx_process(pim_ifp->mld, &src, &ipi6.ipi6_addr, proto,
+		      pimsb_ctx.pktbuf, brecv);
+}
+
+static int pimsb_mld_socket(int proto)
+{
+	int fd;
+	int on = 1;
+
+	frr_with_privs (&pimd_privs) {
+		fd = socket(AF_INET6, SOCK_RAW | SOCK_NONBLOCK, proto);
+		if (fd == -1) {
+			zlog_err("%s: socket: %s", __func__, strerror(errno));
+			close(fd);
+			return -1;
+		}
+
+		if (setsockopt(fd, IPPROTO_IPV6, IPV6_FLOWINFO, &on,
+			       sizeof(on)) == -1)
+			zlog_warn("%s: failed to request IPV6_FLOWINFO",
+				  __func__);
+		if (setsockopt(fd, IPPROTO_IPV6, IPV6_FLOWINFO_SEND, &on,
+			       sizeof(on)) == -1)
+			zlog_warn(
+				"%s: failed to request IPV6_FLOWINFO_SENDINFO",
+				__func__);
+		if (setsockopt(fd, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on,
+			       sizeof(on)) == -1)
+			zlog_warn("%s: setsockopt(IPV6_RECVPKTINFO): %s",
+				  __func__, strerror(errno));
+	}
+
+	setsockopt_so_sendbuf(fd, 1024 * 1024);
+	setsockopt_so_recvbuf(fd, 1024 * 1024);
+
+	return fd;
+}
+
+static void pimsb_init_mld(void)
+{
+	mld_fds[0] = pimsb_mld_socket(MLD_QUERY_ENCAP_PROTO);
+	thread_add_read(router->master, pimsb_mld_read, NULL, mld_fds[0],
+			&mld_read_evs[0]);
+
+	mld_fds[1] = pimsb_mld_socket(MLDV1_DONE_ENCAP_PROTO);
+	thread_add_read(router->master, pimsb_mld_read, NULL, mld_fds[1],
+			&mld_read_evs[1]);
+
+	mld_fds[2] = pimsb_mld_socket(MLD_REPORT_ENCAP_PROTO);
+	thread_add_read(router->master, pimsb_mld_read, NULL, mld_fds[2],
+			&mld_read_evs[2]);
+}
+#endif /* IPV == 6 */
 
 static void pimsb_client_read_cb(struct thread *t);
 static void pimsb_client_connect_cb(struct thread *t);
@@ -945,16 +1176,29 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 	}
 	pim_ifp = ifp ? ifp->info : NULL;
 	if (PIM_DEBUG_MROUTE)
+#if PIM_IPV == 4
 		zlog_debug(
 			"%s: DATA_START iif:%d(%s:%s) source:%pI4 group:%pI4",
 			__func__, input_index, ifp ? ifp->name : "unknown",
 			ifp ? (pim_ifp ? "enabled" : "disabled") : "disabled",
 			&me->source.v4, &me->group.v4);
+#else
+		zlog_debug(
+			"%s: DATA_START iif:%d(%s:%s) source:%pI6 group:%pI6",
+			__func__, input_index, ifp ? ifp->name : "unknown",
+			ifp ? (pim_ifp ? "enabled" : "disabled") : "disabled",
+			&me->source.v6, &me->group.v6);
+#endif
 	if (pim_ifp == NULL)
 		return;
 
+#if PIM_IPV == 4
 	sg_p.src = me->source.v4;
 	sg_p.grp = me->group.v4;
+#else
+	sg_p.src = me->source.v6;
+	sg_p.grp = me->group.v6;
+#endif
 
 	/* Handle simplest case first. */
 	if (pim_if_connected_to_source(ifp, sg_p.src)) {
@@ -1102,8 +1346,13 @@ static void pimsb_client_data_stop(const struct mroute_event *me)
 			   __func__, ntohl(me->iif_idx), &me->source.v4,
 			   &me->group.v4);
 
+#if PIM_IPV == 4
 	sg.src = me->source.v4;
 	sg.grp = me->group.v4;
+#else
+	sg.src = me->source.v6;
+	sg.grp = me->group.v6;
+#endif
 	up = pim_upstream_find(pim_ifp->pim, &sg);
 	if (up == NULL) {
 		if (PIM_DEBUG_MROUTE)
@@ -1132,9 +1381,17 @@ static void pimsb_client_wrong_if(const struct mroute_event *me)
 	int32_t input_index = ntohl(me->iif_idx);
 	kernmsg im = {};
 
+#if PIM_IPV == 4
 	im.im_msgtype = IGMPMSG_WRONGVIF;
 	im.im_src = me->source.v4;
 	im.im_dst = me->group.v4;
+	im.im_vif = input_index;
+#else
+	im.im6_msgtype = MRT6MSG_WRONGMIF;
+	im.im6_src = me->source.v6;
+	im.im6_dst = me->group.v6;
+	im.im6_mif = input_index;
+#endif
 
 	RB_FOREACH (vrf, vrf_id_head, &vrfs_by_id) {
 		ifp = if_lookup_by_index(input_index, vrf->vrf_id);
@@ -1143,11 +1400,20 @@ static void pimsb_client_wrong_if(const struct mroute_event *me)
 	}
 	pim_ifp = ifp ? ifp->info : NULL;
 	if (PIM_DEBUG_MROUTE)
-		zlog_debug("%s: WRONG_IF iif:%d(%s:%s) source:%pI4 group:%pI4",
-			   __func__, input_index, ifp ? ifp->name : "unknown",
-			   ifp ? (pim_ifp ? "enabled" : "disabled")
-			       : "disabled",
-			   &me->source.v4, &me->group.v4);
+		zlog_debug(
+#if PIM_IPV == 4
+			"%s: WRONG_IF iif:%d(%s:%s) source:%pI4 group:%pI4",
+#else
+			"%s: WRONG_IF iif:%d(%s:%s) source:%pI6 group:%pI6",
+#endif
+			__func__, input_index, ifp ? ifp->name : "unknown",
+			ifp ? (pim_ifp ? "enabled" : "disabled") : "disabled",
+#if PIM_IPV == 4
+			&me->source.v4, &me->group.v4
+#else
+			&me->source.v6, &me->group.v6
+#endif
+		);
 
 	if (pim_ifp)
 		pim_mroute_msg_wrongvif(pim_ifp->pim->mroute_socket, ifp, &im);
@@ -1179,8 +1445,13 @@ static void pimsb_client_spt_join(const struct mroute_event *me)
 	if (ifp == NULL || pim_ifp == NULL)
 		return;
 
+#if PIM_IPV == 4
 	sg_p.src = me->source.v4;
 	sg_p.grp = me->group.v4;
+#else
+	sg_p.src = me->source.v6;
+	sg_p.grp = me->group.v6;
+#endif
 	up = pim_upstream_add(pim_ifp->pim, &sg_p, NULL,
 			      PIM_UPSTREAM_FLAG_MASK_SRC_PIM, __func__, NULL);
 	if (!up)
@@ -1408,6 +1679,7 @@ static void pimsb_socket_init(const struct sockaddr_storage *ss,
 /*
  * PIM socket.
  */
+#if PIM_IPV == 4
 static void pimsb_pim_packet_read(int sock)
 {
 	enum ip_encap_packet_assemble_result erv;
@@ -1491,6 +1763,258 @@ static void pimsb_pim_packet_read(int sock)
 		pim_pim_packet(ifp, (uint8_t *)(size_t)packet, packet_length,
 			       addr);
 }
+#else
+static void pimsb_pim_packet_read(int pim_fd)
+{
+	uint8_t *pim_msg = (uint8_t *)pimsb_ctx.pktbuf;
+	struct prefix_list *nbr_plist = NULL;
+	struct pim_interface *pim_ifp;
+	struct pim_msg_header *header;
+	struct pim_neighbor *neigh;
+	struct interface *ifp;
+	struct cmsghdr *cmsg;
+	struct vrf *vrf;
+	uint32_t pim_msg_len = 0;
+	ssize_t brecv;
+	uint32_t flowinfo;
+	struct iovec iov;
+	struct msghdr msg;
+	struct sockaddr_in6 src;
+	struct in6_pktinfo ipi6;
+	struct prefix_ipv6 src_prefix;
+	char cmsgbuf[
+		CMSG_SPACE(sizeof(struct in6_pktinfo)) +
+		CMSG_SPACE(sizeof(uint32_t))
+	];
+
+	iov.iov_base = pimsb_ctx.pktbuf;
+	iov.iov_len = pimsb_ctx.pktbuflen;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_name = &src;
+	msg.msg_namelen = sizeof(src);
+	msg.msg_control = cmsgbuf;
+	msg.msg_controllen = sizeof(cmsgbuf);
+
+	brecv = recvmsg(pim_fd, &msg, 0);
+	if (brecv == -1) {
+		zlog_warn("%s: recvmsg: %s", __func__, strerror(errno));
+		return;
+	}
+	if (brecv == 0) {
+		zlog_warn("%s: recvmsg: EOF", __func__);
+		return;
+	}
+
+	flowinfo = 0;
+	memset(&ipi6, 0, sizeof(ipi6));
+	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+		if (cmsg->cmsg_level != IPPROTO_IPV6)
+			continue;
+
+		switch (cmsg->cmsg_type) {
+		case IPV6_FLOWINFO:
+			memcpy(&flowinfo, CMSG_DATA(cmsg), sizeof(flowinfo));
+			flowinfo = ntohl(flowinfo) & 0x0FFFFF;
+			break;
+		case IPV6_PKTINFO:
+			memcpy(&ipi6, CMSG_DATA(cmsg), sizeof(ipi6));
+			break;
+		}
+	}
+
+	ifp = NULL;
+	RB_FOREACH (vrf, vrf_id_head, &vrfs_by_id) {
+		ifp = if_lookup_by_index(flowinfo, vrf->vrf_id);
+		if (ifp)
+			break;
+	}
+	if (ifp == NULL) {
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug("%s: could not find interface %d", __func__,
+				   flowinfo);
+		return;
+	}
+
+	pim_ifp = ifp->info;
+	if (pim_ifp == NULL || !pim_ifp->pim_enable) {
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug("%s: interface %s has PIM disabled",
+				   __func__, ifp->name);
+		return;
+	}
+
+	if ((size_t)brecv < PIM_PIM_MIN_LEN) {
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug("%s: %s: packet too small (%zd expected %d)",
+				   __func__, ifp->name, brecv, PIM_PIM_MIN_LEN);
+		return;
+	}
+
+	pim_msg_len = (uint32_t)brecv;
+	header = (struct pim_msg_header *)iov.iov_base;
+	if (header->ver != PIM_PROTO_VERSION) {
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug(
+				"Ignoring PIM pkt from %s with unsupported version: %d",
+				ifp->name, header->ver);
+		return;
+	}
+
+	switch (header->type) {
+	case PIM_MSG_TYPE_HELLO:
+	case PIM_MSG_TYPE_JOIN_PRUNE:
+	case PIM_MSG_TYPE_ASSERT:
+		if (!pim_ifp->nbr_plist)
+			break;
+
+		nbr_plist = prefix_list_lookup(AFI_IP, pim_ifp->nbr_plist);
+
+		src_prefix.family = AF_INET6;
+		src_prefix.prefix = src.sin6_addr;
+		src_prefix.prefixlen = IPV6_MAX_BITLEN;
+		if (nbr_plist &&
+		    prefix_list_apply_ext(nbr_plist, NULL, &src_prefix, true) ==
+			    PREFIX_PERMIT)
+			break;
+
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug(
+				"neighbor filter rejects packet %pI6 -> %pI6 on %s",
+				&src.sin6_addr, &ipi6.ipi6_addr, ifp->name);
+		return;
+	}
+
+#if 0
+	/* Save received checksum */
+	pim_checksum = header->checksum;
+	header->checksum = 0;
+
+	if (header->type == PIM_MSG_TYPE_REGISTER) {
+		if (pim_msg_len < PIM_MSG_REGISTER_LEN) {
+			if (PIM_DEBUG_PIM_PACKETS)
+				zlog_debug("PIM Register Message size=%d shorter than min length %d",
+					   pim_msg_len, PIM_MSG_REGISTER_LEN);
+			return;
+		}
+
+#if PIM_IPV == 6
+		header.ulpl = htonl(PIM_MSG_REGISTER_LEN);
+#endif
+		/* First 8 byte header checksum */
+		iovp[-1].iov_len = PIM_MSG_REGISTER_LEN;
+		checksum = in_cksumv(iov, iovp - iov);
+
+		if (checksum != pim_checksum) {
+#if PIM_IPV == 6
+			header.ulpl = htonl(pim_msg_len);
+#endif
+			iovp[-1].iov_len = pim_msg_len;
+
+			checksum = in_cksumv(iov, iovp - iov);
+			if (checksum != pim_checksum) {
+				if (PIM_DEBUG_PIM_PACKETS)
+					zlog_debug(
+						"Ignoring PIM pkt from %s with invalid checksum: received=%x calculated=%x",
+						ifp->name, pim_checksum,
+						checksum);
+
+				return -1;
+			}
+		}
+	} else {
+		checksum = in_cksumv(iov, iovp - iov);
+		if (checksum != pim_checksum) {
+			if (PIM_DEBUG_PIM_PACKETS)
+				zlog_debug(
+					"Ignoring PIM pkt from %s with invalid checksum: received=%x calculated=%x",
+					ifp->name, pim_checksum, checksum);
+
+			return -1;
+		}
+	}
+#endif
+
+	if (PIM_DEBUG_PIM_PACKETS) {
+		zlog_debug(
+			"Recv PIM %s packet from %pPA to %pPA on %s: pim_version=%d pim_msg_size=%d checksum=%x",
+			pim_pim_msgtype2str(header->type), &src.sin6_addr,
+			&ipi6.ipi6_addr, ifp->name, header->ver, pim_msg_len,
+			header->checksum);
+		if (PIM_DEBUG_PIM_PACKETDUMP_RECV)
+			pim_pkt_dump(__func__, pim_msg, pim_msg_len);
+	}
+
+	if (if_address_is_local(&src.sin6_addr, AF_INET6, ifp->vrf->vrf_id)) {
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug("%s: incoming packet from myself", __func__);
+		return;
+	}
+
+	switch (header->type) {
+	case PIM_MSG_TYPE_HELLO:
+		pim_hello_recv(ifp, src.sin6_addr, pim_msg + PIM_MSG_HEADER_LEN,
+			       pim_msg_len - PIM_MSG_HEADER_LEN);
+		return;
+	case PIM_MSG_TYPE_REGISTER:
+		pim_register_recv(ifp, ipi6.ipi6_addr, src.sin6_addr,
+				  pim_msg + PIM_MSG_HEADER_LEN,
+				  pim_msg_len - PIM_MSG_HEADER_LEN);
+		return;
+	case PIM_MSG_TYPE_REG_STOP:
+		pim_register_stop_recv(ifp, pim_msg + PIM_MSG_HEADER_LEN,
+				       pim_msg_len - PIM_MSG_HEADER_LEN);
+		return;
+	case PIM_MSG_TYPE_JOIN_PRUNE:
+		neigh = pim_neighbor_find(ifp, src.sin6_addr);
+		if (!neigh) {
+			if (PIM_DEBUG_PIM_PACKETS)
+				zlog_debug(
+					"%s %s: non-hello PIM message type=%d from non-neighbor %pPA on %s",
+					__FILE__, __func__, header->type,
+					&src.sin6_addr, ifp->name);
+			return;
+		}
+		pim_neighbor_timer_reset(neigh, neigh->holdtime);
+		pim_joinprune_recv(ifp, neigh, src.sin6_addr,
+				   pim_msg + PIM_MSG_HEADER_LEN,
+				   pim_msg_len - PIM_MSG_HEADER_LEN);
+		return;
+	case PIM_MSG_TYPE_ASSERT:
+		neigh = pim_neighbor_find(ifp, src.sin6_addr);
+		if (!neigh) {
+			if (PIM_DEBUG_PIM_PACKETS)
+				zlog_debug(
+					"%s %s: non-hello PIM message type=%d from non-neighbor %pPA on %s",
+					__FILE__, __func__, header->type,
+					&src.sin6_addr, ifp->name);
+			return;
+		}
+		pim_neighbor_timer_reset(neigh, neigh->holdtime);
+		pim_assert_recv(ifp, neigh, src.sin6_addr,
+				pim_msg + PIM_MSG_HEADER_LEN,
+				pim_msg_len - PIM_MSG_HEADER_LEN);
+		return;
+	case PIM_MSG_TYPE_BOOTSTRAP:
+		pim_sgaddr sg = {
+			.src = src.sin6_addr,
+			.grp = ipi6.ipi6_addr,
+		};
+		pim_bsm_process(ifp, &sg, pim_msg, pim_msg_len, header->Nbit);
+		return;
+
+	default:
+		if (PIM_DEBUG_PIM_PACKETS) {
+			zlog_debug(
+				"Recv PIM packet type %d which is not currently understood",
+				header->type);
+		}
+		return;
+	}
+}
+#endif
 
 static void pimsb_pim_add_read(void);
 
@@ -1512,13 +2036,19 @@ static void pimsb_init_pim(void)
 	int on = 1;
 
 	frr_with_privs (&pimd_privs) {
+#if PIM_IPV == 4
 		sock = socket(AF_INET, SOCK_RAW | SOCK_NONBLOCK,
 			      PIM_IP_ENCAP_PIM);
+#else
+		sock = socket(AF_INET6, SOCK_RAW | SOCK_NONBLOCK,
+			      PIM_ENCAP_PROTO);
+#endif
 		if (sock == -1) {
 			zlog_err("%s: socket: %s", __func__, strerror(errno));
 			return;
 		}
 
+#if PIM_IPV == 4
 		/* Include IP header. */
 		if (setsockopt(sock, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) ==
 		    -1) {
@@ -1528,6 +2058,18 @@ static void pimsb_init_pim(void)
 			close(sock);
 			return;
 		}
+#endif
+
+#if PIM_IPV == 6
+		if (setsockopt(sock, IPPROTO_IPV6, IPV6_FLOWINFO, &on,
+		    sizeof(on)) == -1) {
+			flog_err(EC_LIB_SOCKET,
+				 "Can't set IPV6_FLOWINFO option for fd %d: %s",
+				 sock, safe_strerror(errno));
+			close(sock);
+			return;
+		}
+#endif
 	}
 
 	setsockopt_so_sendbuf(sock, 1024 * 1024);
@@ -1545,7 +2087,14 @@ void pimsb_init(struct zclient *zc)
 	/* Keep pointer to zebra client context. */
 	zclient = zc;
 
+	pimsb_ctx.pktbuflen = 65535;
+	pimsb_ctx.pktbuf = XMALLOC(MTYPE_TMP, pimsb_ctx.pktbuflen);
+
+#if PIM_IPV == 4
 	pimsb_init_igmp();
+#else
+	pimsb_init_mld();
+#endif
 	pimsb_init_pim();
 }
 
@@ -1559,15 +2108,26 @@ void pimsb_shutdown(void)
 	} else
 		pimsb_client_stop(&pimsb_ctx.client);
 
+#if PIM_IPV == 4
 	THREAD_OFF(igmp_read_ev);
 	close(igmp_fd);
 	igmp_fd = -1;
+#else
+	THREAD_OFF(mld_read_evs[0]);
+	THREAD_OFF(mld_read_evs[1]);
+	THREAD_OFF(mld_read_evs[2]);
+	close(mld_fds[0]);
+	close(mld_fds[1]);
+	close(mld_fds[2]);
+	memset(mld_fds, -1, sizeof(mld_fds));
+#endif
 
 	THREAD_OFF(pim_read_ev);
 	close(pim_fd);
 	pim_fd = -1;
 }
 
+#if PIM_IPV == 4
 ssize_t pimsb_igmp_sendto(const char *ifname, const void *data, size_t datalen,
 			  struct sockaddr *sa, socklen_t salen)
 {
@@ -1743,63 +2303,37 @@ void pimsb_igmp_leave(const struct pim_interface *pim_interface,
 
 	igmp_packet_list_free(packets);
 }
+#endif /* PIM_IPV == 4 */
 
-int pimsb_socket_mcast(int protocol, struct in_addr ifaddr,
-		       struct interface *ifp, uint8_t loop)
+int pimsb_socket_bind(int fd, pim_addr address)
 {
-	int blen = 1024 * 1024 * 8;
-	int opt = 1;
-	int fd;
-	long flags = 0;
+#if PIM_IPV == 4
 	struct sockaddr_in sin = {
 		.sin_family = AF_INET,
-		.sin_addr = ifaddr,
+		.sin_addr = address,
 	};
 
-	fd = pim_socket_raw(protocol);
-	if (fd < 0) {
-		zlog_warn("%s: Could not create multicast socket: errno=%d: %s",
-			  __func__, errno, safe_strerror(errno));
+	if (bind(fd, (struct sockaddr *)&sin, sizeof(sin)) == -1) {
+		zlog_warn("%s: bind(%pI4): %s", __func__, &address,
+			  safe_strerror(errno));
 		return -1;
 	}
 
-	if (bind(fd, (struct sockaddr *)&sin, sizeof(sin)) == -1)
-		zlog_warn("%s: bind(%pI4): %s", __func__, &ifaddr,
-			  safe_strerror(errno));
+	return 0;
+#else
+	struct sockaddr_in6 sin6 = {
+		.sin6_family = AF_INET6,
+		.sin6_addr = address,
+	};
 
-#if defined(HAVE_IP_PKTINFO)
-	/* Linux and Solaris IP_PKTINFO */
-	if (setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &opt, sizeof(opt)) == -1)
-		zlog_warn("%s: setsockopt(%d, IP_PKTINFO): %s", __func__, fd,
+	if (bind(fd, (struct sockaddr *)&sin6, sizeof(sin6)) == -1) {
+		zlog_warn("%s: bind(%pI6): %s", __func__, &address,
 			  safe_strerror(errno));
-#elif defined(HAVE_IP_RECVDSTADDR)
-	/* BSD IP_RECVDSTADDR */
-	if (setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, &opt, sizeof(opt)) == -1)
-		zlog_warn("%s: setsockopt(%d, IP_RECVDSTADDR): %s", __func__,
-			  fd, safe_strerror(errno));
+		return -1;
+	}
+
+	return 0;
 #endif
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
-		zlog_warn("%s: setsockopt(%d, SO_REUSEADDR): %s", __func__, fd,
-			  safe_strerror(errno));
-
-	if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &blen, sizeof(blen)) == -1)
-		zlog_warn("%s: setsockopt(%d, SO_RCVBUF, %d): %s", __func__, fd,
-			  blen, safe_strerror(errno));
-
-	flags = fcntl(fd, F_GETFL, 0);
-	if (flags != -1) {
-		if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
-			zlog_warn("%s: fcntl(%d, F_SETFL,O_NONBLOCK): %s",
-				  __func__, fd, safe_strerror(errno));
-	} else
-		zlog_warn("%s: fcntl(%d, F_GETFL,O_NONBLOCK): %s", __func__, fd,
-			  safe_strerror(errno));
-
-	if (setsockopt_ipv4_tos(fd, IPTOS_PREC_INTERNETCONTROL))
-		zlog_warn("%s: setsockopt(%d, IPTOS_PREC_INTERNETCONTROL): %s",
-			  __func__, fd, safe_strerror(errno));
-
-	return fd;
 }
 
 int pim_socket_get(void)
@@ -1809,7 +2343,9 @@ int pim_socket_get(void)
 
 int pimsb_mroute_socket_enable(struct pim_instance *pim)
 {
+#if PIM_IPV == 4
 	pim->mroute_socket = igmp_fd;
+#endif
 	pim->mroute_socket_creation = pim_time_monotonic_sec();
 	return 0;
 }
@@ -1823,14 +2359,17 @@ void pimsb_socket_parse(const char *arg)
 		return;
 	}
 
+#if PIM_IPV == 4
 	/* Initialize IP handler. */
 	ip_fragmentation_handler_init(router->master);
+#endif
 
 	/* Initialize BFD data plane listening socket. */
 	pimsb_socket_init(&address.address, (socklen_t)address.address_size,
 			  !address.listen);
 }
 
+#if PIM_IPV == 4
 void pimsb_msg_send_frame(const struct interface *ifp, const struct ip *ip,
 			  const void *msg, const size_t msglen)
 {
@@ -1848,6 +2387,95 @@ void pimsb_msg_send_frame(const struct interface *ifp, const struct ip *ip,
 
 	ipv4_output(&params, msg, msglen);
 }
+#else
+void pimsb_msg_send_frame(const pim_addr *src, const pim_addr *dst,
+			  const struct interface *ifp, struct iovec *iov)
+{
+	struct cmsghdr *cmsg;
+	ssize_t bytes;
+	struct msghdr msg;
+	struct sockaddr_in6 dest;
+	char cmsgbuf[CMSG_SPACE(sizeof(uint32_t))];
+
+	memset(&dest, 0, sizeof(dest));
+	dest.sin6_family = AF_INET6;
+#ifdef SIN6_LEN
+	dest.sin6_len = sizeof(struct sockaddr_in6);
+#endif /*SIN6_LEN*/
+	dest.sin6_addr = *dst;
+	if (ifp->vif_index)
+		dest.sin6_scope_id = ifp->vif_index;
+	else
+		dest.sin6_scope_id = ifp->ifindex;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name = &dest;
+	msg.msg_namelen = sizeof(dest);
+	msg.msg_iov = iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = cmsgbuf;
+	msg.msg_controllen = sizeof(cmsgbuf);
+
+	cmsg = (struct cmsghdr *)cmsgbuf;
+	cmsg->cmsg_level = IPPROTO_IPV6;
+	cmsg->cmsg_type = IPV6_FLOWINFO;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(uint32_t));
+	memcpy(CMSG_DATA(cmsg), &ifp->ifindex, sizeof(uint32_t));
+
+	bytes = sendmsg(pim_fd, &msg, 0);
+	if (bytes == -1)
+		zlog_warn("%s: sendmsg: (%d) %s", __func__, errno,
+			  strerror(errno));
+}
+
+int pimsb_send_query(const struct gm_if *gm_ifp, struct msghdr *msg,
+		     struct in6_pktinfo *ipi6, int proto)
+{
+	const struct interface *ifp = gm_ifp->ifp;
+	struct cmsghdr *cmsg = CMSG_FIRSTHDR(msg);
+	struct sockaddr_in6 *dst;
+	int mld_fd;
+	int32_t ifindex;
+	int32_t vifindex;
+
+	/* Select the output protocol. */
+	switch (proto) {
+	case MLD_QUERY_ENCAP_PROTO:
+		mld_fd = mld_fds[0];
+		break;
+
+	default:
+		if (PIM_DEBUG_GM_PACKETS)
+			zlog_debug("%s: unhandled protocol %d", __func__,
+				   proto);
+		/* FALL THROUGH */
+
+	case IPPROTO_ICMPV6:
+		mld_fd = gm_ifp->pim->gm_socket;
+		break;
+	}
+
+	ifindex = htonl(ifp->ifindex);
+	vifindex = ifp->vif_index ? ifp->vif_index : ifp->ifindex;
+
+	/* Configure virtual interface to output packet. */
+	dst = (struct sockaddr_in6 *)msg->msg_name;
+	dst->sin6_scope_id = vifindex;
+	ipi6->ipi6_ifindex = vifindex;
+
+	/* Skip IPV6_HOPOPTS */
+	cmsg = CMSG_NXTHDR(msg, cmsg);
+	/* Skip IPV6_PKTINFO */
+	cmsg = CMSG_NXTHDR(msg, cmsg);
+	/* Configure flow with real interface id. */
+	cmsg->cmsg_level = IPPROTO_IPV6;
+	cmsg->cmsg_type = IPV6_FLOWINFO;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(uint32_t));
+	memcpy(CMSG_DATA(cmsg), &ifindex, sizeof(uint32_t));
+
+	return sendmsg(mld_fd, msg, 0);
+}
+#endif /* PIM_IPV == 6 */
 
 static void pimsb_mrt_iif(struct pim_instance *pim, const pim_addr *group,
 			  vifi_t input, char *ifname_out, size_t ifname_len)
@@ -2312,8 +2940,10 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 			json_object_string_add(json_ifp_out,
 					       "outboundInterface", out_ifname);
 			json_object_int_add(json_ifp_out, "oVifI", oif_idx);
+#if PIM_IPV == 4
 			json_object_int_add(json_ifp_out, "ttl",
 					    oil->oil.mfcc_ttls[oif_idx]);
+#endif
 			pim_time_uptime(mroute_uptime, sizeof(mroute_uptime),
 					now - oil->oif_creation[oif_idx]);
 			json_object_string_add(json_ifp_out, "upTime",
@@ -2392,8 +3022,13 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 						     "protocolStatic");
 			json_object_string_add(json_ifp_out, "inboundInterface",
 					       in_ifname);
+#if PIM_IPV == 4
 			json_object_int_add(json_ifp_out, "iVifI",
 					    s_route->c_oil.oil.mfcc_parent);
+#else
+			json_object_int_add(json_ifp_out, "iVifI",
+					    s_route->c_oil.oil.mf6cc_parent);
+#endif
 			json_object_string_add(json_ifp_out,
 					       "outboundInterface", out_ifname);
 			json_object_int_add(json_ifp_out, "oVifI", oif_idx);
@@ -2448,8 +3083,13 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 	vty_out(vty, "Flags: S - Sparse, C - Connected, P - Pruned, M - SSM\n");
 	vty_out(vty,
 		"       R - SGRpt Pruned, F - Register flag, T - SPT-bit set\n");
+#if PIM_IPV == 4
 	vty_out(vty,
 		"\nSource          Group           Flags    Proto  Input            Output           TTL  Uptime\n");
+#else
+	vty_out(vty,
+		"\nSource          Group           Flags    Proto  Input            Output           Uptime\n");
+#endif
 
 	now = pim_time_monotonic_sec();
 
@@ -2550,11 +3190,17 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 				strlcpy(proto, "STAR", sizeof(proto));
 			}
 
+#if PIM_IPV == 4
 			vty_out(vty,
 				"%-15s %-15s %-8s %-6s %-16s %-16s %-3d  %8s\n",
 				src_str, grp_str, state_str, proto, in_ifname,
 				out_ifname, oil->oil.mfcc_ttls[oif_idx],
 				mroute_uptime);
+#else
+			vty_out(vty, "%-15s %-15s %-8s %-6s %-16s %-16s %8s\n",
+				src_str, grp_str, state_str, proto, in_ifname,
+				out_ifname, mroute_uptime);
+#endif
 
 			if (first) {
 				src_str[0] = '\0';

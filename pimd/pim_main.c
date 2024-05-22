@@ -57,7 +57,7 @@ extern struct host host;
 #define OPTION_DPLANEADDR 2000
 
 struct option longopts[] = {
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	{"dplaneaddr", required_argument, NULL, OPTION_DPLANEADDR},
 #endif /* VENDOR_SOUTHBOUND */
 	{0}};
@@ -108,14 +108,14 @@ FRR_DAEMON_INFO(pimd, PIM, .vty_port = PIMD_VTY_PORT,
 
 int main(int argc, char **argv, char **envp)
 {
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	char dplane_addr[512];
 #endif /* VENDOR_SOUTHBOUND */
 
 	frr_preinit(&pimd_di, argc, argv);
 	frr_opt_add(
 		""
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 		"      --dplaneaddr   Specify PIM data plane address\n"
 #endif /* VENDOR_SOUTHBOUND */
 		,
@@ -131,7 +131,7 @@ int main(int argc, char **argv, char **envp)
 			break;
 
 		switch (opt) {
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 		case OPTION_DPLANEADDR:
 			strlcpy(dplane_addr, optarg, sizeof(dplane_addr));
 			pim_southbound_enabled = true;
@@ -202,7 +202,7 @@ int main(int argc, char **argv, char **envp)
 		"PIM_UNEXPECTED_KERNEL_UPCALL: report unexpected kernel upcall");
 #endif
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		pimsb_socket_parse(dplane_addr);
 #endif /* VENDOR_SOUTHBOUND */

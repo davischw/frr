@@ -354,6 +354,10 @@ struct gm_if {
 extern void gm_ifp_update(struct interface *ifp);
 extern void gm_ifp_teardown(struct interface *ifp);
 extern void gm_group_delete(struct gm_if *gm_ifp);
+
+extern void gm_rx_process(struct gm_if *gm_ifp,
+			  const struct sockaddr_in6 *pkt_src, pim_addr *pkt_dst,
+			  int proto, void *data, size_t pktlen);
 #else
 static inline void gm_ifp_update(struct interface *ifp)
 {

@@ -473,7 +473,7 @@ static void pim_zebra_capabilities(struct zclient_capabilities *cap)
 	router->multipath = cap->ecmp;
 }
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 static int pim_zebra_fpm_sync(ZAPI_CALLBACK_ARGS)
 {
 	struct pim_instance *pim;
@@ -511,7 +511,7 @@ static zclient_handler *const pim_handlers[] = {
 	[ZEBRA_MLAG_FORWARD_MSG] = pim_zebra_mlag_handle_msg,
 #endif
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	[ZEBRA_PIM_FPM_SYNC] = pim_zebra_fpm_sync,
 #endif /* VENDOR_SOUTHBOUND */
 };
@@ -534,7 +534,7 @@ void pim_zebra_init(void)
 
 	pim_nht_init();
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		pimsb_init(zclient);
 #endif /* VENDOR_SOUTHBOUND */

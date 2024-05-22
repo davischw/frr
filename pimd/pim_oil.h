@@ -53,7 +53,7 @@ struct pim_interface;
  * fix it.
  */
 #define PIM_OIF_PIM_REGISTER_VIF   0
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 #define PIM_MAX_USABLE_VIFS (system_maxvifs() - 1)
 #else
 #define PIM_MAX_USABLE_VIFS        (MAXVIFS - 1)
@@ -124,7 +124,7 @@ struct channel_oil {
 	struct rb_pim_oil_item oil_rb;
 
 #if PIM_IPV == 4
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	union {
 		struct mfcctl_vendor oil;
 		struct mfcctl oil_generic;
@@ -133,7 +133,14 @@ struct channel_oil {
 	struct mfcctl oil;
 #endif /* VENDOR_SOUTHBOUND */
 #else
+#ifdef VENDOR_SOUTHBOUND
+	union {
+		struct mf6cctl_vendor oil;
+		struct mf6cctl oil_generic;
+	};
+#else
 	struct mf6cctl oil;
+#endif /* VENDOR_SOUTHBOUND */
 #endif
 
 	bool installed : 1;
@@ -146,7 +153,7 @@ struct channel_oil {
 
 	int oil_size;
 	int oil_ref_count;
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	time_t oif_creation[MAXVIFS_VENDOR];
 	uint32_t oif_flags[MAXVIFS_VENDOR];
 #else
@@ -199,7 +206,7 @@ static inline void oil_if_set(struct channel_oil *c_oil, vifi_t ifi, uint8_t set
 	c_oil->oil.mfcc_ttls[ifi] = set;
 }
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 static inline int oil_if_cmp(struct mfcctl_vendor *oil1,
 			     struct mfcctl_vendor *oil2)
 #else
@@ -239,7 +246,12 @@ static inline void oil_if_set(struct channel_oil *c_oil, mifi_t ifi,
 		IF_CLR(ifi, &c_oil->oil.mf6cc_ifset);
 }
 
+#ifdef VENDOR_SOUTHBOUND
+static inline int oil_if_cmp(struct mf6cctl_vendor *oil1,
+			     struct mf6cctl_vendor *oil2)
+#else
 static inline int oil_if_cmp(struct mf6cctl *oil1, struct mf6cctl *oil2)
+#endif /* VENDOR_SOUTHBOUND */
 {
 	return memcmp(&oil1->mf6cc_ifset, &oil2->mf6cc_ifset,
 		      sizeof(oil1->mf6cc_ifset));

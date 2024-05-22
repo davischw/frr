@@ -46,7 +46,7 @@
 
 static void on_pim_hello_send(struct thread *t);
 
-static const char *pim_pim_msgtype2str(enum pim_msg_type type)
+const char *pim_pim_msgtype2str(enum pim_msg_type type)
 {
 	switch (type) {
 	case PIM_MSG_TYPE_HELLO:
@@ -436,7 +436,7 @@ static void pim_sock_read(struct thread *t)
 			goto done;
 		}
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 		if (pim_southbound_enabled) {
 #if PIM_IPV == 4
 			const struct sockaddr_in *sin_from =
@@ -547,7 +547,7 @@ static int pim_sock_open(struct interface *ifp)
 	if (fd < 0)
 		return -1;
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (!pim_southbound_enabled)
 #endif /* VENDOR_SOUTHBOUND */
 		if (pim_socket_join(fd, qpim_all_pim_routers_addr,
@@ -823,7 +823,7 @@ int pim_msg_send(int fd, pim_addr src, pim_addr dst, uint8_t *pim_msg,
 		pim_pkt_dump(__func__, pim_msg, pim_msg_size);
 	}
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		pimsb_msg_send_frame(ifp, ip, pim_msg, pim_msg_size);
 	else
@@ -838,7 +838,12 @@ int pim_msg_send(int fd, pim_addr src, pim_addr dst, uint8_t *pim_msg,
 	iovector[0].iov_base = pim_msg;
 	iovector[0].iov_len = pim_msg_size;
 
-	pim_msg_send_frame(src, dst, ifp->ifindex, &iovector[0], fd);
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled)
+		pimsb_msg_send_frame(&src, &dst, ifp, iovector);
+	else
+#endif /* VENDOR_SOUTHBOUND */
+		pim_msg_send_frame(src, dst, ifp->ifindex, &iovector[0], fd);
 
 	return 0;
 #endif
@@ -1066,7 +1071,7 @@ int pim_sock_add(struct interface *ifp)
 		return -1;
 	}
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		pim_ifp->pim_sock_fd = pim_socket_get();
 	else
@@ -1103,7 +1108,7 @@ int pim_sock_add(struct interface *ifp)
 	/*
 	 * Start receiving PIM messages
 	 */
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (!pim_southbound_enabled)
 #endif /* VENDOR_SOUTHBOUND */
 		pim_sock_read_on(ifp);

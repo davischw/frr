@@ -193,7 +193,7 @@ struct pim_instance {
 	struct route_table *fb_rp_table;
 	struct thread *t_refresh_group_to_rp;
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	int iface_vif_index[MAXVIFS_VENDOR];
 #else
 	int iface_vif_index[MAXVIFS];

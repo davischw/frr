@@ -117,10 +117,14 @@ bool pim_filter_match(const struct pim_filter_ref *ref,
 		      const struct prefix_sg *sg, struct interface *generic_ifp,
 		      struct interface *iif)
 {
+#if PIM_IPV == 4
 	if (sg->grp.s_addr && !pim_is_group_224_4(sg->grp))
 		return false;
 	if (sg->src.s_addr && IPV4_CLASS_DE(ntohl(sg->src.s_addr)))
 		return false;
+#else
+	return true;
+#endif
 
 	if (ref->alistname) {
 		enum filter_type result;

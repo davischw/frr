@@ -144,10 +144,13 @@ typedef struct sioc_sg_req6 pim_sioc_sg_req;
 #define MAXVIFS IF_SETSIZE
 #endif
 
+#ifndef VIFF_REGISTER
 #define VIFF_REGISTER MIFF_REGISTER
 #endif
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#endif
+
+#ifdef VENDOR_SOUTHBOUND
 #include "pimd/pim_southbound.h"
 
 #define MAXVIFS_VENDOR (4096)
@@ -160,6 +163,7 @@ static inline int system_maxvifs(void)
 	return MAXVIFS;
 }
 
+#if PIM_IPV == 4
 struct mfcctl_vendor {
 	struct in_addr mfcc_origin;		 /* Origin of mcast      */
 	struct in_addr mfcc_mcastgrp;		 /* Group in question    */
@@ -170,6 +174,17 @@ struct mfcctl_vendor {
 	unsigned int mfcc_wrong_if;
 	int mfcc_expire;
 };
+#else
+struct mf6cctl_vendor {
+	struct sockaddr_in6 mf6cc_origin;		/* Origin of mcast	*/
+	struct sockaddr_in6 mf6cc_mcastgrp;		/* Group in question	*/
+	mifi_t	mf6cc_parent;			/* Where it arrived	*/
+	struct {
+		if_mask ifs_bits[(MAXVIFS_VENDOR + NIFBITS - 1) / NIFBITS];
+	} mf6cc_ifset;				/* Where it is going */
+};
+#endif /* PIM_IPV */
+
 #else
 #define MAXVIFS_VENDOR (MAXVIFS)
 

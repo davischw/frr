@@ -159,7 +159,7 @@ void pim_terminate(void)
 
 	bfd_protocol_integration_set_shutdown(true);
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		pimsb_shutdown();
 #endif /* VENDOR_SOUTHBOUND */

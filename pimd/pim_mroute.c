@@ -252,7 +252,7 @@ int pim_mroute_msg_nocache(int fd, struct interface *ifp, const kernmsg *msg)
 			   __func__, up->sg_str);
 	}
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		up->flags |= PIM_UPSTREAM_FLAG_MASK_DATA_START;
 #endif /* VENDOR_SOUTHBOUND */
@@ -624,9 +624,9 @@ int pim_mroute_msg_wrvifwhole(int fd, struct interface *ifp, const char *buf,
 			return -2;
 		}
 		PIM_UPSTREAM_FLAG_SET_SRC_STREAM(up->flags);
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
-	if (pim_southbound_enabled)
-		up->flags |= PIM_UPSTREAM_FLAG_MASK_DATA_START;
+#ifdef VENDOR_SOUTHBOUND
+		if (pim_southbound_enabled)
+			up->flags |= PIM_UPSTREAM_FLAG_MASK_DATA_START;
 #endif /* VENDOR_SOUTHBOUND */
 		pim_upstream_keep_alive_timer_start(
 			up, pim_ifp->pim->keep_alive_time);
@@ -734,7 +734,7 @@ int pim_mroute_msg(struct pim_instance *pim, const char *buf, size_t buf_size,
 #endif
 		msg = (const kernmsg *)buf;
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 		if (pim_southbound_enabled)
 			ifp = pim_if_find_by_vif_index(pim, ifindex);
 		else
@@ -842,7 +842,7 @@ int pim_mroute_socket_enable(struct pim_instance *pim)
 {
 	int fd;
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		return pimsb_mroute_socket_enable(pim);
 #endif /* VENDOR_SOUTHBOUND */
@@ -914,6 +914,11 @@ int pim_mroute_socket_enable(struct pim_instance *pim)
 
 int pim_mroute_socket_disable(struct pim_instance *pim)
 {
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled)
+		return 0;
+#endif /* VENDOR_SOUTHBOUND */
+
 	if (pim_mroute_set(pim, 0)) {
 		zlog_warn(
 			"Could not disable mroute on socket fd=%d: errno=%d: %s",
@@ -950,7 +955,7 @@ int pim_mroute_add_vif(struct interface *ifp, pim_addr ifaddr,
 			   pim_ifp->mroute_vif_index, ifp->name,
 			   pim_ifp->pim->vrf->name);
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		return 0;
 #endif /* VENDOR_SOUTHBOUND */
@@ -1009,7 +1014,7 @@ int pim_mroute_del_vif(struct interface *ifp)
 			   pim_ifp->mroute_vif_index, ifp->name,
 			   pim_ifp->pim->vrf->name);
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		return 0;
 #endif /* VENDOR_SOUTHBOUND */
@@ -1102,7 +1107,7 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 	struct channel_oil tmp_oil[1] = { };
 	int err;
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		return pimsb_mroute_add(c_oil, name);
 #endif /* VENDOR_SOUTHBOUND */
@@ -1140,7 +1145,7 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 		*oil_parent(tmp_oil) = 0;
 	}
 	/* For IPv6 MRT_ADD_MFC is defined to MRT6_ADD_MFC */
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	err = setsockopt(pim->mroute_socket, PIM_IPPROTO, MRT_ADD_MFC,
 			 &tmp_oil->oil, sizeof(tmp_oil->oil_generic));
 #else
@@ -1157,7 +1162,7 @@ static int pim_mroute_add(struct channel_oil *c_oil, const char *name)
 	    && !pim_addr_is_any(*oil_origin(c_oil))
 	    && *oil_parent(c_oil) != 0) {
 		*oil_parent(tmp_oil) = *oil_parent(c_oil);
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 		err = setsockopt(pim->mroute_socket, PIM_IPPROTO, MRT_ADD_MFC,
 				 &tmp_oil->oil, sizeof(tmp_oil->oil_generic));
 #else
@@ -1299,7 +1304,7 @@ int pim_upstream_mroute_add(struct channel_oil *c_oil, const char *name)
 		*oil_parent(c_oil) = iif;
 	}
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		pimsb_set_input_interface(c_oil);
 #endif /* VENDOR_SOUTHBOUND */
@@ -1339,7 +1344,7 @@ int pim_upstream_mroute_iif_update(struct channel_oil *c_oil, const char *name)
 				pim_channel_oil_dump(c_oil, buf,
 					sizeof(buf)), iif);
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		pimsb_set_input_interface(c_oil);
 #endif /* VENDOR_SOUTHBOUND */
@@ -1417,12 +1422,12 @@ int pim_mroute_del(struct channel_oil *c_oil, const char *name)
 		return -2;
 	}
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		return pimsb_mroute_del(c_oil, name);
 #endif /* VENDOR_SOUTHBOUND */
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	err = setsockopt(pim->mroute_socket, PIM_IPPROTO, MRT_DEL_MFC,
 			 &c_oil->oil, sizeof(c_oil->oil_generic));
 #else
@@ -1486,7 +1491,7 @@ void pim_mroute_update_counters(struct channel_oil *c_oil)
 	sgreq.grp = c_oil->oil.mf6cc_mcastgrp;
 #endif
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (!pim_southbound_enabled)
 #endif /* VENDOR_SOUTHBOUND */
 		if (ioctl(pim->mroute_socket, PIM_SIOCGETSGCNT, &sgreq)) {
