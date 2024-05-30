@@ -136,7 +136,10 @@ void pim_sock_delete(struct interface *ifp, const char *delete_message)
 
 	pim_neighbor_delete_all(ifp, delete_message);
 
-	sock_close(ifp);
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled == false)
+#endif /* VENDOR_SOUTHBOUND */
+		sock_close(ifp);
 }
 
 /* For now check dst address for hello, assrt and join/prune is all pim rtr */
