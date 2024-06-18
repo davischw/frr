@@ -417,7 +417,7 @@ static int netlink_msg_ctx_add_nh(struct netlink_msg_ctx *ctx, int if_index,
 static int parse_multipath_attr(struct netlink_msg_ctx *ctx,
 				struct rtattr *mpath_rtattr)
 {
-	int len;
+	long len;
 	struct rtnexthop *rtnh;
 	struct rtattr *rtattrs[RTA_MAX + 1];
 	struct rtattr *tb[RTA_MAX + 1];
@@ -432,7 +432,7 @@ static int parse_multipath_attr(struct netlink_msg_ctx *ctx,
 		uint32_t vxlan_vni;
 		uint16_t encap_type;
 
-		if (!RTNH_OK(rtnh, (long)len)) {
+		if (!RTNH_OK(rtnh, len)) {
 			netlink_msg_ctx_set_err(ctx, "Malformed nh");
 			return 0;
 		}
