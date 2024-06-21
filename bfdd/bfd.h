@@ -273,6 +273,9 @@ struct bfd_session {
 	/** Daemon that originated this. */
 	uint32_t origin_daemon;
 
+	/** Registered daemons. */
+	uint64_t registered_daemons;
+
 	/** BFD profile name. */
 	char *profile_name;
 	/** BFD pre configured profile. */

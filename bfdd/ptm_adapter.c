@@ -503,7 +503,14 @@ static void bfdd_dest_register(struct stream *msg, vrf_id_t vrf_id)
 		/*
 		 * BFD session was already created, we are just updating the
 		 * current peer.
-		 *
+		 */
+
+		/* Update registered daemons in BFD session. */
+		if (bpc.bpc_origin_daemon)
+			SET_FLAG(bs->registered_daemons,
+				 (1 << bpc.bpc_origin_daemon));
+
+		/*
 		 * `ptm-bfd` (or `HAVE_BFDD == 0`) is the only implementation
 		 * that allow users to set peer specific timers via protocol.
 		 * BFD daemon (this code) on the other hand only supports
@@ -540,6 +547,11 @@ static void bfdd_dest_deregister(struct stream *msg, vrf_id_t vrf_id)
 			zlog_debug("ptm-del-dest: failed to find BFD session");
 		return;
 	}
+
+	/* Unregister daemon in BFD session. */
+	if (bpc.bpc_origin_daemon)
+		UNSET_FLAG(bs->registered_daemons,
+			   (1 << bpc.bpc_origin_daemon));
 
 	/* Unregister client peer notification. */
 	pcn = pcn_lookup(pc, bs);

@@ -68,6 +68,8 @@ static void _display_peer_counter_json_iter(struct hash_bucket *hb, void *arg);
 static void _display_peers_counter(struct vty *vty, char *vrfname, bool use_json);
 static void _display_rtt(uint32_t *min, uint32_t *avg, uint32_t *max,
 			 struct bfd_session *bs);
+static struct json_object *_display_peer_registered_daemons_json(
+		struct bfd_session *bs);
 
 static struct bfd_session *
 _find_peer_or_error(struct vty *vty, int argc, struct cmd_token **argv,
@@ -291,6 +293,9 @@ static struct json_object *__display_peer_json(struct bfd_session *bs)
 	json_object_int_add(jo, "rtt-avg", avg);
 	json_object_int_add(jo, "rtt-max", max);
 
+	json_object_object_add(jo, "registeredDaemons",
+			       _display_peer_registered_daemons_json(bs));
+
 	return jo;
 }
 
@@ -369,6 +374,24 @@ static void _display_all_peers(struct vty *vty, char *vrfname, bool use_json)
 	bfd_id_iterate(_display_peer_json_iter, &bvt);
 
 	vty_json(vty, jo);
+}
+
+static struct json_object *_display_peer_registered_daemons_json(
+		struct bfd_session *bs)
+{
+	struct json_object *jsubs = NULL;
+
+	jsubs = json_object_new_array();
+	if (jsubs) {
+		for (unsigned int i = 0; i < ZEBRA_ROUTE_MAX; ++i) {
+			if (CHECK_FLAG(bs->registered_daemons, (1 << i))) {
+				json_array_string_add(jsubs,
+						      zebra_route_string(i));
+			}
+		}
+	}
+
+	return jsubs;
 }
 
 static void _display_peer_counter(struct vty *vty, struct bfd_session *bs)

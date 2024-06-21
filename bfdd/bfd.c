@@ -685,6 +685,7 @@ struct bfd_session *bfd_session_new(void)
 	bs = XCALLOC(MTYPE_BFDD_CONFIG, sizeof(*bs));
 
 	bs->origin_daemon = ZEBRA_ROUTE_BFD;
+	RESET_FLAG(bs->registered_daemons);
 
 	/* Set peer session defaults. */
 	bfd_profile_set_default(&bs->peer_profile);
@@ -746,8 +747,12 @@ int bfd_session_update_label(struct bfd_session *bs, const char *nlabel)
 static void _bfd_session_update(struct bfd_session *bs,
 				struct bfd_peer_cfg *bpc)
 {
-	if (bpc->bpc_origin_daemon)
+	if (bpc->bpc_origin_daemon) {
 		bs->origin_daemon = bpc->bpc_origin_daemon;
+
+		/* Register daemon in BFD session. */
+		SET_FLAG(bs->registered_daemons, (1 << bpc->bpc_origin_daemon));
+	}
 
 	if (bpc->bpc_has_txinterval) {
 		bs->timers.desired_min_tx = bpc->bpc_txinterval * 1000;
@@ -870,8 +875,11 @@ struct bfd_session *ptm_bfd_sess_new(struct bfd_peer_cfg *bpc)
 	if (bpc->bpc_has_profile)
 		bfd->profile_name =
 			XSTRDUP(MTYPE_BFDD_PROFILE, bpc->bpc_profile);
-	if (bpc->bpc_origin_daemon)
+	if (bpc->bpc_origin_daemon) {
 		bfd->origin_daemon = bpc->bpc_origin_daemon;
+		SET_FLAG(bfd->registered_daemons,
+			 (1 << bpc->bpc_origin_daemon));
+	}
 
 	/*
 	 * Store interface/VRF name in case we need to delay session
