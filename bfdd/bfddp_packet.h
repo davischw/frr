@@ -68,11 +68,14 @@
 #define BFD_SOURCE_PORT_BEGIN 49152
 #define BFD_SOURCE_PORT_END 65535
 
-/** BFD data plane protocol version. */
+/** BFD data plane protocol version 1. */
 #define BFD_DP_VERSION 1
 
-/** BFD data plane protocol version. */
+/** BFD data plane protocol version 2. */
 #define BFD_DP_VERSION_V2 2
+
+/** BFD data plane protocol version 3. */
+#define BFD_DP_VERSION_V3 3
 
 /** BFD data plane message types. */
 enum bfddp_message_type {
@@ -200,6 +203,16 @@ struct bfddp_session_v2 {
 	char profile[64];
 	/** FRR daemon that created this session. */
 	char daemon[64];
+};
+
+struct bfddp_session_v3 {
+	struct bfddp_session session;
+
+	/** BFD session profile name in use. */
+	char profile[64];
+
+	/** FRR daemons registered for this session. */
+	uint32_t registered_daemons;
 };
 
 /** BFD packet state values as defined in RFC 5880, Section 4.1. */
@@ -395,6 +408,9 @@ struct bfddp_message {
 
 		/* BFD data plane protocol version 2. */
 		struct bfddp_session_v2 session_v2;
+
+		/* BFD data plane protocol version 3. */
+		struct bfddp_session_v3 session_v3;
 	} data;
 };
 

@@ -40,6 +40,7 @@
 #include "lib/printfrr.h"
 #include "lib/stream.h"
 #include "lib/thread.h"
+#include "lib/log.h"
 
 #include "bfd.h"
 #include "bfddp_packet.h"
@@ -718,13 +719,69 @@ free_resources:
 	XFREE(MTYPE_BFDD_DPLANE_CTX, bdc);
 }
 
+/* PAN specific BFD registered daemon bits */
+#define PAN_BFD_REG_STATICD	0x1
+#define PAN_BFD_REG_RIPD	0x2
+#define PAN_BFD_REG_RIPNGD	0x4
+#define PAN_BFD_REG_OSPFD	0x8
+#define PAN_BFD_REG_OSPF6D	0x10
+#define PAN_BFD_REG_ISISD	0x20
+#define PAN_BFD_REG_BGPD	0x40
+#define PAN_BFD_REG_PIMD	0x80
+
+static inline uint32_t _bfd_dplane_registered_daemons_map(
+		const struct bfd_session *bs)
+{
+	uint32_t regd = 0;
+
+	for (unsigned int i = 0; i < ZEBRA_ROUTE_MAX; ++i) {
+		if (CHECK_FLAG(bs->registered_daemons, 1 << i)) {
+			switch (i) {
+			case ZEBRA_ROUTE_STATIC:
+				regd |= PAN_BFD_REG_STATICD;
+				break;
+			case ZEBRA_ROUTE_RIP:
+				regd |= PAN_BFD_REG_RIPD;
+				break;
+			case ZEBRA_ROUTE_RIPNG:
+				regd |= PAN_BFD_REG_RIPNGD;
+				break;
+			case ZEBRA_ROUTE_OSPF:
+				regd |= PAN_BFD_REG_OSPFD;
+				break;
+			case ZEBRA_ROUTE_OSPF6:
+				regd |= PAN_BFD_REG_OSPF6D;
+				break;
+			case ZEBRA_ROUTE_ISIS:
+				regd |= PAN_BFD_REG_ISISD;
+				break;
+			case ZEBRA_ROUTE_BGP:
+			case ZEBRA_ROUTE_BGP_DIRECT:
+			case ZEBRA_ROUTE_BGP_DIRECT_EXT:
+				regd |= PAN_BFD_REG_BGPD;
+				break;
+			case ZEBRA_ROUTE_PIM:
+				regd |= PAN_BFD_REG_PIMD;
+				break;
+			default:
+				zlog_err("Unmapped route type: %s (%u)",
+					 zebra_route_string(i), i);
+
+				assert(false);
+			}
+		}
+	}
+
+	return regd;
+}
+
 static void _bfd_dplane_session_fill(const struct bfd_session *bs,
 				     struct bfddp_message *msg)
 {
-	uint16_t msglen = sizeof(msg->header) + sizeof(msg->data.session_v2);
+	uint16_t msglen = sizeof(msg->header) + sizeof(msg->data.session_v3);
 
 	/* Message header. */
-	msg->header.version = BFD_DP_VERSION_V2;
+	msg->header.version = BFD_DP_VERSION_V3;
 	msg->header.length = ntohs(msglen);
 	msg->header.type = ntohs(DP_ADD_SESSION);
 
@@ -763,12 +820,12 @@ static void _bfd_dplane_session_fill(const struct bfd_session *bs,
 	msg->data.session.min_echo_rx = htonl(bs->timers.required_min_echo_rx);
 	msg->data.session.hold_time = htonl(bs->hold_time);
 
-	strlcpy(msg->data.session_v2.daemon,
-		zebra_route_string(bs->origin_daemon),
-		sizeof(msg->data.session_v2.daemon));
+	msg->data.session_v3.registered_daemons = htonl(
+			_bfd_dplane_registered_daemons_map(bs));
+
 	if (bs->profile_name)
-		strlcpy(msg->data.session_v2.profile, bs->profile_name,
-			sizeof(msg->data.session_v2.profile));
+		strlcpy(msg->data.session_v3.profile, bs->profile_name,
+			sizeof(msg->data.session_v3.profile));
 }
 
 static int _bfd_dplane_add_session(struct bfd_dplane_ctx *bdc,
