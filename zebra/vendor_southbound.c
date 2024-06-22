@@ -68,6 +68,8 @@ enum vendor_southbound_event {
 
 pthread_mutex_t vendor_southbound_mtx;
 
+enum southbound_mode vendor_southbound_mode = SM_PRODUCTION;
+
 bool vendor_southbound_enabled = false;
 
 /* Monitor memory usage. */
@@ -1086,11 +1088,19 @@ void netlink_buf_del(struct nlbuf *nb)
 	XFREE(MTYPE_ZEBRA_NETLINK, nb);
 }
 
+void vendor_southbound_set_mode(enum southbound_mode mode)
+{
+	vendor_southbound_mode = mode;
+}
+
 /**
  * Select whether the message should be sent to southbound or not.
  */
 bool vendor_southbound_skip_ctx(const struct zebra_dplane_ctx *ctx)
 {
+	if (vendor_southbound_mode == SM_DEVELOPMENT)
+		return false;
+
 	return true;
 }
 

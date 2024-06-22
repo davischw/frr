@@ -47,7 +47,29 @@ struct nlbuf {
 	uint8_t nb_data[];
 };
 
+/* Southbound interaction modes. */
+enum southbound_mode {
+	/*
+	 * Southbound is mostly read only: GET messages only.
+	 *
+	 * In production environment there is an exterior program that handles
+	 * addresses and routes, only FPM information is used. This is used
+	 * to reduce the amount of messages send to southbound to a minimum
+	 * (basically only GET messages at the moment).
+	 */
+	SM_PRODUCTION = 0,
+	/*
+	 * Southbound is read-write like regular Linux.
+	 *
+	 * This is used in development environment to keep FRR controlling
+	 * all aspects of the southbound.
+	 */
+	SM_DEVELOPMENT = 1,
+};
+
 extern void vendor_southbound_parse_address(const char *address);
+
+extern void vendor_southbound_set_mode(enum southbound_mode mode);
 
 extern pthread_mutex_t vendor_southbound_mtx;
 #define VENDOR_SOUTHBOUND_LOCK_AUTOUNLOCK()                                    \

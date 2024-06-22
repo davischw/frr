@@ -104,6 +104,7 @@ const struct option longopts[] = {
 #ifdef VENDOR_SOUTHBOUND
 	{"nl-proxy", required_argument, NULL, 'y'},
 	{"dplaneaddr", required_argument, NULL, 'y'},
+	{"dplane-readwrite", no_argument, NULL, 'Y'},
 #endif /* VENDOR_SOUTHBOUND */
 	{0}};
 
@@ -311,7 +312,7 @@ int main(int argc, char **argv)
 		"n"
 #endif
 #ifdef VENDOR_SOUTHBOUND
-		"y:"
+		"y:Y"
 #endif /* VENDOR_SOUTHBOUND */
 		,
 		longopts,
@@ -332,6 +333,7 @@ int main(int argc, char **argv)
 #ifdef VENDOR_SOUTHBOUND
 		"  -y, --dplaneaddr         Netlink vendor server address\n"
 		"  --nl-proxy               (DEPRECATED) Alias for --dplaneaddr\n"
+		"  -Y, --dplane-readwrite   Data plane read-write mode\n"
 #endif /* VENDOR_SOUTHBOUND */
 	);
 
@@ -405,6 +407,9 @@ int main(int argc, char **argv)
 #ifdef VENDOR_SOUTHBOUND
 		case 'y':
 			vendor_southbound_parse_address(optarg);
+			break;
+		case 'Y':
+			vendor_southbound_set_mode(SM_DEVELOPMENT);
 			break;
 #endif /* VENDOR_SOUTHBOUND */
 		default:
