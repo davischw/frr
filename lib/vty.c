@@ -3287,8 +3287,13 @@ static void vtysh_aliveness_peak(struct vty *vty)
 
 	rbytes = recv(vty->fd, buf, sizeof(buf), MSG_PEEK | MSG_DONTWAIT);
 	/* On failure do nothing and let regular vty flow handle it */
-	if (rbytes == -1 || rbytes == 0)
+	if (rbytes == -1 || rbytes == 0) {
+		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+			return;
+
+		vty_close(vty);
 		return;
+	}
 
 	buf[rbytes] = 0;
 	if (strcasestr(buf, "echo") == NULL)
