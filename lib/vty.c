@@ -3201,6 +3201,8 @@ void vty_init(struct thread_master *master_thread, bool do_command_logging)
 	install_element(VTY_NODE, &no_vty_ipv6_access_class_cmd);
 }
 
+static void system_pollfd_array_free(void);
+
 void vty_terminate(void)
 {
 	struct vty *vty;
@@ -3233,6 +3235,49 @@ void vty_terminate(void)
 
 	vtyservs_fini(vty_servs);
 	vtyservs_init(vty_servs);
+
+	system_pollfd_array_free();
+}
+
+static size_t system_fd_limit(void)
+{
+	static size_t fd_limit = 0;
+	size_t limit;
+	struct rlimit rlimit;
+
+	/* Optimization: return cached value */
+	if (fd_limit != 0)
+		return fd_limit;
+
+	/* Find out current limit */
+	limit = frr_get_fd_limit();
+	if (limit == 0) {
+		getrlimit(RLIMIT_NOFILE, &rlimit);
+		fd_limit = rlimit.rlim_cur;
+	} else
+		fd_limit = limit;
+
+	return fd_limit;
+}
+
+DEFINE_MTYPE_STATIC(LIB, VTY_POLLFD, "VTY Poll FD array");
+static struct pollfd *vty_pollfds = NULL;
+
+static struct pollfd *system_pollfd_array(void)
+{
+	size_t pollfds_size = system_fd_limit() * sizeof(struct pollfd);
+
+	if (vty_pollfds)
+		return vty_pollfds;
+
+	vty_pollfds = XCALLOC(MTYPE_VTY_POLLFD, pollfds_size);
+	return vty_pollfds;
+}
+
+static void system_pollfd_array_free(void)
+{
+	if (vty_pollfds)
+		XFREE(MTYPE_VTY_POLLFD, vty_pollfds);
 }
 
 static void vtysh_aliveness_peak(struct vty *vty)
@@ -3258,17 +3303,22 @@ void vtysh_aliveness_poll(int timeout)
 	struct vty *cli;
 	size_t fd_pos;
 	size_t fd_total;
+	size_t fds_size;
 	int events;
 	int remaining = timeout;
 	struct timespec tv_begin, tv_end, tv_diff;
-	struct pollfd fds[64];
+	struct pollfd *fds;
 
 	memset(&tv_diff, 0, sizeof(tv_diff));
 	clock_gettime(CLOCK_MONOTONIC, &tv_begin);
 
+	/* Use the preallocated system fd array, it should never be exceeded */
+	fds = system_pollfd_array();
+	fds_size = system_fd_limit() * sizeof(struct pollfd);
+
 poll_start:
 	/* Poll servers for new vtysh clients. */
-	memset(fds, 0, sizeof(fds));
+	memset(fds, 0, fds_size);
 	fd_pos = 0;
 	frr_each (vtyservs, vty_servs, serv) {
 		if (serv->vtysh == false || serv->t_accept == NULL)
@@ -3304,7 +3354,7 @@ poll_start:
 	}
 
 	/* Poll clients for new commands. */
-	memset(fds, 0, sizeof(fds));
+	memset(fds, 0, fds_size);
 	fd_pos = 0;
 	frr_each (vtys, vtysh_sessions, cli) {
 		if (cli->t_read == NULL)
