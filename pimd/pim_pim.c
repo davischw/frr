@@ -94,6 +94,11 @@ static void sock_close(struct interface *ifp)
 	}
 	THREAD_OFF(pim_ifp->t_pim_hello_timer);
 
+#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+	if (pim_southbound_enabled)
+		return;
+#endif /* VENDOR_SOUTHBOUND */
+
 	if (PIM_DEBUG_PIM_TRACE) {
 		zlog_debug("Deleting PIM socket fd=%d on interface %s",
 			   pim_ifp->pim_sock_fd, ifp->name);
@@ -136,10 +141,7 @@ void pim_sock_delete(struct interface *ifp, const char *delete_message)
 
 	pim_neighbor_delete_all(ifp, delete_message);
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
-	if (pim_southbound_enabled == false)
-#endif /* VENDOR_SOUTHBOUND */
-		sock_close(ifp);
+	sock_close(ifp);
 }
 
 /* For now check dst address for hello, assrt and join/prune is all pim rtr */
