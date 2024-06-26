@@ -3175,9 +3175,9 @@ DEFUN (show_config_running,
 	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text);
 }
 
-DEFPY (show_yang_versions,
-       show_yang_versions_cmd,
-       "show yang version"
+DEFPY (show_yang_version,
+       show_yang_version_cmd,
+       "show yang version",
        SHOW_STR
        "YANG information\n"
        "Show yang library versions\n")
