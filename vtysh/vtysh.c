@@ -25,6 +25,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <libyang/version.h>
+
 #include "linklist.h"
 #include "command.h"
 #include "memory.h"
@@ -3173,6 +3175,28 @@ DEFUN (show_config_running,
 	return show_one_daemon(vty, argv, argc - 1, argv[argc - 1]->text);
 }
 
+DEFPY (show_yang_versions,
+       show_yang_versions_cmd,
+       "show yang version"
+       SHOW_STR
+       "YANG information\n"
+       "Show yang library versions\n")
+{
+	vty_out(vty, "linked against shared object library version: %s\n",
+		LY_VERSION);
+
+#ifdef LY_PROJ_VERSION
+	vty_out(vty, "linked against libyang project version: %s\n",
+		LY_PROJ_VERSION);
+	vty_out(vty, "installed shared object library version: %s\n",
+		ly_get_so_version_str());
+	vty_out(vty, "installed libyang project version: %s\n",
+		ly_get_project_version_str());
+#endif
+
+	return CMD_SUCCESS;
+}
+
 DEFUN (show_yang_operational_data,
        show_yang_operational_data_cmd,
        "show yang operational-data XPATH\
@@ -5462,6 +5486,7 @@ void vtysh_init_vty(void)
 
 	/* northbound */
 	install_element(ENABLE_NODE, &show_config_running_cmd);
+	install_element(ENABLE_NODE, &show_yang_version_cmd);
 	install_element(ENABLE_NODE, &show_yang_operational_data_cmd);
 	install_element(ENABLE_NODE, &show_yang_module_cmd);
 	install_element(ENABLE_NODE, &show_yang_module_detail_cmd);
