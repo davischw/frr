@@ -1319,6 +1319,10 @@ static void pimsb_client_read_cb(struct thread *t)
 	while (pimsb_client_msg_parse(client))
 		/* NOTHING */;
 
+	/* If client closed then don't attempt to reschedule. */
+	if (client->sock == -1)
+		return;
+
 schedule_and_return:
 	thread_add_read(router->master, pimsb_client_read_cb, client,
 			client->sock, &client->in_ev);
