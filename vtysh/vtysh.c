@@ -3215,7 +3215,7 @@ DEFPY (show_yang_version,
 #endif
 
 		json_object_object_add(jo, "libyangVersions", jly);
-		json_vty(vty, jo);
+		vty_json(vty, jo);
 	} else {
 		vty_out(vty, "Libyang versions\n");
 		vty_out(vty, "  Shared object library\n");
