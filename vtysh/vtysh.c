@@ -3191,13 +3191,13 @@ DEFPY (show_yang_version,
 #endif
 
 	if (!!json) {
-		jo = json_object_new();
-		jly = json_object_new();
-		so = json_object_new();
+		jo = json_object_new_object();
+		jly = json_object_new_object();
+		so = json_object_new_object();
 
 #if (LY_VERSION_MAJOR > 3) || \
 		((LY_VERSION_MAJOR == 3) && ((LY_VERSION_MINOR >= 2)))
-		proj = json_object_new();
+		proj = json_object_new_object();
 #endif
 
 		json_object_string_add(so, "linked", LY_VERSION);
