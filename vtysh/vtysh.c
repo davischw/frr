@@ -3222,7 +3222,7 @@ DEFPY (show_yang_version,
 		vty_out(vty, "    Linked: %s\n", LY_VERSION);
 #if (LY_VERSION_MAJOR > 3) || \
 		((LY_VERSION_MAJOR == 3) && ((LY_VERSION_MINOR >= 2)))
-		vty_out(vty, "	  Loaded: %s\n", ly_version_so.str);
+		vty_out(vty, "    Loaded: %s\n", ly_version_so.str);
 		vty_out(vty, "  Project\n");
 		vty_out(vty, "    Linked: %s\n", LY_PROJ_VERSION);
 		vty_out(vty, "    Loaded: %s\n", ly_version_proj.str);
