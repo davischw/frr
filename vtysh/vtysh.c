@@ -3177,22 +3177,55 @@ DEFUN (show_config_running,
 
 DEFPY (show_yang_version,
        show_yang_version_cmd,
-       "show yang version",
+       "show yang version [json$json]",
        SHOW_STR
        "YANG information\n"
        "Show yang library versions\n")
 {
-	vty_out(vty, "linked against shared object library version: %s\n",
-		LY_VERSION);
-
-#ifdef LY_PROJ_VERSION
-	vty_out(vty, "linked against libyang project version: %s\n",
-		LY_PROJ_VERSION);
-	vty_out(vty, "installed shared object library version: %s\n",
-		ly_get_so_version_str());
-	vty_out(vty, "installed libyang project version: %s\n",
-		ly_get_project_version_str());
+	struct json_object *jo;
+	struct json_object *jly;
+	struct json_object *so;
+#if (LY_VERSION > 3) || ((LY_VERSION_MAJOR == 3) && ((LY_VERSION_MINOR >= 1)))
+	struct json_object *proj;
 #endif
+
+	if (!!json) {
+		jo = json_object_object_new();
+		jly = json_object_object_new();	
+		so = json_object_object_new();
+
+#if (LY_VERSION_MAJOR > 3) || \
+		((LY_VERSION_MAJOR == 3) && ((LY_VERSION_MINOR >= 1)))
+		proj = json_object_object_new();
+#endif
+
+		json_object_string_add(so, "linked", LY_VERSION);
+#if (LY_VERSION_MAJOR > 3) || \
+		((LY_VERSION_MAJOR == 3) && ((LY_VERSION_MINOR >= 1)))
+		json_object_string_add(so, "loaded", ly_version_so.str);
+#endif
+		json_object_object_add(jly, so, "sharedObjecLibrary");
+
+#if (LY_VERSION_MAJOR > 3) || \
+		((LY_VERSION_MAJOR == 3) && ((LY_VERSION_MINOR >= 1)))
+		json_object_string_add(proj, "linked", LY_PROJ_VERSION);
+		json_object_string_add(proj, "loaded", ly_version_project.str);
+		json_object_object_add(jly, proj, "project");
+#endif
+
+		json_object_object_add(jo, jly, "libyangVersions");
+		json_vty(vty, jo);
+	} else {
+		vty_out(vty, "Libyang versions\n");
+		vty_out(vty, "  Shared object library\n");
+		vty_out(vty, "    Linked: %s\n", LY_VERSION);
+#if (LY_VERSION > 3) || ((LY_VERSION_MAJOR == 3) && ((LY_VERSION_MINOR >= 1)))
+		vty_out(vty, "	  Loaded: %s\n", ly_version_so.str);
+		vty_out(vty, "  Project\n");
+		vty_out(vty, "    Linked: %s\n", LY_PROJ_VERSION);
+		vty_out(vty, "    Loaded: %s\n", ly_version_project.str);
+#endif
+	}
 
 	return CMD_SUCCESS;
 }
