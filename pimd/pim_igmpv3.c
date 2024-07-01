@@ -1144,6 +1144,11 @@ static void igmp_send_query_group(struct gm_group *group, char *query_buf,
 			pim_ifp->gm_specific_query_max_response_time_dsec,
 			s_flag, igmp);
 	}
+
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled)
+		pimsb_igmp_join(pim_ifp);
+#endif /* VENDOR_SOUTHBOUND */
 }
 
 /*

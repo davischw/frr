@@ -439,6 +439,11 @@ void pim_igmp_other_querier_timer_on(struct gm_sock *igmp)
 	thread_add_timer_msec(router->master, pim_igmp_other_querier_expire,
 			      igmp, other_querier_present_interval_msec,
 			      &igmp->t_other_querier_timer);
+
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled)
+		pimsb_igmp_join(pim_ifp);
+#endif /* VENDOR_SOUTHBOUND */
 }
 
 void pim_igmp_other_querier_timer_off(struct gm_sock *igmp)
@@ -962,6 +967,11 @@ static void pim_igmp_general_query(struct thread *t)
 			sizeof(query_buf), 0 /* num_sources */, dst_addr,
 			group_addr, pim_ifp->gm_query_max_response_time_dsec,
 			1 /* s_flag: always set for general queries */, igmp);
+
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled)
+		pimsb_igmp_join(pim_ifp);
+#endif /* VENDOR_SOUTHBOUND */
 
 	pim_igmp_general_query_on(igmp);
 }
@@ -1613,4 +1623,9 @@ void igmp_send_query_on_intf(struct interface *ifp, int igmp_ver)
 			group_addr, pim_ifp->gm_query_max_response_time_dsec,
 			1 /* s_flag: always set for general queries */, igmp);
 	}
+
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled)
+		pimsb_igmp_join(pim_ifp);
+#endif /* VENDOR_SOUTHBOUND */
 }
