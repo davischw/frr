@@ -1639,9 +1639,21 @@ static void pimsb_igmp_join_cb(struct thread *thread)
 	if (packets == NULL)
 		return;
 
-	SLIST_FOREACH (packet, packets, entry)
+	SLIST_FOREACH (packet, packets, entry) {
+		const struct ipv4_header *ip =
+			(const struct ipv4_header *)packet->data;
+		struct sockaddr_in sin = {
+			.sin_addr.s_addr = ip->destination,
+		};
+
+		pimsb_igmp_sendto(igmp_socket->interface->name,
+				  packet->data + ipv4_header_length(ip),
+				  packet->size - ipv4_header_length(ip),
+				  (struct sockaddr *)&sin, sizeof(sin));
+
 		pim_igmp_packet(igmp_socket, (char *)packet->data, packet->size,
 				true);
+	}
 
 	igmp_packet_list_free(packets);
 }
