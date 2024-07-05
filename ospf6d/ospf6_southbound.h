@@ -68,7 +68,7 @@ enum ospf6_read_return_enum
 ospf6_sb_read_helper(int ospf6_sock, uint8_t *msgbuf, size_t msgbuflen);
 
 /** Schedule socket read based on descriptor. */
-void ospf6_sb_schedule(int fd, struct ospf6 *ospf6);
+void ospf6_sb_schedule(int fd);
 
 /** Get southbound file descriptor based on destination. */
 int ospf6_sb_get_fd(const struct ospf6 *ospf6,

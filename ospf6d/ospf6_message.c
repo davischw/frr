@@ -2080,8 +2080,8 @@ void ospf6_receive(struct thread *thread)
 	sockfd = THREAD_FD(thread);
 
 #ifdef VENDOR_SOUTHBOUND
-	if (ospf6_southbound_enabled) {
-		ospf6_sb_schedule(sockfd, ospf6);
+	if (ospf6_southbound_enabled && ospf6 == NULL) {
+		ospf6_sb_schedule(sockfd);
 
 		for (count = 0; count < OSPF6_WRITE_INTERFACE_COUNT_DEFAULT;
 		     count++) {
