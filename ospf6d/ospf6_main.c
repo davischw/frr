@@ -208,7 +208,12 @@ int main(int argc, char *argv[], char *envp[])
 	int opt;
 
 	frr_preinit(&ospf6d_di, argc, argv);
-	frr_opt_add("", longopts, "");
+	frr_opt_add("", longopts,
+		    ""
+#ifdef VENDOR_SOUTHBOUND
+		    "  --dplane           Use vendor southbound\n"
+#endif /* VENDOR_SOUTHBOUND */
+	);
 
 	/* Command line argument treatment. */
 	while (1) {
