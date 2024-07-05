@@ -394,9 +394,9 @@ void ospf6_sb_schedule(int fd, struct ospf6 *ospf6)
 int ospf6_sb_get_fd(const struct ospf6 *ospf6,
 		    const struct in6_addr *destination)
 {
-	if (destination == &alldrouters6)
+	if (memcmp(destination, &alldrouters6, sizeof(*destination)) == 0)
 		return sb_ctx.dr_sock;
-	else if (destination == &allspfrouters6)
+	else if (memcmp(destination, &allspfrouters6, sizeof(*destination)) == 0)
 		return sb_ctx.spf_sock;
 	else
 		return ospf6->fd;
