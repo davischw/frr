@@ -363,6 +363,9 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t *asn,
                case NEXTHOP_TYPE_IPV6:
                case NEXTHOP_TYPE_IPV6_IFINDEX:
 		       continue;
+               case NEXTHOP_TYPE_IFINDEX:
+		       pn->mrib_nexthop_addr = addr;
+		       break;
 
                default:
                        zlog_warn("%s: invalid next hop address type %d",

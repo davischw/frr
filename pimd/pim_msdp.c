@@ -797,6 +797,8 @@ static void msdp_rp_cache_update(struct msdp_rp_cache *ent)
 			best_preference = 1;
 			best_addr = mp->peer;
 			rule = "(i) MSDP peer is RP";
+			if (IPV4_ADDR_CMP(&mp->peer, &ent->nexthop_addr))
+				rule = "(i) MSDP peer is RP [NOTE: RPF mismatch]";
 			/* no point in looking further */
 			break;
 		}
