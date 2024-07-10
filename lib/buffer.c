@@ -435,7 +435,12 @@ in one shot. */
 		memset(&msg, 0, sizeof(msg));
 		msg.msg_iov = iov;
 		msg.msg_iovlen = iovcnt;
+
+		errno = 0;
 		written = sendmsg(fd, &msg, MSG_NOSIGNAL);
+		/* Handle cases where 'write memory' is called */
+		if ((ssize_t)written == -1 && errno == ENOTSOCK)
+			written = writev(fd, iov, iovcnt);
 	} else
 		written = writev(fd, iov, iovcnt);
 
