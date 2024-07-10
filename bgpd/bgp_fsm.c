@@ -2819,24 +2819,18 @@ const char *print_peer_gr_cmd(enum peer_gr_command pr_gr_cmd)
 
 const char *print_global_gr_mode(enum global_mode gl_mode)
 {
-	const char *global_gr_mode = NULL;
-
 	switch (gl_mode) {
 	case GLOBAL_HELPER:
-		global_gr_mode = "GLOBAL_HELPER";
-		break;
+		return "GLOBAL_HELPER";
 	case GLOBAL_GR:
-		global_gr_mode = "GLOBAL_GR";
-		break;
+		return "GLOBAL_GR";
 	case GLOBAL_DISABLE:
-		global_gr_mode = "GLOBAL_DISABLE";
-		break;
+		return "GLOBAL_DISABLE";
 	case GLOBAL_INVALID:
-		global_gr_mode = "GLOBAL_INVALID";
-		break;
+		return "GLOBAL_INVALID";
+	default:
+		return "UNKNOWN";
 	}
-
-	return global_gr_mode;
 }
 
 const char *print_global_gr_cmd(enum global_gr_command gl_gr_cmd)
