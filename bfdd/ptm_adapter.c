@@ -548,11 +548,6 @@ static void bfdd_dest_deregister(struct stream *msg, vrf_id_t vrf_id)
 		return;
 	}
 
-	/* Unregister daemon in BFD session. */
-	if (bpc.bpc_origin_daemon)
-		UNSET_FLAG(bs->registered_daemons,
-			   (1 << bpc.bpc_origin_daemon));
-
 	/* Unregister client peer notification. */
 	pcn = pcn_lookup(pc, bs);
 	if (pcn != NULL) {
@@ -1011,21 +1006,26 @@ static void pcn_free(struct ptm_client_notification *pcn)
 	struct ptm_client *pc_next;
 	struct bfd_session *bs;
 
+	pc = pcn->pcn_pc;
+
 	/* Handle session de-registration. */
 	bs = pcn->pcn_bs;
 	pcn->pcn_bs = NULL;
 	bs->refcount--;
 
+	/* Deregister daemon in BFD session. */
+	UNSET_FLAG(bs->registered_daemons, (1 << pc->pc_proto));
+
 	/* Log modification to users. */
 	if (bglobal.debug_zebra)
-		zlog_debug("ptm-del-session: [%s] refcount=%" PRIu64,
-			   bs_to_string(bs), bs->refcount);
+		zlog_debug("ptm-del-session: (daemon: %s) [%s] refcount=%" PRIu64,
+			   zebra_route_string(pc->pc_proto), bs_to_string(bs),
+			   bs->refcount);
 
 	/* Set session down. */
 	_ptm_bfd_session_del(bs, BD_NEIGHBOR_DOWN);
 
 	/* Handle ptm_client deregistration. */
-	pc = pcn->pcn_pc;
 	pcn->pcn_pc = NULL;
 	TAILQ_REMOVE(&pc->pc_pcnqueue, pcn, pcn_entry);
 	XFREE(MTYPE_BFDD_NOTIFICATION, pcn);
