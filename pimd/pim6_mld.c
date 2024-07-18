@@ -1830,6 +1830,11 @@ static void gm_send_query(struct gm_if *gm_ifp, pim_addr grp,
 	mh->msg_iovlen = iov_len - 1;
 	mh->msg_control = &cmsg;
 	mh->msg_controllen = sizeof(cmsg.buf);
+#ifdef VENDOR_SOUTHBOUND
+	/* When southbound is disabled don't include space for flow info. */
+	if (!pim_southbound_enabled)
+		mh->msg_controllen -= CMSG_SPACE(sizeof(uint32_t));
+#endif /* VENDOR_SOUTHBOUND */
 
 	cmh = CMSG_FIRSTHDR(mh);
 	cmh->cmsg_level = IPPROTO_IPV6;
