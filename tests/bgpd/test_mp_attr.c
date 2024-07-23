@@ -27,8 +27,10 @@
 #include "memory.h"
 #include "queue.h"
 #include "filter.h"
+#include "lib/northbound_db.h"
 
 #include "bgpd/bgpd.h"
+#include "bgpd/bgp_nb.h"
 #include "bgpd/bgp_attr.h"
 #include "bgpd/bgp_open.h"
 #include "bgpd/bgp_debug.h"
@@ -1067,6 +1069,10 @@ static void parse_test(struct peer *peer, struct test_segment *t, int type)
 static struct bgp *bgp;
 static as_t asn = 100;
 
+static const struct frr_yang_module_info *const bgpd_yang_modules[] = {
+	&frr_bgpd_info,
+};
+
 int main(void)
 {
 	struct interface ifp;
@@ -1084,12 +1090,15 @@ int main(void)
 
 	qobj_init();
 	cmd_init(0);
+	nb_init(master, bgpd_yang_modules, array_size(bgpd_yang_modules), true);
 	bgp_vty_init();
 	master = thread_master_create("test mp attr");
 	bgp_master_init(master, BGP_SOCKET_SNDBUF_SIZE, list_new());
 	vrf_init(NULL, NULL, NULL, NULL);
 	bgp_option_set(BGP_OPT_NO_LISTEN);
 	bgp_attr_init();
+	nb_db_init();
+	bgp_nb_init();
 
 	if (fileno(stdout) >= 0)
 		tty = isatty(fileno(stdout));

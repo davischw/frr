@@ -1,7 +1,7 @@
 if !BGPD
 PYTEST_IGNORE += --ignore=bgpd/
 endif
-BGP_TEST_LDADD = bgpd/libbgp.a $(RFPLDADD) $(ALL_TESTS_LDADD) $(LIBYANG_LIBS) $(UST_LIBS) -lm
+BGP_TEST_LDADD = bgpd/libbgp.a $(RFPLDADD) $(ALL_TESTS_LDADD) $(LIBYANG_LIBS) $(UST_LIBS) -lm -lgrpc++ -lgrpc -lgpr -labsl_synchronization -lprotobuf
 
 
 if BGPD

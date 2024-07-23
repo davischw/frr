@@ -20,7 +20,9 @@
 
 #include "memory.h"
 #include "plist.h"
+#include "lib/northbound_db.h"
 #include "bgpd/bgpd.h"
+#include "bgpd/bgp_nb.h"
 #include "bgpd/bgp_attr.h"
 #include "bgpd/bgp_regex.h"
 #include "bgpd/bgp_clist.h"
@@ -1378,6 +1380,10 @@ static void test_peer_attr(struct test *test, struct test_peer_attr *pa)
 	test_process(test, pa, p, g->conf, true, false);
 }
 
+static const struct frr_yang_module_info *const bgpd_yang_modules[] = {
+	&frr_bgpd_info,
+};
+
 static void bgp_startup(void)
 {
 	cmd_init(1);
@@ -1386,13 +1392,17 @@ static void bgp_startup(void)
 	zprivs_init(&bgpd_privs);
 
 	master = thread_master_create(NULL);
-	nb_init(master, NULL, 0, false);
+	nb_init(master, bgpd_yang_modules, array_size(bgpd_yang_modules), true);
 	bgp_master_init(master, BGP_SOCKET_SNDBUF_SIZE, list_new());
 	bgp_option_set(BGP_OPT_NO_LISTEN);
 	vrf_init(NULL, NULL, NULL, NULL);
 	frr_pthread_init();
 	bgp_init(0);
 	bgp_pthreads_run();
+
+	bgp_vty_init();
+	nb_db_init();
+	bgp_nb_init();
 }
 
 static void bgp_shutdown(void)

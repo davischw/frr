@@ -30,8 +30,10 @@
 #include "zclient.h"
 #include "queue.h"
 #include "filter.h"
+#include "lib/northbound_db.h"
 
 #include "bgpd/bgpd.h"
+#include "bgpd/bgp_nb.h"
 #include "bgpd/bgp_table.h"
 #include "bgpd/bgp_route.h"
 #include "bgpd/bgp_attr.h"
@@ -39,6 +41,7 @@
 #include "bgpd/bgp_mpath.h"
 #include "bgpd/bgp_evpn.h"
 #include "bgpd/bgp_network.h"
+#include "bgpd/bgp_vty.h"
 
 #define VT100_RESET "\x1b[0m"
 #define VT100_RED "\x1b[31m"
@@ -388,14 +391,23 @@ int all_tests_count = array_size(all_tests);
 /*=========================================================
  * Test Driver Functions
  */
+static const struct frr_yang_module_info *const bgpd_yang_modules[] = {
+	&frr_bgpd_info,
+};
+
 static int global_test_init(void)
 {
+	cmd_init(1);
 	qobj_init();
 	master = thread_master_create(NULL);
 	zclient = zclient_new(master, &zclient_options_default, NULL, 0);
 	bgp_master_init(master, BGP_SOCKET_SNDBUF_SIZE, list_new());
 	vrf_init(NULL, NULL, NULL, NULL);
 	bgp_option_set(BGP_OPT_NO_LISTEN);
+	nb_init(master, bgpd_yang_modules, array_size(bgpd_yang_modules), true);
+	bgp_vty_init();
+	nb_db_init();
+	bgp_nb_init();
 
 	if (fileno(stdout) >= 0)
 		tty = isatty(fileno(stdout));

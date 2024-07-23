@@ -28,6 +28,7 @@
 #include "queue.h"
 #include "filter.h"
 #include "frr_pthread.h"
+#include "lib/northbound_db.h"
 
 #include "bgpd/bgpd.c"
 #include "bgpd/bgp_open.h"
@@ -927,6 +928,10 @@ static void parse_test(struct peer *peer, struct test_segment *t, int type)
 static struct bgp *bgp;
 static as_t asn = 100;
 
+static const struct frr_yang_module_info *const bgpd_yang_modules[] = {
+	&frr_bgpd_info,
+};
+
 int main(void)
 {
 	struct peer *peer;
@@ -944,6 +949,12 @@ int main(void)
 	bgp_master_init(master, BGP_SOCKET_SNDBUF_SIZE, list_new());
 	vrf_init(NULL, NULL, NULL, NULL);
 	bgp_option_set(BGP_OPT_NO_LISTEN);
+
+	cmd_init(0);
+	bgp_vty_init();
+	nb_init(master, bgpd_yang_modules, array_size(bgpd_yang_modules), true);
+	nb_db_init();
+	bgp_nb_init();
 
 	frr_pthread_init();
 	bgp_pthreads_init();
