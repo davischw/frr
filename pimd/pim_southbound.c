@@ -1776,6 +1776,7 @@ static void pimsb_pim_packet_read(int pim_fd)
 	struct vrf *vrf;
 	uint32_t pim_msg_len = 0;
 	ssize_t brecv;
+	pim_sgaddr sg;
 	uint32_t flowinfo;
 	struct iovec iov;
 	struct msghdr msg;
@@ -1998,10 +1999,8 @@ static void pimsb_pim_packet_read(int pim_fd)
 				pim_msg_len - PIM_MSG_HEADER_LEN);
 		return;
 	case PIM_MSG_TYPE_BOOTSTRAP:
-		pim_sgaddr sg = {
-			.src = src.sin6_addr,
-			.grp = ipi6.ipi6_addr,
-		};
+		sg.src = src.sin6_addr;
+		sg.grp = ipi6.ipi6_addr;
 		pim_bsm_process(ifp, &sg, pim_msg, pim_msg_len, header->Nbit);
 		return;
 
