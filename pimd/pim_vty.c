@@ -515,6 +515,7 @@ int pim_config_write(struct vty *vty, int writes, struct interface *ifp,
 		++writes;
 	}
 
+#if PIM_IPV == 4
 	/* IF ip igmp max-sources */
 	if (pim_ifp->gm_source_limit != UINT32_MAX) {
 		vty_out(vty, " ip igmp max-sources %u\n",
@@ -528,6 +529,7 @@ int pim_config_write(struct vty *vty, int writes, struct interface *ifp,
 			pim_ifp->gm_group_limit);
 		++writes;
 	}
+#endif /* PIM_IPV == 4 */
 
 	/* IF ip igmp immediate-leave */
 	if (pim_ifp->igmp_immediate_leave) {
