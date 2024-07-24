@@ -1087,7 +1087,25 @@ static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
 		json_object *json_row = json_object_new_object();
 		struct pim_rpf *rpg = RP(pim, up->sg.grp);
 		char rp_address[PREFIX_STRLEN];
+		char rpf_address[PREFIX_STRLEN];
 		char next_hop_address[PREFIX_STRLEN];
+
+		if (rpg) {
+			pim_inet4_dump("<rpf?>", rpg->rpf_addr, rpf_address,
+				       sizeof(rpf_address));
+			pim_inet4_dump("<rpAddress?>", rpg->rpf_addr,
+				       rp_address, sizeof(rp_address));
+			pim_inet4_dump("<rpfNextHop?>",
+				       rpg->source_nexthop.mrib_nexthop_addr,
+				       next_hop_address,
+				       sizeof(next_hop_address));
+		} else {
+			snprintf(rpf_address, sizeof(rpf_address), "<rpf?>");
+			snprintf(rp_address, sizeof(rp_address),
+				 "<rpAddress?>");
+			snprintf(next_hop_address, sizeof(next_hop_address),
+				 "<rpfNextHop?>");
+		}
 
 		json_object_pim_upstream_add(json_row, up);
 		json_object_string_add(
@@ -1105,21 +1123,16 @@ static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
 		 */
 		if (up->flags & PIM_UPSTREAM_FLAG_MASK_FHR ||
 		    up->sg.src.s_addr == INADDR_ANY) {
-			char rpf[PREFIX_STRLEN];
-
-			pim_inet4_dump("<rpf?>", rpg->rpf_addr, rpf,
-				       sizeof(rpf));
-			json_object_string_add(json_row, "rpfAddress", rpf);
+			json_object_string_add(json_row, "rpfAddress",
+					       rpf_address);
 		} else {
 			json_object_string_add(json_row, "rpfAddress", src_str);
 		}
 
 		if (everything) {
-			pim_inet4_dump("<rpAddress?>", rpg->rpf_addr,
-				       rp_address, sizeof(rp_address));
 			json_object_string_add(json_row, "rpAddress",
 					       rp_address);
-			if (rpg->source_nexthop.interface)
+			if (rpg && rpg->source_nexthop.interface)
 				json_object_string_add(
 					json_row, "rpfInterface",
 					rpg->source_nexthop.interface->name);
@@ -1127,10 +1140,6 @@ static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
 				json_object_string_add(json_row, "rpfInterface",
 						       "unknown");
 
-			pim_inet4_dump("<rpfNextHop?>",
-				       rpg->source_nexthop.mrib_nexthop_addr,
-				       next_hop_address,
-				       sizeof(next_hop_address));
 			json_object_string_add(json_row, "rpfNextHop",
 					       next_hop_address);
 			json_object_string_add(json_row, "upstreamNeighbor",
