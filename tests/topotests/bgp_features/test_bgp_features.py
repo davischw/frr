@@ -1132,37 +1132,37 @@ def test_bgp_dampening_setup():
         'vtysh -c "conf t" -c "router bgp 65000" -c "neighbor 192.168.101.3 remote-as 65403"'
     )
     tgen.net["r1"].cmd(
-        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.3 route-map testmap-in"'
+        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.3 route-map testmap-in in"'
     )
     tgen.net["r1"].cmd(
-        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.3 route-map testmap-out"'
+        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.3 route-map testmap-out out"'
     )
     tgen.net["r1"].cmd(
         'vtysh -c "conf t" -c "router bgp 65000" -c "neighbor 192.168.101.4 remote-as 65404"'
     )
     tgen.net["r1"].cmd(
-        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.4 route-map testmap-in"'
+        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.4 route-map testmap-in in"'
     )
     tgen.net["r1"].cmd(
-        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.4 route-map testmap-out"'
+        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.4 route-map testmap-out out"'
     )
     tgen.net["r1"].cmd(
         'vtysh -c "conf t" -c "router bgp 65000" -c "neighbor 192.168.101.5 remote-as 65405"'
     )
     tgen.net["r1"].cmd(
-        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.5 route-map testmap-in"'
+        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.5 route-map testmap-in in"'
     )
     tgen.net["r1"].cmd(
-        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.5 route-map testmap-out"'
+        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.5 route-map testmap-out out"'
     )
     tgen.net["r1"].cmd(
         'vtysh -c "conf t" -c "router bgp 65000" -c "neighbor 192.168.101.6 remote-as 65406"'
     )
     tgen.net["r1"].cmd(
-        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.6 route-map testmap-in"'
+        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.6 route-map testmap-in in"'
     )
     tgen.net["r1"].cmd(
-        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.6 route-map testmap-out"'
+        'vtysh -c "conf t" -c "router bgp 65000" -c "address-family ipv4 unicast" -c "neighbor 192.168.101.6 route-map testmap-out out"'
     )
 
     # Check if exabgp peers are up and running
