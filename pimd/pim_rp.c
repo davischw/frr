@@ -425,6 +425,9 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 		}
 	}
 
+	if (pim->rp_table == NULL)
+		return best;
+
 	rn = route_node_match(pim->rp_table, group);
 	if (!rn) {
 		flog_err(
