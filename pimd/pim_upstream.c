@@ -2075,7 +2075,7 @@ static bool pim_upstream_kat_start_ok(struct pim_upstream *up)
 	 * So we will do an approximate check here to avoid starting KAT
 	 * because of (S,G,rpt) forwarding on a non-LHR.
 	 */
-	if (!ifp)
+	if (!ifp || !ifp->info)
 		return false;
 
 	pim_ifp = ifp->info;
