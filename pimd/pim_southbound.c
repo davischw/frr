@@ -1274,7 +1274,7 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 		if (up->parent && up->parent->rpf.source_nexthop.interface) {
 			nbr = pim_neighbor_find(
 				up->parent->rpf.source_nexthop.interface,
-				up->parent->rpf.rpf_addr);
+				up->parent->rpf.rpf_addr, true);
 			if (nbr) {
 				struct pim_rpf rpf = {};
 
@@ -1969,7 +1969,7 @@ static void pimsb_pim_packet_read(int pim_fd)
 				       pim_msg_len - PIM_MSG_HEADER_LEN);
 		return;
 	case PIM_MSG_TYPE_JOIN_PRUNE:
-		neigh = pim_neighbor_find(ifp, src.sin6_addr);
+		neigh = pim_neighbor_find(ifp, src.sin6_addr, true);
 		if (!neigh) {
 			if (PIM_DEBUG_PIM_PACKETS)
 				zlog_debug(
@@ -1984,7 +1984,7 @@ static void pimsb_pim_packet_read(int pim_fd)
 				   pim_msg_len - PIM_MSG_HEADER_LEN);
 		return;
 	case PIM_MSG_TYPE_ASSERT:
-		neigh = pim_neighbor_find(ifp, src.sin6_addr);
+		neigh = pim_neighbor_find(ifp, src.sin6_addr, true);
 		if (!neigh) {
 			if (PIM_DEBUG_PIM_PACKETS)
 				zlog_debug(

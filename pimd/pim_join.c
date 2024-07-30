@@ -509,7 +509,8 @@ int pim_joinprune_send(struct pim_rpf *rpf, struct list *groups)
 	*/
 	pim_hello_require(rpf->source_nexthop.interface);
 
-	neigh = pim_neighbor_find(rpf->source_nexthop.interface, rpf->rpf_addr);
+	neigh = pim_neighbor_find(rpf->source_nexthop.interface, rpf->rpf_addr,
+				  true);
 	if (!neigh)
 		zlog_warn("sending JP to non-neighbor %pPA on %s",
 			  &rpf->rpf_addr, rpf->source_nexthop.interface->name);

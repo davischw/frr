@@ -1050,7 +1050,7 @@ static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
 		struct pim_neighbor *nbr;
 
 		nbr = pim_neighbor_find(up->rpf.source_nexthop.interface,
-					up->rpf.rpf_addr);
+					up->rpf.rpf_addr, false);
 		if (nbr) {
 			inet_ntop(AF_INET, &nbr->source_addr, upstream_neighbor,
 				  sizeof(upstream_neighbor));
