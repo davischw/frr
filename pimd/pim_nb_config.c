@@ -4538,10 +4538,10 @@ int lib_interface_gmp_address_family_static_group_destroy(
 		result = pim_if_gm_join_del(ifp, group_addr, source_addr);
 
 		if (result) {
-			snprintf(args->errmsg, args->errmsg_len,
-				 "%% Failure leaving " GM
-				 " group %pPAs %pPAs on interface %s: %d",
-				 &source_addr, &group_addr, ifp->name, result);
+			snprintfrr(args->errmsg, args->errmsg_len,
+				   "%% Failure leaving " GM
+				   " group %pPAs %pPAs on interface %s: %d",
+				   &source_addr, &group_addr, ifp->name, result);
 
 			return NB_ERR_INCONSISTENCY;
 		}
