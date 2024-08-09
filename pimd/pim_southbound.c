@@ -55,6 +55,7 @@
 #include "pimd/pim_time.h"
 #include "pimd/pim_nht.h"
 #include "pimd/pim6_mld.h"
+#include "pimd/pim6_mld_packet.h"
 #include "pimd/pim6_mld_protocol.h"
 
 /** Global variable to keep state of user implemented southbound. */
@@ -881,6 +882,8 @@ static bool pimsb_mld_parse_hopopts(const uint8_t *hopopt,
 {
 	size_t hopopt_end;
 
+	*data = (uint8_t *)(size_t)hopopt;
+	*data_len = hopopt_len;
 	if (hopopt_len <= 8)
 		return false;
 
@@ -2278,7 +2281,7 @@ static void pimsb_igmp_join_cb(struct thread *thread)
 	igmp_packet_list_free(packets);
 }
 
-void pimsb_igmp_join(const struct pim_interface *pim_interface)
+static void pimsb_igmp_join(const struct pim_interface *pim_interface)
 {
 	struct gm_sock *igmp_socket = pim_igmp_sock_lookup_ifaddr(
 		pim_interface->gm_socket_list, pim_interface->primary_address);
@@ -2292,8 +2295,9 @@ void pimsb_igmp_join(const struct pim_interface *pim_interface)
 			 &igmp_socket->join_event);
 }
 
-void pimsb_igmp_leave(const struct pim_interface *pim_interface,
-		      const struct in_addr *source, const struct in_addr *group)
+static void pimsb_igmp_leave(const struct pim_interface *pim_interface,
+			     const struct in_addr *source,
+			     const struct in_addr *group)
 {
 	struct gm_sock *igmp_socket = pim_igmp_sock_lookup_ifaddr(
 		pim_interface->gm_socket_list, pim_interface->primary_address);
@@ -2488,7 +2492,122 @@ int pimsb_send_query(const struct gm_if *gm_ifp, struct msghdr *msg,
 		return (int)sendmsg(gm_ifp->pim->gm_socket, msg, 0);
 	}
 }
+
+static void pimsb_mld_send(const struct interface *interface, bool join,
+			   const pim_addr *source, const pim_addr *group)
+{
+	struct pim_interface *pim_interface = interface->info;
+	struct mld_packet_list *packet_list;
+	struct mld_packet *packet;
+	struct cmsghdr *cmsg;
+	uint8_t *dp;
+	struct iovec iov;
+	struct msghdr msg;
+	struct in6_addr dest;
+	struct in6_pktinfo ipi6;
+	struct sockaddr_in6 sin6_src;
+	struct sockaddr_in6 sin6_dst;
+	char cmsgbuf[CMSG_SPACE(8) + CMSG_SPACE(sizeof(struct in6_pktinfo)) +
+		     CMSG_SPACE(sizeof(uint32_t))];
+
+	packet_list = mld_generate_packet_list(interface, join, source, group);
+
+	/* MLD static join was called, but no groups configured. */
+	if (packet_list == NULL)
+		return;
+
+	memset(&sin6_src, 0, sizeof(sin6_src));
+	sin6_src.sin6_family = AF_INET6;
+	memset(&sin6_dst, 0, sizeof(sin6_dst));
+	sin6_dst.sin6_family = AF_INET6;
+
+	memset(&ipi6, 0, sizeof(ipi6));
+	ipi6.ipi6_ifindex = (unsigned int)interface->ifindex;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_control = cmsgbuf;
+	msg.msg_controllen = sizeof(cmsgbuf);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_name = &sin6_dst;
+	msg.msg_namelen = sizeof(sin6_dst);
+
+	cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_level = IPPROTO_IPV6;
+	cmsg->cmsg_type = IPV6_HOPOPTS;
+	cmsg->cmsg_len = CMSG_LEN(8);
+	dp = CMSG_DATA(cmsg);
+	*dp++ = 0;		     /* next header */
+	*dp++ = 0;		     /* length (8-byte blocks, minus 1) */
+	*dp++ = IP6OPT_ROUTER_ALERT; /* router alert */
+	*dp++ = 2;		     /* length */
+	*dp++ = 0;		     /* value (2 bytes) */
+	*dp++ = 0;		     /* value (2 bytes) (0 = MLD) */
+	*dp++ = 0;		     /* pad0 */
+	*dp++ = 0;		     /* pad0 */
+
+	cmsg = CMSG_NXTHDR(&msg, cmsg);
+	cmsg->cmsg_level = IPPROTO_IPV6;
+	cmsg->cmsg_type = IPV6_PKTINFO;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
+
+	SLIST_FOREACH (packet, packet_list, entry) {
+		ipi6.ipi6_addr = packet->ip6->src;
+		sin6_src.sin6_addr = packet->ip6->src;
+		sin6_dst.sin6_addr = packet->ip6->dst;
+		dest = packet->ip6->dst;
+		iov.iov_base = packet->icmp6;
+		iov.iov_len = packet->size;
+
+		frr_with_privs (&pimd_privs) {
+			pimsb_send_query(pim_interface->mld, &msg, &ipi6,
+					 PIM_IPV6_ENCAP_MLD);
+		}
+
+		gm_rx_process(pim_interface->mld, &sin6_src, &dest,
+			      PIM_IPV6_ENCAP_MLD, iov.iov_base,
+			      iov.iov_len);
+	}
+
+	mld_free_packet_list(packet_list);
+}
+
+static void pimsb_mld_join(const struct interface *interface)
+{
+	pimsb_mld_send(interface, true, NULL, NULL);
+}
+
+static void pimsb_mld_leave(const struct interface *interface,
+			    const pim_addr *source, const pim_addr *group)
+{
+	pimsb_mld_send(interface, false, source, group);
+}
 #endif /* PIM_IPV == 6 */
+
+void pimsb_gm_join(const struct interface *interface)
+{
+	if (interface->info == NULL)
+		return;
+
+#if PIM_IPV == 4
+	pimsb_igmp_join(interface->info);
+#else
+	pimsb_mld_join(interface);
+#endif /* PIM_IPV == 6 */
+}
+
+void pimsb_gm_leave(const struct interface *interface, const pim_addr *source,
+		    const pim_addr *group)
+{
+	if (interface->info == NULL)
+		return;
+
+#if PIM_IPV == 4
+	pimsb_igmp_leave(interface->info, source, group);
+#else
+	pimsb_mld_leave(interface, source, group);
+#endif /* PIM_IPV == 6 */
+}
 
 static void pimsb_mrt_iif(struct pim_instance *pim, const pim_addr *group,
 			  vifi_t input, char *ifname_out, size_t ifname_len)

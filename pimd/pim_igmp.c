@@ -442,7 +442,7 @@ void pim_igmp_other_querier_timer_on(struct gm_sock *igmp)
 
 #ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
-		pimsb_igmp_join(pim_ifp);
+		pimsb_gm_join(igmp->interface);
 #endif /* VENDOR_SOUTHBOUND */
 }
 
@@ -970,7 +970,7 @@ static void pim_igmp_general_query(struct thread *t)
 
 #ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
-		pimsb_igmp_join(pim_ifp);
+		pimsb_gm_join(igmp->interface);
 #endif /* VENDOR_SOUTHBOUND */
 
 	pim_igmp_general_query_on(igmp);
@@ -1626,6 +1626,6 @@ void igmp_send_query_on_intf(struct interface *ifp, int igmp_ver)
 
 #ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
-		pimsb_igmp_join(pim_ifp);
+		pimsb_gm_join(ifp);
 #endif /* VENDOR_SOUTHBOUND */
 }

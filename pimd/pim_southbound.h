@@ -142,13 +142,15 @@ void pimsb_packet_read(int sock);
 ssize_t pimsb_igmp_sendto(const char *ifname, const void *data, size_t datalen,
 			  struct sockaddr *sa, socklen_t salen);
 
-/** Removes an IGMP group/source from being announced. */
-void pimsb_igmp_leave(const struct pim_interface *pim_interface,
-		      const struct in_addr *source,
-		      const struct in_addr *group);
+/** Removes a multicast group/source from being announced. */
+extern void pimsb_gm_leave(const struct interface *interface,
+			   const pim_addr *source, const pim_addr *group);
 
-/** Generate IGMP join for currently configured groups in interface. */
-void pimsb_igmp_join(const struct pim_interface *pim_interface);
+/**
+ * Generate multicast join for currently configured groups/source in
+ * interface.
+ */
+extern void pimsb_gm_join(const struct interface *interface);
 
 int pim_socket_get(void);
 int pimsb_socket_bind(int fd, pim_addr address);

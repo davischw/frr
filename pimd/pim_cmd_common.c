@@ -4516,19 +4516,11 @@ void clear_mroute(struct pim_instance *pim)
 	while ((up = rb_pim_upstream_first(&pim->upstream_head)))
 		pim_upstream_del(pim, up, __func__);
 
-
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
-	if (pim_southbound_enabled) {
-		/* Resend all static IGMP joins. */
-		FOR_ALL_INTERFACES (pim->vrf, ifp) {
-			struct pim_interface *pim_ifp = ifp->info;
-
-			if (pim_ifp == NULL)
-				continue;
-
-			pimsb_igmp_join(pim_ifp);
-		}
-	}
+#ifdef VENDOR_SOUTHBOUND
+	/* Resend all static multicast joins. */
+	if (pim_southbound_enabled)
+		FOR_ALL_INTERFACES (pim->vrf, ifp)
+			pimsb_gm_join(ifp);
 #endif /* VENDOR_SOUTHBOUND */
 }
 

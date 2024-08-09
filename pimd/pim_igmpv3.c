@@ -1136,7 +1136,7 @@ static void igmp_send_query_group(struct gm_group *group, char *query_buf,
 
 #ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
-		pimsb_igmp_join(pim_ifp);
+		pimsb_gm_join(ifp);
 #endif /* VENDOR_SOUTHBOUND */
 }
 

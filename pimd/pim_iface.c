@@ -573,9 +573,9 @@ void pim_if_addr_add(struct connected *ifc)
 
 			for (ALL_LIST_ELEMENTS(pim_ifp->gm_join_list, node,
 					       nextnode, ij)) {
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 				if (pim_southbound_enabled) {
-					pimsb_igmp_join(pim_ifp);
+					pimsb_gm_join(ifp);
 					continue;
 				}
 #endif /* VENDOR_SOUTHBOUND */
@@ -1319,7 +1319,7 @@ static struct gm_join *gm_join_new(struct interface *ifp, pim_addr group_addr,
 	pim_ifp = ifp->info;
 	assert(pim_ifp);
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled) {
 		join_fd = -1;
 	} else {
@@ -1333,7 +1333,7 @@ static struct gm_join *gm_join_new(struct interface *ifp, pim_addr group_addr,
 				  ifp->name);
 			return 0;
 		}
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	}
 #endif /* VENDOR_SOUTHBOUND */
 
@@ -1343,12 +1343,12 @@ static struct gm_join *gm_join_new(struct interface *ifp, pim_addr group_addr,
 	ij->group_addr = group_addr;
 	ij->source_addr = source_addr;
 	ij->sock_creation = pim_time_monotonic_sec();
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
-	if (pim_southbound_enabled)
-		pimsb_igmp_join(pim_ifp);
-#endif /* VENDOR_SOUTHBOUND */
-
 	listnode_add(pim_ifp->gm_join_list, ij);
+
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled)
+		pimsb_gm_join(ifp);
+#endif /* VENDOR_SOUTHBOUND */
 
 	return ij;
 }
@@ -1418,7 +1418,7 @@ int pim_if_gm_join_del(struct interface *ifp, pim_addr group_addr,
 		return -3;
 	}
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled) {
 		/*
 		 * Don't attempt to do southbound leave if source/group timer
@@ -1426,7 +1426,7 @@ int pim_if_gm_join_del(struct interface *ifp, pim_addr group_addr,
 		 * terminate signal.
 		 */
 		if (pim_ifp->pim->upstream_sg_wheel != NULL)
-			pimsb_igmp_leave(pim_ifp, &source_addr, &group_addr);
+			pimsb_gm_leave(ifp, &source_addr, &group_addr);
 	} else
 #endif /* VENDOR_SOUTHBOUND */
 		if (close(ij->sock_fd)) {

@@ -94,7 +94,7 @@ static void sock_close(struct interface *ifp)
 	}
 	THREAD_OFF(pim_ifp->t_pim_hello_timer);
 
-#if defined(VENDOR_SOUTHBOUND) && PIM_IPV == 4
+#ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
 		return;
 #endif /* VENDOR_SOUTHBOUND */
