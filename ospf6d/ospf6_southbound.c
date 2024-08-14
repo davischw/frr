@@ -228,6 +228,8 @@ ssize_t ospf6_sb_sendmsg(struct ospf6 *ospf6, const struct in6_addr *src,
 	};
 
 	interface = if_lookup_by_index(ifindex, ospf6->vrf_id);
+	if (interface == NULL)
+		return -1;
 
 	/* Use the proper ouput socket. */
 	sock = ospf6_sb_get_fd(ospf6, dst);
