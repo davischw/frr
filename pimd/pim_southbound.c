@@ -529,7 +529,8 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 			"%s: %s SG(%pI4, %pI4) iif:%d notifif:%d flags:0x%04x OIFS_AMOUNT:%zu OIF:[%s] encap:(local:%pI4, rp:%pI4) rp:%s fhr:%s lhr:%s",
 			__func__, install ? "INSTALL" : "DELETE",
 			&oil->oil.mfcc_origin, &oil->oil.mfcc_mcastgrp,
-			oil->iif.ifindex, 0, route_flags, oif_count, oifs,
+			oil->iif.ifindex, oil->notifif.ifindex, route_flags,
+			oif_count, oifs,
 			has_pimreg && has_rp_if ? &pim_ifp->primary_address
 						: &ia_zero,
 			has_pimreg && has_rp_if ? &rp->rp.rpf_addr : &ia_zero,
