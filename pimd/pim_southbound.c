@@ -129,6 +129,7 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 	bool has_rp_if = false;
 	bool star_source = false;
 	bool use_notifif = false;
+	bool switch_to_iif = false;
 	struct prefix p = {};
 	struct pim_nexthop pn = {};
 
@@ -192,6 +193,23 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 			oil->notifif.ifindex = oil->iif.ifindex;
 			oil->iif.ifindex = 0;
 		}
+
+		/*
+		 * If upstream has not joined yet, then don't set input
+		 * interface.
+		 */
+		if (upstream->join_state == PIM_UPSTREAM_NOTJOINED)
+			oil->iif.ifindex = 0;
+
+		/*
+		 * If traffic has been seem and upstream has joined then
+		 * use switch the input interface with the notification
+		 * interface.
+		 */
+		if (upstream->join_state == PIM_UPSTREAM_JOINED
+		    && CHECK_FLAG(upstream->flags,
+				  PIM_UPSTREAM_FLAG_MASK_DATA_START))
+			switch_to_iif = true;
 	}
 
 	/* Don't use notification interface. */
@@ -206,6 +224,12 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 		oil->notifif.ifindex = pn.interface->ifindex;
 	else
 		oil->notifif.ifindex = 0;
+
+	/* Traffic hit SPT, switch to SPT interface. */
+	if (switch_to_iif) {
+		oil->iif.ifindex = oil->notifif.ifindex;
+		oil->notifif.ifindex = 0;
+	}
 }
 
 static void pimsb_debug_oil(const struct channel_oil *oil)
