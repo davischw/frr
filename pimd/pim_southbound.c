@@ -178,6 +178,13 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 	    (i_am_rp || oil->iif.ifindex == 0 || rp_if == oil->iif.ifindex))
 		use_notifif = true;
 
+	if (PIM_DEBUG_MROUTE)
+		zlog_debug(
+			"%s: SG(%pI4, %pI4) IAmRP:%s RPIF:%d use_notifif:%s upstream:%s",
+			__func__, &oil->oil.mfcc_origin,
+			&oil->oil.mfcc_mcastgrp, i_am_rp ? "yes" : "no", rp_if,
+			use_notifif ? "yes" : "no", upstream ? "yes" : "no");
+
 	/* We need more information to process further. */
 	if (upstream == NULL)
 		return;
@@ -224,6 +231,12 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 		oil->notifif.ifindex = pn.interface->ifindex;
 	else
 		oil->notifif.ifindex = 0;
+
+	if (PIM_DEBUG_MROUTE)
+		zlog_debug(
+			"%s:   switch_to_iif:%s notifif:%d <-> iif:%d",
+			__func__, switch_to_iif ? "yes" : "no ", oil->notifif.ifindex,
+			oil->iif.ifindex);
 
 	/* Traffic hit SPT, switch to SPT interface. */
 	if (switch_to_iif) {
