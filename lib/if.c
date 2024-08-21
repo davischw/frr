@@ -1457,10 +1457,11 @@ static int lib_interface_create(struct nb_cb_create_args *args)
 
 			netns_ifname_split(ifname, ifname_ns, vrfname_ns);
 
-			if (strlen(ifname_ns) > 16) {
+			if (strlen(ifname_ns) > INTERFACE_NAMSIZ) {
 				snprintf(
 					args->errmsg, args->errmsg_len,
-					"Maximum interface name length is 16 characters");
+					"Maximum interface name length is %u characters",
+					INTERFACE_NAMSIZ);
 				return NB_ERR_VALIDATION;
 			}
 			if (strlen(vrfname_ns) > 36) {
@@ -1470,10 +1471,11 @@ static int lib_interface_create(struct nb_cb_create_args *args)
 				return NB_ERR_VALIDATION;
 			}
 		} else {
-			if (strlen(ifname) > 16) {
+			if (strlen(ifname) > INTERFACE_NAMSIZ) {
 				snprintf(
 					args->errmsg, args->errmsg_len,
-					"Maximum interface name length is 16 characters");
+					"Maximum interface name length is %u characters",
+					INTERFACE_NAMSIZ);
 				return NB_ERR_VALIDATION;
 			}
 		}
