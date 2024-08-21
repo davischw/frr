@@ -238,8 +238,14 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 			__func__, switch_to_iif ? "yes" : "no ", oil->notifif.ifindex,
 			oil->iif.ifindex);
 
-	/* Traffic hit SPT, switch to SPT interface. */
-	if (switch_to_iif) {
+	/*
+	 * Traffic hit SPT (notification index was already set), switch to SPT
+	 * interface.
+	 *
+	 * Don't attempt to switch to SPT if the input interface chosen by PIM
+	 * is already correct (e.g. iif == spt-interface).
+	 */
+	if (switch_to_iif && oil->notifif.ifindex != 0) {
 		oil->iif.ifindex = oil->notifif.ifindex;
 		oil->notifif.ifindex = 0;
 	}
