@@ -2036,13 +2036,8 @@ static void pimsb_init_pim(void)
 	int on = 1;
 
 	frr_with_privs (&pimd_privs) {
-#if PIM_IPV == 4
-		sock = socket(AF_INET, SOCK_RAW | SOCK_NONBLOCK,
+		sock = socket(PIM_AF, SOCK_RAW | SOCK_NONBLOCK,
 			      PIM_IP_ENCAP_PIM);
-#else
-		sock = socket(AF_INET6, SOCK_RAW | SOCK_NONBLOCK,
-			      PIM_ENCAP_PROTO);
-#endif
 		if (sock == -1) {
 			zlog_err("%s: socket: %s", __func__, strerror(errno));
 			return;

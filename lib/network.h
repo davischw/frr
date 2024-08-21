@@ -293,8 +293,6 @@ void ip_fragmentation_handler_init(struct thread_master *tm);
 #define MLDV1_DONE_ENCAP_PROTO  241
 /** MLDv2 encapsulation protocol for Report packets. */
 #define MLD_REPORT_ENCAP_PROTO  242
-/** PIMv6 encapsulation protocol. */
-#define PIM_ENCAP_PROTO         243
 
 /** Encapsulation parse results.  */
 struct ipv4_encap_result {
