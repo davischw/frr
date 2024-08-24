@@ -1031,12 +1031,9 @@ void pim_ifchannel_prune(struct interface *ifp, pim_addr upstream,
 				PIM_IF_FLAG_SET_S_G_RPT(ch->flags);
 
 			ch->ifjoin_state = PIM_IFJOIN_PRUNE_PENDING;
-			if (listcount(pim_ifp->pim_neighbor_list) > 1)
-				jp_override_interval_msec =
-					pim_if_jp_override_interval_msec(ifp);
-			else
-				jp_override_interval_msec =
-					0; /* schedule to expire immediately */
+			jp_override_interval_msec =
+				pim_if_jp_override_interval_msec(ifp);
+
 			/* If we called ifjoin_prune() directly instead, care
 			   should
 			   be taken not to use "ch" afterwards since it would be
