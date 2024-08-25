@@ -3801,6 +3801,7 @@ static void zread_route_lookup(ZAPI_HANDLER_ARGS)
 	re = rib_match_ipv4_multicast(zvrf_id(zvrf), addr.v4, &rn);
 	/* Send result whether it found or not. */
 	zsend_route_result(client, zvrf, &rn->p, re);
+	return;
 
 stream_failure:
 	zlog_warn("%s: invalid stream format", __func__);
