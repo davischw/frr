@@ -213,9 +213,8 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 		 * use switch the input interface with the notification
 		 * interface.
 		 */
-		if (upstream->join_state == PIM_UPSTREAM_JOINED
-		    && CHECK_FLAG(upstream->flags,
-				  PIM_UPSTREAM_FLAG_MASK_DATA_START))
+		if (CHECK_FLAG(upstream->flags,
+			       PIM_UPSTREAM_FLAG_MASK_DATA_START))
 			switch_to_iif = true;
 	}
 
