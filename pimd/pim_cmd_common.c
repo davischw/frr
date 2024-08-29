@@ -2924,6 +2924,7 @@ static int pim_print_json_pnc_cache_walkcb(struct hash_bucket *backet,
 	json_object *json_row = NULL;
 	json_object *json_ifp = NULL;
 	json_object *json_arr = NULL;
+	json_object *json_flags = NULL;
 
 	nhd = &pnc->rib[SAFI_UNICAST - 1];
 	for (nh_node = nhd->nexthop; nh_node; nh_node = nh_node->next) {
@@ -2938,9 +2939,6 @@ static int pim_print_json_pnc_cache_walkcb(struct hash_bucket *backet,
 						&pnc->rpf.rpf_addr);
 			json_object_object_addf(cwd->json_obj, json_row, "%pPA",
 						&pnc->rpf.rpf_addr);
-			json_object_string_addf(
-				json_row, "flags", "%cu",
-				pnc->rib_sel == SAFI_UNICAST ? '>' : ' ');
 			json_arr = json_object_new_array();
 			json_object_object_add(json_row, "nexthops", json_arr);
 		}
@@ -2954,6 +2952,14 @@ static int pim_print_json_pnc_cache_walkcb(struct hash_bucket *backet,
 		json_object_string_addf(json_ifp, "nexthop", "%pI6",
 					&nh_node->gate.ipv6);
 #endif
+
+		json_flags = json_object_new_object();
+		json_object_boolean_add(json_flags, "selected",
+					(pnc->rib_sel == SAFI_UNICAST));
+		json_object_boolean_add(json_flags, "unicast", true);
+		json_object_boolean_add(json_flags, "multicast", false);
+		json_object_object_add(json_ifp, "flags", json_flags);
+
 		json_object_array_add(json_arr, json_ifp);
 	}
 
@@ -2970,9 +2976,6 @@ static int pim_print_json_pnc_cache_walkcb(struct hash_bucket *backet,
 						&pnc->rpf.rpf_addr);
 			json_object_object_addf(cwd->json_obj, json_row, "%pPA",
 						&pnc->rpf.rpf_addr);
-			json_object_string_addf(
-				json_row, "flags", "%cu",
-				pnc->rib_sel == SAFI_MULTICAST ? '>' : ' ');
 			json_arr = json_object_new_array();
 			json_object_object_add(json_row, "nexthops", json_arr);
 		}
@@ -2986,6 +2989,14 @@ static int pim_print_json_pnc_cache_walkcb(struct hash_bucket *backet,
 		json_object_string_addf(json_ifp, "nexthop", "%pI6",
 					&nh_node->gate.ipv6);
 #endif
+
+		json_flags = json_object_new_object();
+		json_object_boolean_add(json_flags, "selected",
+					(pnc->rib_sel == SAFI_MULTICAST));
+		json_object_boolean_add(json_flags, "unicast", false);
+		json_object_boolean_add(json_flags, "multicast", true);
+		json_object_object_add(json_ifp, "flags", json_flags);
+
 		json_object_array_add(json_arr, json_ifp);
 	}
 
