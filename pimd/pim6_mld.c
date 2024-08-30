@@ -1809,7 +1809,7 @@ static void gm_send_query(struct gm_if *gm_ifp, pim_addr grp,
 	} else if (pim_addr_is_any(grp)) {
 		dstaddr.sin6_addr = gm_all_hosts;
 #ifdef VENDOR_SOUTHBOUND
-		ph6.next_hdr = MLD_QUERY_ENCAP_PROTO;
+		ph6.next_hdr = PIM_IPV6_ENCAP_MLD;
 #endif /* VENDOR_SOUTHBOUND */
 	} else
 		dstaddr.sin6_addr = grp;

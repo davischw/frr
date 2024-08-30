@@ -69,8 +69,8 @@ static int igmp_fd = -1;
 static struct thread *igmp_read_ev;
 #else
 /* MLD global data. */
-static int mld_fds[3] = {-1, -1, -1};
-static struct thread *mld_read_evs[3];
+static int mld_fd = -1;
+static struct thread *mld_read_ev;
 #endif
 
 /* PIM global data. */
@@ -870,15 +870,13 @@ static void pimsb_init_igmp(void)
 /*
  * MLD socket.
  */
-static void pimsb_mld_read(struct thread *t)
+static void pimsb_mld_read(struct thread *t __attribute__((unused)))
 {
 	struct pim_interface *pim_ifp;
 	struct interface *ifp;
 	struct vrf *vrf;
 	struct cmsghdr *cmsg;
 	ssize_t brecv;
-	int mld_fd = THREAD_FD(t);
-	int proto = 0;
 	uint32_t flowinfo;
 	struct iovec iov;
 	struct msghdr msg;
@@ -889,22 +887,8 @@ static void pimsb_mld_read(struct thread *t)
 		CMSG_SPACE(sizeof(uint32_t))
 	];
 
-	if (mld_fds[0] == mld_fd) {
-		thread_add_read(router->master, pimsb_mld_read, NULL, mld_fd,
-				&mld_read_evs[0]);
-		proto = MLD_QUERY_ENCAP_PROTO;
-	} else if (mld_fds[1] == mld_fd) {
-		thread_add_read(router->master, pimsb_mld_read, NULL, mld_fd,
-				&mld_read_evs[1]);
-		proto = MLDV1_DONE_ENCAP_PROTO;
-	} else if (mld_fds[2] == mld_fd) {
-		thread_add_read(router->master, pimsb_mld_read, NULL, mld_fd,
-				&mld_read_evs[2]);
-		proto = MLD_REPORT_ENCAP_PROTO;
-	} else {
-		zlog_warn("%s: unhandled fd %d", __func__, mld_fd);
-		return;
-	}
+	thread_add_read(router->master, pimsb_mld_read, NULL, mld_fd,
+			&mld_read_ev);
 
 	iov.iov_base = pimsb_ctx.pktbuf;
 	iov.iov_len = pimsb_ctx.pktbuflen;
@@ -989,21 +973,22 @@ static void pimsb_mld_read(struct thread *t)
 		return;
 	}
 
-	gm_rx_process(pim_ifp->mld, &src, &ipi6.ipi6_addr, proto,
+	gm_rx_process(pim_ifp->mld, &src, &ipi6.ipi6_addr, PIM_IPV6_ENCAP_MLD,
 		      pimsb_ctx.pktbuf, brecv);
 }
 
-static int pimsb_mld_socket(int proto)
+static void pimsb_init_mld(void)
 {
 	int fd;
 	int on = 1;
 
 	frr_with_privs (&pimd_privs) {
-		fd = socket(AF_INET6, SOCK_RAW | SOCK_NONBLOCK, proto);
+		fd = socket(AF_INET6, SOCK_RAW | SOCK_NONBLOCK,
+			    PIM_IPV6_ENCAP_MLD);
 		if (fd == -1) {
 			zlog_err("%s: socket: %s", __func__, strerror(errno));
 			close(fd);
-			return -1;
+			return;
 		}
 
 		if (setsockopt(fd, IPPROTO_IPV6, IPV6_FLOWINFO, &on,
@@ -1024,22 +1009,9 @@ static int pimsb_mld_socket(int proto)
 	setsockopt_so_sendbuf(fd, 1024 * 1024);
 	setsockopt_so_recvbuf(fd, 1024 * 1024);
 
-	return fd;
-}
-
-static void pimsb_init_mld(void)
-{
-	mld_fds[0] = pimsb_mld_socket(MLD_QUERY_ENCAP_PROTO);
-	thread_add_read(router->master, pimsb_mld_read, NULL, mld_fds[0],
-			&mld_read_evs[0]);
-
-	mld_fds[1] = pimsb_mld_socket(MLDV1_DONE_ENCAP_PROTO);
-	thread_add_read(router->master, pimsb_mld_read, NULL, mld_fds[1],
-			&mld_read_evs[1]);
-
-	mld_fds[2] = pimsb_mld_socket(MLD_REPORT_ENCAP_PROTO);
-	thread_add_read(router->master, pimsb_mld_read, NULL, mld_fds[2],
-			&mld_read_evs[2]);
+	mld_fd = fd;
+	thread_add_read(router->master, pimsb_mld_read, NULL, mld_fd,
+			&mld_read_ev);
 }
 #endif /* IPV == 6 */
 
@@ -2108,13 +2080,9 @@ void pimsb_shutdown(void)
 	close(igmp_fd);
 	igmp_fd = -1;
 #else
-	THREAD_OFF(mld_read_evs[0]);
-	THREAD_OFF(mld_read_evs[1]);
-	THREAD_OFF(mld_read_evs[2]);
-	close(mld_fds[0]);
-	close(mld_fds[1]);
-	close(mld_fds[2]);
-	memset(mld_fds, -1, sizeof(mld_fds));
+	THREAD_OFF(mld_read_ev);
+	close(mld_fd);
+	mld_fd = -1;
 #endif
 
 	THREAD_OFF(pim_read_ev);
@@ -2429,26 +2397,8 @@ int pimsb_send_query(const struct gm_if *gm_ifp, struct msghdr *msg,
 	const struct interface *ifp = gm_ifp->ifp;
 	struct cmsghdr *cmsg = CMSG_FIRSTHDR(msg);
 	struct sockaddr_in6 *dst;
-	int mld_fd;
 	int32_t ifindex;
 	int32_t vifindex;
-
-	/* Select the output protocol. */
-	switch (proto) {
-	case MLD_QUERY_ENCAP_PROTO:
-		mld_fd = mld_fds[0];
-		break;
-
-	default:
-		if (PIM_DEBUG_GM_PACKETS)
-			zlog_debug("%s: unhandled protocol %d", __func__,
-				   proto);
-		/* FALL THROUGH */
-
-	case IPPROTO_ICMPV6:
-		mld_fd = gm_ifp->pim->gm_socket;
-		break;
-	}
 
 	ifindex = htonl(ifp->ifindex);
 	vifindex = ifp->vif_index ? ifp->vif_index : ifp->ifindex;
@@ -2468,7 +2418,19 @@ int pimsb_send_query(const struct gm_if *gm_ifp, struct msghdr *msg,
 	cmsg->cmsg_len = CMSG_LEN(sizeof(uint32_t));
 	memcpy(CMSG_DATA(cmsg), &ifindex, sizeof(uint32_t));
 
-	return sendmsg(mld_fd, msg, 0);
+	switch (proto) {
+	case PIM_IPV6_ENCAP_MLD:
+		return (int)sendmsg(mld_fd, msg, 0);
+
+	default:
+		if (PIM_DEBUG_GM_PACKETS)
+			zlog_debug("%s: unhandled protocol %d", __func__,
+				   proto);
+		/* FALL THROUGH */
+
+	case IPPROTO_ICMPV6:
+		return (int)sendmsg(gm_ifp->pim->gm_socket, msg, 0);
+	}
 }
 #endif /* PIM_IPV == 6 */
 
