@@ -349,9 +349,19 @@ bool pim_route_lookup(struct pim_instance *pim, pim_addr addr, uint32_t *asn,
 
 		       pn->mrib_nexthop_addr = rni->rni_addr.v4;
 		       break;
+
+		case NEXTHOP_TYPE_IFINDEX:
+			if (PIM_DEBUG_ZEBRA)
+				zlog_debug(
+					"%s: found connected interface for address %pPA: ifindex=%d metric=%d pref=%d",
+					__func__, &addr, rni->rni_ifindex,
+					ri->ri_metric, ri->ri_distance);
+
+			pn->mrib_nexthop_addr = addr;
+			break;
+
                case NEXTHOP_TYPE_IPV6:
                case NEXTHOP_TYPE_IPV6_IFINDEX:
-               case NEXTHOP_TYPE_IFINDEX:
 		       continue;
 
                default:
