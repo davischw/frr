@@ -1557,7 +1557,11 @@ void gm_rx_process(struct gm_if *gm_ifp, const struct sockaddr_in6 *pkt_src,
 	icmp6->icmp6_cksum = 0;
 	ref_csum = in_cksum_with_ph6(&ph6, data, pktlen);
 
+#ifdef VENDOR_SOUTHBOUND
+	if (!pim_southbound_enabled && pkt_csum != ref_csum) {
+#else
 	if (pkt_csum != ref_csum) {
+#endif
 		zlog_warn(
 			log_pkt_src(
 				"(dst %pPA) packet RX checksum failure, expected %04hx, got %04hx"),
