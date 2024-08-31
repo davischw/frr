@@ -2036,6 +2036,15 @@ static void pimsb_init_pim(void)
 			close(sock);
 			return;
 		}
+
+		if (setsockopt(sock, IPPROTO_IPV6, IPV6_FLOWINFO_SEND, &on,
+		    sizeof(on)) == -1) {
+			flog_err(EC_LIB_SOCKET,
+				 "Can't set IPV6_FLOWINFO_SEND option for fd %d: %s",
+				 sock, safe_strerror(errno));
+			close(sock);
+			return;
+		}
 #endif
 	}
 
@@ -2356,6 +2365,7 @@ void pimsb_msg_send_frame(const pim_addr *src, const pim_addr *dst,
 {
 	struct cmsghdr *cmsg;
 	ssize_t bytes;
+	uint32_t ifindex;
 	struct msghdr msg;
 	struct sockaddr_in6 dest;
 	char cmsgbuf[CMSG_SPACE(sizeof(uint32_t))];
@@ -2383,7 +2393,8 @@ void pimsb_msg_send_frame(const pim_addr *src, const pim_addr *dst,
 	cmsg->cmsg_level = IPPROTO_IPV6;
 	cmsg->cmsg_type = IPV6_FLOWINFO;
 	cmsg->cmsg_len = CMSG_LEN(sizeof(uint32_t));
-	memcpy(CMSG_DATA(cmsg), &ifp->ifindex, sizeof(uint32_t));
+	ifindex = htonl((uint32_t)ifp->ifindex);
+	memcpy(CMSG_DATA(cmsg), &ifindex, sizeof(uint32_t));
 
 	bytes = sendmsg(pim_fd, &msg, 0);
 	if (bytes == -1)
