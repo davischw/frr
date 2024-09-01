@@ -2025,9 +2025,17 @@ static void pimsb_init_pim(void)
 			close(sock);
 			return;
 		}
+
+		if (setsockopt_ipv4_tos(sock, IPTOS_PREC_INTERNETCONTROL))
+			zlog_warn("can't set sockopt IP_TOS to socket %d: %m",
+				  sock);
 #endif
 
 #if PIM_IPV == 6
+		if (setsockopt_ipv6_tclass(sock, IPTOS_PREC_INTERNETCONTROL))
+			zlog_warn("can't set sockopt IPV6_TOS to socket %d: %m",
+				  sock);
+
 		if (setsockopt(sock, IPPROTO_IPV6, IPV6_FLOWINFO, &on,
 		    sizeof(on)) == -1) {
 			flog_err(EC_LIB_SOCKET,
