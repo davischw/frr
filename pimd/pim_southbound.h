@@ -94,6 +94,8 @@ struct mroute_event {
 #define MRT_FLAG_JOIN_SPT_ALLOWED 0x0001
 /** Ask data plane to tell us when the data flow stops. */
 #define MRT_FLAG_RESTART_DL_TIMER 0x0002
+/** Flag IPv6 addresses for the data plane. */
+#define MRT_FLAG_ADDR_TYPE_V6 0x0008
 /** Blackhole multicast packets. */
 #define MRT_FLAG_DUMMY 0x0020
 /** Used with dummy to remove blackhole after a time. */

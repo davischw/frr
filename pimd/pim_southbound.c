@@ -495,6 +495,11 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 	if (oil->iif.ifindex == 0)
 		route_flags &= ~MRT_FLAG_DL_TIMER;
 
+#if PIM_IPV == 6
+	/* Flag all multicast routes coming from us to be IPv6. */
+	route_flags |= MRT_FLAG_ADDR_TYPE_V6;
+#endif /* PIM_IPV == 6 */
+
 	/*
 	 * Multicast route internal communication format:
 	 *  - 2 bytes: Action (0: install, 1: delete).
