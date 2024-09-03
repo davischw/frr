@@ -1589,8 +1589,8 @@ void gm_rx_process(struct gm_if *gm_ifp, const struct sockaddr_in6 *pkt_src,
 	}
 }
 
-static bool ip6_check_hopopts_ra(uint8_t *hopopts, size_t hopopt_len,
-				 uint16_t alert_type)
+bool ip6_check_hopopts_ra(const uint8_t *hopopts, size_t hopopt_len,
+			  uint16_t alert_type)
 {
 	uint8_t *hopopt_end;
 
@@ -1599,7 +1599,7 @@ static bool ip6_check_hopopts_ra(uint8_t *hopopts, size_t hopopt_len,
 	if (hopopt_len < (hopopts[1] + 1U) * 8U)
 		return false;
 
-	hopopt_end = hopopts + (hopopts[1] + 1) * 8;
+	hopopt_end = (uint8_t *)(size_t)(hopopts + (hopopts[1] + 1) * 8);
 	hopopts += 2;
 
 	while (hopopts < hopopt_end) {

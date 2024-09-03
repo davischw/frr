@@ -385,6 +385,9 @@ static inline void gm_ifp_teardown(struct interface *ifp)
 }
 #endif
 
+bool ip6_check_hopopts_ra(const uint8_t *hopopts, size_t hopopt_len,
+			  uint16_t alert_type);
+
 extern void gm_cli_init(void);
 bool in6_multicast_nofwd(const pim_addr *addr);
 

@@ -870,12 +870,34 @@ static void pimsb_init_igmp(void)
 /*
  * MLD socket.
  */
+static bool pimsb_mld_parse_hopopts(const uint8_t *hopopt,
+				    const size_t hopopt_len, uint8_t **data,
+				    size_t *data_len)
+{
+	size_t hopopt_end;
+
+	if (hopopt_len <= 8)
+		return false;
+
+	hopopt_end = (size_t)(hopopt[1] + 1) * 8;
+	if (hopopt_len <= hopopt_end)
+		return false;
+
+	*data = (uint8_t *)(size_t)(hopopt + hopopt_end);
+	*data_len = hopopt_len - hopopt_end;
+	return hopopt[0] == IPPROTO_ICMPV6 &&
+	       ip6_check_hopopts_ra(hopopt, hopopt_end, IP6_ALERT_MLD);
+}
+
 static void pimsb_mld_read(struct thread *t __attribute__((unused)))
 {
 	struct pim_interface *pim_ifp;
 	struct interface *ifp;
 	struct vrf *vrf;
 	struct cmsghdr *cmsg;
+	uint8_t *pktbuf;
+	bool has_router_alert;
+	size_t pktbuf_len;
 	ssize_t brecv;
 	uint32_t flowinfo;
 	struct iovec iov;
@@ -949,7 +971,11 @@ static void pimsb_mld_read(struct thread *t __attribute__((unused)))
 		return;
 	}
 
-	if ((size_t)brecv < sizeof(struct icmp6_plain_hdr)) {
+	has_router_alert =
+		pimsb_mld_parse_hopopts((uint8_t *)pimsb_ctx.pktbuf,
+					(size_t)brecv, &pktbuf, &pktbuf_len);
+
+	if (pktbuf_len < sizeof(struct icmp6_plain_hdr)) {
 		if (PIM_DEBUG_GM_PACKETS)
 			zlog_debug(
 				"%s: %s: packet too small (%zd expected %zu)",
@@ -973,8 +999,14 @@ static void pimsb_mld_read(struct thread *t __attribute__((unused)))
 		return;
 	}
 
+	if (PIM_DEBUG_GM_PACKETS)
+		zlog_debug("%s: [%pI6]->[%pI6] (%s vif %d if %d) router alert %s",
+			   __func__, &src.sin6_addr, &ipi6.ipi6_addr, ifp->name,
+			   ifp->vif_index, ifp->ifindex,
+			   has_router_alert ? "yes" : "no");
+
 	gm_rx_process(pim_ifp->mld, &src, &ipi6.ipi6_addr, PIM_IPV6_ENCAP_MLD,
-		      pimsb_ctx.pktbuf, brecv);
+		      pktbuf, pktbuf_len);
 }
 
 static void pimsb_init_mld(void)
