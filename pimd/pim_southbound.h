@@ -35,7 +35,11 @@ struct igmp_group;
 struct pim_instance;
 
 /** Default TCP listening port. */
+#if PIM_IPV == 4
 #define PIMSB_DEFAULT_PORT 2650
+#else
+#define PIMSB_DEFAULT_PORT 2651
+#endif /* PIM_IPV == 6 */
 
 /** pimreg interface index value for southbound. */
 #define PIM_REG_IF_IDX 0x7FFF0000
