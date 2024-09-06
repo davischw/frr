@@ -201,6 +201,7 @@ struct zebra_router {
 
 	/* RPF Lookup behavior */
 	enum multicast_mode ipv4_multicast_mode;
+	enum multicast_mode ipv6_multicast_mode;
 
 	/*
 	 * Time for when we sweep the rib from old routes
@@ -275,8 +276,10 @@ static inline struct zebra_vrf *zebra_vrf_get_evpn(void)
 }
 
 extern void multicast_mode_ipv4_set(enum multicast_mode mode);
+extern void multicast_mode_ipv6_set(enum multicast_mode mode);
 
 extern enum multicast_mode multicast_mode_ipv4_get(void);
+extern enum multicast_mode multicast_mode_ipv6_get(void);
 
 extern bool zebra_router_notify_on_ack(void);
 

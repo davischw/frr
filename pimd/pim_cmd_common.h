@@ -26,6 +26,7 @@ struct pim_instance;
 const char *pim_cli_get_vrf_name(struct vty *vty);
 int pim_process_join_prune_cmd(struct vty *vty, const char *jpi_str);
 int pim_process_no_join_prune_cmd(struct vty *vty);
+int multicast_mode_set(struct vty *vty, const char *mode);
 int pim_process_spt_switchover_cmd(struct vty *vty, const char *group,
 				   const char *bandwidth, bool no, bool never,
 				   bool immediate);

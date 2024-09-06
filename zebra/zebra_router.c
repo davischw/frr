@@ -224,9 +224,22 @@ void multicast_mode_ipv4_set(enum multicast_mode mode)
 	zrouter.ipv4_multicast_mode = mode;
 }
 
+void multicast_mode_ipv6_set(enum multicast_mode mode)
+{
+	if (IS_ZEBRA_DEBUG_RIB)
+		zlog_debug("%s: IPv6 multicast lookup mode set (%d)", __func__,
+			   mode);
+	zrouter.ipv6_multicast_mode = mode;
+}
+
 enum multicast_mode multicast_mode_ipv4_get(void)
 {
 	return zrouter.ipv4_multicast_mode;
+}
+
+enum multicast_mode multicast_mode_ipv6_get(void)
+{
+	return zrouter.ipv6_multicast_mode;
 }
 
 void zebra_router_terminate(void)

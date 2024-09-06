@@ -111,6 +111,22 @@ int pim_process_no_join_prune_cmd(struct vty *vty)
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+int multicast_mode_set(struct vty *vty, const char *mode)
+{
+	const char *vrfname;
+	char xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(xpath, sizeof(xpath), FRR_PIM_VRF_XPATH "/mcast-rpf-lookup",
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL);
+
+	nb_cli_enqueue_change(vty, xpath, NB_OP_MODIFY, mode);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 int pim_process_spt_switchover_cmd(struct vty *vty, const char *group,
 				   const char *bandwidth, bool no, bool never,
 				   bool immediate)

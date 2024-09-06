@@ -79,6 +79,39 @@ DEFPY (no_ipv6_pim_joinprune_time,
 	return pim_process_no_join_prune_cmd(vty);
 }
 
+DEFUN_NOSH(
+       ipv6_pim_multicast_mode,
+       ipv6_pim_multicast_mode_cmd,
+       "ipv6 multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance>",
+       IPV6_STR
+       "Multicast options\n"
+       "RPF lookup behavior\n"
+       "Lookup in unicast RIB only\n"
+       "Lookup in multicast RIB only\n"
+       "Try multicast RIB first, fall back to unicast RIB\n"
+       "Lookup both, use entry with lower distance\n")
+{
+       const char *mode = argv[3]->text;
+
+       return multicast_mode_set(vty, mode);
+}
+
+DEFUN_NOSH(
+       no_ipv6_pim_multicast_mode,
+       no_ipv6_pim_multicast_mode_cmd,
+       "no ip multicast rpf-lookup-mode [<urib-only|mrib-only|mrib-then-urib|lower-distance>]",
+       NO_STR
+       IPV6_STR
+       "Multicast options\n"
+       "RPF lookup behavior\n"
+       "Lookup in unicast RIB only\n"
+       "Lookup in multicast RIB only\n"
+       "Try multicast RIB first, fall back to unicast RIB\n"
+       "Lookup both, use entry with lower distance\n")
+{
+       return multicast_mode_set(vty, "none");
+}
+
 DEFPY_YANG (ipv6_pim_spt_switchover_group,
        ipv6_pim_spt_switchover_group_cmd,
        "[no] ipv6 pim spt-switchover X:X::X:X/M$group "
@@ -1776,6 +1809,8 @@ void pim_cmd_init(void)
 
 	install_element(CONFIG_NODE, &ipv6_pim_joinprune_time_cmd);
 	install_element(CONFIG_NODE, &no_ipv6_pim_joinprune_time_cmd);
+       install_element(CONFIG_NODE, &ipv6_pim_multicast_mode_cmd);
+       install_element(CONFIG_NODE, &no_ipv6_pim_multicast_mode_cmd);
        install_element(CONFIG_NODE, &ipv6_pim_spt_switchover_group_cmd);
 	install_element(CONFIG_NODE, &ipv6_pim_spt_switchover_infinity_cmd);
 	install_element(CONFIG_NODE, &ipv6_pim_spt_switchover_infinity_plist_cmd);

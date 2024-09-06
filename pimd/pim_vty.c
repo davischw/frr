@@ -198,6 +198,7 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 		++writes;
 	}
 
+#if PIM_IPV == 4
 	switch (pim->rpf_mode) {
 	case RPF_NO_CONFIG:
 		break;
@@ -220,6 +221,30 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 	case RPF_MIX_PFXLEN:
 		break;
 	}
+#else
+	switch (pim->rpf_mode) {
+	case RPF_NO_CONFIG:
+		break;
+	case RPF_MRIB_ONLY:
+		vty_out(vty, "%sipv6 multicast rpf-lookup-mode mrib-only\n",
+			spaces);
+		break;
+	case RPF_URIB_ONLY:
+		vty_out(vty, "%sipv6 multicast rpf-lookup-mode urib-only\n",
+			spaces);
+		break;
+	case RPF_MIX_MRIB_FIRST:
+		vty_out(vty, "%sipv6 multicast rpf-lookup-mode mrib-then-urib\n",
+			spaces);
+		break;
+	case RPF_MIX_DISTANCE:
+		vty_out(vty, "%sipv6 multicast rpf-lookup-mode lower-distance\n",
+			spaces);
+		break;
+	case RPF_MIX_PFXLEN:
+		break;
+	}
+#endif /* PIM_IPV == 6 */
 
 	writes += pim_msdp_peer_config_write(vty, pim, spaces);
 	writes += pim_msdp_config_write(pim, vty, spaces);

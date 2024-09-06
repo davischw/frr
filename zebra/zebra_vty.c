@@ -143,6 +143,53 @@ DEFUN_NOSH(
 	return CMD_SUCCESS;
 }
 
+DEFUN_NOSH(
+	ipv6_multicast_mode,
+       ipv6_multicast_mode_cmd,
+       "ipv6 multicast rpf-lookup-mode <urib-only|mrib-only|mrib-then-urib|lower-distance>",
+       IPV6_STR
+       "Multicast options\n"
+       "RPF lookup behavior\n"
+       "Lookup in unicast RIB only\n"
+       "Lookup in multicast RIB only\n"
+       "Try multicast RIB first, fall back to unicast RIB\n"
+       "Lookup both, use entry with lower distance\n")
+{
+	char *mode = argv[3]->text;
+
+	if (strmatch(mode, "urib-only"))
+		multicast_mode_ipv6_set(MCAST_URIB_ONLY);
+	else if (strmatch(mode, "mrib-only"))
+		multicast_mode_ipv6_set(MCAST_MRIB_ONLY);
+	else if (strmatch(mode, "mrib-then-urib"))
+		multicast_mode_ipv6_set(MCAST_MIX_MRIB_FIRST);
+	else if (strmatch(mode, "lower-distance"))
+		multicast_mode_ipv6_set(MCAST_MIX_DISTANCE);
+	else {
+		vty_out(vty, "Invalid mode specified\n");
+		return CMD_WARNING_CONFIG_FAILED;
+	}
+
+	return CMD_SUCCESS;
+}
+
+DEFUN_NOSH(
+	no_ipv6_multicast_mode,
+       no_ipv6_multicast_mode_cmd,
+       "no ipv6 multicast rpf-lookup-mode [<urib-only|mrib-only|mrib-then-urib|lower-distance>]",
+       NO_STR
+       IPV6_STR
+       "Multicast options\n"
+       "RPF lookup behavior\n"
+       "Lookup in unicast RIB only\n"
+       "Lookup in multicast RIB only\n"
+       "Try multicast RIB first, fall back to unicast RIB\n"
+       "Lookup both, use entry with lower distance\n")
+{
+	multicast_mode_ipv6_set(MCAST_NO_CONFIG);
+	return CMD_SUCCESS;
+}
+
 
 DEFUN (show_ip_rpf,
        show_ip_rpf_cmd,
@@ -3970,6 +4017,7 @@ static int config_write_protocol(struct vty *vty)
 			zrouter.packets_to_process);
 
 	enum multicast_mode ipv4_multicast_mode = multicast_mode_ipv4_get();
+	enum multicast_mode ipv6_multicast_mode = multicast_mode_ipv6_get();
 
 	if (ipv4_multicast_mode != MCAST_NO_CONFIG)
 		vty_out(vty, "ip multicast rpf-lookup-mode %s\n",
@@ -3981,6 +4029,20 @@ static int config_write_protocol(struct vty *vty)
 							    == MCAST_MIX_MRIB_FIRST
 						    ? "mrib-then-urib"
 						    : ipv4_multicast_mode
+								      == MCAST_MIX_DISTANCE
+							      ? "lower-distance"
+							      : "longer-prefix");
+
+	if (ipv6_multicast_mode != MCAST_NO_CONFIG)
+		vty_out(vty, "ipv6 multicast rpf-lookup-mode %s\n",
+			ipv6_multicast_mode == MCAST_URIB_ONLY
+				? "urib-only"
+				: ipv6_multicast_mode == MCAST_MRIB_ONLY
+					  ? "mrib-only"
+					  : ipv6_multicast_mode
+							    == MCAST_MIX_MRIB_FIRST
+						    ? "mrib-then-urib"
+						    : ipv6_multicast_mode
 								      == MCAST_MIX_DISTANCE
 							      ? "lower-distance"
 							      : "longer-prefix");
@@ -4561,7 +4623,9 @@ void zebra_vty_init(void)
 	install_element(CONFIG_NODE, &no_allow_external_route_update_cmd);
 
 	install_element(CONFIG_NODE, &ip_multicast_mode_cmd);
+	install_element(CONFIG_NODE, &ipv6_multicast_mode_cmd);
 	install_element(CONFIG_NODE, &no_ip_multicast_mode_cmd);
+	install_element(CONFIG_NODE, &no_ipv6_multicast_mode_cmd);
 
 	install_element(CONFIG_NODE, &zebra_nexthop_group_keep_cmd);
 	install_element(CONFIG_NODE, &ip_zebra_import_table_distance_cmd);

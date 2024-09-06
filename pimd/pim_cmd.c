@@ -3848,22 +3848,6 @@ DEFUN (show_ip_ssmpingd,
 	return CMD_SUCCESS;
 }
 
-static int multicast_mode_ipv4_set(struct vty *vty, const char *mode)
-{
-	const char *vrfname;
-	char xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(xpath, sizeof(xpath), FRR_PIM_VRF_XPATH "/mcast-rpf-lookup",
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4");
-
-	nb_cli_enqueue_change(vty, xpath, NB_OP_MODIFY, mode);
-	return nb_cli_apply_changes(vty, NULL);
-}
-
 DEFUN_NOSH(
        ip_pim_multicast_mode,
        ip_pim_multicast_mode_cmd,
@@ -3878,7 +3862,7 @@ DEFUN_NOSH(
 {
 	const char *mode = argv[3]->text;
 
-	return multicast_mode_ipv4_set(vty, mode);
+	return multicast_mode_set(vty, mode);
 }
 
 DEFUN_NOSH(
@@ -3894,7 +3878,7 @@ DEFUN_NOSH(
        "Try multicast RIB first, fall back to unicast RIB\n"
        "Lookup both, use entry with lower distance\n")
 {
-	return multicast_mode_ipv4_set(vty, "none");
+	return multicast_mode_set(vty, "none");
 }
 
 DEFPY_YANG (ip_mfib_rmap,
