@@ -565,9 +565,13 @@ int pim_config_write(struct vty *vty, int writes, struct interface *ifp,
 	}
 #endif /* PIM_IPV == 4 */
 
-	/* IF ip igmp immediate-leave */
-	if (pim_ifp->igmp_immediate_leave) {
+	/* IF ip/ipv6 igmp/mld immediate-leave */
+	if (pim_ifp->gmp_immediate_leave) {
+#if PIM_IPV == 4
 		vty_out(vty, " ip igmp immediate-leave\n");
+#else
+		vty_out(vty, " ipv6 mld immediate-leave\n");
+#endif
 		++writes;
 	}
 

@@ -845,7 +845,7 @@ static void toin_excl(struct gm_group *group, int num_sources,
 	int num_sources_tosend;
 	int i;
 
-	if (group->igmp_version == 2 && pim_ifp->igmp_immediate_leave) {
+	if (group->igmp_version == 2 && pim_ifp->gmp_immediate_leave) {
 		struct gm_source *src;
 
 		if (PIM_DEBUG_GM_TRACE)
@@ -1655,7 +1655,7 @@ void igmp_group_timer_lower_to_lmqt(struct gm_group *group)
 	pim_ifp = ifp->info;
 	ifname = ifp->name;
 
-	lmqi_dsec = pim_ifp->igmp_immediate_leave
+	lmqi_dsec = pim_ifp->gmp_immediate_leave
 			    ? 0
 			    : pim_ifp->gm_specific_query_max_response_time_dsec;
 	lmqc = pim_ifp->gm_last_member_query_count;
@@ -1690,10 +1690,9 @@ void igmp_source_timer_lower_to_lmqt(struct gm_source *source)
 	pim_ifp = ifp->info;
 	ifname = ifp->name;
 
-	lmqi_dsec =
-		pim_ifp->igmp_immediate_leave
-			? 0
-			: pim_ifp->gm_specific_query_max_response_time_dsec;
+	lmqi_dsec = pim_ifp->gmp_immediate_leave
+			    ? 0
+			    : pim_ifp->gm_specific_query_max_response_time_dsec;
 	lmqc = pim_ifp->gm_last_member_query_count;
 	lmqt_msec = PIM_IGMP_LMQT_MSEC(
 		lmqi_dsec, lmqc); /* lmqt_msec = (100 * lmqi_dsec) * lmqc */

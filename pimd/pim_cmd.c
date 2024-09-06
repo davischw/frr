@@ -5388,22 +5388,6 @@ DEFPY_YANG (interface_no_ip_igmp_last_member_query_interval,
 	return gm_process_no_last_member_query_interval_cmd(vty);
 }
 
-static void gmp_interface_enable(struct vty *vty)
-{
-	const struct lyd_node *pim_enable_dnode;
-
-	pim_enable_dnode = yang_dnode_getf(vty->candidate_config->dnode,
-					   FRR_PIM_ENABLE_XPATH, VTY_CURR_XPATH,
-					   FRR_PIM_AF_XPATH_VAL);
-	if (!pim_enable_dnode) {
-		nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY, "true");
-	} else {
-		if (!yang_dnode_get_bool(pim_enable_dnode, "."))
-			nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY,
-					      "true");
-	}
-}
-
 DEFPY_YANG (interface_ip_igmp_limits,
       interface_ip_igmp_limits_cmd,
       "[no] ip igmp <max-sources$do_src (0-4294967295)$val"

@@ -4264,8 +4264,7 @@ int lib_interface_gmp_address_family_robustness_variable_modify(
 	return NB_OK;
 }
 
-int lib_interface_igmp_immediate_leave_modify(
-	struct nb_cb_modify_args *args)
+int lib_interface_gmp_immediate_leave_modify(struct nb_cb_modify_args *args)
 {
 	struct interface *ifp;
 	struct pim_interface *pim_ifp;
@@ -4278,7 +4277,7 @@ int lib_interface_igmp_immediate_leave_modify(
 	case NB_EV_APPLY:
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		pim_ifp = ifp->info;
-		pim_ifp->igmp_immediate_leave =
+		pim_ifp->gmp_immediate_leave =
 			yang_dnode_get_bool(args->dnode, NULL);
 		break;
 	}
@@ -4286,8 +4285,7 @@ int lib_interface_igmp_immediate_leave_modify(
 	return NB_OK;
 }
 
-int lib_interface_igmp_immediate_leave_destroy(
-	struct nb_cb_destroy_args *args)
+int lib_interface_gmp_immediate_leave_destroy(struct nb_cb_destroy_args *args)
 {
 	struct interface *ifp;
 	struct pim_interface *pim_ifp;
@@ -4300,7 +4298,7 @@ int lib_interface_igmp_immediate_leave_destroy(
 	case NB_EV_APPLY:
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		pim_ifp = ifp->info;
-		pim_ifp->igmp_immediate_leave = false;
+		pim_ifp->gmp_immediate_leave = false;
 		break;
 	}
 

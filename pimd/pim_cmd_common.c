@@ -6055,3 +6055,19 @@ int pim_show_bsm_db_helper(const char *vrf, struct vty *vty, bool uj)
 
 	return CMD_SUCCESS;
 }
+
+void gmp_interface_enable(struct vty *vty)
+{
+	const struct lyd_node *pim_enable_dnode;
+
+	pim_enable_dnode = yang_dnode_getf(vty->candidate_config->dnode,
+					   FRR_PIM_ENABLE_XPATH, VTY_CURR_XPATH,
+					   FRR_PIM_AF_XPATH_VAL);
+	if (!pim_enable_dnode) {
+		nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY, "true");
+	} else {
+		if (!yang_dnode_get_bool(pim_enable_dnode, "."))
+			nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY,
+					      "true");
+	}
+}
