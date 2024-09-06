@@ -2412,12 +2412,14 @@ void pimsb_msg_send_frame(const struct interface *ifp, const struct ip *ip,
 void pimsb_msg_send_frame(const pim_addr *src, const pim_addr *dst,
 			  const struct interface *ifp, struct iovec *iov)
 {
+	struct in6_pktinfo ipi6;
 	struct cmsghdr *cmsg;
 	ssize_t bytes;
 	uint32_t ifindex;
 	struct msghdr msg;
 	struct sockaddr_in6 dest;
-	char cmsgbuf[CMSG_SPACE(sizeof(uint32_t))];
+	char cmsgbuf[CMSG_SPACE(sizeof(struct in6_pktinfo)) +
+		     CMSG_SPACE(sizeof(uint32_t))];
 
 	memset(&dest, 0, sizeof(dest));
 	dest.sin6_family = AF_INET6;
@@ -2438,10 +2440,19 @@ void pimsb_msg_send_frame(const pim_addr *src, const pim_addr *dst,
 	msg.msg_control = cmsgbuf;
 	msg.msg_controllen = sizeof(cmsgbuf);
 
-	cmsg = (struct cmsghdr *)cmsgbuf;
+	cmsg = CMSG_FIRSTHDR(&msg);
+	cmsg->cmsg_level = IPPROTO_IPV6;
+	cmsg->cmsg_type = IPV6_PKTINFO;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
+	memset(&ipi6, 0, sizeof(ipi6));
+	ipi6.ipi6_addr = *src;
+	ipi6.ipi6_ifindex = dest.sin6_scope_id;
+	memcpy(CMSG_DATA(cmsg), &ipi6, sizeof(ipi6));
+
+	cmsg = CMSG_NXTHDR(&msg, cmsg);
 	cmsg->cmsg_level = IPPROTO_IPV6;
 	cmsg->cmsg_type = IPV6_FLOWINFO;
-	cmsg->cmsg_len = CMSG_LEN(sizeof(uint32_t));
+	cmsg->cmsg_len = CMSG_SPACE(sizeof(uint32_t));
 	ifindex = htonl((uint32_t)ifp->ifindex);
 	memcpy(CMSG_DATA(cmsg), &ifindex, sizeof(uint32_t));
 
