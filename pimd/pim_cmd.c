@@ -4061,36 +4061,8 @@ DEFPY_YANG (ip_pim_spt_switchover_group,
        "Never switch to SPT Tree\n"
        "Switch to SPT immediately on any traffic\n")
 {
-	char spt_group_xpath[XPATH_MAXLEN];
-	char spt_group_bw_xpath[XPATH_MAXLEN + 64];
-	const char *vrfname;
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(spt_group_xpath, sizeof(spt_group_xpath),
-		 FRR_PIM_VRF_XPATH "/spt-switchover/groups[group-range='%s']",
-		 "frr-pim:pimd", "pim", vrfname, "frr-routing:ipv4", group_str);
-
-	if (no)
-		nb_cli_enqueue_change(vty, spt_group_xpath, NB_OP_DESTROY,
-				      NULL);
-	else {
-		const char *val = bandwidth_str;
-
-		snprintf(spt_group_bw_xpath, sizeof(spt_group_bw_xpath),
-			 "%s/bandwidth", spt_group_xpath);
-
-		if (never)
-			val = "4294967295";
-		else if (immediate)
-			val = "0";
-
-		nb_cli_enqueue_change(vty, spt_group_bw_xpath, NB_OP_MODIFY,
-				      val);
-	}
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_spt_switchover_cmd(vty, group_str, bandwidth_str,
+					      !!no, !!never, !!immediate);
 }
 
 ALIAS (ip_pim_spt_switchover_group,

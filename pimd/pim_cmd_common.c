@@ -111,6 +111,43 @@ int pim_process_no_join_prune_cmd(struct vty *vty)
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+int pim_process_spt_switchover_cmd(struct vty *vty, const char *group,
+				   const char *bandwidth, bool no, bool never,
+				   bool immediate)
+{
+	char spt_group_xpath[XPATH_MAXLEN];
+	char spt_group_bw_xpath[XPATH_MAXLEN + 64];
+	const char *vrfname;
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(spt_group_xpath, sizeof(spt_group_xpath),
+		 FRR_PIM_VRF_XPATH "/spt-switchover/groups[group-range='%s']",
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL, group);
+
+	if (no)
+		nb_cli_enqueue_change(vty, spt_group_xpath, NB_OP_DESTROY,
+				      NULL);
+	else {
+		const char *val = bandwidth;
+
+		snprintf(spt_group_bw_xpath, sizeof(spt_group_bw_xpath),
+			 "%s/bandwidth", spt_group_xpath);
+
+		if (never)
+			val = "4294967295";
+		else if (immediate)
+			val = "0";
+
+		nb_cli_enqueue_change(vty, spt_group_bw_xpath, NB_OP_MODIFY,
+				      val);
+	}
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 int pim_process_spt_switchover_infinity_cmd(struct vty *vty)
 {
 	const char *vrfname;

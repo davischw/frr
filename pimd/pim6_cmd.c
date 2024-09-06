@@ -79,6 +79,23 @@ DEFPY (no_ipv6_pim_joinprune_time,
 	return pim_process_no_join_prune_cmd(vty);
 }
 
+DEFPY_YANG (ipv6_pim_spt_switchover_group,
+       ipv6_pim_spt_switchover_group_cmd,
+       "[no] ipv6 pim spt-switchover X:X::X:X/M$group "
+              "<(1-4294967294)$bandwidth|never$never|immediate$immediate>",
+       NO_STR
+       IP_STR
+       PIM_STR
+       "SPT-Switchover\n"
+       "Group range to configure SPT behavior for\n"
+       "Switch to SPT at bandwidth (kbps)\n"
+       "Never switch to SPT Tree\n"
+       "Switch to SPT immediately on any traffic\n")
+{
+	return pim_process_spt_switchover_cmd(vty, group_str, bandwidth_str,
+					      !!no, !!never, !!immediate);
+}
+
 DEFPY (ipv6_pim_spt_switchover_infinity,
        ipv6_pim_spt_switchover_infinity_cmd,
        "ipv6 pim spt-switchover infinity-and-beyond",
@@ -1759,6 +1776,7 @@ void pim_cmd_init(void)
 
 	install_element(CONFIG_NODE, &ipv6_pim_joinprune_time_cmd);
 	install_element(CONFIG_NODE, &no_ipv6_pim_joinprune_time_cmd);
+       install_element(CONFIG_NODE, &ipv6_pim_spt_switchover_group_cmd);
 	install_element(CONFIG_NODE, &ipv6_pim_spt_switchover_infinity_cmd);
 	install_element(CONFIG_NODE, &ipv6_pim_spt_switchover_infinity_plist_cmd);
 	install_element(CONFIG_NODE, &no_ipv6_pim_spt_switchover_infinity_cmd);
