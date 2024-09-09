@@ -2076,6 +2076,16 @@ static void pimsb_init_pim(void)
 			zlog_warn("can't set sockopt IPV6_TOS to socket %d: %m",
 				  sock);
 
+		if (setsockopt(sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, &on,
+			       sizeof(on)) == -1) {
+			flog_err(
+				EC_LIB_SOCKET,
+				"Can't set IPV6_RECVPKTINFO option for fd %d: %s",
+				sock, safe_strerror(errno));
+			close(sock);
+			return;
+		}
+
 		if (setsockopt(sock, IPPROTO_IPV6, IPV6_FLOWINFO, &on,
 		    sizeof(on)) == -1) {
 			flog_err(EC_LIB_SOCKET,
