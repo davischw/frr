@@ -1727,13 +1727,6 @@ static void gm_t_recv(struct thread *t)
 		goto out_free;
 	}
 
-	if (!ip6_check_hopopts_ra(hopopts, hopopt_len, IP6_ALERT_MLD)) {
-		zlog_err(log_pkt_src(
-			"packet without IPv6 Router Alert MLD option"));
-		gm_ifp->stats.rx_drop_ra++;
-		goto out_free;
-	}
-
 	if (IN6_IS_ADDR_UNSPECIFIED(&pkt_src->sin6_addr))
 		/* reports from :: happen in normal operation for DAD, so
 		 * don't spam log messages about this
@@ -1758,6 +1751,14 @@ static void gm_t_recv(struct thread *t)
 	    IN6_IS_ADDR_MULTICAST(&pktinfo->ipi6_addr))
 		goto out_free;
 #endif /* VENDOR_SOUTHBOUND */
+
+	if (pim_ifp->gmp_require_ra &&
+	    !ip6_check_hopopts_ra(hopopts, hopopt_len, IP6_ALERT_MLD)) {
+		zlog_err(log_pkt_src(
+			"packet without IPv6 Router Alert MLD option"));
+		gm_ifp->stats.rx_drop_ra++;
+		goto out_free;
+	}
 
 	gm_rx_process(gm_ifp, pkt_src, &pktinfo->ipi6_addr, IPPROTO_ICMPV6,
 		      iov->iov_base, pktlen);

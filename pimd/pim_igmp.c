@@ -760,7 +760,7 @@ int pim_igmp_packet(struct gm_sock *igmp, char *buf, size_t len,
 	if (!pim_igmp_verify_header(ip_hdr, len, &ip_hlen))
 		return -1;
 
-	if (pim_interface->igmp_require_ra && !router_alert) {
+	if (pim_interface->gmp_require_ra && !router_alert) {
 		if (PIM_DEBUG_GM_PACKETS)
 			zlog_debug(
 				"discarding IGMP packet from %pI4 on %s due to Router Alert option missing",

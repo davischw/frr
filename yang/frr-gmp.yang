@@ -165,11 +165,10 @@ module frr-gmp {
     }
 
     leaf require-router-alert {
-      when "../frr-gmp:address-family = 'frr-rt:ipv4'";
       type boolean;
       default "false";
       description
-        "Only process IGMP packets with IP Router Alert option set.";
+        "Only process IGMP/MLD packets with IP Router Alert option set.";
     }
 
     leaf route-map {

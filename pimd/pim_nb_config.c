@@ -4319,7 +4319,7 @@ int lib_interface_igmp_require_router_alert_modify(
 	case NB_EV_APPLY:
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		pim_ifp = ifp->info;
-		pim_ifp->igmp_require_ra =
+		pim_ifp->gmp_require_ra =
 			yang_dnode_get_bool(args->dnode, NULL);
 		break;
 	}
@@ -4341,7 +4341,7 @@ int lib_interface_igmp_require_router_alert_destroy(
 	case NB_EV_APPLY:
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		pim_ifp = ifp->info;
-		pim_ifp->igmp_require_ra = false;
+		pim_ifp->gmp_require_ra = false;
 		break;
 	}
 

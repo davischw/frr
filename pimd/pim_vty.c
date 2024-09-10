@@ -543,9 +543,13 @@ int pim_config_write(struct vty *vty, int writes, struct interface *ifp,
 		++writes;
 	}
 
-	/* IF ip igmp require-router-alert */
-	if (pim_ifp->igmp_require_ra) {
+	/* IF igmp/mld require-router-alert */
+	if (pim_ifp->gmp_require_ra) {
+#if PIM_IPV == 4
 		vty_out(vty, " ip igmp require-router-alert\n");
+#else
+		vty_out(vty, " ipv6 mld require-router-alert\n");
+#endif /* PIM_IPV == 6 */
 		++writes;
 	}
 

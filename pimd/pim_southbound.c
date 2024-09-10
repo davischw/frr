@@ -1013,6 +1013,14 @@ static void pimsb_mld_read(struct thread *t __attribute__((unused)))
 			   ifp->vif_index, ifp->ifindex,
 			   has_router_alert ? "yes" : "no");
 
+	if (pim_ifp->gmp_require_ra && !has_router_alert) {
+		zlog_err(
+			"[MLD %s:%s %pI6] packet without IPv6 Router Alert MLD option",
+			ifp->vrf->name, ifp->name, &src.sin6_addr);
+		pim_ifp->mld->stats.rx_drop_ra++;
+		return;
+	}
+
 	gm_rx_process(pim_ifp->mld, &src, &ipi6.ipi6_addr, PIM_IPV6_ENCAP_MLD,
 		      pktbuf, pktbuf_len);
 }
