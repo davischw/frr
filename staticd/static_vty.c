@@ -460,6 +460,43 @@ DEFPY_YANG (ip_mroute_dist,
 	return static_route_nb_run(vty, &args);
 }
 
+DEFPY_YANG (ipv6_mroute,
+       ipv6_mroute_cmd,
+       "[no] ipv6 mroute X:X::X:X/M$prefix {X:X::X:X$gate|INTERFACE$ifname} [{"
+       "(1-255)$distance"
+       "|bfd$bfd [{multi-hop$bfd_multi_hop|source X:X::X:X$bfd_source|profile BFDPROF$bfd_profile}]"
+       "}]",
+       NO_STR
+       IPV6_STR
+       "Configure static unicast route into MRIB for multicast RPF lookup\n"
+       "IPv6 destination prefix (e.g. 2001:db8::100/64)\n"
+       "Nexthop address\n"
+       "Nexthop interface name\n"
+       "Distance\n"
+       BFD_INTEGRATION_STR
+       BFD_INTEGRATION_MULTI_HOP_STR
+       BFD_INTEGRATION_SOURCE_STR
+       BFD_INTEGRATION_SOURCEV6_STR
+       BFD_PROFILE_STR
+       BFD_PROFILE_NAME_STR)
+{
+	struct static_route_args args = {
+		.delete = !!no,
+		.afi = AFI_IP6,
+		.safi = SAFI_MULTICAST,
+		.prefix = prefix_str,
+		.gateway = gate_str,
+		.interface_name = ifname,
+		.distance = distance_str,
+		.bfd = !!bfd,
+		.bfd_multi_hop = !!bfd_multi_hop,
+		.bfd_source = bfd_source_str,
+		.bfd_profile = bfd_profile,
+	};
+
+	return static_route_nb_run(vty, &args);
+}
+
 /* Static route configuration.  */
 DEFPY_YANG(ip_route_blackhole,
       ip_route_blackhole_cmd,
@@ -1582,6 +1619,7 @@ void static_vty_init(void)
 	install_node(&debug_node);
 
 	install_element(CONFIG_NODE, &ip_mroute_dist_cmd);
+	install_element(CONFIG_NODE, &ipv6_mroute_cmd);
 
 	install_element(CONFIG_NODE, &ip_route_blackhole_cmd);
 	install_element(VRF_NODE, &ip_route_blackhole_vrf_cmd);
