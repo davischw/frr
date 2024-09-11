@@ -139,6 +139,8 @@ struct pim_interface *pim_if_new(struct interface *ifp, bool gm, bool pim,
 	pim_ifp->gm_specific_query_max_response_time_dsec =
 		GM_SPECIFIC_QUERY_MAX_RESPONSE_TIME_DSEC;
 	pim_ifp->gm_last_member_query_count = GM_DEFAULT_ROBUSTNESS_VARIABLE;
+	pim_ifp->gm_group_limit = UINT32_MAX;
+	pim_ifp->gm_source_limit = UINT32_MAX;
 	pim_ifp->periodic_jp_sec = -1;
 	pim_ifp->assert_msec = PIM_ASSERT_TIME;
 	pim_ifp->assert_override_msec = -1;

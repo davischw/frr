@@ -1163,9 +1163,6 @@ void pim_igmp_if_init(struct pim_interface *pim_ifp, struct interface *ifp)
 {
 	char hash_name[128];
 
-	pim_ifp->gm_group_limit = UINT32_MAX;
-	pim_ifp->gm_source_limit = UINT32_MAX;
-
 	pim_ifp->gm_socket_list = list_new();
 	pim_ifp->gm_socket_list->del = (void (*)(void *))igmp_sock_free;
 

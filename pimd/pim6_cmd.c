@@ -730,6 +730,46 @@ DEFPY (interface_no_ipv6_mld_version,
 				    "frr-routing:ipv6");
 }
 
+DEFPY_YANG (interface_ipv6_mld_limits,
+      interface_ipv6_mld_limits_cmd,
+      "[no] ipv6 mld <max-sources$do_src (0-4294967295)$val"
+	"|max-groups$do_grp (0-4294967295)$val>",
+      NO_STR
+      IPV6_STR
+      IFACE_MLD_STR
+      "Limit number of MLDv2 sources to track\n"
+      "Permitted number of sources\n"
+      "Limit number of MLD group memberships to track\n"
+      "Permitted number of groups\n")
+{
+	const char *xpath;
+
+	gmp_interface_enable(vty);
+
+	assert(do_src || do_grp);
+	if (do_src)
+		xpath = "./max-sources";
+	else
+		xpath = "./max-groups";
+
+	if (no)
+		nb_cli_enqueue_change(vty, xpath, NB_OP_DESTROY, NULL);
+	else
+		nb_cli_enqueue_change(vty, xpath, NB_OP_MODIFY, val_str);
+
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
+}
+
+ALIAS(interface_ipv6_mld_limits,
+      no_interface_ipv6_mld_limits_cmd,
+      "no ipv6 mld <max-sources$do_src|max-groups$do_grp>",
+      NO_STR
+      IPV6_STR
+      IFACE_MLD_STR
+      "Limit number of MLDv2 sources to track\n"
+      "Limit number of MLD group memberships to track\n")
+
 DEFPY_YANG (interface_ipv6_mld_require_ra, interface_ipv6_mld_require_ra_cmd,
       "[no] ipv6 mld require-router-alert",
       NO_STR
@@ -1897,6 +1937,8 @@ void pim_cmd_init(void)
 	install_element(INTERFACE_NODE, &interface_no_ipv6_mld_join_cmd);
 	install_element(INTERFACE_NODE, &interface_ipv6_mld_version_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ipv6_mld_version_cmd);
+	install_element(INTERFACE_NODE, &interface_ipv6_mld_limits_cmd);
+	install_element(INTERFACE_NODE, &no_interface_ipv6_mld_limits_cmd);
 	install_element(INTERFACE_NODE, &interface_ipv6_mld_require_ra_cmd);
 	install_element(INTERFACE_NODE,
 			&interface_ipv6_mld_immediate_leave_cmd);

@@ -553,21 +553,29 @@ int pim_config_write(struct vty *vty, int writes, struct interface *ifp,
 		++writes;
 	}
 
-#if PIM_IPV == 4
-	/* IF ip igmp max-sources */
+	/* IF igmp/mld max-sources */
 	if (pim_ifp->gm_source_limit != UINT32_MAX) {
+#if PIM_IPV == 4
 		vty_out(vty, " ip igmp max-sources %u\n",
 			pim_ifp->gm_source_limit);
+#else
+		vty_out(vty, " ipv6 mld max-sources %u\n",
+			pim_ifp->gm_source_limit);
+#endif /* PIM_IPV == 6 */
 		++writes;
 	}
 
-	/* IF ip igmp max-groups */
+	/* IF igmp/mld max-groups */
 	if (pim_ifp->gm_group_limit != UINT32_MAX) {
+#if PIM_IPV == 4
 		vty_out(vty, " ip igmp max-groups %u\n",
 			pim_ifp->gm_group_limit);
+#else
+		vty_out(vty, " ipv6 mld max-groups %u\n",
+			pim_ifp->gm_group_limit);
+#endif /* PIM_IPV == 6 */
 		++writes;
 	}
-#endif /* PIM_IPV == 4 */
 
 	/* IF ip/ipv6 igmp/mld immediate-leave */
 	if (pim_ifp->gmp_immediate_leave) {
