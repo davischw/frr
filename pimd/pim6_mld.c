@@ -1335,6 +1335,9 @@ static void gm_handle_q_groupsrc(struct gm_if *gm_ifp,
 
 	for (i = 0; i < n_src; i++) {
 		sg = gm_sg_find(gm_ifp, grp, srcs[i]);
+		if (sg == NULL)
+			continue;
+
 		GM_UPDATE_SG_STATE(sg);
 		gm_sg_timer_start(gm_ifp, sg, timers->expire_wait);
 	}
