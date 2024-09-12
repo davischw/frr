@@ -472,58 +472,62 @@ DEFPY (interface_no_ipv6_mroute,
 
 DEFPY (ipv6_pim_rp,
        ipv6_pim_rp_cmd,
-       "ipv6 pim rp X:X::X:X$rp [X:X::X:X/M]$gp",
+       "ipv6 pim rp X:X::X:X$rp [fallback$fallback] [X:X::X:X/M]$gp",
        IPV6_STR
        PIM_STR
        "Rendezvous Point\n"
        "ipv6 address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "Group Address range to cover\n")
 {
 	const char *group_str = (gp_str) ? gp_str : "FF00::0/8";
 
-	return pim_process_rp_cmd(vty, rp_str, group_str);
+	return pim_process_rp_cmd(vty, rp_str, group_str, !!fallback);
 }
 
 DEFPY (no_ipv6_pim_rp,
        no_ipv6_pim_rp_cmd,
-       "no ipv6 pim rp X:X::X:X$rp [X:X::X:X/M]$gp",
+       "no ipv6 pim rp X:X::X:X$rp [fallback$fallback] [X:X::X:X/M]$gp",
        NO_STR
        IPV6_STR
        PIM_STR
        "Rendezvous Point\n"
        "ipv6 address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "Group Address range to cover\n")
 {
 	const char *group_str = (gp_str) ? gp_str : "FF00::0/8";
 
-	return pim_process_no_rp_cmd(vty, rp_str, group_str);
+	return pim_process_no_rp_cmd(vty, rp_str, group_str, !!fallback);
 }
 
 DEFPY (ipv6_pim_rp_prefix_list,
        ipv6_pim_rp_prefix_list_cmd,
-       "ipv6 pim rp X:X::X:X$rp prefix-list WORD$plist",
+       "ipv6 pim rp X:X::X:X$rp [fallback$fallback] prefix-list WORD$plist",
        IPV6_STR
        PIM_STR
        "Rendezvous Point\n"
        "ipv6 address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
-	return pim_process_rp_plist_cmd(vty, rp_str, plist);
+	return pim_process_rp_plist_cmd(vty, rp_str, plist, !!fallback);
 }
 
 DEFPY (no_ipv6_pim_rp_prefix_list,
        no_ipv6_pim_rp_prefix_list_cmd,
-       "no ipv6 pim rp X:X::X:X$rp prefix-list WORD$plist",
+       "no ipv6 pim rp X:X::X:X$rp [fallback$fallback] prefix-list WORD$plist",
        NO_STR
        IPV6_STR
        PIM_STR
        "Rendezvous Point\n"
        "ipv6 address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
-	return pim_process_no_rp_plist_cmd(vty, rp_str, plist);
+	return pim_process_no_rp_plist_cmd(vty, rp_str, plist, !!fallback);
 }
 
 DEFPY (ipv6_pim_bsm,

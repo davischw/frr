@@ -1722,15 +1722,18 @@ int pim_rp_config_write(struct pim_instance *pim, struct vty *vty,
 
 		if (rp_info->alist)
 			vty_out(vty,
-				"%sip pim rp %pPA fallback access-list %s\n",
+				"%s" PIM_AF_NAME
+				" pim rp %pPA fallback access-list %s\n",
 				spaces, &rp_info->rp.rpf_addr, rp_info->alist);
 		else if (rp_info->plist)
 			vty_out(vty,
-				"%sip pim rp %pPA fallback prefix-list %s\n",
+				"%s" PIM_AF_NAME
+				" pim rp %pPA fallback prefix-list %s\n",
 				spaces, &rp_info->rp.rpf_addr, rp_info->plist);
 		else
-			vty_out(vty, "%sip pim rp %pPA fallback %pFX\n", spaces,
-				&rp_info->rp.rpf_addr, &rp_info->group);
+			vty_out(vty,
+				"%s" PIM_AF_NAME " pim rp %pPA fallback %pFX\n",
+				spaces, &rp_info->rp.rpf_addr, &rp_info->group);
 		count++;
 	}
 

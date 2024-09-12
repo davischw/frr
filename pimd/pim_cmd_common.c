@@ -626,7 +626,7 @@ int pim_process_no_ip_mroute_cmd(struct vty *vty, const char *interface,
 }
 
 int pim_process_rp_cmd(struct vty *vty, const char *rp_str,
-		       const char *group_str)
+		       const char *group_str, bool fallback)
 {
 	const char *vrfname;
 	char rp_group_xpath[XPATH_MAXLEN];
@@ -677,7 +677,11 @@ int pim_process_rp_cmd(struct vty *vty, const char *rp_str,
 	snprintf(rp_group_xpath, sizeof(rp_group_xpath),
 		 FRR_PIM_STATIC_RP_XPATH, "frr-pim:pimd", "pim", vrfname,
 		 FRR_PIM_AF_XPATH_VAL, rp_str);
-	strlcat(rp_group_xpath, "/group-list", sizeof(rp_group_xpath));
+	if (fallback)
+		strlcat(rp_group_xpath, "/fallback-group-list",
+			sizeof(rp_group_xpath));
+	else
+		strlcat(rp_group_xpath, "/group-list", sizeof(rp_group_xpath));
 
 	nb_cli_enqueue_change(vty, rp_group_xpath, NB_OP_CREATE, group_str);
 
@@ -685,7 +689,7 @@ int pim_process_rp_cmd(struct vty *vty, const char *rp_str,
 }
 
 int pim_process_no_rp_cmd(struct vty *vty, const char *rp_str,
-			  const char *group_str)
+			  const char *group_str, bool fallback)
 {
 	char group_list_xpath[XPATH_MAXLEN];
 	char group_xpath[XPATH_MAXLEN];
@@ -701,8 +705,12 @@ int pim_process_no_rp_cmd(struct vty *vty, const char *rp_str,
 	snprintf(rp_xpath, sizeof(rp_xpath), FRR_PIM_STATIC_RP_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL, rp_str);
 
-	printed = snprintf(group_list_xpath, sizeof(group_list_xpath),
-			   "%s/group-list", rp_xpath);
+	if (fallback)
+		printed = snprintf(group_list_xpath, sizeof(group_list_xpath),
+				   "%s/fallback-group-list", rp_xpath);
+	else
+		printed = snprintf(group_list_xpath, sizeof(group_list_xpath),
+				   "%s/group-list", rp_xpath);
 
 	if (printed >= (int)(sizeof(group_list_xpath))) {
 		vty_out(vty, "Xpath too long (%d > %u)", printed + 1,
@@ -735,7 +743,7 @@ int pim_process_no_rp_cmd(struct vty *vty, const char *rp_str,
 }
 
 int pim_process_rp_plist_cmd(struct vty *vty, const char *rp_str,
-			     const char *prefix_list)
+			     const char *prefix_list, bool fallback)
 {
 	const char *vrfname;
 	char rp_plist_xpath[XPATH_MAXLEN];
@@ -747,7 +755,11 @@ int pim_process_rp_plist_cmd(struct vty *vty, const char *rp_str,
 	snprintf(rp_plist_xpath, sizeof(rp_plist_xpath),
 		 FRR_PIM_STATIC_RP_XPATH, "frr-pim:pimd", "pim", vrfname,
 		 FRR_PIM_AF_XPATH_VAL, rp_str);
-	strlcat(rp_plist_xpath, "/prefix-list", sizeof(rp_plist_xpath));
+	if (fallback)
+		strlcat(rp_plist_xpath, "/fallback-prefix-list",
+			sizeof(rp_plist_xpath));
+	else
+		strlcat(rp_plist_xpath, "/prefix-list", sizeof(rp_plist_xpath));
 
 	nb_cli_enqueue_change(vty, rp_plist_xpath, NB_OP_MODIFY, prefix_list);
 
@@ -755,7 +767,7 @@ int pim_process_rp_plist_cmd(struct vty *vty, const char *rp_str,
 }
 
 int pim_process_no_rp_plist_cmd(struct vty *vty, const char *rp_str,
-				const char *prefix_list)
+				const char *prefix_list, bool fallback)
 {
 	char rp_xpath[XPATH_MAXLEN];
 	char plist_xpath[XPATH_MAXLEN];
@@ -772,7 +784,11 @@ int pim_process_no_rp_plist_cmd(struct vty *vty, const char *rp_str,
 
 	snprintf(plist_xpath, sizeof(plist_xpath), FRR_PIM_STATIC_RP_XPATH,
 		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL, rp_str);
-	strlcat(plist_xpath, "/prefix-list", sizeof(plist_xpath));
+	if (fallback)
+		strlcat(plist_xpath, "/fallback-prefix-list",
+			sizeof(plist_xpath));
+	else
+		strlcat(plist_xpath, "/prefix-list", sizeof(plist_xpath));
 
 	plist_dnode = yang_dnode_get(vty->candidate_config->dnode, plist_xpath);
 	if (!plist_dnode) {

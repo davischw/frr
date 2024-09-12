@@ -3442,8 +3442,8 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 		break;
 	case NB_EV_APPLY:
 		yang_dnode_get_pimaddr(&rp_addr, args->dnode, "../rp-address");
-		yang_dnode_get_ipv4p(&group, args->dnode, NULL);
-		apply_mask_ipv4((struct prefix_ipv4 *)&group);
+		yang_dnode_get_prefix(&group, args->dnode, NULL);
+		apply_mask(&group);
 
 		return pim_rp_cmd_worker(args->dnode, args->event, rp_addr,
 					 group, NULL, NULL, true, args->errmsg,
@@ -3470,8 +3470,8 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 		vrf = nb_running_get_entry(args->dnode, NULL, true);
 		pim = vrf->info;
 		yang_dnode_get_pimaddr(&rp_addr, args->dnode, "../rp-address");
-		yang_dnode_get_ipv4p(&group, args->dnode, NULL);
-		apply_mask_ipv4((struct prefix_ipv4 *)&group);
+		yang_dnode_get_prefix(&group, args->dnode, NULL);
+		apply_mask(&group);
 
 		return pim_no_rp_cmd_worker(pim, rp_addr, group, NULL, NULL,
 					    true, false, args->errmsg,
