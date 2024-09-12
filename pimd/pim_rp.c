@@ -1862,11 +1862,11 @@ static void pim_rp_show_info_ssm_plist(struct vty *vty, struct ttable *tt,
 			}
 		}
 	} else {
-		p = prefix_new();
-		(void)str2prefix(PIM_SSM_STANDARD_RANGE, p);
-		apply_mask(p);
+		struct prefix p_match;
+		(void)str2prefix(PIM_SSM_STANDARD_RANGE, &p_match);
+		apply_mask(&p_match);
 
-		if (range && !prefix_match(p, range))
+		if (range && !prefix_match(&p_match, range))
 			return;
 
 		if (!json)
