@@ -612,7 +612,7 @@ int pim_config_write(struct vty *vty, int writes, struct interface *ifp,
 	}
 
 	if (pim_ifp->assert_msec != PIM_ASSERT_TIME) {
-		vty_out(vty, " ip pim assert-interval %d\n",
+		vty_out(vty, " " PIM_AF_NAME " pim assert-interval %d\n",
 			pim_ifp->assert_msec);
 		++writes;
 	}
