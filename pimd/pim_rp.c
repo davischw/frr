@@ -1833,13 +1833,17 @@ static void pim_rp_show_info_ssm_plist(struct vty *vty, struct ttable *tt,
 	struct prefix *p = NULL;
 	json_object *json_rp_rows = NULL;
 	json_object *json_row = NULL;
+#if PIM_IPV == 4
 	const char *no_rp = "0.0.0.0";
+#else
+	const char *no_rp = "::";
+#endif
 	const char *source = "Static";
 	const char *type = "SSM";
 	char buf[PREFIX_STRLEN];
 
 	if (ssm->plist_name) {
-		plist = prefix_list_lookup(AFI_IP, ssm->plist_name);
+		plist = prefix_list_lookup(PIM_AFI, ssm->plist_name);
 		if (!plist) {
 			if (!json)
 				vty_out(vty,

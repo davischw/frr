@@ -598,6 +598,32 @@ DEFPY (no_ipv6_ssmpingd,
 	return pim_process_ssmpingd_cmd(vty, NB_OP_DESTROY, src_str);
 }
 
+DEFPY_YANG (ipv6_pim_ssm,
+       ipv6_pim_ssm_cmd,
+       "[no] ipv6 pim ssm prefix-list WORD",
+       NO_STR
+       IPV6_STR
+       PIM_STR
+       "Source Specific Multicast\n"
+       "Group range prefix-list filter\n"
+       "Name of a prefix-list\n")
+{
+	const char *vrfname;
+	char ssm_plist_xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(ssm_plist_xpath, sizeof(ssm_plist_xpath), FRR_PIM_VRF_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL);
+	strlcat(ssm_plist_xpath, "/ssm-prefix-list", sizeof(ssm_plist_xpath));
+
+	nb_cli_enqueue_change(vty, ssm_plist_xpath, NB_OP_MODIFY, argv[4]->arg);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 DEFPY (interface_ipv6_mld_join,
        interface_ipv6_mld_join_cmd,
        "ipv6 mld join X:X::X:X$group [X:X::X:X$source]",
@@ -1935,6 +1961,8 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &ipv6_ssmpingd_cmd);
 	install_element(CONFIG_NODE, &no_ipv6_ssmpingd_cmd);
 	install_element(VRF_NODE, &no_ipv6_ssmpingd_cmd);
+	install_element(CONFIG_NODE, &ipv6_pim_ssm_cmd);
+	install_element(VRF_NODE, &ipv6_pim_ssm_cmd);
 	install_element(INTERFACE_NODE, &interface_ipv6_mld_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ipv6_mld_cmd);
 	install_element(INTERFACE_NODE, &interface_ipv6_mld_join_cmd);
