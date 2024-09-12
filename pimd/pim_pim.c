@@ -238,7 +238,7 @@ int pim_pim_packet(struct interface *ifp, uint8_t *buf, size_t len,
 		if (!pim_ifp->nbr_plist)
 			break;
 
-		nbr_plist = prefix_list_lookup(AFI_IP, pim_ifp->nbr_plist);
+		nbr_plist = prefix_list_lookup(PIM_AFI, pim_ifp->nbr_plist);
 
 #if PIM_IPV == 4
 		src_prefix.family = AF_INET;

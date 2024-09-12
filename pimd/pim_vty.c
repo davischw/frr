@@ -525,7 +525,9 @@ int pim_config_write(struct vty *vty, int writes, struct interface *ifp,
 	}
 
 	if (pim_ifp->nbr_plist) {
-		vty_out(vty, " ip pim allowed-neighbors prefix-list %s\n",
+		vty_out(vty,
+			" " PIM_AF_NAME
+			" pim allowed-neighbors prefix-list %s\n",
 			pim_ifp->nbr_plist);
 		++writes;
 	}

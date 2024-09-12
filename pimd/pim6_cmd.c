@@ -105,6 +105,37 @@ ALIAS(if_ipv6_pim_assert_interval, no_if_ipv6_pim_assert_interval_cmd,
       PIM_STR
       "Assert timer\n")
 
+DEFPY_YANG (if_ipv6_pim_neighbor_prefix_list,
+       if_ipv6_pim_neighbor_prefix_list_cmd,
+       "[no] ipv6 pim allowed-neighbors prefix-list WORD",
+       NO_STR
+       IPV6_STR
+       PIM_STR
+       "Restrict allowed PIM neighbors\n"
+       "Use prefix-list to filter neighbors\n"
+       "Name of a prefix-list\n")
+{
+	if (no)
+		nb_cli_enqueue_change(vty, "./neighbor-filter-prefix-list",
+				      NB_OP_DESTROY, NULL);
+	else
+		nb_cli_enqueue_change(vty, "./neighbor-filter-prefix-list",
+				      NB_OP_MODIFY, prefix_list);
+
+	return nb_cli_apply_changes(vty, FRR_PIM_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
+}
+
+ALIAS (if_ipv6_pim_neighbor_prefix_list,
+       no_if_ipv6_pim_neighbor_prefix_list_cmd,
+       "no ip pim allowed-neighbors [prefix-list]",
+       NO_STR
+       IPV6_STR
+       PIM_STR
+       "Restrict allowed PIM neighbors\n"
+       "Use prefix-list to filter neighbors\n")
+
+
 DEFUN_NOSH(
        ipv6_pim_multicast_mode,
        ipv6_pim_multicast_mode_cmd,
@@ -1940,6 +1971,9 @@ void pim_cmd_init(void)
 	install_element(CONFIG_NODE, &no_ipv6_pim_joinprune_time_cmd);
 	install_element(INTERFACE_NODE, &if_ipv6_pim_assert_interval_cmd);
 	install_element(INTERFACE_NODE, &no_if_ipv6_pim_assert_interval_cmd);
+	install_element(INTERFACE_NODE, &if_ipv6_pim_neighbor_prefix_list_cmd);
+	install_element(INTERFACE_NODE,
+			&no_if_ipv6_pim_neighbor_prefix_list_cmd);
        install_element(CONFIG_NODE, &ipv6_pim_multicast_mode_cmd);
        install_element(CONFIG_NODE, &no_ipv6_pim_multicast_mode_cmd);
        install_element(CONFIG_NODE, &ipv6_pim_spt_switchover_group_cmd);

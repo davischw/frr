@@ -1892,7 +1892,7 @@ static void pimsb_pim_packet_read(int pim_fd)
 		if (!pim_ifp->nbr_plist)
 			break;
 
-		nbr_plist = prefix_list_lookup(AFI_IP, pim_ifp->nbr_plist);
+		nbr_plist = prefix_list_lookup(PIM_AFI, pim_ifp->nbr_plist);
 
 		src_prefix.family = AF_INET6;
 		src_prefix.prefix = src.sin6_addr;
