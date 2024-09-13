@@ -743,8 +743,8 @@ const struct frr_yang_module_info frr_gmp_info = {
 		{
 			.xpath = "/frr-interface:lib/interface/frr-gmp:gmp/address-family/access-list",
 			.cbs = {
-				.modify = lib_interface_igmp_alist_modify,
-				.destroy = lib_interface_igmp_alist_destroy,
+				.modify = lib_interface_gmp_alist_modify,
+				.destroy = lib_interface_gmp_alist_destroy,
 			}
 		},
 		{

@@ -167,6 +167,8 @@ struct pim_interface *pim_if_new(struct interface *ifp, bool gm, bool pim,
 	pim_ifp->upstream_switch_list = NULL;
 	pim_ifp->pim_generation_id = 0;
 
+	pim_filter_ref_init(&pim_ifp->gmp_filter);
+
 	/* list of struct gm_sock */
 	pim_igmp_if_init(pim_ifp, ifp);
 
@@ -219,6 +221,8 @@ void pim_if_delete(struct interface *ifp)
 		pim_sock_delete(ifp, "Interface removed from configuration");
 
 	pim_if_del_vif(ifp);
+
+	pim_filter_ref_fini(&pim_ifp->gmp_filter);
 
 	pim_igmp_if_fini(pim_ifp);
 

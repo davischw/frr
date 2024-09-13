@@ -439,6 +439,36 @@ DEFPY (interface_no_ipv6_pim,
 	return pim_process_no_ip_pim_cmd(vty);
 }
 
+DEFPY_YANG (if_ip_mld_alist,
+      if_ip_mld_alist_cmd,
+      "[no] ipv6 mld access-list ALIST_NAME",
+      NO_STR
+      IPV6_STR
+      IFACE_MLD_STR
+      "Filter joins through access-list\n"
+      "Access-list name\n")
+{
+	gmp_interface_enable(vty);
+
+	if (no)
+		nb_cli_enqueue_change(vty, "./access-list", NB_OP_DESTROY,
+				      NULL);
+	else
+		nb_cli_enqueue_change(vty, "./access-list", NB_OP_MODIFY,
+				      alist_name);
+
+	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
+				    FRR_PIM_AF_XPATH_VAL);
+}
+
+ALIAS(if_ip_mld_alist,
+      no_if_ip_mld_alist_cmd,
+      "no ipv6 mld access-list",
+      NO_STR
+      IPV6_STR
+      IFACE_MLD_STR
+      "Filter joins through access-list\n")
+
 DEFPY (interface_ipv6_pim_drprio,
        interface_ipv6_pim_drprio_cmd,
        "ipv6 pim drpriority (0-4294967295)",
@@ -2070,6 +2100,8 @@ void pim_cmd_init(void)
 	install_element(CONFIG_NODE, &no_ipv6_pim_register_suppress_cmd);
 	install_element(INTERFACE_NODE, &interface_ipv6_pim_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ipv6_pim_cmd);
+	install_element(INTERFACE_NODE, &if_ip_mld_alist_cmd);
+	install_element(INTERFACE_NODE, &no_if_ip_mld_alist_cmd);
 	install_element(INTERFACE_NODE, &interface_ipv6_pim_drprio_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ipv6_pim_drprio_cmd);
 	install_element(INTERFACE_NODE, &interface_ipv6_pim_hello_cmd);

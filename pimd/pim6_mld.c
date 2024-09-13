@@ -683,11 +683,13 @@ static void gm_handle_v2_pass1(struct gm_packet_state *pkt,
 	 * previously seen!
 	 */
 	struct gm_subscriber *subscriber = pkt->subscriber;
+	struct pim_interface *pim_interface = pkt->iface->ifp->info;
 	struct gm_sg *grp;
 	struct gm_packet_sg *old_grp = NULL;
 	struct gm_packet_sg *item;
 	size_t j;
 	bool is_excl = false;
+	struct prefix_sg psg;
 
 	grp = gm_sg_find(pkt->iface, rechdr->grp, PIMADDR_ANY);
 	if (grp && subscriber)
@@ -772,9 +774,22 @@ static void gm_handle_v2_pass1(struct gm_packet_state *pkt,
 
 		sg = gm_sg_find(pkt->iface, rechdr->grp, rechdr->srcs[j]);
 		if (!sg) {
+			psg.family = AF_INET6;
+			psg.prefixlen = IPV6_MAX_BITLEN;
 			if (gm_sg_limit_reached(pkt->iface, rechdr->srcs[j],
 						rechdr->grp))
 				return;
+
+			psg.grp6 = rechdr->grp;
+			psg.src6 = rechdr->srcs[j];
+			if (!pim_filter_match(&pim_interface->gmp_filter, &psg,
+					      pkt->iface->ifp, NULL)) {
+				if (PIM_DEBUG_GM_TRACE)
+					zlog_debug(
+						"rejected SG(%pI6, %pI6) MLD join due to filter",
+						&psg.src6, &psg.grp6);
+				continue;
+			}
 
 			sg = gm_sg_make(pkt->iface, rechdr->grp,
 					rechdr->srcs[j]);
@@ -1010,11 +1025,13 @@ static void gm_handle_v1_report(struct gm_if *gm_ifp,
 				const struct sockaddr_in6 *pkt_src, char *data,
 				size_t len)
 {
+	struct pim_interface *pim_interface;
 	struct mld_v1_pkt *hdr;
 	struct gm_packet_state *pkt;
 	struct gm_sg *grp;
 	struct gm_packet_sg *item;
 	size_t max_entries;
+	struct prefix_sg psg;
 
 	if (len < sizeof(*hdr)) {
 		if (PIM_DEBUG_GM_PACKETS)
@@ -1031,6 +1048,22 @@ static void gm_handle_v1_report(struct gm_if *gm_ifp,
 	if (!gm_sg_has_group(gm_ifp->sgs, hdr->grp) &&
 	    gm_sg_limit_reached(gm_ifp, PIMADDR_ANY, hdr->grp))
 		return;
+
+	memset(&psg, 0, sizeof(psg));
+	psg.family = AF_INET6;
+	psg.prefixlen = IPV6_MAX_BITLEN;
+	psg.grp6 = hdr->grp;
+	psg.src6 = PIMADDR_ANY;
+
+	pim_interface = gm_ifp->ifp->info;
+	if (!pim_filter_match(&pim_interface->gmp_filter, &psg, gm_ifp->ifp,
+			      NULL)) {
+		if (PIM_DEBUG_GM_TRACE)
+			zlog_debug(
+				"rejected SG(%pI6, %pI6) MLD join due to filter",
+				&psg.src6, &psg.grp6);
+		return;
+	}
 
 	max_entries = 1;
 	pkt = XCALLOC(MTYPE_GM_STATE,

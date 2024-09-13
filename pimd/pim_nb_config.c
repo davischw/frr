@@ -4364,7 +4364,7 @@ int lib_interface_gm_rmap_modify(struct nb_cb_modify_args *args)
 	case NB_EV_APPLY:
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		pim_ifp = ifp->info;
-		pim_filter_ref_set_rmap(&pim_ifp->igmp_filter, rmap);
+		pim_filter_ref_set_rmap(&pim_ifp->gmp_filter, rmap);
 		break;
 	}
 
@@ -4384,14 +4384,14 @@ int lib_interface_gm_rmap_destroy(struct nb_cb_destroy_args *args)
 	case NB_EV_APPLY:
 		ifp = nb_running_get_entry(args->dnode, NULL, true);
 		pim_ifp = ifp->info;
-		pim_filter_ref_set_rmap(&pim_ifp->igmp_filter, NULL);
+		pim_filter_ref_set_rmap(&pim_ifp->gmp_filter, NULL);
 		break;
 	}
 
 	return NB_OK;
 }
 
-int lib_interface_igmp_alist_modify(struct nb_cb_modify_args *args)
+int lib_interface_gmp_alist_modify(struct nb_cb_modify_args *args)
 {
 	const struct lyd_node *if_dnode;
 	const char *ifp_name;
@@ -4422,14 +4422,14 @@ int lib_interface_igmp_alist_modify(struct nb_cb_modify_args *args)
 		if (!pim_ifp)
 			break;
 
-		pim_filter_ref_set_alist(&pim_ifp->igmp_filter, alist);
+		pim_filter_ref_set_alist(&pim_ifp->gmp_filter, alist);
 		break;
 	}
 
 	return NB_OK;
 }
 
-int lib_interface_igmp_alist_destroy(struct nb_cb_destroy_args *args)
+int lib_interface_gmp_alist_destroy(struct nb_cb_destroy_args *args)
 {
 	struct interface *ifp;
 	struct pim_interface *pim_ifp;
@@ -4446,7 +4446,7 @@ int lib_interface_igmp_alist_destroy(struct nb_cb_destroy_args *args)
 		if (!pim_ifp)
 			break;
 
-		pim_filter_ref_set_alist(&pim_ifp->igmp_filter, NULL);
+		pim_filter_ref_set_alist(&pim_ifp->gmp_filter, NULL);
 		break;
 	}
 

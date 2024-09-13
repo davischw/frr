@@ -2599,8 +2599,13 @@ void pim_show_interfaces_single(struct pim_instance *pim, struct vty *vty,
 				json_object_boolean_true_add(json_row,
 							     "passive");
 
+#if PIM_IPV == 4
 			pim_filter_json(json_row, "igmpFilter",
-					&pim_ifp->igmp_filter);
+					&pim_ifp->gmp_filter);
+#else
+			pim_filter_json(json_row, "mldFilter",
+					&pim_ifp->gmp_filter);
+#endif
 
 			/* PIM neighbors */
 			if (pim_ifp->pim_neighbor_list->count) {
@@ -2650,8 +2655,13 @@ void pim_show_interfaces_single(struct pim_instance *pim, struct vty *vty,
 			json_object_int_add(json_row, "drChanges",
 					    pim_ifp->pim_dr_election_changes);
 
+#if PIM_IPV == 4
 			pim_filter_json(json_row, "igmpFilter",
-					&pim_ifp->igmp_filter);
+					&pim_ifp->gmp_filter);
+#else
+			pim_filter_json(json_row, "mldFilter",
+					&pim_ifp->gmp_filter);
+#endif
 
 			/* FHR */
 			frr_each (rb_pim_upstream, &pim->upstream_head, up) {

@@ -123,7 +123,7 @@ struct pim_interface {
 	uint32_t gm_source_limit, gm_group_limit;
 
 	/* NB: multicast_rmap is only applied for (S,G) data */
-	struct pim_filter_ref igmp_filter;
+	struct pim_filter_ref gmp_filter;
 	/* IGMPv2 only/MLDv1 only immediate leave */
 	bool gmp_immediate_leave;
 

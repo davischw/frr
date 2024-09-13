@@ -532,16 +532,26 @@ int pim_config_write(struct vty *vty, int writes, struct interface *ifp,
 		++writes;
 	}
 
-	/* IF ip igmp sources  */
-	if (pim_ifp->igmp_filter.rmapname) {
+	/* IF igmp/mld sources  */
+	if (pim_ifp->gmp_filter.rmapname) {
+#if PIM_IPV == 4
 		vty_out(vty, " ip igmp route-map %s\n",
-			pim_ifp->igmp_filter.rmapname);
+			pim_ifp->gmp_filter.rmapname);
+#else
+		vty_out(vty, " ipv6 mld route-map %s\n",
+			pim_ifp->gmp_filter.rmapname);
+#endif
 		++writes;
 	}
 
-	if (pim_ifp->igmp_filter.alistname) {
+	if (pim_ifp->gmp_filter.alistname) {
+#if PIM_IPV == 4
 		vty_out(vty, " ip igmp access-list %s\n",
-			pim_ifp->igmp_filter.alistname);
+			pim_ifp->gmp_filter.alistname);
+#else
+		vty_out(vty, " ipv6 mld access-list %s\n",
+			pim_ifp->gmp_filter.alistname);
+#endif
 		++writes;
 	}
 

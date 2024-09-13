@@ -253,7 +253,7 @@ void igmp_source_reset_gmi(struct gm_group *group, struct gm_source *source)
 
 	group_membership_interval_msec = igmp_gmi_msec(group);
 
-	if (!pim_filter_match(&pim_ifp->igmp_filter, &sg, group->interface,
+	if (!pim_filter_match(&pim_ifp->gmp_filter, &sg, group->interface,
 			      NULL)) {
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
@@ -471,7 +471,7 @@ struct gm_source *igmp_get_source_by_addr(struct gm_group *group,
 	if (new)
 		*new = false;
 
-	if (!pim_filter_match(&pim_interface->igmp_filter, &sg,
+	if (!pim_filter_match(&pim_interface->gmp_filter, &sg,
 			      group->interface, NULL)) {
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
@@ -551,7 +551,7 @@ static bool source_group_is_empty(const struct gm_sock *igmp,
 
 		source_group.src = *src_addr;
 
-		if (pim_filter_match(&pim_interface->igmp_filter, &source_group,
+		if (pim_filter_match(&pim_interface->gmp_filter, &source_group,
 				     igmp->interface, NULL)) {
 			found = true;
 			continue;
@@ -765,7 +765,7 @@ void igmpv3_report_isex(struct gm_sock *igmp, struct in_addr from,
 	if (pim_is_group_filtered(pim_ifp, &group_addr))
 		return;
 
-	if (!pim_filter_match(&pim_ifp->igmp_filter, &sg, igmp->interface,
+	if (!pim_filter_match(&pim_ifp->gmp_filter, &sg, igmp->interface,
 			      NULL)) {
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
@@ -1078,7 +1078,7 @@ void igmpv3_report_toex(struct gm_sock *igmp, struct in_addr from,
 
 	on_trace(__func__, ifp, from, group_addr, num_sources, sources);
 
-	if (!pim_filter_match(&pim_ifp->igmp_filter, &sg, igmp->interface,
+	if (!pim_filter_match(&pim_ifp->gmp_filter, &sg, igmp->interface,
 			      NULL)) {
 		if (PIM_DEBUG_GM_TRACE)
 			zlog_debug(
