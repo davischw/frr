@@ -169,6 +169,44 @@ DEFUN_NOSH(
        return multicast_mode_set(vty, "none");
 }
 
+DEFPY_YANG (ipv6_pim_alist,
+       ipv6_pim_alist_cmd,
+       "[no] ipv6 pim access-list ALIST_NAME",
+       NO_STR
+       IPV6_STR
+       PIM_STR
+       "Filter PIM joins through access-list\n"
+       "Access-list name\n")
+{
+	const char *vrfname;
+	char join_alist_xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(join_alist_xpath, sizeof(join_alist_xpath),
+		 FRR_PIM_VRF_XPATH "/pim-join-access-list", "frr-pim:pimd",
+		 "pim", vrfname, FRR_PIM_AF_XPATH_VAL);
+
+	if (no)
+		nb_cli_enqueue_change(vty, join_alist_xpath, NB_OP_DESTROY,
+				      NULL);
+	else
+		nb_cli_enqueue_change(vty, join_alist_xpath, NB_OP_MODIFY,
+				      alist_name);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+ALIAS (ipv6_pim_alist,
+       no_ipv6_pim_alist_cmd,
+       "no ipv6 pim access-list",
+       NO_STR
+       IPV6_STR
+       PIM_STR
+       "Filter PIM joins through access-list\n")
+
 DEFPY_YANG (ipv6_pim_spt_switchover_group,
        ipv6_pim_spt_switchover_group_cmd,
        "[no] ipv6 pim spt-switchover X:X::X:X/M$group "
@@ -1976,6 +2014,8 @@ void pim_cmd_init(void)
 			&no_if_ipv6_pim_neighbor_prefix_list_cmd);
        install_element(CONFIG_NODE, &ipv6_pim_multicast_mode_cmd);
        install_element(CONFIG_NODE, &no_ipv6_pim_multicast_mode_cmd);
+       install_element(CONFIG_NODE, &ipv6_pim_alist_cmd);
+       install_element(CONFIG_NODE, &no_ipv6_pim_alist_cmd);
        install_element(CONFIG_NODE, &ipv6_pim_spt_switchover_group_cmd);
 	install_element(CONFIG_NODE, &ipv6_pim_spt_switchover_infinity_cmd);
 	install_element(CONFIG_NODE, &ipv6_pim_spt_switchover_infinity_plist_cmd);

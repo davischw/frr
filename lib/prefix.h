@@ -297,8 +297,14 @@ struct prefix_fs {
 struct prefix_sg {
 	uint8_t family;
 	uint16_t prefixlen;
-	struct in_addr src __attribute__((aligned(8)));
-	struct in_addr grp;
+	union {
+		struct in_addr src;
+		struct in6_addr src6;
+	};
+	union {
+		struct in_addr grp;
+		struct in6_addr grp6;
+	};
 };
 
 union prefixptr {

@@ -72,7 +72,7 @@ void pim_filter_ref_set_alist(struct pim_filter_ref *ref, const char *alistname)
 
 	if (alistname) {
 		ref->alistname = XSTRDUP(MTYPE_PIM_ACL_REF, alistname);
-		ref->alist = access_list_lookup(AFI_IP, ref->alistname);
+		ref->alist = access_list_lookup(PIM_AFI, ref->alistname);
 	}
 }
 
@@ -82,7 +82,7 @@ void pim_filter_ref_update(void)
 
 	frr_each (pim_filter_refs, refs, ref) {
 		ref->rmap = route_map_lookup_by_name(ref->rmapname);
-		ref->alist = access_list_lookup(AFI_IP, ref->alistname);
+		ref->alist = access_list_lookup(PIM_AFI, ref->alistname);
 	}
 }
 
@@ -96,7 +96,8 @@ void pim_sg_to_prefix(const pim_sgaddr *sg, struct prefix_sg *prefix)
 #else
 	prefix->family = AF_INET6;
 	prefix->prefixlen = IPV6_MAX_BITLEN;
-	/* TODO IPv6 support */
+	prefix->src6 = sg->src;
+	prefix->grp6 = sg->grp;
 #endif
 }
 
@@ -123,22 +124,28 @@ bool pim_filter_match(const struct pim_filter_ref *ref,
 	if (sg->src.s_addr && IPV4_CLASS_DE(ntohl(sg->src.s_addr)))
 		return false;
 #else
-	return true;
+	if (!pim_addr_is_multicast(sg->grp6))
+		return false;
+	if (pim_addr_is_multicast(sg->src6))
+		return false;
 #endif
 
 	if (ref->alistname) {
 		enum filter_type result;
-		struct prefix_ipv4 src, dst;
+		struct prefix src, dst;
 
 		if (!ref->alist)
 			return false;
 
-		src.family = dst.family = AF_INET;
-		src.prefixlen = dst.prefixlen = 32;
-
-		src.prefix = sg->src;
-		dst.prefix = sg->grp;
-
+		src.family = dst.family = PIM_AF;
+		src.prefixlen = dst.prefixlen = PIM_MAX_BITLEN;
+#if PIM_IPV == 4
+		src.u.prefix4 = sg->src;
+		dst.u.prefix4 = sg->grp;
+#else
+		src.u.prefix6 = sg->src6;
+		dst.u.prefix6 = sg->grp6;
+#endif
 		result = access_list_apply_sadr(ref->alist, &src, &dst, NULL);
 		if (result != FILTER_PERMIT)
 			return false;
@@ -146,7 +153,7 @@ bool pim_filter_match(const struct pim_filter_ref *ref,
 
 	if (ref->rmapname) {
 		route_map_result_t result;
-		struct prefix dummy_prefix = {.family = AF_INET};
+		struct prefix dummy_prefix = {.family = PIM_AF};
 		struct pim_rmap_info info = {
 			.sg = sg,
 			.iif = iif,
@@ -472,8 +479,10 @@ static bool access_list_json_fill(struct json_object *json,
 	struct filter_cisco *cfilter;
 
 	for (item = acl->head; item; item = item->next) {
-		struct prefix_ipv4 p;
+		struct prefix p;
 		struct in_addr mask;
+		struct in6_addr mask6;
+		size_t i;
 		char buf[PREFIX_STRLEN];
 		struct json_object *jsonitem;
 
@@ -489,21 +498,43 @@ static bool access_list_json_fill(struct json_object *json,
 		json_object_boolean_add(jsonitem, "permit",
 					(item->type == FILTER_PERMIT));
 
-		p.family = AF_INET;
-		mask = cfilter->sadr.dst_mask;
-		mask.s_addr = ~mask.s_addr;
-		p.prefixlen = ip_masklen(mask);
-		p.prefix = cfilter->sadr.dst;
-		prefix2str(&p, buf, sizeof(buf));
-		json_object_string_add(jsonitem, "group", buf);
+		if (cfilter->ipv6) {
+			p.family = AF_INET6;
+			mask6 = cfilter->sadr6.dst_mask;
+			for (i = 0; i < sizeof(mask6) / 4; i++)
+				mask6.s6_addr32[i] = ~mask6.s6_addr32[i];
 
-		p.family = AF_INET;
-		mask = cfilter->sadr.src_mask;
-		mask.s_addr = ~mask.s_addr;
-		p.prefixlen = ip_masklen(mask);
-		p.prefix = cfilter->sadr.src;
-		prefix2str(&p, buf, sizeof(buf));
-		json_object_string_add(jsonitem, "source", buf);
+			p.prefixlen = (uint16_t)ip6_masklen(mask6);
+			p.u.prefix6 = cfilter->sadr6.dst;
+			prefix2str(&p, buf, sizeof(buf));
+			json_object_string_add(jsonitem, "group", buf);
+
+			p.family = AF_INET6;
+			mask6 = cfilter->sadr6.src_mask;
+			for (i = 0; i < sizeof(mask6) / 4; i++)
+				mask6.s6_addr32[i] = ~mask6.s6_addr32[i];
+
+			p.prefixlen = (uint16_t)ip6_masklen(mask6);
+			p.u.prefix6 = cfilter->sadr6.src;
+			prefix2str(&p, buf, sizeof(buf));
+			json_object_string_add(jsonitem, "source", buf);
+		} else {
+			p.family = AF_INET;
+			mask = cfilter->sadr.dst_mask;
+			mask.s_addr = ~mask.s_addr;
+			p.prefixlen = ip_masklen(mask);
+			p.u.prefix4 = cfilter->sadr.dst;
+			prefix2str(&p, buf, sizeof(buf));
+			json_object_string_add(jsonitem, "group", buf);
+
+			p.family = AF_INET;
+			mask = cfilter->sadr.src_mask;
+			mask.s_addr = ~mask.s_addr;
+			p.prefixlen = ip_masklen(mask);
+			p.u.prefix4 = cfilter->sadr.src;
+			prefix2str(&p, buf, sizeof(buf));
+			json_object_string_add(jsonitem, "source", buf);
+		}
 	}
 
 	return valid;

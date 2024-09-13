@@ -316,7 +316,7 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 	}
 
 	if (pim->join_filter.alistname) {
-		vty_out(vty, "%sip pim access-list %s\n", spaces,
+		vty_out(vty, "%s" PIM_AF_NAME " pim access-list %s\n", spaces,
 			pim->join_filter.alistname);
 		++writes;
 	}

@@ -324,16 +324,21 @@ static inline bool pim_rp_try_alist(struct rp_info *rp_info,
 				    const struct prefix *group,
 				    struct prefix *ent)
 {
-	struct prefix nullpfx = {.family = AF_INET, .prefixlen = 0};
+	struct prefix nullpfx = {.family = PIM_AFI, .prefixlen = 0};
 	struct prefix tmp;
+#if PIM_IPV == 4
 	struct in_addr tmpmask;
+#else
+	size_t i;
+	struct in6_addr tmpmask;
+#endif
 	struct filter *hit = NULL;
 	struct access_list *acl;
 
 	if (!rp_info->alist)
 		return false;
 
-	acl = access_list_lookup(AFI_IP, rp_info->alist);
+	acl = access_list_lookup(PIM_AFI, rp_info->alist);
 	if (!acl)
 		return false;
 
@@ -350,16 +355,34 @@ static inline bool pim_rp_try_alist(struct rp_info *rp_info,
 	}
 
 	/* mask is inverted in ext ACL... */
+#if PIM_IPV == 4
 	tmpmask.s_addr = ~hit->u.cfilter.sadr.dst_mask.s_addr;
+#else
+	for (i = 0; i < sizeof(tmpmask) / 4; i++)
+		tmpmask.s6_addr32[i] =
+			~hit->u.cfilter.sadr6.dst_mask.s6_addr32[i];
+#endif
 
-	tmp.family = AF_INET;
+	tmp.family = PIM_AF;
+#if PIM_IPV == 4
 	tmp.prefixlen = ip_masklen(tmpmask);
 	tmp.u.prefix4 = hit->u.cfilter.sadr.dst;
+#else
+	tmp.prefixlen = (uint16_t)ip6_masklen(tmpmask);
+	tmp.u.prefix6 = hit->u.cfilter.sadr6.dst;
+#endif
 
+#if PIM_IPV == 4
 	if (tmp.prefixlen < 4) {
 		tmp.prefixlen = 4;
 		tmp.u.prefix4.s_addr = inet_addr("224.0.0.0");
 	}
+#else
+	if (tmp.prefixlen < 8) {
+		tmp.prefixlen = 8;
+		tmp.u.prefix6 = (struct in6_addr){.s6_addr32 = {0xFF0000}};
+	}
+#endif
 
 	if (ent->prefixlen >= tmp.prefixlen)
 		return false;
