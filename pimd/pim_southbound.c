@@ -2603,6 +2603,12 @@ static void pimsb_mld_send(const struct interface *interface, bool join,
 
 static void pimsb_mld_join(const struct interface *interface)
 {
+	struct pim_interface *pim_interface = interface->info;
+
+	/* Check if MLD is active */
+	if (pim_interface->mld == NULL)
+		return;
+
 	pimsb_mld_send(interface, true, NULL, NULL);
 }
 
