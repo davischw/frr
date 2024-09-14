@@ -269,8 +269,13 @@ struct cand_rp_msg {
 	uint8_t prefix_cnt;
 	uint8_t rp_prio;
 	uint16_t rp_holdtime;
+#if PIM_IPV == 4
 	struct pim_encoded_ipv4_unicast rp_addr;
 	struct pim_encoded_group_ipv4 groups[0];
+#else
+	struct pim_encoded_ipv6_unicast rp_addr;
+	struct pim_encoded_group_ipv6 groups[0];
+#endif
 } __attribute__((packed));
 
 /* API */

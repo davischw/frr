@@ -108,6 +108,7 @@ struct frr_signal_t pim6d_signals[] = {
 };
 
 static const struct frr_yang_module_info *const pim6d_yang_modules[] = {
+	&frr_pim_candidate_info,
 	&frr_filter_info,
 	&frr_interface_info,
 	&frr_route_map_info,

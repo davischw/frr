@@ -25,6 +25,14 @@
 #include <netinet/ip6.h>
 #endif
 
+#if PIM_IPV == 4
+#define pim_encoded_group pim_encoded_group_ipv4
+#define PIM_IANA_AFI IANA_AFI_IPV4
+#else
+#define pim_encoded_group pim_encoded_group_ipv6
+#define PIM_IANA_AFI IANA_AFI_IPV6
+#endif
+
 #include "pim_jp_agg.h"
 
 #define PIM_HDR_LEN  sizeof(struct pim_msg_header)

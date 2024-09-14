@@ -692,6 +692,133 @@ DEFPY (no_ipv6_pim_rp_prefix_list,
 	return pim_process_no_rp_plist_cmd(vty, rp_str, plist, !!fallback);
 }
 
+DEFPY_YANG (ipv6_pim_candidate_rp,
+       ipv6_pim_candidate_rp_cmd,
+       "[no] ipv6 pim candidate-rp [{priority (0-255)|interval (1-4294967295)|source <address X:X::X:X|interface IFNAME|loopback$loopback|any$any>}]",
+       NO_STR
+       IPV6_STR
+       PIM_STR
+       "Make this router a Candidate RP\n"
+       "RP Priority (lower wins)\n"
+       "RP Priority (lower wins)\n"
+       "Advertisement interval (seconds)\n"
+       "Advertisement interval (seconds)\n"
+       "Specify IPv6 address for RP operation\n"
+       "Local address to use\n"
+       "Local address to use\n"
+       "Interface to pick address from\n"
+       "Interface to pick address from\n"
+       "Pick highest loopback address (default)\n"
+       "Pick highest address from any interface\n")
+{
+	char cand_rp_xpath[XPATH_MAXLEN];
+	const struct lyd_node *vrf_dnode;
+	const char *vrfname;
+
+	if (vty->xpath_index) {
+		vrf_dnode = yang_dnode_get(vty->candidate_config->dnode,
+					   VTY_CURR_XPATH);
+
+		if (!vrf_dnode) {
+			vty_out(vty,
+				"%% Failed to get vrf dnode in candidate db\n");
+			return CMD_WARNING_CONFIG_FAILED;
+		}
+
+		vrfname = yang_dnode_get_string(vrf_dnode, "./name");
+	} else
+		vrfname = VRF_DEFAULT_NAME;
+
+	snprintf(cand_rp_xpath, sizeof(cand_rp_xpath), FRR_PIM_CAND_RP_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL);
+
+	if (no)
+		nb_cli_enqueue_change(vty, cand_rp_xpath, NB_OP_DESTROY, NULL);
+	else {
+		char xpath2[XPATH_MAXLEN + 24];
+
+		nb_cli_enqueue_change(vty, cand_rp_xpath, NB_OP_CREATE, NULL);
+
+		if (any) {
+			snprintf(xpath2, sizeof(xpath2), "%s/if-any",
+				 cand_rp_xpath);
+			nb_cli_enqueue_change(vty, xpath2, NB_OP_CREATE, NULL);
+		} else if (ifname) {
+			snprintf(xpath2, sizeof(xpath2), "%s/interface",
+				 cand_rp_xpath);
+			nb_cli_enqueue_change(vty, xpath2, NB_OP_CREATE,
+					      ifname);
+		} else if (address_str) {
+			snprintf(xpath2, sizeof(xpath2), "%s/address",
+				 cand_rp_xpath);
+			nb_cli_enqueue_change(vty, xpath2, NB_OP_CREATE,
+					      address_str);
+		} else {
+			snprintf(xpath2, sizeof(xpath2), "%s/if-loopback",
+				 cand_rp_xpath);
+			nb_cli_enqueue_change(vty, xpath2, NB_OP_CREATE, NULL);
+		}
+
+		if (priority_str) {
+			snprintf(xpath2, sizeof(xpath2), "%s/rp-priority",
+				 cand_rp_xpath);
+			nb_cli_enqueue_change(vty, xpath2, NB_OP_MODIFY,
+					      priority_str);
+		}
+		if (interval_str) {
+			snprintf(xpath2, sizeof(xpath2),
+				 "%s/advertisement-interval", cand_rp_xpath);
+			nb_cli_enqueue_change(vty, xpath2, NB_OP_MODIFY,
+					      interval_str);
+		}
+	}
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY_YANG (ipv6_pim_candidate_rp_group,
+       ipv6_pim_candidate_rp_group_cmd,
+       "[no] ipv6 pim candidate-rp group access-list WORD$group_str",
+       NO_STR
+       IPV6_STR
+       PIM_STR
+       "Make this router a Candidate RP\n"
+       "Configure groups to become candidate RP for\n"
+       "Use access-list as configuration source\n"
+       "Multicast group prefix\n")
+{
+	char cand_rp_xpath[XPATH_MAXLEN];
+	const struct lyd_node *vrf_dnode;
+	const char *vrfname;
+
+	if (vty->xpath_index) {
+		vrf_dnode = yang_dnode_get(vty->candidate_config->dnode,
+					   VTY_CURR_XPATH);
+
+		if (!vrf_dnode) {
+			vty_out(vty,
+				"%% Failed to get vrf dnode in candidate db\n");
+			return CMD_WARNING_CONFIG_FAILED;
+		}
+
+		vrfname = yang_dnode_get_string(vrf_dnode, "./name");
+	} else
+		vrfname = VRF_DEFAULT_NAME;
+
+	snprintf(cand_rp_xpath, sizeof(cand_rp_xpath),
+		 FRR_PIM_CAND_RP_XPATH "/group-list", "frr-pim:pimd", "pim",
+		 vrfname, FRR_PIM_AF_XPATH_VAL);
+
+	if (no)
+		nb_cli_enqueue_change(vty, cand_rp_xpath, NB_OP_DESTROY,
+				      group_str);
+	else
+		nb_cli_enqueue_change(vty, cand_rp_xpath, NB_OP_MODIFY,
+				      group_str);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 DEFPY (ipv6_pim_bsm,
        ipv6_pim_bsm_cmd,
        "ipv6 pim bsm",
@@ -2130,6 +2257,10 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &ipv6_pim_rp_prefix_list_cmd);
 	install_element(CONFIG_NODE, &no_ipv6_pim_rp_prefix_list_cmd);
 	install_element(VRF_NODE, &no_ipv6_pim_rp_prefix_list_cmd);
+	install_element(CONFIG_NODE, &ipv6_pim_candidate_rp_cmd);
+	install_element(VRF_NODE, &ipv6_pim_candidate_rp_cmd);
+	install_element(CONFIG_NODE, &ipv6_pim_candidate_rp_group_cmd);
+	install_element(VRF_NODE, &ipv6_pim_candidate_rp_group_cmd);
 	install_element(CONFIG_NODE, &ipv6_ssmpingd_cmd);
 	install_element(VRF_NODE, &ipv6_ssmpingd_cmd);
 	install_element(CONFIG_NODE, &no_ipv6_ssmpingd_cmd);

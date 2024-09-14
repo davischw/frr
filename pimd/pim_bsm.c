@@ -256,7 +256,7 @@ void pim_bsm_socket_init(struct pim_instance *pim)
 		return;
 
 	frr_with_privs (&pimd_privs) {
-		int sock = vrf_socket(AF_INET, SOCK_RAW, IPPROTO_PIM,
+		int sock = vrf_socket(PIM_AF, SOCK_RAW, IPPROTO_PIM,
 				      pim->vrf->vrf_id, NULL);
 		if (sock == -1) {
 			flog_err(EC_LIB_SOCKET,
@@ -1609,19 +1609,15 @@ static void pim_cand_rp_adv_stop_maybe(struct bsm_scope *scope)
 
 	struct cand_rp_msg *msg;
 	uint8_t buf[PIM_MSG_HEADER_LEN + sizeof(*msg)
-		    + sizeof(struct pim_encoded_group_ipv4)];
+		    + sizeof(struct pim_encoded_group)];
 
 	msg = (struct cand_rp_msg *)(&buf[PIM_MSG_HEADER_LEN]);
 	msg->prefix_cnt = 0;
 	msg->rp_prio = 255;
 	msg->rp_holdtime = 0;
-	msg->rp_addr.family = IANA_AFI_IPV4;
-	msg->rp_addr.reserved = 0;
-#if PIM_IPV == 4
+	msg->rp_addr.family = PIM_IANA_AFI;
 	msg->rp_addr.addr = scope->cand_rp_prev_addr;
-#else
-	/* TODO */
-#endif
+	msg->rp_addr.reserved = 0;
 
 	pim_addr addr = {};
 
@@ -1636,7 +1632,7 @@ static void pim_cand_rp_adv_stop_maybe(struct bsm_scope *scope)
 }
 
 static size_t pim_cand_rp_packet_groups(const struct bsm_scope *scope,
-					struct pim_encoded_group_ipv4 *groups,
+					struct pim_encoded_group *groups,
 					size_t remaining)
 {
 	struct filter_cisco *cfilter;
@@ -1648,14 +1644,12 @@ static size_t pim_cand_rp_packet_groups(const struct bsm_scope *scope,
 	if (scope->group_list == NULL)
 		return 0;
 
-	acl = access_list_lookup(AFI_IP, scope->group_list);
+	acl = access_list_lookup(PIM_AFI, scope->group_list);
 	if (acl == NULL)
 		return 0;
 
 	total = 0;
 	for (filter = acl->head; filter; filter = filter->next) {
-		struct in_addr mask;
-
 		/* Only permit is handled here. */
 		if (filter->type != FILTER_PERMIT)
 			continue;
@@ -1667,21 +1661,33 @@ static size_t pim_cand_rp_packet_groups(const struct bsm_scope *scope,
 		}
 
 		memset(&groups[total], 0,
-		       sizeof(struct pim_encoded_group_ipv4));
+		       sizeof(struct pim_encoded_group));
 
 		cfilter = &filter->u.cfilter;
 
-		groups[total].family = IANA_AFI_IPV4;
+		groups[total].family = PIM_IANA_AFI;
 		/* Wildcard bits == inverted mask, convert it */
-		mask = cfilter->sadr.dst_mask;
+#if PIM_IPV == 4
+		struct in_addr mask = cfilter->sadr.dst_mask;
+
 		mask.s_addr = ~mask.s_addr;
 		groups[total].mask = ip_masklen(mask);
 		groups[total].addr = cfilter->sadr.dst;
+#else
+		struct in6_addr mask = cfilter->sadr6.dst_mask;
+		size_t i;
+
+		for (i = 0; i < sizeof(mask) / 4; i++)
+			mask.s6_addr32[i] = ~mask.s6_addr32[i];
+
+		groups[total].mask = (uint8_t)ip6_masklen(mask);
+		groups[total].addr = cfilter->sadr6.dst;
+#endif
 
 		total++;
 
 		/* Don't go beyond boundaries. */
-		if ((total * sizeof(struct pim_encoded_group_ipv4))
+		if ((total * sizeof(struct pim_encoded_group))
 		    >= remaining)
 			break;
 	}
@@ -1725,13 +1731,9 @@ static void pim_cand_rp_adv(struct thread *t)
 						    MAX_GROUP_BYTE_SIZE);
 	msg->rp_prio = scope->cand_rp_prio;
 	msg->rp_holdtime = htons((scope->cand_rp_interval * 5 + 1) / 2);
-#if PIM_IPV == 4
-	msg->rp_addr.family = IANA_AFI_IPV4;
+	msg->rp_addr.family = PIM_IANA_AFI;
 	msg->rp_addr.reserved = 0;
 	msg->rp_addr.addr = scope->cand_rp_addrsel.run_addr;
-#else
-	/* TODO */
-#endif
 
 	msg_size = PIM_MSG_HEADER_LEN + sizeof(*msg) +
 		msg->prefix_cnt * sizeof(struct pim_encoded_group_ipv4);
@@ -1859,7 +1861,7 @@ int pim_cand_config_write(struct pim_instance *pim, struct vty *vty,
 	int ret = 0;
 
 	if (scope->cand_rp_addrsel.cfg_enable) {
-		vty_out(vty, "%sip pim candidate-rp", indent);
+		vty_out(vty, "%s" PIM_AF_NAME " pim candidate-rp", indent);
 		if (scope->cand_rp_prio != 192)
 			vty_out(vty, " priority %u", scope->cand_rp_prio);
 		if (scope->cand_rp_interval != PIM_CRP_ADV_INTERVAL)
@@ -1868,7 +1870,8 @@ int pim_cand_config_write(struct pim_instance *pim, struct vty *vty,
 		vty_out(vty, "\n");
 		if (scope->group_list)
 			vty_out(vty,
-				"%sip pim candidate-rp group access-list %s\n",
+				"%s" PIM_AF_NAME
+				" pim candidate-rp group access-list %s\n",
 				indent, scope->group_list);
 		ret++;
 	}
