@@ -170,6 +170,7 @@ static struct mld_packet *mld_new_packet(struct mld_packet_params *params)
 
 	packet = XCALLOC(MTYPE_TMP, packet_size);
 	SLIST_INSERT_HEAD(params->list, packet, entry);
+	packet->max_size = params->size;
 
 	packet->ip6 = (struct ipv6_ph *)packet->data;
 	packet->icmp6 =
@@ -251,7 +252,7 @@ mldv2_packet_add_record(struct mld_packet *packet, bool join,
 			record->type = MLD_RECTYPE_BLOCK_OLD_SOURCES;
 	}
 
-	if (source_head)
+	if (source_head == NULL)
 		source_head = SLIST_FIRST(&group->source_list);
 
 	source_index = 0;
