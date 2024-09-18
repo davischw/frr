@@ -5237,7 +5237,6 @@ int pim_show_mroute_helper(const char *vrf, struct vty *vty, pim_addr s_or_g,
 	}
 
 	if (dataplane) {
-#if PIM_IPV == 4
 		if (!pim_addr_is_any(s_or_g)) {
 			if (!pim_addr_is_any(g)) {
 				sg.src = s_or_g;
@@ -5247,7 +5246,6 @@ int pim_show_mroute_helper(const char *vrf, struct vty *vty, pim_addr s_or_g,
 		}
 
 		pimsb_show_mroute(vty, pim, &sg, false, json);
-#endif
 		return CMD_SUCCESS;
 	}
 
