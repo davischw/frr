@@ -209,6 +209,24 @@ DEFUN (show_ip_rpf,
 				&ctx);
 }
 
+DEFUN (show_ipv6_rpf,
+       show_ipv6_rpf_cmd,
+       "show ipv6 rpf [json]",
+       SHOW_STR
+       IPV6_STR
+       "Display RPF information for multicast source\n"
+       JSON_STR)
+{
+	bool uj = use_json(argc, argv);
+	struct route_show_ctx ctx = {
+		.multi = false,
+	};
+
+	return do_show_ip_route(vty, VRF_DEFAULT_NAME, AFI_IP6, SAFI_MULTICAST,
+				false, uj, 0, NULL, false, 0, 0, 0, false,
+				&ctx);
+}
+
 DEFUN (show_ip_rpf_addr,
        show_ip_rpf_addr_cmd,
        "show ip rpf A.B.C.D",
@@ -4650,6 +4668,7 @@ void zebra_vty_init(void)
 	install_element(VIEW_NODE, &show_ip_nht_cmd);
 
 	install_element(VIEW_NODE, &show_ip_rpf_cmd);
+	install_element(VIEW_NODE, &show_ipv6_rpf_cmd);
 	install_element(VIEW_NODE, &show_ip_rpf_addr_cmd);
 
 	install_element(CONFIG_NODE, &ip_nht_default_route_cmd);
