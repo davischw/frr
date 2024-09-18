@@ -3220,6 +3220,148 @@ DEFPY(gm_show_mld_groups,
 	return CMD_SUCCESS;
 }
 
+static void show_mld_sources_plain(struct vty *vty, struct vrf *vrf)
+{
+	struct interface *interface;
+	struct ttable *tt = NULL;
+	char *output;
+
+	tt = ttable_new(&ttable_styles[TTSTYLE_BLANK]);
+	ttable_add_row(tt, "Interface|Group|Source|Timer|Fwd|Uptime");
+	tt->style.cell.rpad = 2;
+	tt->style.corner = '+';
+	ttable_restyle(tt);
+
+	FOR_ALL_INTERFACES (vrf, interface) {
+		const struct pim_interface *pim_interface = interface->info;
+		struct gm_if *gm_interface;
+		struct gm_sg *sg;
+
+		if (pim_interface == NULL || pim_interface->mld == NULL)
+			continue;
+
+		gm_interface = pim_interface->mld;
+		frr_each (gm_sgs, gm_interface->sgs, sg) {
+			if (pim_interface->mld_version == 1 &&
+			    !pim_addr_is_any(sg->sgaddr.src))
+				continue;
+
+			FMT_NSTD_BEGIN;
+			ttable_add_row(tt, "%s|%pPA|%pPAs|%.0pTH|%s|%.0pTVMs",
+				       interface->name, &sg->sgaddr.grp,
+				       &sg->sgaddr.src, sg->t_sg_expire,
+				       sg->tib_joined ? "Y" : "N",
+				       &sg->created);
+			FMT_NSTD_END;
+		}
+	}
+
+	/* Dump the generated table. */
+	output = ttable_dump(tt, "\n");
+	ttable_del(tt);
+	vty_out(vty, "%s\n", output);
+	XFREE(MTYPE_TMP, output);
+}
+
+static void show_mld_sources_json(struct vty *vty, struct vrf *vrf)
+{
+	struct json_object *json = json_object_new_object();
+	struct interface *interface;
+
+	FOR_ALL_INTERFACES (vrf, interface) {
+		const struct pim_interface *pim_interface = interface->info;
+		struct gm_if *gm_interface;
+		struct gm_sg *sg;
+
+		if (pim_interface == NULL || pim_interface->mld == NULL)
+			continue;
+
+		gm_interface = pim_interface->mld;
+		frr_each (gm_sgs, gm_interface->sgs, sg) {
+			struct json_object *json_group;
+			struct json_object *json_source;
+			struct json_object *json_interface;
+			struct json_object *json_sources_array;
+			char group[PREFIX_STRLEN];
+
+			if (pim_interface->mld_version == 1 &&
+			    !pim_addr_is_any(sg->sgaddr.src))
+				continue;
+
+			if (!json_object_object_get_ex(json, interface->name,
+						       &json_interface)) {
+				json_interface = json_object_new_object();
+				json_object_object_add(json, interface->name,
+						       json_interface);
+			}
+
+			snprintfrr(group, sizeof(group), "%pPA",
+				   &sg->sgaddr.grp);
+			if (!json_object_object_get_ex(json_interface, group,
+						       &json_group)) {
+				json_group = json_object_new_object();
+				json_object_object_add(json_interface, group,
+						       json_group);
+
+				json_sources_array = json_object_new_array();
+				json_object_object_add(json_group, "sources",
+						       json_sources_array);
+			} else
+				json_object_object_get_ex(json_group, "sources",
+							  &json_sources_array);
+
+			json_source = json_object_new_object();
+			json_object_string_addf(json_source, "source", "%pPA",
+						&sg->sgaddr.src);
+			json_object_string_add(json_source, "forwarded",
+					       sg->tib_joined ? "Y" : "N");
+			FMT_NSTD_BEGIN;
+			json_object_string_addf(json_source, "timer", "%.0pTH",
+						sg->t_sg_expire);
+			json_object_string_addf(json_source, "uptime",
+						"%.0pTVMs", &sg->created);
+			FMT_NSTD_END;
+			json_object_array_add(json_sources_array, json_source);
+		}
+	}
+
+	vty_json(vty, json);
+}
+
+static inline void show_mld_sources(struct vty *vty, struct vrf *vrf, bool json)
+{
+	if (json)
+		show_mld_sources_json(vty, vrf);
+	else
+		show_mld_sources_plain(vty, vrf);
+}
+
+DEFPY(gm_show_mld_sources,
+      gm_show_mld_sources_cmd,
+      "show ipv6 mld [vrf <VRF|all>$vrf_str] sources [json$json]",
+      SHOW_STR
+      IPV6_STR
+      MLD_STR
+      VRF_FULL_CMD_HELP_STR
+      MLD_SOURCE_STR
+      JSON_STR)
+{
+	int ret = CMD_SUCCESS;
+	struct vrf *vrf;
+
+	vrf = gm_cmd_vrf_lookup(vty, vrf_str, &ret);
+	if (ret != CMD_SUCCESS)
+		return ret;
+
+	if (vrf)
+		show_mld_sources(vty, vrf, !!json);
+	else
+		RB_FOREACH (vrf, vrf_name_head, &vrfs_by_name)
+			show_mld_sources(vty, vrf, !!json);
+
+	return CMD_SUCCESS;
+}
+
 DEFPY(gm_debug_show,
       gm_debug_show_cmd,
       "debug show mld interface IFNAME",
@@ -3395,7 +3537,7 @@ void gm_cli_init(void)
 	install_element(VIEW_NODE, &gm_show_interface_stats_cmd);
 	install_element(VIEW_NODE, &gm_show_interface_joins_cmd);
 	install_element(VIEW_NODE, &gm_show_mld_groups_cmd);
-
+	install_element(VIEW_NODE, &gm_show_mld_sources_cmd);
 	install_element(VIEW_NODE, &gm_debug_show_cmd);
 	install_element(INTERFACE_NODE, &gm_debug_iface_cfg_cmd);
 }
