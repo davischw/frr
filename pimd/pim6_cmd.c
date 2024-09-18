@@ -517,6 +517,27 @@ DEFPY (interface_no_ipv6_pim_hello,
 	return pim_process_no_ip_pim_hello_cmd(vty);
 }
 
+DEFPY_YANG (if_ipv6_pim_joinprune_time, if_ipv6_pim_joinprune_time_cmd,
+      "[no] ipv6 pim join-prune-interval (5-600)$jpt",
+      NO_STR
+      IPV6_STR
+      PIM_STR
+      "Join Prune Send Interval\n"
+      "Seconds\n")
+{
+	if (no)
+		return pim_interface_no_join_prune(vty);
+
+	return pim_interface_join_prune(vty, jpt_str);
+}
+
+ALIAS(if_ipv6_pim_joinprune_time, if_no_ipv6_pim_joinprune_time_cmd,
+      "no ipv6 pim join-prune-interval",
+      NO_STR
+      IPV6_STR
+      PIM_STR
+      "Join Prune Send Interval\n")
+
 DEFPY (interface_ipv6_pim_activeactive,
        interface_ipv6_pim_activeactive_cmd,
        "[no] ipv6 pim active-active",
@@ -2235,6 +2256,8 @@ void pim_cmd_init(void)
 	install_element(INTERFACE_NODE, &interface_no_ipv6_pim_drprio_cmd);
 	install_element(INTERFACE_NODE, &interface_ipv6_pim_hello_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ipv6_pim_hello_cmd);
+	install_element(INTERFACE_NODE, &if_ipv6_pim_joinprune_time_cmd);
+	install_element(INTERFACE_NODE, &if_no_ipv6_pim_joinprune_time_cmd);
 	install_element(INTERFACE_NODE, &interface_ipv6_pim_activeactive_cmd);
 	install_element(INTERFACE_NODE, &interface_ipv6_pim_ssm_cmd);
 	install_element(INTERFACE_NODE, &interface_no_ipv6_pim_ssm_cmd);
