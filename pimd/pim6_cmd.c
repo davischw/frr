@@ -1299,6 +1299,58 @@ DEFPY (show_ipv6_pim_rp,
 				  !!json);
 }
 
+DEFPY(show_ipv6_pim_everything, show_ipv6_pim_everything_cmd,
+      "show ipv6 pim [vrf <NAME$vrf|all$vrf_all>] everything [{group X:X::X:X|source X:X::X:X}] json",
+      SHOW_STR IPV6_STR PIM_STR VRF_CMD_HELP_STR
+      "Select all VRFs\n"
+      "all PIM, MLD and MFC state\n"
+      "Select group to show\n"
+      "Select group to show\n"
+      "Select source to show\n"
+      "Select source to show\n" JSON_STR)
+{
+	struct vrf *v;
+	struct pim_instance *pim;
+	pim_sgaddr sg = {.grp = group, .src = source};
+
+	if (vrf_all) {
+		bool first = true;
+
+		vty_out(vty, "{");
+		RB_FOREACH (v, vrf_name_head, &vrfs_by_name) {
+			pim = pim_get_pim_instance(v->vrf_id);
+			if (!pim)
+				continue;
+
+			if (!first)
+				vty_out(vty, ", ");
+			else
+				first = false;
+
+			vty_out(vty, " %pSQq: ", v->name);
+			pim_show_everything(vty, pim, sg);
+		}
+		vty_out(vty, "}\n");
+	} else {
+		v = vrf_lookup_by_name(vrf ? vrf : VRF_DEFAULT_NAME);
+
+		if (!v) {
+			vty_out(vty, "%% specified VRF %s does not exist\n",
+				vrf);
+			return CMD_WARNING;
+		}
+
+		pim = pim_get_pim_instance(v->vrf_id);
+		if (!pim) {
+			vty_out(vty, "%% no PIM instance for VRF %s\n", vrf);
+			return CMD_WARNING;
+		}
+		pim_show_everything(vty, pim, sg);
+	}
+
+	return CMD_SUCCESS;
+}
+
 DEFPY (show_ipv6_pim_rp_vrf_all,
        show_ipv6_pim_rp_vrf_all_cmd,
        "show ipv6 pim vrf all rp-info [X:X::X:X/M$group] [json$json]",
@@ -2324,6 +2376,7 @@ void pim_cmd_init(void)
 			&interface_no_ipv6_mld_last_member_query_interval_cmd);
 
 	install_element(VIEW_NODE, &show_ipv6_pim_rp_cmd);
+	install_element(VIEW_NODE, &show_ipv6_pim_everything_cmd);
 	install_element(VIEW_NODE, &show_ipv6_pim_rp_vrf_all_cmd);
 	install_element(VIEW_NODE, &show_ipv6_pim_rpf_cmd);
 	install_element(VIEW_NODE, &show_ipv6_pim_rpf_vrf_all_cmd);

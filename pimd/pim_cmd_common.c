@@ -876,19 +876,27 @@ void json_object_pim_upstream_add(json_object *json, struct pim_upstream *up)
 	json_object_boolean_add(
 		json, "firstHopRouter",
 		CHECK_FLAG(up->flags, PIM_UPSTREAM_FLAG_MASK_FHR));
+#if PIM_IPV == 4
 	json_object_boolean_add(
 		json, "sourceIgmp",
 		CHECK_FLAG(up->flags, PIM_UPSTREAM_FLAG_MASK_SRC_IGMP));
+#else
+	json_object_boolean_add(
+		json, "sourceMld",
+		CHECK_FLAG(up->flags, PIM_UPSTREAM_FLAG_MASK_SRC_IGMP));
+#endif
 	json_object_boolean_add(
 		json, "sourcePim",
 		CHECK_FLAG(up->flags, PIM_UPSTREAM_FLAG_MASK_SRC_PIM));
 	json_object_boolean_add(
 		json, "sourceStream",
 		CHECK_FLAG(up->flags, PIM_UPSTREAM_FLAG_MASK_SRC_STREAM));
+#if PIM_IPV == 4
 	/* XXX: need to print ths flag in the plain text display as well */
 	json_object_boolean_add(
 		json, "sourceMsdp",
 		CHECK_FLAG(up->flags, PIM_UPSTREAM_FLAG_MASK_SRC_MSDP));
+#endif
 	json_object_boolean_add(
 		json, "sendSGRptPrune",
 		CHECK_FLAG(up->flags,
@@ -1863,8 +1871,13 @@ void pim_show_join_helper(struct pim_interface *pim_ifp,
 					PIM_IF_FLAG_TEST_S_G_RPT(ch->flags));
 		json_object_boolean_add(json_row, "protocolPim",
 					PIM_IF_FLAG_TEST_PROTO_PIM(ch->flags));
+#if PIM_IPV == 4
 		json_object_boolean_add(json_row, "protocolIgmp",
 					PIM_IF_FLAG_TEST_PROTO_IGMP(ch->flags));
+#else
+		json_object_boolean_add(json_row, "protocolMld",
+					PIM_IF_FLAG_TEST_PROTO_IGMP(ch->flags));
+#endif
 		snprintfrr(ch_grp_str, sizeof(ch_grp_str), "%pPAs",
 			   &ch->sg.grp);
 		json_object_object_get_ex(json_iface, ch_grp_str, &json_grp);
@@ -6094,4 +6107,533 @@ void gmp_interface_enable(struct vty *vty)
 			nb_cli_enqueue_change(vty, "./enable", NB_OP_MODIFY,
 					      "true");
 	}
+}
+
+static void pim_show_upstream_one(struct vty *vty, struct pim_instance *pim,
+				  struct pim_upstream *up, time_t now,
+				  json_object *json_group, bool everything)
+{
+	char uptime[10];
+	char join_timer[10];
+	char rs_timer[10];
+	char ka_timer[10];
+	char msdp_reg_timer[10];
+	char state_str[PIM_REG_STATE_STR_LEN];
+	char upstream_neighbor[PREFIX_STRLEN] = {};
+	char reg_stop_timer[16];
+
+	pim_time_uptime(uptime, sizeof(uptime), now - up->state_transition);
+	pim_time_timer_to_hhmmss(join_timer, sizeof(join_timer),
+				 up->t_join_timer);
+
+	/*
+	 * If the upstream is not dummy and it has a J/P timer for the
+	 * neighbor display that
+	 */
+	if (!up->t_join_timer && up->rpf.source_nexthop.interface) {
+		struct pim_neighbor *nbr;
+
+		nbr = pim_neighbor_find(up->rpf.source_nexthop.interface,
+					up->rpf.rpf_addr, false);
+		if (nbr) {
+			inet_ntop(PIM_AF, &nbr->source_addr, upstream_neighbor,
+				  sizeof(upstream_neighbor));
+			pim_time_timer_to_hhmmss(join_timer, sizeof(join_timer),
+						 nbr->jp_timer);
+		}
+	}
+
+	pim_time_timer_to_hhmmss(rs_timer, sizeof(rs_timer), up->t_rs_timer);
+	if (up->t_ka_slipping)
+		pim_time_uptime(ka_timer, sizeof(ka_timer),
+				pim->keep_alive_time);
+	else
+		pim_time_timer_to_hhmmss(ka_timer, sizeof(ka_timer),
+					 up->t_ka_timer);
+	pim_time_timer_to_hhmmss(msdp_reg_timer, sizeof(msdp_reg_timer),
+				 up->t_msdp_reg_timer);
+	pim_time_timer_to_hhmmss(reg_stop_timer, sizeof(reg_stop_timer),
+				 up->t_rs_timer);
+
+	pim_upstream_state2brief_str(up->join_state, state_str,
+				     sizeof(state_str));
+	if (up->reg_state != PIM_REG_NOINFO) {
+		char tmp_str[PIM_REG_STATE_STR_LEN];
+		char tmp[sizeof(state_str) + 1];
+
+		snprintf(tmp, sizeof(tmp), ",%s",
+			 pim_reg_state2brief_str(up->reg_state, tmp_str,
+						 sizeof(tmp_str)));
+		strlcat(state_str, tmp, sizeof(state_str));
+	}
+
+	if (json_group) {
+		json_object *json_row = json_object_new_object();
+		struct pim_rpf *rpg = RP(pim, up->sg.grp);
+		char rp_address[PREFIX_STRLEN];
+		char rpf_address[PREFIX_STRLEN];
+		char next_hop_address[PREFIX_STRLEN];
+
+		if (rpg) {
+			snprintfrr(rpf_address, sizeof(rpf_address), "%pPAs",
+				   &rpg->rpf_addr);
+			snprintfrr(rp_address, sizeof(rp_address), "%pPAs",
+				   &rpg->rpf_addr);
+			snprintfrr(next_hop_address, sizeof(next_hop_address),
+				   "%pPAs",
+				   &rpg->source_nexthop.mrib_nexthop_addr);
+		} else {
+			snprintf(rpf_address, sizeof(rpf_address), "<rpf?>");
+			snprintf(rp_address, sizeof(rp_address),
+				 "<rpAddress?>");
+			snprintf(next_hop_address, sizeof(next_hop_address),
+				 "<rpfNextHop?>");
+		}
+
+		json_object_pim_upstream_add(json_row, up);
+		json_object_string_add(
+			json_row, "inboundInterface",
+			up->rpf.source_nexthop.interface ? up->rpf.source_nexthop
+								   .interface->name
+							 : "Unknown");
+
+		/*
+		 * The RPF address we use is slightly different
+		 * based upon what we are looking up.
+		 * If we have a S, list that unless
+		 * we are the FHR, else we just put
+		 * the RP as the rpfAddress
+		 */
+		if (up->flags & PIM_UPSTREAM_FLAG_MASK_FHR ||
+		    pim_addr_is_any(up->sg.src)) {
+			json_object_string_add(json_row, "rpfAddress",
+					       rpf_address);
+		} else {
+			json_object_string_addf(json_row, "rpfAddress", "%pPAs",
+						&up->sg.src);
+		}
+
+		if (everything) {
+			json_object_string_add(json_row, "rpAddress",
+					       rp_address);
+			if (rpg && rpg->source_nexthop.interface)
+				json_object_string_add(
+					json_row, "rpfInterface",
+					rpg->source_nexthop.interface->name);
+			else
+				json_object_string_add(json_row, "rpfInterface",
+						       "unknown");
+
+			json_object_string_add(json_row, "rpfNextHop",
+					       next_hop_address);
+			json_object_string_add(json_row, "upstreamNeighbor",
+					       upstream_neighbor);
+			json_object_string_add(json_row, "drRegisterStopTimer",
+					       reg_stop_timer);
+		}
+
+		json_object_string_addf(json_row, "source", "%pPAs",
+					&up->sg.src);
+		json_object_string_addf(json_row, "group", "%pPAs",
+					&up->sg.grp);
+		json_object_string_add(json_row, "state", state_str);
+		json_object_string_add(json_row, "joinState",
+				       pim_upstream_state2str(up->join_state));
+		json_object_string_add(json_row, "regState",
+				       pim_reg_state2str(up->reg_state,
+							 state_str,
+							 sizeof(state_str)));
+		json_object_string_add(json_row, "upTime", uptime);
+		json_object_string_add(json_row, "joinTimer", join_timer);
+		json_object_string_add(json_row, "resetTimer", rs_timer);
+		json_object_string_add(json_row, "keepaliveTimer", ka_timer);
+#if PIM_IPV == 4
+		json_object_string_add(json_row, "msdpRegTimer",
+				       msdp_reg_timer);
+#endif
+		json_object_int_add(json_row, "refCount", up->ref_count);
+		json_object_int_add(json_row, "sptBit", up->sptbit);
+		json_object_object_addf(json_group, json_row, "%pPAs",
+					&up->sg.src);
+	} else {
+		vty_out(vty,
+			"%-16s%-15pPAs %-15pPAs %-11s %-8s %-9s %-9s %-9s %6d\n",
+			up->rpf.source_nexthop.interface ? up->rpf.source_nexthop
+								   .interface->name
+							 : "Unknown",
+			&up->sg.src, &up->sg.grp, state_str, uptime, join_timer,
+			rs_timer, ka_timer, up->ref_count);
+	}
+}
+
+static json_object *json_get_or_make(json_object *parent, const char *key)
+{
+	json_object *item = NULL;
+
+	if (!json_object_object_get_ex(parent, key, &item)) {
+		item = json_object_new_object();
+		json_object_object_add(parent, key, item);
+	}
+	return item;
+}
+
+static json_object *json_get_or_make_addr(json_object *parent, pim_addr addr)
+{
+	char addr_str[INET_ADDRSTRLEN];
+
+	snprintfrr(addr_str, sizeof(addr_str), "%pPAs", &addr);
+	return json_get_or_make(parent, addr_str);
+}
+
+static void pim_assert_metric_json(json_object *parent, const char *key,
+				   const struct pim_assert_metric *am)
+{
+	json_object *json;
+
+	json = json_object_new_object();
+
+	json_object_string_addf(json, "address", "%pPA", &am->ip_address);
+
+	if (am->metric_preference == PIM_ASSERT_METRIC_PREFERENCE_MAX)
+		json_object_string_add(json, "preference", "infinity");
+	else
+		json_object_int_add(json, "preference", am->metric_preference);
+
+	if (am->route_metric == PIM_ASSERT_ROUTE_METRIC_MAX)
+		json_object_string_add(json, "routeMetric", "infinity");
+	else
+		json_object_int_add(json, "routeMetric", am->route_metric);
+
+	json_object_boolean_add(json, "rptFlag", am->rpt_bit_flag);
+
+	json_object_object_add(parent, key, json);
+}
+
+void pim_show_assert_json_helper(struct vty *vty, struct interface *ifp,
+				 struct pim_ifchannel *ch, time_t now,
+				 json_object *json, bool json_everything)
+{
+	struct pim_interface *pim_ifp = ifp->info;
+	json_object *json_grp = NULL, *json_src = NULL;
+	json_object *json_item;
+	char ch_src_str[INET6_ADDRSTRLEN];
+	char ch_grp_str[INET6_ADDRSTRLEN];
+	char winner_str[INET6_ADDRSTRLEN];
+	char uptime[10];
+	char timer[10];
+	struct pim_assert_metric am;
+
+	snprintfrr(ch_src_str, sizeof(ch_src_str), "%pPAs", &ch->sg.src);
+	snprintfrr(ch_grp_str, sizeof(ch_grp_str), "%pPAs", &ch->sg.grp);
+	snprintfrr(winner_str, sizeof(winner_str), "%pPAs",
+		   &ch->ifassert_winner);
+
+	pim_time_uptime(uptime, sizeof(uptime), now - ch->ifassert_creation);
+	pim_time_timer_to_mmss(timer, sizeof(timer), ch->t_ifassert_timer);
+
+	json_grp = json_get_or_make(json, ch_grp_str);
+	json_src = json_get_or_make(json_grp, ch_src_str);
+	if (json_everything) {
+		json_object *json_oil = NULL, *json_iface = NULL;
+
+		json_oil = json_get_or_make(json_src, "oil");
+		json_iface = json_get_or_make(json_oil, ifp->name);
+		json_item = json_get_or_make(json_iface, "assert");
+		json_object_string_add(json_iface, "localMembership",
+				       ch->local_ifmembership ==
+						       PIM_IFMEMBERSHIP_NOINFO
+					       ? "NOINFO"
+					       : "LOCAL");
+	} else
+		json_item = json_src;
+
+	json_object_string_add(json_item, "assertState",
+			       pim_ifchannel_ifassert_name(ch->ifassert_state));
+	json_object_string_add(json_item, "assertWinner", winner_str);
+	json_object_string_add(json_item, "uptime", uptime);
+	json_object_string_add(json_item, "assertTimer", timer);
+
+	json_object_boolean_add(json_item, "couldAssert",
+				PIM_IF_FLAG_TEST_COULD_ASSERT(ch->flags));
+	json_object_boolean_add(json_item, "evalCouldAssert",
+				pim_macro_ch_could_assert_eval(ch));
+	json_object_boolean_add(
+		json_item, "trackingDesired",
+		PIM_IF_FLAG_TEST_ASSERT_TRACKING_DESIRED(ch->flags));
+	json_object_boolean_add(json_item, "evalTrackingDesired",
+				pim_macro_assert_tracking_desired_eval(ch));
+
+	pim_assert_metric_json(json_item, "assertWinnerMetric",
+			       &ch->ifassert_winner_metric);
+
+	am = pim_macro_spt_assert_metric(&ch->upstream->rpf,
+					 pim_ifp->primary_address);
+	pim_assert_metric_json(json_item, "localMetric", &am);
+}
+
+static void pim_show_state_one(struct vty *vty, struct pim_instance *pim,
+			       struct channel_oil *c_oil, time_t now,
+			       json_object *json, bool json_everything,
+			       const char *src_or_group, const char *group)
+{
+	json_object *json_group = NULL;
+	json_object *json_ifp_in = NULL;
+	json_object *json_ifp_out = NULL;
+	json_object *json_source = NULL;
+
+	char grp_str[INET6_ADDRSTRLEN];
+	char src_str[INET6_ADDRSTRLEN];
+	char in_ifname[INTERFACE_NAMSIZ + 1];
+	char out_ifname[INTERFACE_NAMSIZ + 1];
+	int oif_vif_index;
+	struct interface *ifp_in;
+	bool isRpt;
+	bool first_oif = true;
+
+	snprintfrr(grp_str, sizeof(grp_str), "%pPAs", oil_mcastgrp(c_oil));
+	snprintfrr(src_str, sizeof(src_str), "%pPAs", oil_origin(c_oil));
+	if (src_or_group) {
+		if (strcmp(src_or_group, src_str) &&
+		    strcmp(src_or_group, grp_str))
+			return;
+
+		if (group && strcmp(group, grp_str))
+			return;
+	}
+
+	ifp_in = pim_if_find_by_vif_index(pim, *oil_incoming_vif(c_oil));
+	if (ifp_in)
+		strlcpy(in_ifname, ifp_in->name, sizeof(in_ifname));
+	else
+		strlcpy(in_ifname, "<iif?>", sizeof(in_ifname));
+
+	if ((c_oil->up && PIM_UPSTREAM_FLAG_TEST_USE_RPT(c_oil->up->flags)) ||
+	    pim_addr_is_any(*oil_origin(c_oil)))
+		isRpt = true;
+	else
+		isRpt = false;
+
+	if (json) {
+		const char *json_key = json_everything ? "oil" : in_ifname;
+		bool add_mfc = false;
+
+		json_group = json_get_or_make(json, grp_str);
+		json_source = json_get_or_make(json_group, src_str);
+
+		/* Find the inbound interface nested under the source,
+		 * create it if it doesn't exist */
+		if (!json_object_object_get_ex(json_source, json_key,
+					       &json_ifp_in)) {
+			json_ifp_in = json_object_new_object();
+			json_object_object_add(json_source, json_key,
+					       json_ifp_in);
+			add_mfc = true;
+		}
+
+		if (json_everything) {
+			json_object *json_mfc;
+
+			if (!json_object_object_get_ex(json_source, "mfc",
+						       &json_mfc)) {
+				json_mfc = json_object_new_object();
+				json_object_object_add(json_source, "mfc",
+						       json_mfc);
+				json_object_string_add(json_mfc, "iif",
+						       in_ifname);
+				add_mfc = true;
+			}
+
+			json_source = json_mfc;
+		}
+
+		if (add_mfc) {
+			json_object_int_add(json_source, "Installed",
+					    c_oil->installed);
+			if (isRpt)
+				json_object_boolean_true_add(json_source,
+							     "isRpt");
+			else
+				json_object_boolean_false_add(json_source,
+							      "isRpt");
+			json_object_int_add(json_source, "RefCount",
+					    c_oil->oil_ref_count);
+			json_object_int_add(json_source, "OilListSize",
+					    c_oil->oil_size);
+			json_object_int_add(json_source, "OilRescan",
+					    c_oil->oil_inherited_rescan);
+			json_object_int_add(json_source, "LastUsed",
+					    (long long)c_oil->cc.lastused);
+			json_object_int_add(json_source, "PacketCount",
+					    (long long)c_oil->cc.pktcnt);
+			json_object_int_add(json_source, "ByteCount",
+					    (long long)c_oil->cc.bytecnt);
+			json_object_int_add(json_source, "WrongInterface",
+					    (long long)c_oil->cc.wrong_if);
+		}
+	} else {
+		vty_out(vty, "%-6d %-15s  %-15s  %-3s  %-16s  ",
+			c_oil->installed, src_str, grp_str, isRpt ? "y" : "n",
+			in_ifname);
+	}
+
+	for (oif_vif_index = 0; oif_vif_index < MAXVIFS; ++oif_vif_index) {
+		struct interface *ifp_out;
+		char oif_uptime[10];
+
+		if (!oil_if_has(c_oil, (unsigned short)oif_vif_index))
+			continue;
+
+		ifp_out = pim_if_find_by_vif_index(pim, oif_vif_index);
+		pim_time_uptime(oif_uptime, sizeof(oif_uptime),
+				now - c_oil->oif_creation[oif_vif_index]);
+
+		if (ifp_out)
+			strlcpy(out_ifname, ifp_out->name, sizeof(out_ifname));
+		else
+			strlcpy(out_ifname, "<oif?>", sizeof(out_ifname));
+
+		if (json) {
+			json_ifp_out =
+				json_get_or_make(json_ifp_in, out_ifname);
+
+			json_object_string_add(json_ifp_out, "uptime",
+					       oif_uptime);
+			if (json_everything) {
+				json_object_boolean_add(json_ifp_out,
+							"installed",
+							c_oil->installed);
+				continue;
+			}
+
+			json_object_int_add(json_ifp_out, "installed",
+					    c_oil->installed);
+			json_object_string_add(json_ifp_out, "source", src_str);
+			json_object_string_add(json_ifp_out, "group", grp_str);
+			json_object_string_add(json_ifp_out, "inboundInterface",
+					       in_ifname);
+			json_object_string_add(json_ifp_out,
+					       "outboundInterface", out_ifname);
+		} else {
+			if (first_oif) {
+				first_oif = false;
+				vty_out(vty, "%s(%c%c%c%c%c)", out_ifname,
+					(c_oil->oif_flags[oif_vif_index] &
+					 PIM_OIF_FLAG_PROTO_GM)
+						? 'I'
+						: ' ',
+					(c_oil->oif_flags[oif_vif_index] &
+					 PIM_OIF_FLAG_PROTO_PIM)
+						? 'J'
+						: ' ',
+					(c_oil->oif_flags[oif_vif_index] &
+					 PIM_OIF_FLAG_PROTO_VXLAN)
+						? 'V'
+						: ' ',
+					(c_oil->oif_flags[oif_vif_index] &
+					 PIM_OIF_FLAG_PROTO_STAR)
+						? '*'
+						: ' ',
+					(c_oil->oif_flags[oif_vif_index] &
+					 PIM_OIF_FLAG_MUTE)
+						? 'M'
+						: ' ');
+			} else
+				vty_out(vty, ", %s(%c%c%c%c%c)", out_ifname,
+					(c_oil->oif_flags[oif_vif_index] &
+					 PIM_OIF_FLAG_PROTO_GM)
+						? 'I'
+						: ' ',
+					(c_oil->oif_flags[oif_vif_index] &
+					 PIM_OIF_FLAG_PROTO_PIM)
+						? 'J'
+						: ' ',
+					(c_oil->oif_flags[oif_vif_index] &
+					 PIM_OIF_FLAG_PROTO_VXLAN)
+						? 'V'
+						: ' ',
+					(c_oil->oif_flags[oif_vif_index] &
+					 PIM_OIF_FLAG_PROTO_STAR)
+						? '*'
+						: ' ',
+					(c_oil->oif_flags[oif_vif_index] &
+					 PIM_OIF_FLAG_MUTE)
+						? 'M'
+						: ' ');
+		}
+	}
+
+	if (!json)
+		vty_out(vty, "\n");
+}
+
+void pim_show_everything(struct vty *vty, struct pim_instance *pim,
+			 pim_sgaddr sg)
+{
+	json_object *json = NULL;
+	time_t now;
+	struct pim_upstream *up;
+	struct interface *ifp;
+	struct channel_oil *c_oil;
+	struct ttable *tt = NULL;
+
+	now = pim_time_monotonic_sec();
+	json = json_object_new_object();
+
+	frr_each (rb_pim_upstream, &pim->upstream_head, up) {
+		json_object *json_group = NULL;
+
+		if (!pim_addr_is_any(sg.grp) &&
+		    pim_addr_cmp(sg.grp, up->sg.grp) != 0)
+			continue;
+		if (!pim_addr_is_any(sg.src) &&
+		    pim_addr_cmp(sg.src, up->sg.src) != 0)
+			continue;
+
+		json_group = json_get_or_make_addr(json, up->sg.grp);
+		pim_show_upstream_one(vty, pim, up, now, json_group, true);
+	}
+
+	/* Prepare table. */
+	tt = ttable_new(&ttable_styles[TTSTYLE_BLANK]);
+	ttable_add_row(
+		tt, "Interface|Address|Source|Group|State|Uptime|Expire|Prune");
+	tt->style.cell.rpad = 2;
+	tt->style.corner = '+';
+	ttable_restyle(tt);
+
+	FOR_ALL_INTERFACES (pim->vrf, ifp) {
+		struct pim_interface *pim_ifp = ifp->info;
+		struct pim_ifchannel *ch;
+
+		if (!pim_ifp)
+			continue;
+
+		RB_FOREACH (ch, pim_ifchannel_rb, &pim_ifp->ifchannel_rb) {
+			if (!pim_addr_is_any(sg.grp) &&
+			    pim_addr_cmp(sg.grp, ch->sg.grp) != 0)
+				continue;
+			if (!pim_addr_is_any(sg.src) &&
+			    pim_addr_cmp(sg.src, ch->sg.src) != 0)
+				continue;
+
+			pim_show_join_helper(pim_ifp, ch, json, now, tt);
+			pim_show_assert_json_helper(vty, ifp, ch, now, json,
+						    true);
+		}
+	}
+
+	frr_each (rb_pim_oil, &pim->channel_oil_head, c_oil) {
+		if (!pim_addr_is_any(sg.grp) &&
+		    pim_addr_cmp(sg.grp, *oil_mcastgrp(c_oil)) != 0)
+			continue;
+		if (!pim_addr_is_any(sg.src) &&
+		    pim_addr_cmp(sg.src, *oil_origin(c_oil)) != 0)
+			continue;
+
+		pim_show_state_one(vty, pim, c_oil, now, json, true, NULL,
+				   NULL);
+	}
+
+	vty_out(vty, "%s\n",
+		json_object_to_json_string_ext(json, JSON_C_TO_STRING_PRETTY));
 }

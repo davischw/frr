@@ -213,6 +213,13 @@ int pim_show_bsr_helper(const char *vrf, struct vty *vty, bool uj);
 
 extern void gmp_interface_enable(struct vty *vty);
 
+extern void pim_show_assert_json_helper(struct vty *vty, struct interface *ifp,
+					struct pim_ifchannel *ch, time_t now,
+					json_object *json,
+					bool json_everything);
+extern void pim_show_everything(struct vty *vty, struct pim_instance *pim,
+				pim_sgaddr sg);
+
 /*
  * Special Macro to allow us to get the correct pim_instance;
  */
