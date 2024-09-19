@@ -3008,9 +3008,7 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		i_oil = pim_find_channel_oil(pim, &sg_star);
 
 		/* Find the group, create it if it doesn't exist */
-		json_object_object_get_ex(json, grp_str, &json_group);
-
-		if (!json_group) {
+		if (!json_object_object_get_ex(json, grp_str, &json_group)) {
 			json_group = json_object_new_object();
 			json_object_object_add(json, grp_str, json_group);
 		}
@@ -3018,9 +3016,8 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		/* Find the source nested under the group, create it if
 		 * it doesn't exist
 		 */
-		json_object_object_get_ex(json_group, src_str, &json_source);
-
-		if (!json_source) {
+		if (!json_object_object_get_ex(json_group, src_str,
+					       &json_source)) {
 			json_source = json_object_new_object();
 			json_object_object_add(json_group, src_str,
 					       json_source);
@@ -3142,18 +3139,15 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 			      sizeof(in_ifname));
 
 		/* Find the group, create it if it doesn't exist */
-		json_object_object_get_ex(json, grp_str, &json_group);
-
-		if (!json_group) {
+		if (!json_object_object_get_ex(json, grp_str, &json_group)) {
 			json_group = json_object_new_object();
 			json_object_object_add(json, grp_str, json_group);
 		}
 
 		/* Find the source nested under the group, create it if
 		 * it doesn't exist */
-		json_object_object_get_ex(json_group, src_str, &json_source);
-
-		if (!json_source) {
+		if (!json_object_object_get_ex(json_group, src_str,
+					       &json_source)) {
 			json_source = json_object_new_object();
 			json_object_object_add(json_group, src_str,
 					       json_source);

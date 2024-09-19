@@ -1671,7 +1671,7 @@ DEFPY (show_ipv6_mroute,
        "Dataplane state\n"
        JSON_STR)
 {
-	return pim_show_mroute_helper(vrf, vty, s_or_g, g, !!fill, false,
+	return pim_show_mroute_helper(vrf, vty, s_or_g, g, !!fill, !!dataplane,
 				      !!json);
 }
 
@@ -1686,7 +1686,7 @@ DEFPY (show_ipv6_mroute_vrf_all,
        "Dataplane state\n"
        JSON_STR)
 {
-	return pim_show_mroute_vrf_all_helper(vty, !!fill, false, !!json);
+	return pim_show_mroute_vrf_all_helper(vty, !!fill, !!dataplane, !!json);
 }
 
 DEFPY (show_ipv6_mroute_count,
