@@ -2021,7 +2021,7 @@ static void pimsb_pim_packet_read(int pim_fd)
 		return;
 	case PIM_MSG_TYPE_BOOTSTRAP:
 		sg.src = src.sin6_addr;
-		sg.grp = ipi6.ipi6_addr;
+		sg.grp = qpim_all_pim_routers_addr;
 		pim_bsm_process(ifp, &sg, pim_msg, pim_msg_len, header->Nbit);
 		return;
 
