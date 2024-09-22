@@ -2615,6 +2615,12 @@ static void pimsb_mld_join(const struct interface *interface)
 static void pimsb_mld_leave(const struct interface *interface,
 			    const pim_addr *source, const pim_addr *group)
 {
+	struct pim_interface *pim_interface = interface->info;
+
+	/* Check if MLD is active */
+	if (pim_interface->mld == NULL)
+		return;
+
 	pimsb_mld_send(interface, false, source, group);
 }
 #endif /* PIM_IPV == 6 */
