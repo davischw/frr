@@ -2436,7 +2436,8 @@ void pimsb_msg_send_frame(const struct interface *ifp, const struct ip *ip,
 }
 #else
 void pimsb_msg_send_frame(const pim_addr *src, const pim_addr *dst,
-			  const struct interface *ifp, struct iovec *iov)
+			  const struct interface *ifp, struct iovec *iov,
+			  int fd)
 {
 	struct in6_pktinfo ipi6;
 	struct cmsghdr *cmsg;
@@ -2453,36 +2454,43 @@ void pimsb_msg_send_frame(const pim_addr *src, const pim_addr *dst,
 	dest.sin6_len = sizeof(struct sockaddr_in6);
 #endif /*SIN6_LEN*/
 	dest.sin6_addr = *dst;
-	if (ifp->vif_index)
-		dest.sin6_scope_id = ifp->vif_index;
-	else
-		dest.sin6_scope_id = ifp->ifindex;
+	if (ifp != NULL) {
+		if (ifp->vif_index)
+			dest.sin6_scope_id = ifp->vif_index;
+		else
+			dest.sin6_scope_id = ifp->ifindex;
+	}
 
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_name = &dest;
 	msg.msg_namelen = sizeof(dest);
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 1;
-	msg.msg_control = cmsgbuf;
-	msg.msg_controllen = sizeof(cmsgbuf);
 
-	cmsg = CMSG_FIRSTHDR(&msg);
-	cmsg->cmsg_level = IPPROTO_IPV6;
-	cmsg->cmsg_type = IPV6_PKTINFO;
-	cmsg->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
-	memset(&ipi6, 0, sizeof(ipi6));
-	ipi6.ipi6_addr = *src;
-	ipi6.ipi6_ifindex = dest.sin6_scope_id;
-	memcpy(CMSG_DATA(cmsg), &ipi6, sizeof(ipi6));
+	if (ifp != NULL) {
+		msg.msg_control = cmsgbuf;
+		msg.msg_controllen = sizeof(cmsgbuf);
 
-	cmsg = CMSG_NXTHDR(&msg, cmsg);
-	cmsg->cmsg_level = IPPROTO_IPV6;
-	cmsg->cmsg_type = IPV6_FLOWINFO;
-	cmsg->cmsg_len = CMSG_SPACE(sizeof(uint32_t));
-	ifindex = htonl((uint32_t)ifp->ifindex);
-	memcpy(CMSG_DATA(cmsg), &ifindex, sizeof(uint32_t));
+		cmsg = CMSG_FIRSTHDR(&msg);
+		cmsg->cmsg_level = IPPROTO_IPV6;
+		cmsg->cmsg_type = IPV6_PKTINFO;
+		cmsg->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
+		memset(&ipi6, 0, sizeof(ipi6));
+		ipi6.ipi6_addr = *src;
+		ipi6.ipi6_ifindex = dest.sin6_scope_id;
+		memcpy(CMSG_DATA(cmsg), &ipi6, sizeof(ipi6));
 
-	bytes = sendmsg(pim_fd, &msg, 0);
+		cmsg = CMSG_NXTHDR(&msg, cmsg);
+		cmsg->cmsg_level = IPPROTO_IPV6;
+		cmsg->cmsg_type = IPV6_FLOWINFO;
+		cmsg->cmsg_len = CMSG_SPACE(sizeof(uint32_t));
+		ifindex = htonl((uint32_t)ifp->ifindex);
+		memcpy(CMSG_DATA(cmsg), &ifindex, sizeof(uint32_t));
+
+		fd = pim_fd;
+	}
+
+	bytes = sendmsg(fd, &msg, 0);
 	if (bytes == -1)
 		zlog_warn("%s: sendmsg: (%d) %s", __func__, errno,
 			  strerror(errno));

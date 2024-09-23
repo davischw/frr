@@ -236,30 +236,18 @@ struct bsm_hdr {
 	uint16_t frag_tag;
 	uint8_t hm_len;
 	uint8_t bsr_prio;
-#if PIM_IPV == 4
-	struct pim_encoded_ipv4_unicast bsr_addr;
-#else
-	struct pim_encoded_ipv6_unicast bsr_addr;
-#endif
+	pim_encoded_unicast bsr_addr;
 } __attribute__((packed));
 
 struct bsmmsg_grpinfo {
-#if PIM_IPV == 4
-	struct pim_encoded_group_ipv4 group;
-#else
-	struct pim_encoded_group_ipv6 group;
-#endif
+	pim_encoded_group group;
 	uint8_t rp_count;
 	uint8_t frag_rp_count;
 	uint16_t reserved;
 } __attribute__((packed));
 
 struct bsmmsg_rpinfo {
-#if PIM_IPV == 4
-	struct pim_encoded_ipv4_unicast rpaddr;
-#else
-	struct pim_encoded_ipv6_unicast rpaddr;
-#endif
+	pim_encoded_unicast rpaddr;
 	uint16_t rp_holdtime;
 	uint8_t rp_pri;
 	uint8_t reserved;
@@ -269,13 +257,8 @@ struct cand_rp_msg {
 	uint8_t prefix_cnt;
 	uint8_t rp_prio;
 	uint16_t rp_holdtime;
-#if PIM_IPV == 4
-	struct pim_encoded_ipv4_unicast rp_addr;
-	struct pim_encoded_group_ipv4 groups[0];
-#else
-	struct pim_encoded_ipv6_unicast rp_addr;
-	struct pim_encoded_group_ipv6 groups[0];
-#endif
+	pim_encoded_unicast rp_addr;
+	pim_encoded_group groups[0];
 } __attribute__((packed));
 
 /* API */

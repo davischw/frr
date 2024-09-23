@@ -840,7 +840,7 @@ int pim_msg_send(int fd, pim_addr src, pim_addr dst, uint8_t *pim_msg,
 
 #ifdef VENDOR_SOUTHBOUND
 	if (pim_southbound_enabled)
-		pimsb_msg_send_frame(&src, &dst, ifp, iovector);
+		pimsb_msg_send_frame(&src, &dst, ifp, iovector, fd);
 	else
 #endif /* VENDOR_SOUTHBOUND */
 		pim_msg_send_frame(src, dst, ifp->ifindex, &iovector[0], fd);

@@ -267,6 +267,18 @@ void pim_bsm_socket_init(struct pim_instance *pim)
 		pim_socket_ip_hdr(sock);
 		sockopt_reuseaddr(sock);
 
+#if PIM_IPV == 6
+		int offset = 2;
+		if (setsockopt(sock, IPPROTO_IPV6, IPV6_CHECKSUM, &offset,
+			       sizeof(offset)) == -1) {
+			flog_err(EC_LIB_SOCKET,
+				 "%s: setsockopt(IPV6_CHECKSUM): %s", __func__,
+				 strerror(errno));
+			close(sock);
+			exit(1);
+		}
+#endif
+
 		scope->unicast_sock = sock;
 	}
 }
@@ -1607,8 +1619,8 @@ static void pim_cand_rp_adv_stop_maybe(struct bsm_scope *scope)
 		   &scope->cand_rp_prev_addr, &scope->current_bsr);
 
 	struct cand_rp_msg *msg;
-	uint8_t buf[PIM_MSG_HEADER_LEN + sizeof(*msg)
-		    + sizeof(struct pim_encoded_group)];
+	uint8_t buf[PIM_MSG_HEADER_LEN + sizeof(*msg) +
+		    sizeof(pim_encoded_group)];
 
 	msg = (struct cand_rp_msg *)(&buf[PIM_MSG_HEADER_LEN]);
 	msg->prefix_cnt = 0;
@@ -1631,7 +1643,7 @@ static void pim_cand_rp_adv_stop_maybe(struct bsm_scope *scope)
 }
 
 static size_t pim_cand_rp_packet_groups(const struct bsm_scope *scope,
-					struct pim_encoded_group *groups,
+					pim_encoded_group *groups,
 					size_t remaining)
 {
 	struct filter_cisco *cfilter;
@@ -1659,8 +1671,7 @@ static size_t pim_cand_rp_packet_groups(const struct bsm_scope *scope,
 			continue;
 		}
 
-		memset(&groups[total], 0,
-		       sizeof(struct pim_encoded_group));
+		memset(&groups[total], 0, sizeof(pim_encoded_group));
 
 		cfilter = &filter->u.cfilter;
 
@@ -1686,8 +1697,7 @@ static size_t pim_cand_rp_packet_groups(const struct bsm_scope *scope,
 		total++;
 
 		/* Don't go beyond boundaries. */
-		if ((total * sizeof(struct pim_encoded_group))
-		    >= remaining)
+		if ((total * sizeof(pim_encoded_group)) >= remaining)
 			break;
 	}
 
@@ -1735,7 +1745,7 @@ static void pim_cand_rp_adv(struct thread *t)
 	msg->rp_addr.addr = scope->cand_rp_addrsel.run_addr;
 
 	msg_size = PIM_MSG_HEADER_LEN + sizeof(*msg) +
-		msg->prefix_cnt * sizeof(struct pim_encoded_group_ipv4);
+		   msg->prefix_cnt * sizeof(pim_encoded_group);
 
 	scope->cand_rp_prev_addr = scope->cand_rp_addrsel.run_addr;
 

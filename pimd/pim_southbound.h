@@ -166,7 +166,8 @@ void pimsb_msg_send_frame(const struct interface *ifp, const struct ip *ip,
 			  const void *msg, const size_t msglen);
 #else
 void pimsb_msg_send_frame(const pim_addr *src, const pim_addr *dst,
-			  const struct interface *ifp, struct iovec *iov);
+			  const struct interface *ifp, struct iovec *iov,
+			  int fd);
 
 struct gm_if;
 int pimsb_send_query(const struct gm_if *gm_ifp, struct msghdr *msg,
