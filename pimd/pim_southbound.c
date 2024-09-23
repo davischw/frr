@@ -1007,6 +1007,10 @@ static void pimsb_mld_read(struct thread *t __attribute__((unused)))
 		return;
 	}
 
+	/* Ignore multicast packets, its impossible when using data plane. */
+	if (IN6_IS_ADDR_MULTICAST(&ipi6.ipi6_addr))
+		return;
+
 	if (PIM_DEBUG_GM_PACKETS)
 		zlog_debug("%s: [%pI6]->[%pI6] (%s vif %d if %d) router alert %s",
 			   __func__, &src.sin6_addr, &ipi6.ipi6_addr, ifp->name,
@@ -1958,6 +1962,10 @@ static void pimsb_pim_packet_read(int pim_fd)
 		}
 	}
 #endif
+
+	/* Ignore multicast packets, its impossible when using data plane. */
+	if (IN6_IS_ADDR_MULTICAST(&ipi6.ipi6_addr))
+		return;
 
 	if (PIM_DEBUG_PIM_PACKETS) {
 		zlog_debug(
