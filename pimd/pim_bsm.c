@@ -584,9 +584,6 @@ static void pim_instate_pend_list(struct bsgrp_node *bsgrp_node)
 static bool is_preferred_bsr(struct pim_instance *pim, pim_addr bsr,
 			     uint32_t bsr_prio)
 {
-	if (!pim_addr_cmp(bsr, pim->global_scope.current_bsr))
-		return true;
-
 	if (bsr_prio > pim->global_scope.current_bsr_prio)
 		return true;
 
@@ -595,6 +592,8 @@ static bool is_preferred_bsr(struct pim_instance *pim, pim_addr bsr,
 			return true;
 		else
 			return false;
+	} if (!pim_addr_cmp(bsr, pim->global_scope.current_bsr)) {
+		return true;
 	} else
 		return false;
 }
