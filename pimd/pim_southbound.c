@@ -1792,7 +1792,6 @@ static void pimsb_pim_packet_read(int sock)
 static void pimsb_pim_packet_read(int pim_fd)
 {
 	uint8_t *pim_msg = (uint8_t *)pimsb_ctx.pktbuf;
-	struct prefix_list *nbr_plist = NULL;
 	struct pim_interface *pim_ifp;
 	struct pim_msg_header *header;
 	struct pim_neighbor *neigh;
@@ -1807,7 +1806,6 @@ static void pimsb_pim_packet_read(int pim_fd)
 	struct msghdr msg;
 	struct sockaddr_in6 src;
 	struct in6_pktinfo ipi6;
-	struct prefix_ipv6 src_prefix;
 	char cmsgbuf[
 		CMSG_SPACE(sizeof(struct in6_pktinfo)) +
 		CMSG_SPACE(sizeof(uint32_t))
@@ -1889,80 +1887,6 @@ static void pimsb_pim_packet_read(int pim_fd)
 		return;
 	}
 
-	switch (header->type) {
-	case PIM_MSG_TYPE_HELLO:
-	case PIM_MSG_TYPE_JOIN_PRUNE:
-	case PIM_MSG_TYPE_ASSERT:
-		if (!pim_ifp->nbr_plist)
-			break;
-
-		nbr_plist = prefix_list_lookup(PIM_AFI, pim_ifp->nbr_plist);
-
-		src_prefix.family = AF_INET6;
-		src_prefix.prefix = src.sin6_addr;
-		src_prefix.prefixlen = IPV6_MAX_BITLEN;
-		if (nbr_plist &&
-		    prefix_list_apply_ext(nbr_plist, NULL, &src_prefix, true) ==
-			    PREFIX_PERMIT)
-			break;
-
-		if (PIM_DEBUG_PIM_PACKETS)
-			zlog_debug(
-				"neighbor filter rejects packet %pI6 -> %pI6 on %s",
-				&src.sin6_addr, &ipi6.ipi6_addr, ifp->name);
-		return;
-	}
-
-#if 0
-	/* Save received checksum */
-	pim_checksum = header->checksum;
-	header->checksum = 0;
-
-	if (header->type == PIM_MSG_TYPE_REGISTER) {
-		if (pim_msg_len < PIM_MSG_REGISTER_LEN) {
-			if (PIM_DEBUG_PIM_PACKETS)
-				zlog_debug("PIM Register Message size=%d shorter than min length %d",
-					   pim_msg_len, PIM_MSG_REGISTER_LEN);
-			return;
-		}
-
-#if PIM_IPV == 6
-		header.ulpl = htonl(PIM_MSG_REGISTER_LEN);
-#endif
-		/* First 8 byte header checksum */
-		iovp[-1].iov_len = PIM_MSG_REGISTER_LEN;
-		checksum = in_cksumv(iov, iovp - iov);
-
-		if (checksum != pim_checksum) {
-#if PIM_IPV == 6
-			header.ulpl = htonl(pim_msg_len);
-#endif
-			iovp[-1].iov_len = pim_msg_len;
-
-			checksum = in_cksumv(iov, iovp - iov);
-			if (checksum != pim_checksum) {
-				if (PIM_DEBUG_PIM_PACKETS)
-					zlog_debug(
-						"Ignoring PIM pkt from %s with invalid checksum: received=%x calculated=%x",
-						ifp->name, pim_checksum,
-						checksum);
-
-				return -1;
-			}
-		}
-	} else {
-		checksum = in_cksumv(iov, iovp - iov);
-		if (checksum != pim_checksum) {
-			if (PIM_DEBUG_PIM_PACKETS)
-				zlog_debug(
-					"Ignoring PIM pkt from %s with invalid checksum: received=%x calculated=%x",
-					ifp->name, pim_checksum, checksum);
-
-			return -1;
-		}
-	}
-#endif
-
 	/* Ignore multicast packets, its impossible when using data plane. */
 	if (IN6_IS_ADDR_MULTICAST(&ipi6.ipi6_addr))
 		return;
@@ -1982,6 +1906,10 @@ static void pimsb_pim_packet_read(int pim_fd)
 			zlog_debug("%s: incoming packet from myself", __func__);
 		return;
 	}
+
+	if (pim_hello_filter(ifp, &src.sin6_addr, (uint8_t *)pimsb_ctx.pktbuf,
+			     (size_t)brecv))
+		return;
 
 	switch (header->type) {
 	case PIM_MSG_TYPE_HELLO:

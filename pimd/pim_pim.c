@@ -156,6 +156,104 @@ static bool pim_pkt_dst_addr_ok(enum pim_msg_type type, pim_addr addr)
 	return true;
 }
 
+/**
+ * Filter PIM hello packet based on the source address / secondary address.
+ *
+ * Returns `true` if must be filtered otherwise `false`.
+ */
+bool pim_hello_filter(const struct interface *interface,
+		      const pim_addr *primary_address, const uint8_t *data,
+		      size_t data_len)
+{
+	const struct pim_interface *pim_interface = interface->info;
+	const struct pim_msg_header *pim_header =
+		(const struct pim_msg_header *)data;
+	const uint16_t *tlv_cur;
+	int offset;
+	uint16_t tlv_type;
+	uint16_t tlv_length;
+	uint16_t address_list_length;
+	struct prefix_list *filter_list = NULL;
+	struct prefix source;
+
+	/* Filter packets based on source address */
+	filter_list = prefix_list_lookup(PIM_AFI, pim_interface->nbr_plist);
+	if (filter_list == NULL)
+		return false;
+
+	memset(&source, 0, sizeof(source));
+	source.family = PIM_AF;
+	source.prefixlen = PIM_MAX_BITLEN;
+	memcpy(&source.u.prefix, primary_address, sizeof(*primary_address));
+	if (prefix_list_apply_ext(filter_list, NULL, &source, true) ==
+	    PREFIX_DENY) {
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug(
+				"neighbor filter rejects packet from %pPA on %s",
+				primary_address, interface->name);
+		return true;
+	}
+
+	if (pim_header->type != PIM_MSG_TYPE_HELLO)
+		return false;
+
+	/* Check secondary addresses in hello packet */
+	tlv_cur = (const uint16_t *)(data + sizeof(struct pim_msg_header));
+	data_len -= sizeof(struct pim_msg_header);
+
+	/* Parse all TLVs */
+	while (data_len) {
+		if (data_len < (sizeof(uint16_t) * 2))
+			break;
+
+		tlv_type = ntohs(*tlv_cur);
+		data_len -= sizeof(uint16_t);
+		tlv_cur++;
+
+		tlv_length = ntohs(*tlv_cur);
+		data_len -= sizeof(uint16_t);
+		tlv_cur++;
+
+		if (data_len < tlv_length)
+			break;
+
+		if (tlv_type != PIM_MSG_OPTION_TYPE_ADDRESS_LIST) {
+			tlv_cur =
+				(const uint16_t *)(((const uint8_t *)tlv_cur) +
+						   tlv_length);
+			data_len -= tlv_length;
+			continue;
+		}
+
+		address_list_length = tlv_length;
+		while (address_list_length) {
+			offset = pim_parse_addr_ucast_prefix(
+				&source, (const uint8_t *)tlv_cur,
+				address_list_length);
+			if (offset < 1)
+				return false;
+
+			if (prefix_list_apply_ext(filter_list, NULL, &source,
+						  true) == PREFIX_DENY) {
+				if (PIM_DEBUG_PIM_PACKETS)
+					zlog_debug(
+						"neighbor filter rejects hello with secondary address %pPA on %s",
+						(pim_addr *)&source.u.prefix,
+						interface->name);
+				return true;
+			}
+
+			address_list_length -= offset;
+			tlv_cur =
+				(const uint16_t *)(((const uint8_t *)tlv_cur) +
+						   offset);
+		}
+		break;
+	}
+
+	return false;
+}
+
 int pim_pim_packet(struct interface *ifp, uint8_t *buf, size_t len,
 		   pim_sgaddr sg)
 {
@@ -168,13 +266,6 @@ int pim_pim_packet(struct interface *ifp, uint8_t *buf, size_t len,
 	uint32_t pim_msg_len = 0;
 	uint16_t pim_checksum; /* received checksum */
 	uint16_t checksum;     /* computed checksum */
-	struct pim_interface *pim_ifp = ifp->info;
-#if PIM_IPV == 4
-	struct prefix_ipv4 src_prefix;
-#else
-	struct prefix_ipv6 src_prefix;
-#endif
-	struct prefix_list *nbr_plist = NULL;
 	struct pim_neighbor *neigh;
 	struct pim_msg_header *header;
 	bool   no_fwd;
@@ -228,44 +319,6 @@ int pim_pim_packet(struct interface *ifp, uint8_t *buf, size_t len,
 			zlog_debug(
 				"Ignoring PIM pkt from %s with unsupported version: %d",
 				ifp->name, header->ver);
-		return -1;
-	}
-
-	switch (header->type) {
-	case PIM_MSG_TYPE_HELLO:
-	case PIM_MSG_TYPE_JOIN_PRUNE:
-	case PIM_MSG_TYPE_ASSERT:
-		if (!pim_ifp->nbr_plist)
-			break;
-
-		nbr_plist = prefix_list_lookup(PIM_AFI, pim_ifp->nbr_plist);
-
-#if PIM_IPV == 4
-		src_prefix.family = AF_INET;
-		src_prefix.prefix = sg.src;
-		src_prefix.prefixlen = 32;
-#else
-		src_prefix.family = AF_INET6;
-		src_prefix.prefix = sg.src;
-		src_prefix.prefixlen = 128;
-#endif
-
-		if (nbr_plist && prefix_list_apply_ext(nbr_plist, NULL,
-						       &src_prefix, true)
-		    == PREFIX_PERMIT)
-			break;
-
-#if PIM_IPV == 4
-		if (PIM_DEBUG_PIM_PACKETS)
-			zlog_debug(
-				"neighbor filter rejects packet %pI4 -> %pI4 on %s",
-				&ip_hdr->ip_src, &ip_hdr->ip_dst, ifp->name);
-#else
-		if (PIM_DEBUG_PIM_PACKETS)
-			zlog_debug(
-				"neighbor filter rejects packet %pI6 -> %pI6 on %s",
-				&sg.src, &sg.grp, ifp->name);
-#endif
 		return -1;
 	}
 
@@ -336,6 +389,9 @@ int pim_pim_packet(struct interface *ifp, uint8_t *buf, size_t len,
 			&sg.src);
 		return -1;
 	}
+
+	if (pim_hello_filter(ifp, &sg.src, buf, len))
+		return -1;
 
 	switch (header->type) {
 	case PIM_MSG_TYPE_HELLO:

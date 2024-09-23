@@ -55,6 +55,10 @@ void pim_hello_restart_now(struct interface *ifp);
 void pim_hello_restart_triggered(struct interface *ifp);
 const char *pim_pim_msgtype2str(enum pim_msg_type type);
 
+bool pim_hello_filter(const struct interface *interface,
+		      const pim_addr *primary_address, const uint8_t *data,
+		      size_t data_len);
+
 int pim_pim_packet(struct interface *ifp, uint8_t *buf, size_t len,
 		   pim_sgaddr sg);
 
