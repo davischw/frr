@@ -1504,7 +1504,7 @@ static inline pim_addr if_highest_addr(pim_addr cur, struct interface *ifp)
 	struct connected *connected;
 
 	FOR_ALL_INTERFACES_ADDRESSES (ifp, connected, node) {
-		if (connected->address->family != AF_INET)
+		if (connected->address->family != PIM_AF)
 			continue;
 
 		/* highest address */
@@ -1539,7 +1539,7 @@ static bool cand_addrsel_update(struct cand_addrsel *asel, struct vrf *vrf)
 	switch (asel->cfg_mode) {
 	case CAND_ADDR_EXPLICIT:
 		new_addr = asel->cfg_addr;
-		ifp = if_lookup_address_local(&asel->cfg_addr, AF_INET,
+		ifp = if_lookup_address_local(&asel->cfg_addr, PIM_AF,
 					      vrf->vrf_id);
 		break;
 
