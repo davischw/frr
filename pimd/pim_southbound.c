@@ -78,6 +78,11 @@ static struct thread *mld_read_ev;
 static int pim_fd = -1;
 static struct thread *pim_read_ev;
 
+#if PIM_IPV == 6
+static int pim_unicast_fd = -1;
+static struct thread *pim_unicast_read_ev;
+#endif
+
 /** PIM southbound client for server mode. */
 struct pimsb_client {
 	/** Peer socket. */
@@ -1986,6 +1991,188 @@ static void pimsb_pim_add_read(void)
 			&pim_read_ev);
 }
 
+#if PIM_IPV == 6
+static void pimsb_pim_unicast_read(struct thread *thread);
+
+static inline void pimsb_pim_unicast_add_read(void)
+{
+	thread_add_read(router->master, pimsb_pim_unicast_read, NULL,
+			pim_unicast_fd, &pim_unicast_read_ev);
+}
+
+static void pimsb_pim_unicast_read(struct thread *thread
+				   __attribute__((unused)))
+{
+	uint8_t *pim_msg = (uint8_t *)pimsb_ctx.pktbuf;
+	struct pim_interface *pim_ifp;
+	struct pim_msg_header *header;
+	struct pim_neighbor *neigh;
+	struct interface *ifp;
+	struct cmsghdr *cmsg;
+	struct vrf *vrf;
+	uint32_t pim_msg_len = 0;
+	ssize_t brecv;
+	pim_sgaddr sg;
+	struct iovec iov;
+	struct msghdr msg;
+	struct sockaddr_in6 src;
+	struct in6_pktinfo ipi6;
+	char cmsgbuf[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+
+	pimsb_pim_unicast_add_read();
+
+	iov.iov_base = pimsb_ctx.pktbuf;
+	iov.iov_len = pimsb_ctx.pktbuflen;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_name = &src;
+	msg.msg_namelen = sizeof(src);
+	msg.msg_control = cmsgbuf;
+	msg.msg_controllen = sizeof(cmsgbuf);
+
+	brecv = recvmsg(pim_unicast_fd, &msg, 0);
+	if (brecv == -1) {
+		zlog_warn("%s: recvmsg: %s", __func__, strerror(errno));
+		return;
+	}
+	if (brecv == 0) {
+		zlog_warn("%s: recvmsg: EOF", __func__);
+		return;
+	}
+
+	memset(&ipi6, 0, sizeof(ipi6));
+	for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+		if (cmsg->cmsg_level != IPPROTO_IPV6)
+			continue;
+
+		switch (cmsg->cmsg_type) {
+		case IPV6_PKTINFO:
+			memcpy(&ipi6, CMSG_DATA(cmsg), sizeof(ipi6));
+			break;
+		}
+	}
+
+	ifp = NULL;
+	RB_FOREACH (vrf, vrf_id_head, &vrfs_by_id) {
+		ifp = if_lookup_address_local(&ipi6.ipi6_addr, AF_INET6,
+					      vrf->vrf_id);
+		if (ifp)
+			break;
+	}
+	if (ifp == NULL) {
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug(
+				"%s: could not find interface for address %pI6",
+				__func__, &ipi6.ipi6_addr);
+		return;
+	}
+
+	pim_ifp = ifp->info;
+	if (pim_ifp == NULL || !pim_ifp->pim_enable) {
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug("%s: interface %s has PIM disabled",
+				   __func__, ifp->name);
+		return;
+	}
+
+	if ((size_t)brecv < PIM_PIM_MIN_LEN) {
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug("%s: %s: packet too small (%zd expected %d)",
+				   __func__, ifp->name, brecv, PIM_PIM_MIN_LEN);
+		return;
+	}
+
+	pim_msg_len = (uint32_t)brecv;
+	header = (struct pim_msg_header *)iov.iov_base;
+	if (header->ver != PIM_PROTO_VERSION) {
+		if (PIM_DEBUG_PIM_PACKETS)
+			zlog_debug(
+				"Ignoring PIM pkt from %s with unsupported version: %d",
+				ifp->name, header->ver);
+		return;
+	}
+
+	/* Ignore multicast packets, its impossible when using data plane. */
+	if (IN6_IS_ADDR_MULTICAST(&ipi6.ipi6_addr))
+		return;
+
+	if (PIM_DEBUG_PIM_PACKETS) {
+		zlog_debug(
+			"Recv PIM %s packet from %pPA to %pPA on %s: pim_version=%d pim_msg_size=%d checksum=%x",
+			pim_pim_msgtype2str(header->type), &src.sin6_addr,
+			&ipi6.ipi6_addr, ifp->name, header->ver, pim_msg_len,
+			header->checksum);
+		if (PIM_DEBUG_PIM_PACKETDUMP_RECV)
+			pim_pkt_dump(__func__, pim_msg, pim_msg_len);
+	}
+
+	if (pim_hello_filter(ifp, &src.sin6_addr, (uint8_t *)pimsb_ctx.pktbuf,
+			     (size_t)brecv))
+		return;
+
+	switch (header->type) {
+	case PIM_MSG_TYPE_HELLO:
+		pim_hello_recv(ifp, src.sin6_addr, pim_msg + PIM_MSG_HEADER_LEN,
+			       pim_msg_len - PIM_MSG_HEADER_LEN);
+		return;
+	case PIM_MSG_TYPE_REGISTER:
+		pim_register_recv(ifp, ipi6.ipi6_addr, src.sin6_addr,
+				  pim_msg + PIM_MSG_HEADER_LEN,
+				  pim_msg_len - PIM_MSG_HEADER_LEN);
+		return;
+	case PIM_MSG_TYPE_REG_STOP:
+		pim_register_stop_recv(ifp, pim_msg + PIM_MSG_HEADER_LEN,
+				       pim_msg_len - PIM_MSG_HEADER_LEN);
+		return;
+	case PIM_MSG_TYPE_JOIN_PRUNE:
+		neigh = pim_neighbor_find(ifp, src.sin6_addr, true);
+		if (!neigh) {
+			if (PIM_DEBUG_PIM_PACKETS)
+				zlog_debug(
+					"%s %s: non-hello PIM message type=%d from non-neighbor %pPA on %s",
+					__FILE__, __func__, header->type,
+					&src.sin6_addr, ifp->name);
+			return;
+		}
+		pim_neighbor_timer_reset(neigh, neigh->holdtime);
+		pim_joinprune_recv(ifp, neigh, src.sin6_addr,
+				   pim_msg + PIM_MSG_HEADER_LEN,
+				   pim_msg_len - PIM_MSG_HEADER_LEN);
+		return;
+	case PIM_MSG_TYPE_ASSERT:
+		neigh = pim_neighbor_find(ifp, src.sin6_addr, true);
+		if (!neigh) {
+			if (PIM_DEBUG_PIM_PACKETS)
+				zlog_debug(
+					"%s %s: non-hello PIM message type=%d from non-neighbor %pPA on %s",
+					__FILE__, __func__, header->type,
+					&src.sin6_addr, ifp->name);
+			return;
+		}
+		pim_neighbor_timer_reset(neigh, neigh->holdtime);
+		pim_assert_recv(ifp, neigh, src.sin6_addr,
+				pim_msg + PIM_MSG_HEADER_LEN,
+				pim_msg_len - PIM_MSG_HEADER_LEN);
+		return;
+	case PIM_MSG_TYPE_BOOTSTRAP:
+		sg.src = src.sin6_addr;
+		sg.grp = qpim_all_pim_routers_addr;
+		pim_bsm_process(ifp, &sg, pim_msg, pim_msg_len, header->Nbit);
+		return;
+
+	default:
+		if (PIM_DEBUG_PIM_PACKETS) {
+			zlog_debug(
+				"Recv PIM packet type %d which is not currently understood",
+				header->type);
+		}
+		return;
+	}
+}
+#endif
+
 static void pimsb_init_pim(void)
 {
 	int sock;
@@ -2055,6 +2242,19 @@ static void pimsb_init_pim(void)
 
 	pim_fd = sock;
 	pimsb_pim_add_read();
+
+#if PIM_IPV == 6
+	frr_with_privs (&pimd_privs) {
+		sock = socket(PIM_AF, SOCK_RAW | SOCK_NONBLOCK, IPPROTO_PIM);
+
+		sockopt_reuseaddr(sock);
+		setsockopt_ipv6_pktinfo(sock, 1);
+	}
+
+	setsockopt_so_recvbuf(sock, 8 * 1024 * 1024);
+	pim_unicast_fd = sock;
+	pimsb_pim_unicast_add_read();
+#endif
 }
 
 /*
@@ -2099,6 +2299,12 @@ void pimsb_shutdown(void)
 	THREAD_OFF(pim_read_ev);
 	close(pim_fd);
 	pim_fd = -1;
+
+#if PIM_IPV == 6
+	thread_cancel(&pim_unicast_read_ev);
+	close(pim_unicast_fd);
+	pim_unicast_fd = -1;
+#endif
 }
 
 #if PIM_IPV == 4
