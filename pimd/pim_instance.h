@@ -251,6 +251,22 @@ struct pim_instance {
 
 	/** PIM MSDP named peers. */
 	struct msdp_named_peer_list msdp_named_peer_list;
+
+#if PIM_IPV == 6
+	struct {
+		/** Embedded RP enable state. */
+		bool enable;
+		/** Embedded RP group prefix list. */
+		char *group_list;
+		/** Maximum allowed number of embedded RPs at a time. */
+		uint32_t maximum_rps;
+
+		/** Embedded RP routing table */
+		struct route_table *table;
+		/** Embedded RPs count */
+		size_t rp_count;
+	} embedded_rp;
+#endif /* PIM_IPV == 6 */
 };
 
 /* info pointer in pim_instance->spt.thresh_table nodes */

@@ -518,6 +518,41 @@ module frr-pim {
         description
           "Only accept registers from a specific source prefix list.";
     }
+
+    container embedded-rp {
+      when "../frr-pim:address-family = 'frr-rt:ipv6'";
+      description "Embedded RP configurations.";
+
+      leaf enable {
+        description
+          "Toggle embedded RP state:
+
+           When enabled the learned RP from the multicast group address
+           will be preferred over any static or dynamic RP configuration.
+
+           When disabled the packet will be processed as usual.";
+        type boolean;
+        default "false";
+      }
+
+      leaf group-list {
+        description
+          "Restrict embedded RP prefix ranges.
+
+           The default is to treat all multicast groups in FF70::/12
+           range as embedded RP. When a group prefix list is configured
+           and group does not match one of its permit entries it will
+           be treated as regular multicast group.";
+        type plist-ref;
+      }
+
+      leaf maximum-rps {
+        description
+          "Maximum allowed number of RPs to learn.";
+        type uint32;
+        default 25;
+      }
+    }
   } // global-pim-config-attributes
 
   grouping interface-pim-config-attributes {

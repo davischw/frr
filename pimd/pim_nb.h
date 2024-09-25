@@ -132,6 +132,10 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_re
 	struct nb_cb_modify_args *args);
 int routing_control_plane_protocols_control_plane_protocol_pim_address_family_register_accept_list_destroy(
 	struct nb_cb_destroy_args *args);
+int pim_embedded_rp_enable_modify(struct nb_cb_modify_args *args);
+int pim_embedded_rp_group_list_modify(struct nb_cb_modify_args *args);
+int pim_embedded_rp_group_list_destroy(struct nb_cb_destroy_args *args);
+int pim_embedded_rp_maximum_rps_modify(struct nb_cb_modify_args *args);
 int lib_interface_pim_address_family_dr_priority_modify(
 	struct nb_cb_modify_args *args);
 int lib_interface_pim_assert_interval_modify(struct nb_cb_modify_args *args);
@@ -319,6 +323,21 @@ int routing_control_plane_protocols_name_validate(
 #define FRR_PIM_MROUTE_XPATH                                            \
 	"./frr-pim:pim/address-family[address-family='%s']/"            \
 	"mroute[source-addr='%s'][group-addr='%s']"
+#define FRR_PIM_EMBEDDED_RP_XPATH                                              \
+	"/frr-routing:routing/control-plane-protocols/"                        \
+	"control-plane-protocol[type='%s'][name='%s'][vrf='%s']/"              \
+	"frr-pim:pim/address-family[address-family='%s']/"                     \
+	"embedded-rp/enable"
+#define FRR_PIM_EMBEDDED_RP_GROUP_LIST_XPATH                                   \
+	"/frr-routing:routing/control-plane-protocols/"                        \
+	"control-plane-protocol[type='%s'][name='%s'][vrf='%s']/"              \
+	"frr-pim:pim/address-family[address-family='%s']/"                     \
+	"embedded-rp/group-list"
+#define FRR_PIM_EMBEDDED_RP_MAXIMUM_RPS_XPATH                                  \
+	"/frr-routing:routing/control-plane-protocols/"                        \
+	"control-plane-protocol[type='%s'][name='%s'][vrf='%s']/"              \
+	"frr-pim:pim/address-family[address-family='%s']/"                     \
+	"embedded-rp/maximum-rps"
 #define FRR_PIM_STATIC_RP_XPATH                                         \
 	"/frr-routing:routing/control-plane-protocols/"                 \
 	"control-plane-protocol[type='%s'][name='%s'][vrf='%s']/"       \

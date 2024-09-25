@@ -495,6 +495,15 @@ static void gm_sg_update(struct gm_sg *sg, bool has_expired)
 		new_join = gm_sg_state_want_join(desired);
 
 	if (new_join && !sg->tib_joined) {
+		pim_addr embedded_rp;
+
+		if (sg->iface->pim->embedded_rp.enable &&
+		    pim_embedded_rp_extract(&sg->sgaddr.grp, &embedded_rp) &&
+		    !pim_embedded_rp_filter_match(sg->iface->pim,
+						  &sg->sgaddr.grp))
+			pim_embedded_rp_new(sg->iface->pim, &sg->sgaddr.grp,
+					    &embedded_rp);
+
 		/* this will retry if join previously failed */
 		sg->tib_joined = tib_sg_gm_join(gm_ifp->pim, sg->sgaddr,
 						gm_ifp->ifp, &sg->oil);
@@ -514,6 +523,9 @@ static void gm_sg_update(struct gm_sg *sg, bool has_expired)
 	}
 
 	if (desired == GM_SG_NOINFO) {
+		if (pim_embedded_rp_is_embedded(&sg->sgaddr.grp))
+			pim_embedded_rp_delete(sg->iface->pim, &sg->sgaddr.grp);
+
 		/* multiple paths can lead to the last state going away;
 		 * t_sg_expire can still be running if we're arriving from
 		 * another path.

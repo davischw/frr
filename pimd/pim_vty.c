@@ -297,6 +297,25 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 		++writes;
 	}
 
+#if PIM_IPV == 6
+	if (pim->embedded_rp.enable) {
+		vty_out(vty, "%sipv6 pim embedded-rp\n", spaces);
+		++writes;
+	}
+
+	if (pim->embedded_rp.maximum_rps != PIM_EMBEDDED_RP_MAXIMUM) {
+		vty_out(vty, "%sipv6 pim embedded-rp limit %u\n", spaces,
+			pim->embedded_rp.maximum_rps);
+		++writes;
+	}
+
+	if (pim->embedded_rp.group_list) {
+		vty_out(vty, "%sipv6 pim embedded-rp group-list %s\n", spaces,
+			pim->embedded_rp.group_list);
+		++writes;
+	}
+#endif /* PIM_IPV == 6 */
+
 	if (pim->mfib_filter.rmapname) {
 		vty_out(vty, "%sip mfib route-map %s\n", spaces,
 			pim->mfib_filter.rmapname);

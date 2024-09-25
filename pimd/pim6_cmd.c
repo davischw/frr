@@ -653,6 +653,117 @@ DEFPY (interface_no_ipv6_mroute,
 					    source_str);
 }
 
+DEFPY_YANG(ipv6_pim_embedded_rp,
+           ipv6_pim_embedded_rp_cmd,
+           "[no] ipv6 pim embedded-rp",
+           NO_STR
+           IPV6_STR
+           PIM_STR
+           PIM_EMBEDDED_RP)
+{
+	char xpath[XPATH_MAXLEN];
+	const char *vrfname;
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(xpath, sizeof(xpath), FRR_PIM_EMBEDDED_RP_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL);
+	nb_cli_enqueue_change(vty, xpath, no ? NB_OP_DESTROY : NB_OP_MODIFY,
+			      "true");
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY_YANG(ipv6_pim_embedded_rp_group_list,
+           ipv6_pim_embedded_rp_group_list_cmd,
+           "ipv6 pim embedded-rp group-list WORD$prefix_list",
+           IPV6_STR
+           PIM_STR
+           PIM_EMBEDDED_RP
+           "Configure embedded RP permitted groups\n"
+           "Embedded RP permitted groups\n")
+{
+	char xpath[XPATH_MAXLEN];
+	const char *vrfname;
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(xpath, sizeof(xpath), FRR_PIM_EMBEDDED_RP_GROUP_LIST_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL);
+	nb_cli_enqueue_change(vty, xpath, NB_OP_MODIFY, prefix_list);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY_YANG(no_ipv6_pim_embedded_rp_group_list,
+           no_ipv6_pim_embedded_rp_group_list_cmd,
+           "no ipv6 pim embedded-rp group-list [WORD]",
+           NO_STR
+           IPV6_STR
+           PIM_STR
+           PIM_EMBEDDED_RP
+           "Configure embedded RP permitted groups\n")
+{
+	char xpath[XPATH_MAXLEN];
+	const char *vrfname;
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(xpath, sizeof(xpath), FRR_PIM_EMBEDDED_RP_GROUP_LIST_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL);
+	nb_cli_enqueue_change(vty, xpath, NB_OP_DESTROY, NULL);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY_YANG(ipv6_pim_embedded_rp_limit,
+           ipv6_pim_embedded_rp_limit_cmd,
+           "ipv6 pim embedded-rp limit (1-4294967295)$limit",
+           IPV6_STR
+           PIM_STR
+           PIM_EMBEDDED_RP
+           "Limit the amount of embedded RPs to learn\n"
+           "Maximum amount of embedded RPs to learn\n")
+{
+	char xpath[XPATH_MAXLEN];
+	const char *vrfname;
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(xpath, sizeof(xpath), FRR_PIM_EMBEDDED_RP_MAXIMUM_RPS_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL);
+	nb_cli_enqueue_change(vty, xpath, NB_OP_MODIFY, limit_str);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+DEFPY_YANG(no_ipv6_pim_embedded_rp_limit,
+           no_ipv6_pim_embedded_rp_limit_cmd,
+           "no ipv6 pim embedded-rp limit [(1-4294967295)]",
+           NO_STR
+           IPV6_STR
+           PIM_STR
+           PIM_EMBEDDED_RP
+           "Limit the amount of embedded RPs to learn\n")
+{
+	char xpath[XPATH_MAXLEN];
+	const char *vrfname;
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(xpath, sizeof(xpath), FRR_PIM_EMBEDDED_RP_MAXIMUM_RPS_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL);
+	nb_cli_enqueue_change(vty, xpath, NB_OP_DESTROY, NULL);
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 DEFPY (ipv6_pim_rp,
        ipv6_pim_rp_cmd,
        "ipv6 pim rp X:X::X:X$rp [fallback$fallback] [X:X::X:X/M]$gp",
@@ -2353,6 +2464,16 @@ void pim_cmd_init(void)
 	install_element(INTERFACE_NODE, &no_ipv6_pim_bsm_cmd);
 	install_element(INTERFACE_NODE, &ipv6_pim_ucast_bsm_cmd);
 	install_element(INTERFACE_NODE, &no_ipv6_pim_ucast_bsm_cmd);
+	install_element(CONFIG_NODE, &ipv6_pim_embedded_rp_cmd);
+	install_element(VRF_NODE, &ipv6_pim_embedded_rp_cmd);
+	install_element(CONFIG_NODE, &ipv6_pim_embedded_rp_group_list_cmd);
+	install_element(VRF_NODE, &ipv6_pim_embedded_rp_group_list_cmd);
+	install_element(CONFIG_NODE, &no_ipv6_pim_embedded_rp_group_list_cmd);
+	install_element(VRF_NODE, &no_ipv6_pim_embedded_rp_group_list_cmd);
+	install_element(CONFIG_NODE, &ipv6_pim_embedded_rp_limit_cmd);
+	install_element(VRF_NODE, &ipv6_pim_embedded_rp_limit_cmd);
+	install_element(CONFIG_NODE, &no_ipv6_pim_embedded_rp_limit_cmd);
+	install_element(VRF_NODE, &no_ipv6_pim_embedded_rp_limit_cmd);
 	install_element(CONFIG_NODE, &ipv6_pim_rp_cmd);
 	install_element(VRF_NODE, &ipv6_pim_rp_cmd);
 	install_element(CONFIG_NODE, &no_ipv6_pim_rp_cmd);

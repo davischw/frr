@@ -380,6 +380,25 @@ const struct frr_yang_module_info frr_pim_info = {
 			}
 		},
 		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/embedded-rp/enable",
+			.cbs = {
+				.modify = pim_embedded_rp_enable_modify,
+			}
+		},
+		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/embedded-rp/group-list",
+			.cbs = {
+				.modify = pim_embedded_rp_group_list_modify,
+				.destroy = pim_embedded_rp_group_list_destroy,
+			}
+		},
+		{
+			.xpath = "/frr-routing:routing/control-plane-protocols/control-plane-protocol/frr-pim:pim/address-family/embedded-rp/maximum-rps",
+			.cbs = {
+				.modify = pim_embedded_rp_maximum_rps_modify,
+			}
+		},
+		{
 			.xpath = "/frr-interface:lib/interface/frr-pim:pim/address-family",
 			.cbs = {
 				.create = lib_interface_pim_address_family_create,
