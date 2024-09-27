@@ -14019,7 +14019,7 @@ show_adj_route(struct vty *vty, struct peer *peer, struct bgp_table *table,
 	struct bgp_adj_out *adj;
 	struct bgp_dest *dest;
 	struct bgp *bgp;
-	struct attr attr;
+	struct attr attr, attr_unchanged;
 	int ret;
 	struct update_subgroup *subgrp;
 	struct peer_af *paf;
@@ -14107,6 +14107,7 @@ show_adj_route(struct vty *vty, struct peer *peer, struct bgp_table *table,
 				}
 
 				attr = *ain->attr;
+				attr_unchanged = *ain->attr;
 				route_filtered = false;
 
 				/* Filter prefix using distribute list,
@@ -14134,7 +14135,7 @@ show_adj_route(struct vty *vty, struct peer *peer, struct bgp_table *table,
 				    && (route_filtered || ret == RMAP_DENY))
 					(*filtered_count)++;
 
-				route_vty_out_tmp(vty, dest, rn_p, &attr, safi,
+				route_vty_out_tmp(vty, dest, rn_p, &attr_unchanged, safi,
 						  use_json, json_ar, wide);
 				bgp_attr_flush(&attr);
 				(*output_count)++;
