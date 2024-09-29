@@ -50,6 +50,8 @@ static void pim_spt_thresh_table_cleanup(struct route_table *table,
 
 static void pim_instance_terminate(struct pim_instance *pim)
 {
+	pim->stopping = true;
+
 	THREAD_OFF(pim->mfib_rmap_reapply);
 	THREAD_OFF(pim->t_refresh_group_to_rp);
 

@@ -252,6 +252,8 @@ struct pim_instance {
 	/** PIM MSDP named peers. */
 	struct msdp_named_peer_list msdp_named_peer_list;
 
+	bool stopping;
+
 #if PIM_IPV == 6
 	struct {
 		/** Embedded RP enable state. */
