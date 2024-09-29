@@ -242,7 +242,7 @@ static int filter_match_cisco_sadr6(struct filter *mfilter,
 		    memcmp(&dst_m, &filter->sadr6.dst, sizeof(dst_m)) == 0)
 			return 1;
 	} else {
-		struct in6_addr check_addr;
+		struct in6_addr check_addr = {};
 
 		for (i = 0; i < sizeof(check_addr) / 4; i++)
 			check_addr.s6_addr32[i] &=
