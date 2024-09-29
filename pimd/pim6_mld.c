@@ -394,6 +394,9 @@ static void gm_expiry_calc(struct gm_query_timers *timers)
 
 static void gm_sg_free(struct gm_sg *sg)
 {
+	if (pim_embedded_rp_is_embedded(&sg->sgaddr.grp))
+		pim_embedded_rp_delete(sg->iface->pim, &sg->sgaddr.grp);
+
 	/* t_sg_expiry is handled before this is reached */
 	THREAD_OFF(sg->t_sg_query);
 	gm_packet_sg_subs_fini(sg->subs_negative);
@@ -523,9 +526,6 @@ static void gm_sg_update(struct gm_sg *sg, bool has_expired)
 	}
 
 	if (desired == GM_SG_NOINFO) {
-		if (pim_embedded_rp_is_embedded(&sg->sgaddr.grp))
-			pim_embedded_rp_delete(sg->iface->pim, &sg->sgaddr.grp);
-
 		/* multiple paths can lead to the last state going away;
 		 * t_sg_expire can still be running if we're arriving from
 		 * another path.

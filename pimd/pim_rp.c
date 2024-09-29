@@ -2344,6 +2344,10 @@ void pim_embedded_rp_new(struct pim_instance *pim, const pim_addr *group,
 	 */
 	pim_zebra_update_all_interfaces(pim);
 	pim_rp_check_interfaces(pim, rp_info);
+	if (rp_info->i_am_rp && PIM_DEBUG_PIM_NHT_RP)
+		zlog_debug("new RP %pPA for %pFX is ourselves", &rp_info->rp.rpf_addr,
+			   &rp_info->group);
+
 	pim_rp_refresh_group_to_rp_mapping(pim);
 	if (PIM_DEBUG_PIM_NHT_RP)
 		zlog_debug("%s: NHT Register RP addr %pPA grp %pFX with Zebra",
@@ -2364,17 +2368,19 @@ void pim_embedded_rp_delete(struct pim_instance *pim, const pim_addr *group)
 		.u.prefix6 = *group,
 	};
 
-	rnode = route_node_get(pim->embedded_rp.table, &group_prefix);
-	if (rnode->info == NULL) {
-		route_unlock_node(rnode);
+	/* Avoid NULL accesses during shutdown */
+	if (pim->embedded_rp.table == NULL)
 		return;
-	}
+
+	rnode = route_node_lookup(pim->embedded_rp.table, &group_prefix);
+	if (rnode == NULL)
+		return;
 
 	pim_embedded_rp_free(pim, rnode->info);
-	route_unlock_node(rnode);
+	rnode->info = NULL;
 
 	/* Unlock twice to remove the node */
-	rnode->info = NULL;
+	route_unlock_node(rnode);
 	route_unlock_node(rnode);
 }
 

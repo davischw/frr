@@ -705,7 +705,8 @@ DEFPY_YANG(no_ipv6_pim_embedded_rp_group_list,
            IPV6_STR
            PIM_STR
            PIM_EMBEDDED_RP
-           "Configure embedded RP permitted groups\n")
+           "Configure embedded RP permitted groups\n"
+           "Embedded RP permitted groups\n")
 {
 	char xpath[XPATH_MAXLEN];
 	const char *vrfname;
@@ -749,7 +750,8 @@ DEFPY_YANG(no_ipv6_pim_embedded_rp_limit,
            IPV6_STR
            PIM_STR
            PIM_EMBEDDED_RP
-           "Limit the amount of embedded RPs to learn\n")
+           "Limit the amount of embedded RPs to learn\n"
+           "Maximum amount of embedded RPs to learn\n")
 {
 	char xpath[XPATH_MAXLEN];
 	const char *vrfname;
