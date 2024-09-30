@@ -16419,15 +16419,21 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 							? dest->adj_in->peer
 							: NULL;
 
-					/* Put the comma in the appropriated
-					 * place. */
-					if (first_route)
-						first_route = false;
-					else
-						vty_out(vty, ",");
+					/* Skip filtered routes */
+					if (path != NULL
+					   && (CHECK_FLAG(path->flags, BGP_PATH_VALID))
+					   && !CHECK_FLAG(path->flags, BGP_PATH_REMOVED)) {
 
-					print_local_route_detailed(
-						vty, &route_args, path);
+						/* Put the comma in the appropriated
+						 * place. */
+						if (first_route)
+							first_route = false;
+						else
+							vty_out(vty, ",");
+
+						print_local_route_detailed(
+							vty, &route_args, path);
+					}
 
 					args.total++;
 					if (args.total >= args.maximum)
