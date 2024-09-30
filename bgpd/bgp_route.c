@@ -15942,7 +15942,7 @@ static void bgp_peer_rib_out_print(struct peer_rib_out_args *args,
 				if (first_route)
 					first_route = false;
 				else
-					vty_out(args->vty, ",");
+					vty_out(args->vty, ",\n");
 
 				print_peer_out_route(args->vty, table->bgp,
 						     peer, dest, adj_out,
@@ -16368,7 +16368,7 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 	}
 
 	/* Display the local RIB routes. */
-	vty_out(vty, "{");
+	vty_out(vty, "{\n");
 	for (ALL_LIST_ELEMENTS_RO(bm->bgp, node, bgp)) {
 		args.bgp = bgp;
 		for (afi_i = AFI_IP; afi_i < AFI_MAX; afi_i++) {
@@ -16429,7 +16429,7 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 						if (first_route)
 							first_route = false;
 						else
-							vty_out(vty, ",");
+							vty_out(vty, ",\n");
 
 						print_local_route_detailed(
 							vty, &route_args, path);
@@ -16444,7 +16444,7 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 	}
 
 end_loop:
-	vty_out(vty, "}\n");
+	vty_out(vty, "\n}\n");
 
 	return CMD_SUCCESS;
 }
