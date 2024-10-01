@@ -409,6 +409,36 @@ static void pimsb_debug_upstream(const struct pim_upstream *up)
 	}
 }
 
+#if PIM_IPV == 6
+static void pimsb_interface_ipv6_get(const struct pim_interface *pim_interface,
+				     pim_addr *address)
+{
+	struct pim_secondary_addr *sec_addr;
+	struct listnode *node;
+
+	memset(address, 0, sizeof(*address));
+
+	if (!IN6_IS_ADDR_LINKLOCAL(&pim_interface->primary_address)) {
+		*address = pim_interface->primary_address;
+		return;
+	}
+
+	if (pim_interface->sec_addr_list == NULL) {
+		return;
+	}
+
+	for (ALL_LIST_ELEMENTS_RO(pim_interface->sec_addr_list, node,
+				  sec_addr)) {
+		pim_addr next_address = pim_addr_from_prefix(&sec_addr->addr);
+		if (IN6_IS_ADDR_LINKLOCAL(&next_address))
+			continue;
+
+		*address = next_address;
+		return;
+	}
+}
+#endif /* PIM_IPV == 6 */
+
 void pimsb_mroute_do(struct channel_oil *oil, bool install)
 {
 	struct pim_upstream *upstream = oil->up;
@@ -429,6 +459,7 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 	bool star_source = false;
 	uint32_t route_flags = 0;
 	uint32_t spt_threshold = 0;
+	pim_addr source_encap;
 	struct prefix p = {};
 	char intf[128];
 	char oifs[2048];
@@ -562,8 +593,14 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 	/* Interface address in the way to the RP. */
 	if (has_pimreg && has_rp_if) {
 		pim_ifp = rp->rp.source_nexthop.interface->info;
+
 		/* Interface address in the way to the RP. */
-		stream_put(s, &pim_ifp->primary_address, sizeof(pim_addr));
+#if PIM_IPV == 6
+		pimsb_interface_ipv6_get(pim_ifp, &source_encap);
+#else
+		source_encap = pim_ifp->primary_address;
+#endif
+		stream_put(s, &source_encap, sizeof(pim_addr));
 	} else
 		stream_put(s, &pim_addr_any, sizeof(pim_addr));
 
