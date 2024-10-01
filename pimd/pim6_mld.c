@@ -3120,6 +3120,22 @@ DEFPY(gm_show_interface_joins,
 	return vty_json(vty, js);
 }
 
+static int64_t gm_group_count_sources(const struct gm_sg *sg,
+				      const struct gm_sgs_head *sgs)
+{
+	struct gm_sg *sg_next;
+	int64_t total = 0;
+
+	frr_each (gm_sgs, (struct gm_sgs_head *)(size_t)sgs, sg_next) {
+		if (pim_addr_cmp(sg->sgaddr.grp, sg_next->sgaddr.grp))
+			continue;
+
+		total++;
+	}
+
+	return total;
+}
+
 static void gm_show_groups(struct vty *vty, struct vrf *vrf, bool uj)
 {
 	struct interface *ifp;
@@ -3187,7 +3203,21 @@ static void gm_show_groups(struct vty *vty, struct vrf *vrf, bool uj)
 				json_object_string_addf(json_group, "group",
 							"%pPAs",
 							&sg->sgaddr.grp);
-
+				json_object_string_add(json_group, "mode",
+						       sg->most_recent->is_excl
+							       ? "EXCLUDE"
+							       : "INCLUDE");
+				json_object_int_add(json_group, "sourcesCount",
+						    gm_group_count_sources(
+							    sg, gm_ifp->sgs));
+				json_object_boolean_add(
+					json_group, "staticJoin",
+					pim_ifp->gm_join_list
+						? !!gm_join_find(
+							  pim_ifp->gm_join_list,
+							  sg->sgaddr.grp,
+							  sg->sgaddr.src)
+						: false);
 				json_object_int_add(json_group, "version",
 						    pim_ifp->mld_version);
 				json_object_string_addf(json_group, "uptime",
