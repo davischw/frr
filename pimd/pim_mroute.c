@@ -1506,7 +1506,10 @@ void pim_mroute_update_counters(struct channel_oil *c_oil)
 
 	memset(&sgreq, 0, sizeof(sgreq));
 
-	pim_zlookup_sg_statistics(c_oil);
+#if VENDOR_SOUTHBOUND
+	if (!pim_southbound_enabled)
+#endif /* VENDOR_SOUTHBOUND */
+		pim_zlookup_sg_statistics(c_oil);
 
 #if PIM_IPV == 4
 	sgreq.src = *oil_origin(c_oil);
