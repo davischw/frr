@@ -15867,11 +15867,35 @@ static inline bool bgp_rib_out_filter_entry(const struct bgp_rib_args *args,
 	return bgp_rib_filter_entry(args, dest, NULL, adj_out, paf);
 }
 
-static inline bool bgp_rib_in_filter_entry(const struct bgp_rib_args *args,
-					   const struct bgp_dest *dest,
-					   const struct bgp_adj_in *adj_in)
+static bool bgp_rib_in_filter_entry(struct route_parameters *route_args,
+				       const struct bgp_path_info *path,
+				       const struct bgp_rib_args *rib_args)
 {
-	return bgp_rib_filter_entry(args, dest, adj_in, NULL, NULL);
+	switch (rib_args->peer.type) {
+	case AT_IPV4:
+		if (path->peer == NULL || path->peer->su.sa.sa_family != AF_INET)
+			return true;
+		if (rib_args->peer.address.ipv4.s_addr
+			 != path->peer->su.sin.sin_addr.s_addr)
+			return true;
+		break;
+	case AT_IPV6:
+		if (path->peer == NULL || path->peer->su.sa.sa_family != AF_INET6)
+			return true;
+		if (memcmp(&rib_args->peer.address.ipv6, &path->peer->su.sin6.sin6_addr,
+			   sizeof(rib_args->peer.address.ipv6)))
+			return true;
+		break;
+	case AT_ADDRESS_LIST:
+		if (path->peer == NULL)
+			return true;
+		if (strcmp(rib_args->peer.address.address_list, path->peer->host))
+			return true;
+		break;
+	case AT_NONE:
+		break;
+	}
+	return false;
 }
 
 static void print_peer_out_route(struct vty *vty, struct bgp *bgp,
@@ -16286,31 +16310,59 @@ static size_t bgp_local_rib_count(const struct bgp_rib_args *args)
 	return total;
 }
 
-static void print_local_route_detailed(struct vty *vty,
+static bool print_local_route_detailed(struct vty *vty,
 				       struct route_parameters *args,
-				       const struct bgp_path_info *path)
+				       const struct bgp_path_info *path,
+				       const struct bgp_rib_args *rib_args,
+				       bool first_route)
 {
+	bool first_path = true;
+
 	args->path_flags = true;
 
-	vty_out(vty, "\"%pFX\":[{", args->prefix);
-	print_route_inner_detailed(vty, args);
-	vty_out(vty, "}");
+	if (!bgp_rib_in_filter_entry(args, path, rib_args)) {
+		if (!first_route) {
+			vty_out(vty, ",\n");
+			first_route = false;
+		}
+		vty_out(vty, "\"%pFX\":[{", args->prefix);
+		print_route_inner_detailed(vty, args);
+		vty_out(vty, "}");
+		first_path = false;
 
-	if (path == NULL) {
-		vty_out(vty, "]");
-		return;
+		if (path == NULL) {
+			vty_out(vty, "]");
+			return true;
+		}
 	}
 
 	for (path = path->next; path; path = path->next) {
 		args->path = path;
 		args->attr = *path->attr;
 
-		vty_out(vty, ",{");
-		print_route_inner_detailed(vty, args);
-		vty_out(vty, "}");
+		if (!bgp_rib_in_filter_entry(args, path, rib_args)) {
+			if (!first_route) {
+				vty_out(vty, ",\n");
+				first_route = false;
+			}
+			if (first_path) {
+				vty_out(vty, "\"%pFX\":[{", args->prefix);
+				first_path = false;
+			}
+			else
+				vty_out(vty, ",{");
+			print_route_inner_detailed(vty, args);
+			vty_out(vty, "}");
+		}
 	}
 
-	vty_out(vty, "]");
+	if (!first_path) {
+		vty_out(vty, "]");
+		return true;
+	}
+
+	/* all routes paths for this route got filtered out */
+	return false;
 }
 
 DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
@@ -16402,10 +16454,6 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 					if (attr == NULL)
 						continue;
 
-					if (bgp_rib_in_filter_entry(
-						    &args, dest, dest->adj_in))
-						continue;
-
 					route_args.dest = dest;
 					route_args.prefix =
 						bgp_dest_get_prefix(dest);
@@ -16424,15 +16472,13 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
 					   && (CHECK_FLAG(path->flags, BGP_PATH_VALID))
 					   && !CHECK_FLAG(path->flags, BGP_PATH_REMOVED)) {
 
-						/* Put the comma in the appropriated
-						 * place. */
-						if (first_route)
-							first_route = false;
-						else
-							vty_out(vty, ",\n");
+						if (print_local_route_detailed(
+							vty, &route_args, path, &args, first_route)) {
 
-						print_local_route_detailed(
-							vty, &route_args, path);
+							/* Mark further routes to be not first for
+							 * extra comma in the print above */
+							first_route = false;
+						}
 					}
 
 					args.total++;
