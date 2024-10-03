@@ -16326,6 +16326,7 @@ static bool print_local_route_detailed(struct vty *vty,
 			first_route = false;
 		}
 		vty_out(vty, "\"%pFX\":[{", args->prefix);
+		args->attr = *path->attr;
 		print_route_inner_detailed(vty, args);
 		vty_out(vty, "}");
 		first_path = false;
