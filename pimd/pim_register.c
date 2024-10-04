@@ -58,6 +58,11 @@ void pim_register_join(struct pim_upstream *up)
 		return;
 	}
 
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled && I_am_RP(pim, up->sg.grp))
+		return;
+#endif /* VENDOR_SOUTHBOUND */
+
 	pim_channel_add_oif(up->channel_oil, pim->regiface,
 			    PIM_OIF_FLAG_PROTO_PIM, __func__);
 	up->reg_state = PIM_REG_JOIN;
