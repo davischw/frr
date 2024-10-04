@@ -45,6 +45,7 @@
 #include "pim_ssm.h"
 #include "pim_rp.h"
 #include "pim_mlag.h"
+#include "pimd/pim_southbound.h"
 
 RB_GENERATE(pim_ifchannel_rb, pim_ifchannel, pim_ifp_rb, pim_ifchannel_compare);
 
@@ -1223,7 +1224,12 @@ int pim_ifchannel_local_membership_add(struct interface *ifp, pim_sgaddr *sg,
 			}
 		}
 
-		thresh = pim_vrf_spt_thresh(pim, sg->grp);
+#if VENDOR_SOUTHBOUND
+		if (pim_southbound_enabled && I_am_RP(pim, sg->grp))
+			thresh = PIM_SPT_THRESH_NEVER;
+		else
+#endif /* VENDOR_SOUTHBOUND */
+			thresh = pim_vrf_spt_thresh(pim, sg->grp);
 
 		if (thresh < PIM_SPT_THRESH_NEVER) {
 			if (PIM_DEBUG_EVENTS)
