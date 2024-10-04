@@ -547,8 +547,8 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 	 * the stream then don't attempt to send any traffic.
 	 */
 	if (i_am_rp && i_am_fhr) {
-		route_flags &= ~MRT_FLAG_RESTART_DL_TIMER;
-		route_flags |= MRT_FLAG_DUMMY | MRT_FLAG_DL_TIMER;
+		route_flags &= ~(MRT_FLAG_RESTART_DL_TIMER | MRT_FLAG_DUMMY);
+		route_flags |= MRT_FLAG_DL_TIMER;
 	}
 
 #if PIM_IPV == 6
