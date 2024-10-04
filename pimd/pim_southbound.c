@@ -534,21 +534,22 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 		route_flags |= MRT_FLAG_DUMMY | MRT_FLAG_DL_TIMER;
 
 	/*
-	 * Handle special case: RP and FHR.
-	 *
-	 * If there is a upstream to send traffic but it has not yet joined
-	 * the stream then don't attempt to send any traffic.
-	 */
-	if (i_am_rp && upstream &&
-	    upstream->join_state == PIM_UPSTREAM_NOTJOINED)
-		route_flags |= MRT_FLAG_DUMMY | MRT_FLAG_DL_TIMER;
-
-	/*
 	 * Disable data plane notification to remove dummy route if no
 	 * input interface is configured.
 	 */
 	if (oil->iif.ifindex == 0)
 		route_flags &= ~MRT_FLAG_DL_TIMER;
+
+	/*
+	 * Handle special case: RP and FHR.
+	 *
+	 * If there is a upstream to send traffic but it has not yet joined
+	 * the stream then don't attempt to send any traffic.
+	 */
+	if (i_am_rp && i_am_fhr) {
+		route_flags &= ~MRT_FLAG_RESTART_DL_TIMER;
+		route_flags |= MRT_FLAG_DUMMY | MRT_FLAG_DL_TIMER;
+	}
 
 #if PIM_IPV == 6
 	/* Flag all multicast routes coming from us to be IPv6. */
