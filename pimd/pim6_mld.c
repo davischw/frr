@@ -2880,6 +2880,44 @@ DEFPY(gm_show_interface_stats,
 	return vty_json(vty, js);
 }
 
+DEFPY(clear_ipv6_mld_counters,
+      clear_ipv6_mld_counters_cmd,
+      "clear ipv6 mld [vrf VRF$vrf_name] interface <IFNAME|all>$ifname counters",
+      CLEAR_STR
+      IPV6_STR
+      MLD_STR
+      VRF_CMD_HELP_STR
+      INTERFACE_STR
+      "MLD enabled interface\n"
+      "All MLD enabled interfaces\n"
+      "MLD interface counters\n")
+{
+	struct vrf *vrf = pim_cmd_lookup(vty, vrf_name);
+	struct interface *interface;
+	bool all_interfaces = false;
+
+	if (vrf == NULL)
+		return CMD_SUCCESS;
+
+	if (strcmp(ifname, "all") == 0)
+		all_interfaces = true;
+
+	FOR_ALL_INTERFACES (vrf, interface) {
+		struct pim_interface *pim_interface = interface->info;
+		struct gm_if *gm_interface;
+
+		if (pim_interface == NULL || pim_interface->mld == NULL)
+			continue;
+		if (!all_interfaces && strcmp(interface->name, ifname) != 0)
+			continue;
+
+		gm_interface = pim_interface->mld;
+		memset(&gm_interface->stats, 0, sizeof(gm_interface->stats));
+	}
+
+	return CMD_SUCCESS;
+}
+
 static void gm_show_joins_one(struct vty *vty, struct gm_if *gm_ifp,
 			      const struct prefix_ipv6 *groups,
 			      const struct prefix_ipv6 *sources, bool detail,
@@ -3584,6 +3622,7 @@ void gm_cli_init(void)
 {
 	install_element(VIEW_NODE, &gm_show_interface_cmd);
 	install_element(VIEW_NODE, &gm_show_interface_stats_cmd);
+	install_element(VIEW_NODE, &clear_ipv6_mld_counters_cmd);
 	install_element(VIEW_NODE, &gm_show_interface_joins_cmd);
 	install_element(VIEW_NODE, &gm_show_mld_groups_cmd);
 	install_element(VIEW_NODE, &gm_show_mld_sources_cmd);
