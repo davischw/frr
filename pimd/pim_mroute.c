@@ -1325,11 +1325,6 @@ int pim_upstream_mroute_add(struct channel_oil *c_oil, const char *name)
 		*oil_incoming_vif(c_oil) = iif;
 	}
 
-#ifdef VENDOR_SOUTHBOUND
-	if (pim_southbound_enabled)
-		pimsb_set_input_interface(c_oil);
-#endif /* VENDOR_SOUTHBOUND */
-
 	return pim_upstream_mroute_update(c_oil, name);
 }
 
@@ -1364,11 +1359,6 @@ int pim_upstream_mroute_iif_update(struct channel_oil *c_oil, const char *name)
 				__func__, name,
 				pim_channel_oil_dump(c_oil, buf,
 					sizeof(buf)), iif);
-
-#ifdef VENDOR_SOUTHBOUND
-	if (pim_southbound_enabled)
-		pimsb_set_input_interface(c_oil);
-#endif /* VENDOR_SOUTHBOUND */
 
 	/* XXX: is this hack needed? */
 	c_oil->oil_inherited_rescan = 1;

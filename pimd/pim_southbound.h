@@ -184,7 +184,6 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 			    const pim_sgaddr *sg, struct json_object *json);
 
-void pimsb_set_input_interface(struct channel_oil *oil);
 void pimsb_mroute_do(struct channel_oil *oil, bool install);
 int pimsb_mroute_add(struct channel_oil *c_oil, const char *name);
 int pimsb_mroute_del(struct channel_oil *c_oil, const char *name);

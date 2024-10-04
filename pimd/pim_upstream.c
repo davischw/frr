@@ -764,11 +764,6 @@ void pim_upstream_switch(struct pim_instance *pim, struct pim_upstream *up,
 	if (old_state != new_state)
 		up->state_transition = pim_time_monotonic_sec();
 
-#ifdef VENDOR_SOUTHBOUND
-	if (pim_southbound_enabled && up->channel_oil)
-		pimsb_set_input_interface(up->channel_oil);
-#endif /* VENDOR_SOUTHBOUND */
-
 	pim_upstream_update_assert_tracking_desired(up);
 
 	if (new_state == PIM_UPSTREAM_JOINED) {

@@ -140,27 +140,24 @@ static struct pimsb_ctx pimsb_ctx;
  */
 
 /** Get interface of the best path to source. */
-void pimsb_set_input_interface(struct channel_oil *oil)
+static void pimsb_set_input_interface(const struct rp_info *rp,
+                                      struct channel_oil *oil,
+                                      bool i_am_rp)
 {
 	struct pim_upstream *upstream = oil->up;
-	struct interface *ifp;
-	struct rp_info *rp;
+	struct interface *interface;
 	int32_t rp_if = 0;
-	bool i_am_rp = false;
 	bool has_rp_if = false;
 	bool star_source = false;
 	bool use_notifif = false;
-	bool switch_to_iif = false;
 	struct prefix p = {};
 	struct pim_nexthop pn = {};
 
 	/* Figure out what part of the topology we are. */
 	star_source = pim_addr_is_any(*oil_origin(oil));
-	i_am_rp = pim_rp_i_am_rp(oil->pim, *oil_mcastgrp(oil));
 
 	/* Figure out RP information. */
 	pim_addr_to_prefix(&p, *oil_mcastgrp(oil));
-	rp = pim_rp_find_match_group(oil->pim, &p);
 	if (rp && rp->rp.source_nexthop.interface) {
 		has_rp_if = true;
 		rp_if = rp->rp.source_nexthop.interface->ifindex;
@@ -168,107 +165,101 @@ void pimsb_set_input_interface(struct channel_oil *oil)
 
 	/*
 	 * Set input interface:
-	 * 1. If RP and star source, then don't set input interface.
-	 * 2. Use special index when `pimreg`.
-	 * 3. `MAXVIFS` means no interface.
-	 * 4. If PIM decided to use its own RP interface and we are RP, then
-	 *    use `pimreg` (also see item (2)).
-	 * 5. Otherwise use what PIM decided.
+	 * 1. Use special index when `pimreg`.
+	 * 2. `MAXVIFS` means no interface.
+	 * 3. If PIM decided to use its own RP interface and we are RP, then
+	 *    use `pimreg` (also see item (1)).
+	 * 4. Otherwise use what PIM decided.
 	 */
-	if ((i_am_rp && star_source) ||
-	    *oil_incoming_vif(oil) == PIM_OIF_PIM_REGISTER_VIF)
+	if (*oil_incoming_vif(oil) == PIM_OIF_PIM_REGISTER_VIF)
 		oil->iif.ifindex = PIM_REG_IF_IDX;
 	else if (*oil_incoming_vif(oil) == system_maxvifs())
 		oil->iif.ifindex = 0;
 	else {
-		ifp = pim_if_find_by_vif_index(oil->pim,
-					       *oil_incoming_vif(oil));
-		oil->iif.ifindex = ifp ? ifp->ifindex : PIM_REG_IF_IDX;
-		if (i_am_rp && has_rp_if && rp_if == oil->iif.ifindex)
-			oil->iif.ifindex = PIM_REG_IF_IDX;
+		interface = pim_if_find_by_vif_index(oil->pim,
+						     *oil_incoming_vif(oil));
+		oil->iif.ifindex =
+			interface ? interface->ifindex : PIM_REG_IF_IDX;
 	}
 
 	/*
-	 * Notification interface must be used when we want to know
-	 * that we are receiving multicast data on the specified
-	 * interface.
-	 *
-	 * SG(*,G) does not need to watch for multicast data.
+	 * Handle simple case first (non-RP)
 	 */
-	if (!star_source && has_rp_if &&
-	    (i_am_rp || oil->iif.ifindex == 0 || rp_if == oil->iif.ifindex))
-		use_notifif = true;
+	if (!i_am_rp) {
+		/*
+		 * Notification interface must be used when we want to know
+		 * that we are receiving multicast data on the specified
+		 * interface.
+		 *
+		 * SG(*,G) does not need to watch for multicast data.
+		 */
+		if (!star_source && has_rp_if &&
+		    (oil->iif.ifindex == 0 || rp_if == oil->iif.ifindex)) {
+			/* Figure out the SPT path. */
+			if (pim_nexthop_lookup(oil->pim, &pn, *oil_origin(oil),
+					       0) &&
+			    oil->iif.ifindex != pn.interface->ifindex)
+				oil->notifif.ifindex = pn.interface->ifindex;
+			else
+				oil->notifif.ifindex = 0;
+
+		} else
+			oil->notifif.ifindex = 0;
+
+		if (PIM_DEBUG_MROUTE)
+			zlog_debug(
+				"%s: SG(%pPA, %pPA) IAmNotRP incoming:%d RPIF:%d iif:%d notifif:%d",
+				__func__, oil_origin(oil), oil_mcastgrp(oil),
+				*oil_incoming_vif(oil), rp_if, oil->iif.ifindex,
+				oil->notifif.ifindex);
+		return;
+	}
+
+	/*
+	 * Handle the RP case
+	 */
+	if (star_source)
+		oil->iif.ifindex = PIM_REG_IF_IDX;
+	else {
+		interface = pim_if_find_by_vif_index(oil->pim,
+						     *oil_incoming_vif(oil));
+		oil->iif.ifindex =
+			interface ? interface->ifindex : PIM_REG_IF_IDX;
+		if (has_rp_if && rp_if == oil->iif.ifindex)
+			oil->iif.ifindex = PIM_REG_IF_IDX;
+	}
 
 	if (PIM_DEBUG_MROUTE)
 		zlog_debug(
-			"%s: SG(%pPA, %pPA) IAmRP:%s RPIF:%d use_notifif:%s upstream:%s",
+			"%s: SG(%pPA, %pPA) IAmRP incoming:%d iif:%d RPIF:%d use_notifif:%s upstream:%s",
 			__func__, oil_origin(oil), oil_mcastgrp(oil),
-			i_am_rp ? "yes" : "no", rp_if,
+			*oil_incoming_vif(oil), oil->iif.ifindex, rp_if,
 			use_notifif ? "yes" : "no", upstream ? "yes" : "no");
 
-	/* We need more information to process further. */
+	/* We need upstream information to proceed */
 	if (upstream == NULL)
 		return;
 
-	/* Handle RP special cases. */
-	if (i_am_rp) {
-		/*
-		 * If no traffic has been seen yet, then set notification
-		 * interface instead of input interface.
-		 */
-		if (!(upstream->flags & PIM_UPSTREAM_FLAG_MASK_DATA_START) &&
-		    oil->iif.ifindex != PIM_REG_IF_IDX) {
-			oil->notifif.ifindex = oil->iif.ifindex;
-			oil->iif.ifindex = 0;
-		}
-
-		/*
-		 * If upstream has not joined yet, then don't set input
-		 * interface.
-		 */
-		if (upstream->join_state == PIM_UPSTREAM_NOTJOINED)
-			oil->iif.ifindex = 0;
-
-		/*
-		 * If traffic has been seem and upstream has joined then
-		 * use switch the input interface with the notification
-		 * interface.
-		 */
-		if (CHECK_FLAG(upstream->flags,
-			       PIM_UPSTREAM_FLAG_MASK_DATA_START))
-			switch_to_iif = true;
-	}
-
-	/* Don't use notification interface. */
-	if (!use_notifif) {
-		oil->notifif.ifindex = 0;
+	/*
+	 * If no traffic has been seen yet, then set notification
+	 * interface instead of input interface.
+	 */
+	if (!(upstream->flags & PIM_UPSTREAM_FLAG_MASK_DATA_START) &&
+	    oil->iif.ifindex != PIM_REG_IF_IDX) {
+		oil->notifif.ifindex = oil->iif.ifindex;
+		oil->iif.ifindex = 0;
 		return;
 	}
 
 	/* Figure out the SPT path. */
-	if (pim_nexthop_lookup(oil->pim, &pn, *oil_origin(oil), 0) &&
-	    oil->iif.ifindex != pn.interface->ifindex)
+	if (pim_nexthop_lookup(oil->pim, &pn, *oil_origin(oil), 0))
 		oil->notifif.ifindex = pn.interface->ifindex;
 	else
 		oil->notifif.ifindex = 0;
 
 	if (PIM_DEBUG_MROUTE)
-		zlog_debug(
-			"%s:   switch_to_iif:%s notifif:%d <-> iif:%d",
-			__func__, switch_to_iif ? "yes" : "no ", oil->notifif.ifindex,
-			oil->iif.ifindex);
-
-	/*
-	 * Traffic hit SPT (notification index was already set), switch to SPT
-	 * interface.
-	 *
-	 * Don't attempt to switch to SPT if the input interface chosen by PIM
-	 * is already correct (e.g. iif == spt-interface).
-	 */
-	if (switch_to_iif && oil->notifif.ifindex != 0) {
-		oil->iif.ifindex = oil->notifif.ifindex;
-		oil->notifif.ifindex = 0;
-	}
+		zlog_debug("%s:   notifif:%d iif:%d", __func__,
+			   oil->notifif.ifindex, oil->iif.ifindex);
 }
 
 static void pimsb_debug_oil(struct channel_oil *oil)
@@ -512,6 +503,9 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 	if (rp != NULL && rp->rp.source_nexthop.interface != NULL &&
 	    rp->rp.source_nexthop.interface->info != NULL)
 		has_rp_if = true;
+
+	/* Update input interface */
+	pimsb_set_input_interface(rp, oil, i_am_rp);
 
 	/* Generate flags based on detected information. */
 	if (!is_static && !star_source && !i_am_mhr)
@@ -1395,7 +1389,6 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 
 	up->flags |= PIM_UPSTREAM_FLAG_MASK_DATA_START;
 	up->flags |= PIM_UPSTREAM_FLAG_MASK_USE_RPT;
-	pimsb_set_input_interface(up->channel_oil);
 	pimsb_mroute_do(up->channel_oil, true);
 }
 
