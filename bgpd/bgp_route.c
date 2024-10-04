@@ -15871,6 +15871,9 @@ static bool bgp_rib_in_filter_entry(struct route_parameters *route_args,
 				       const struct bgp_path_info *path,
 				       const struct bgp_rib_args *rib_args)
 {
+	const struct prefix *prefix = bgp_dest_get_prefix(route_args->dest);
+	const struct attr *attr;
+
 	switch (rib_args->peer.type) {
 	case AT_IPV4:
 		if (path->peer == NULL || path->peer->su.sa.sa_family != AF_INET)
@@ -15895,6 +15898,38 @@ static bool bgp_rib_in_filter_entry(struct route_parameters *route_args,
 	case AT_NONE:
 		break;
 	}
+
+	/* Ugly hack so we can use BGP_ATTR_NEXTHOP_AFI_IP6() macro. */
+	attr = path->attr;
+
+	/* Print prefixes with selected next hop. */
+	if (rib_args->next_hop.afi == AFI_IP) {
+		if (route_args == NULL)
+			return true;
+		if (BGP_ATTR_NEXTHOP_AFI_IP6(attr))
+			return true;
+		if (rib_args->next_hop.address.ipv4.s_addr != attr->nexthop.s_addr)
+			return true;
+	} else if (rib_args->next_hop.afi == AFI_IP6) {
+		if (route_args == NULL)
+			return true;
+		if (!BGP_ATTR_NEXTHOP_AFI_IP6(attr))
+			return true;
+		/* checking only global IPv6 address in &attr->mp_nexthop_global    *
+		 * Might need to check to either link-local or global IPv6 address  *
+		 * in &attr->mp_nexthop_global or &attr->mp_nexthop_local           */
+		if (memcmp(&rib_args->next_hop.address.ipv6,
+			   &attr->mp_nexthop_global,
+			   sizeof(rib_args->next_hop.address.ipv6)))
+			return true;
+	}
+
+	/* Filter prefix. */
+	if (rib_args->prefix.family != AF_UNSPEC
+	    && prefix_cmp(&rib_args->prefix, prefix) != 0)
+		return true;
+
+	/* false = Route is not filter out, display it */
 	return false;
 }
 
@@ -16317,7 +16352,6 @@ static bool print_local_route_detailed(struct vty *vty,
 				       bool first_route)
 {
 	bool first_path = true;
-
 	args->path_flags = true;
 
 	if (!bgp_rib_in_filter_entry(args, path, rib_args)) {
