@@ -1670,6 +1670,50 @@ DEFPY (clear_ip_pim_statistics,
 	return CMD_SUCCESS;
 }
 
+DEFPY(clear_ip_igmp_counters,
+      clear_ip_igmp_counters_cmd,
+      "clear ip igmp [vrf VRF$vrf_name] interface <IFNAME|all>$ifname counters",
+      CLEAR_STR
+      IP_STR
+      IGMP_STR
+      VRF_CMD_HELP_STR
+      INTERFACE_STR
+      "IGMP enabled interface\n"
+      "All IGMP enabled interfaces\n"
+      "IGMP interface counters\n")
+{
+	struct vrf *vrf = pim_cmd_lookup(vty, vrf_name);
+	struct interface *interface;
+	bool all_interfaces = false;
+
+	if (vrf == NULL)
+		return CMD_SUCCESS;
+
+	if (strcmp(ifname, "all") == 0)
+		all_interfaces = true;
+
+	FOR_ALL_INTERFACES (vrf, interface) {
+		struct pim_interface *pim_interface = interface->info;
+		struct listnode *node;
+		struct gm_sock *gm;
+
+		if (pim_interface == NULL)
+			continue;
+		if (!all_interfaces && strcmp(interface->name, ifname) != 0)
+			continue;
+
+		pim_interface->igmp_peak_group_count = 0;
+		pim_interface->igmp_ifstat_joins_sent = 0;
+		pim_interface->igmp_ifstat_joins_failed = 0;
+		for (ALL_LIST_ELEMENTS_RO(pim_interface->gm_socket_list, node,
+					  gm)) {
+			memset(&gm->igmp_stats, 0, sizeof(gm->igmp_stats));
+		}
+	}
+
+	return CMD_SUCCESS;
+}
+
 DEFPY (clear_ip_mroute,
        clear_ip_mroute_cmd,
        "clear ip mroute [vrf NAME]$name",
@@ -8514,6 +8558,7 @@ void pim_cmd_init(void)
 	install_element(ENABLE_NODE, &clear_ip_pim_interface_traffic_cmd);
 	install_element(ENABLE_NODE, &clear_ip_pim_oil_cmd);
 	install_element(ENABLE_NODE, &clear_ip_pim_statistics_cmd);
+	install_element(ENABLE_NODE, &clear_ip_igmp_counters_cmd);
 	install_element(ENABLE_NODE, &clear_ip_pim_bsr_db_cmd);
 	install_element(ENABLE_NODE, &clear_ip_msdp_peer_cmd);
 	install_element(ENABLE_NODE, &clear_ip_msdp_peer_counters_cmd);
