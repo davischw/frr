@@ -439,6 +439,24 @@ static void pimsb_interface_ipv6_get(const struct pim_interface *pim_interface,
 }
 #endif /* PIM_IPV == 6 */
 
+static void pimsb_debug_route_flags(uint32_t flags)
+{
+	char buf[128] = {};
+
+	if (CHECK_FLAG(flags, MRT_FLAG_JOIN_SPT_ALLOWED))
+		strlcat(buf, "JOIN_SPT_ALLOWED ", sizeof(buf));
+	if (CHECK_FLAG(flags, MRT_FLAG_RESTART_DL_TIMER))
+		strlcat(buf, "RESTART_DL_TIMER ", sizeof(buf));
+	if (CHECK_FLAG(flags, MRT_FLAG_ADDR_TYPE_V6))
+		strlcat(buf, "ADDR_TYPE_V6 ", sizeof(buf));
+	if (CHECK_FLAG(flags, MRT_FLAG_DUMMY))
+		strlcat(buf, "DUMMY ", sizeof(buf));
+	if (CHECK_FLAG(flags, MRT_FLAG_DL_TIMER))
+		strlcat(buf, "DL_TIMER ", sizeof(buf));
+
+	zlog_debug("route_flags: %s", buf);
+}
+
 void pimsb_mroute_do(struct channel_oil *oil, bool install)
 {
 	struct pim_upstream *upstream = oil->up;
@@ -536,6 +554,9 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 	/* Flag all multicast routes coming from us to be IPv6. */
 	route_flags |= MRT_FLAG_ADDR_TYPE_V6;
 #endif /* PIM_IPV == 6 */
+
+	if (PIM_DEBUG_MROUTE)
+		pimsb_debug_route_flags(route_flags);
 
 	/*
 	 * Multicast route internal communication format:
