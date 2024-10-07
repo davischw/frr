@@ -131,8 +131,15 @@ void bgp_peer_config_apply(struct peer *p, struct peer_group *pg)
 		bfd_sess_set_cbit(p->bfd_config->session, p->bfd_config->cbit);
 		bfd_sess_set_profile(p->bfd_config->session,
 				     p->bfd_config->profile);
-		if (bgp_peer_has_local_address(p))
+		if (bgp_peer_has_local_address(p)) {
+			if (BGP_DEBUG(bfd, BFD_LIB))
+				zlog_info("%s: peer %s BFD session install",
+					  __func__,
+					  p->conf_if ? p->conf_if : p->host);
 			bfd_sess_install(p->bfd_config->session);
+		} else if (BGP_DEBUG(bfd, BFD_LIB))
+			zlog_info("%s: peer %s has no local addr", __func__,
+				  p->conf_if ? p->conf_if : p->host);
 		return;
 	}
 
@@ -174,8 +181,14 @@ void bgp_peer_config_apply(struct peer *p, struct peer_group *pg)
 				    p->bfd_config->min_rx,
 				    p->bfd_config->min_tx);
 
-	if (bgp_peer_has_local_address(p))
+	if (bgp_peer_has_local_address(p)) {
+		if (BGP_DEBUG(bfd, BFD_LIB))
+			zlog_info("%s: peer %s BFD session install", __func__,
+				  p->conf_if ? p->conf_if : p->host);
 		bfd_sess_install(p->bfd_config->session);
+	} else if (BGP_DEBUG(bfd, BFD_LIB))
+		zlog_info("%s: peer %s has no local addr", __func__,
+			  p->conf_if ? p->conf_if : p->host);
 }
 
 void bgp_peer_bfd_update_source(struct peer *p)
@@ -311,8 +324,16 @@ void bgp_peer_bfd_update_source(struct peer *p)
 		changed = true;
 	}
 
-	if (changed && bgp_peer_has_local_address(p))
+	if (changed && bgp_peer_has_local_address(p)) {
+		if (BGP_DEBUG(bfd, BFD_LIB))
+			zlog_info("%s: peer %s BFD session install", __func__,
+				  p->conf_if ? p->conf_if : p->host);
 		bfd_sess_install(session);
+	} else if (!bgp_peer_has_local_address(p)) {
+		if (BGP_DEBUG(bfd, BFD_LIB))
+			zlog_info("%s: peer %s has no local addr", __func__,
+				  p->conf_if ? p->conf_if : p->host);
+	}
 }
 
 /**
@@ -345,6 +366,17 @@ void bgp_peer_configure_bfd(struct peer *p, bool manual)
 	/* Allocate memory for configuration overrides. */
 	p->bfd_config = XCALLOC(MTYPE_BFD_CONFIG, sizeof(*p->bfd_config));
 	p->bfd_config->manual = manual;
+
+	if (BGP_DEBUG(bfd, BFD_LIB)) {
+		if (p->su.sa.sa_family == AF_INET)
+			zlog_info(
+				"BFD_DEBUG: bgp_peer_configure_bfd for peer %pI4",
+				&p->su_local->sin.sin_addr);
+		else
+			zlog_info(
+				"BFD_DEBUG: bgp_peer_configure_bfd for peer %pI6",
+				&p->su_local->sin6.sin6_addr);
+	}
 
 	/* Create new session and assign callback. */
 	p->bfd_config->session = bfd_sess_new(bfd_session_status_update, p);

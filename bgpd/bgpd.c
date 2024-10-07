@@ -4527,8 +4527,14 @@ void bgp_shutdown_disable(struct bgp *bgp)
 	for (ALL_LIST_ELEMENTS_RO(bgp->peer, node, peer)) {
 		peer->v_start = BGP_INIT_START_TIMER;
 		BGP_EVENT_ADD(peer, BGP_Stop);
-		if (peer->bfd_config)
+		if (peer->bfd_config) {
+			if (BGP_DEBUG(bfd, BFD_LIB))
+				zlog_info("%s: peer %s BFD session install",
+					  __func__,
+					  peer->conf_if ? peer->conf_if
+							: peer->host);
 			bfd_sess_install(peer->bfd_config->session);
+		}
 		bgp_timer_set(peer);
 	}
 }

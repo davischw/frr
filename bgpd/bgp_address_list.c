@@ -82,8 +82,14 @@ static void address_list_peer_toggle(struct bgp_named_peer *np,
 		hash_release(np->peer->bgp->peerhash, np->peer);
 
 		/* Remove BFD session if any. */
-		if (np->peer->bfd_config)
+		if (np->peer->bfd_config) {
+			if (BGP_DEBUG(bfd, BFD_LIB))
+				zlog_info("%s: peer %s BFD session uninstall",
+					  __func__,
+					  np->peer->conf_if ? np->peer->conf_if
+							    : np->peer->host);
 			bfd_sess_uninstall(np->peer->bfd_config->session);
+		}
 
 		peer_notify_unconfig(np->peer);
 		BGP_EVENT_ADD(np->peer, BGP_Stop);

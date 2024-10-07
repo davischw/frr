@@ -1369,8 +1369,12 @@ int bgp_stop(struct peer *peer)
 	if (peer->bfd_config
 	    && (peer->last_reset == PEER_DOWN_UPDATE_SOURCE_CHANGE
 		|| CHECK_FLAG(peer->flags, PEER_FLAG_SHUTDOWN)
-		|| CHECK_FLAG(bgp->flags, BGP_FLAG_SHUTDOWN)))
+		|| CHECK_FLAG(bgp->flags, BGP_FLAG_SHUTDOWN))) {
+		if (BGP_DEBUG(bfd, BFD_LIB))
+			zlog_info("%s: peer %s BFD session uninstall", __func__,
+				  peer->conf_if ? peer->conf_if : peer->host);
 		bfd_sess_uninstall(peer->bfd_config->session);
+	}
 
 	if (peer_dynamic_neighbor_no_nsf(peer) &&
 	    !(CHECK_FLAG(peer->flags, PEER_FLAG_DELETE))) {
@@ -1732,8 +1736,12 @@ static int bgp_connect_success(struct peer *peer)
 	}
 
 	/* Successfully connected, start monitoring (if not running). */
-	if (peer->bfd_config)
+	if (peer->bfd_config) {
+		if (BGP_DEBUG(bfd, BFD_LIB))
+			zlog_info("%s: peer %s BFD session install", __func__,
+				  peer->conf_if ? peer->conf_if : peer->host);
 		bfd_sess_install(peer->bfd_config->session);
+	}
 
 	/* Send an open message */
 	bgp_open_send(peer);
@@ -1878,8 +1886,15 @@ int bgp_start(struct peer *peer)
 					   peer->host);
 
 			/* There is no route to peer, so don't start BFD yet. */
-			if (peer->bfd_config)
+			if (peer->bfd_config) {
+				if (BGP_DEBUG(bfd, BFD_LIB))
+					zlog_info(
+						"%s: peer %s BFD session uninstall",
+						__func__,
+						peer->conf_if ? peer->conf_if
+							      : peer->host);
 				bfd_sess_uninstall(peer->bfd_config->session);
+			}
 
 			peer->last_reset = PEER_DOWN_WAITING_NHT;
 			BGP_EVENT_ADD(peer, TCP_connection_open_failed);

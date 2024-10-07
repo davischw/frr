@@ -506,8 +506,20 @@ static void _bfd_sess_send(struct thread *t)
 	int rv;
 
 	/* Validate configuration before trying to send bogus data. */
-	if (!_bfd_sess_valid(bsp))
-		return;
+	if (!_bfd_sess_valid(bsp)) {
+		struct ipaddr src, dst;
+
+		src.ipa_type = bsp->args.family;
+		src.ipaddr_v6 = bsp->args.src;
+		dst.ipa_type = bsp->args.family;
+		dst.ipaddr_v6 = bsp->args.dst;
+
+		zlog_info(
+			"%s: BFD session not valid (%pIA -> %pIA interface %s)",
+			__func__, &src, &dst,
+			bsp->args.ifnamelen ? bsp->args.ifname : "*");
+		return 0;
+	}
 
 	if (bsp->lastev == BSE_INSTALL) {
 		bsp->args.command = bsp->installed ? ZEBRA_BFD_DEST_UPDATE
