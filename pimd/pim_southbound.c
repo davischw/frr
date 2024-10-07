@@ -1250,38 +1250,37 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 	struct interface *ifp = NULL;
 	struct vrf *vrf;
 	int32_t input_index = ntohl(me->iif_idx);
-	pim_sgaddr sg_p = {};
+	pim_sgaddr sg_p = {
+#if PIM_IPV == 4
+		.src = me->source.v4,
+		.grp = me->group.v4,
+#else
+		.src = me->source.v6,
+		.grp = me->group.v6,
+#endif
+	};
 
 	RB_FOREACH (vrf, vrf_id_head, &vrfs_by_id) {
 		ifp = if_lookup_by_index(input_index, vrf->vrf_id);
 		if (ifp)
 			break;
 	}
-	pim_ifp = ifp ? ifp->info : NULL;
-	if (PIM_DEBUG_MROUTE)
-#if PIM_IPV == 4
-		zlog_debug(
-			"%s: DATA_START iif:%d(%s:%s) source:%pI4 group:%pI4",
-			__func__, input_index, ifp ? ifp->name : "unknown",
-			ifp ? (pim_ifp ? "enabled" : "disabled") : "disabled",
-			&me->source.v4, &me->group.v4);
-#else
-		zlog_debug(
-			"%s: DATA_START iif:%d(%s:%s) source:%pI6 group:%pI6",
-			__func__, input_index, ifp ? ifp->name : "unknown",
-			ifp ? (pim_ifp ? "enabled" : "disabled") : "disabled",
-			&me->source.v6, &me->group.v6);
-#endif
-	if (pim_ifp == NULL)
+	if (ifp == NULL) {
+		zlog_err("%s: DATA_START %pSG interface %d not found",
+			 __func__, &sg_p, ntohl(me->iif_idx));
 		return;
+	}
 
-#if PIM_IPV == 4
-	sg_p.src = me->source.v4;
-	sg_p.grp = me->group.v4;
-#else
-	sg_p.src = me->source.v6;
-	sg_p.grp = me->group.v6;
-#endif
+	pim_ifp = ifp->info;
+	if (pim_ifp == NULL) {
+		zlog_err("%s: DATA_START %pSG interface %s(%d) disabled",
+			 __func__, &sg_p, ifp->name, ifp->ifindex);
+		return;
+	}
+
+	if (PIM_DEBUG_MROUTE)
+		zlog_debug("%s: DATA_START %pSG interface %s(%d)", __func__,
+			   &sg_p, ifp->name, ifp->ifindex);
 
 	/* Handle simplest case first. */
 	if (pim_if_connected_to_source(ifp, sg_p.src)) {
@@ -1398,7 +1397,15 @@ static void pimsb_client_data_stop(const struct mroute_event *me)
 	struct pim_upstream *up;
 	struct interface *ifp = NULL;
 	struct vrf *vrf;
-	pim_sgaddr sg = {};
+	pim_sgaddr sg = {
+#if PIM_IPV == 4
+		.src = me->source.v4,
+		.grp = me->group.v4,
+#else
+		.src = me->source.v6,
+		.grp = me->group.v6,
+#endif
+	};
 
 	RB_FOREACH (vrf, vrf_id_head, &vrfs_by_id) {
 		ifp = if_lookup_by_index(ntohl(me->iif_idx), vrf->vrf_id);
@@ -1406,35 +1413,22 @@ static void pimsb_client_data_stop(const struct mroute_event *me)
 			break;
 	}
 	if (ifp == NULL) {
-		if (PIM_DEBUG_MROUTE)
-			zlog_debug(
-				"%s: DATA_STOP SG(%pI4, %pI4) interface %d not found",
-				__func__, &me->source.v4, &me->group.v4,
-				ntohl(me->iif_idx));
+		zlog_err("%s: DATA_STOP %pSG interface %d not found",
+			 __func__, &sg, ntohl(me->iif_idx));
 		return;
 	}
 
 	pim_ifp = ifp->info;
 	if (pim_ifp == NULL) {
-		if (PIM_DEBUG_MROUTE)
-			zlog_debug(
-				"%s: DATA_STOP interface %s(%d) not configured",
-				__func__, ifp->name, ifp->ifindex);
+		zlog_err("%s: DATA_STOP %pSG interface %s(%d) disabled",
+			 __func__, &sg, ifp->name, ifp->ifindex);
 		return;
 	}
 
 	if (PIM_DEBUG_MROUTE)
-		zlog_debug("%s: DATA_STOP interface %d source %pI4 group %pI4",
-			   __func__, ntohl(me->iif_idx), &me->source.v4,
-			   &me->group.v4);
+		zlog_debug("%s: DATA_STOP %pSG interface %s(%d)", __func__,
+			   &sg, ifp->name, ifp->ifindex);
 
-#if PIM_IPV == 4
-	sg.src = me->source.v4;
-	sg.grp = me->group.v4;
-#else
-	sg.src = me->source.v6;
-	sg.grp = me->group.v6;
-#endif
 	up = pim_upstream_find(pim_ifp->pim, &sg);
 	if (up == NULL) {
 		if (PIM_DEBUG_MROUTE)
@@ -1462,6 +1456,15 @@ static void pimsb_client_wrong_if(const struct mroute_event *me)
 	struct vrf *vrf;
 	int32_t input_index = ntohl(me->iif_idx);
 	kernmsg im = {};
+	pim_sgaddr sg = {
+#if PIM_IPV == 4
+		.src = me->source.v4,
+		.grp = me->group.v4,
+#else
+		.src = me->source.v6,
+		.grp = me->group.v6,
+#endif
+	};
 
 #if PIM_IPV == 4
 	im.im_msgtype = IGMPMSG_WRONGVIF;
@@ -1480,22 +1483,22 @@ static void pimsb_client_wrong_if(const struct mroute_event *me)
 		if (ifp)
 			break;
 	}
-	pim_ifp = ifp ? ifp->info : NULL;
+	if (ifp == NULL) {
+		zlog_err("%s: WRONG_IF %pSG interface %d not found",
+			 __func__, &sg, ntohl(me->iif_idx));
+		return;
+	}
+
+	pim_ifp = ifp->info;
+	if (pim_ifp == NULL) {
+		zlog_err("%s: WRONG_IF %pSG interface %s(%d) disabled",
+			 __func__, &sg, ifp->name, ifp->ifindex);
+		return;
+	}
+
 	if (PIM_DEBUG_MROUTE)
-		zlog_debug(
-#if PIM_IPV == 4
-			"%s: WRONG_IF iif:%d(%s:%s) source:%pI4 group:%pI4",
-#else
-			"%s: WRONG_IF iif:%d(%s:%s) source:%pI6 group:%pI6",
-#endif
-			__func__, input_index, ifp ? ifp->name : "unknown",
-			ifp ? (pim_ifp ? "enabled" : "disabled") : "disabled",
-#if PIM_IPV == 4
-			&me->source.v4, &me->group.v4
-#else
-			&me->source.v6, &me->group.v6
-#endif
-		);
+		zlog_debug("%s: WRONG_IF %pSG interface %s(%d)", __func__,
+			   &sg, ifp->name, ifp->ifindex);
 
 	if (pim_ifp)
 		pim_mroute_msg_wrongvif(pim_ifp->pim->mroute_socket, ifp, &im);
@@ -1507,33 +1510,38 @@ static void pimsb_client_spt_join(const struct mroute_event *me)
 	struct pim_upstream *up;
 	struct interface *ifp = NULL;
 	struct vrf *vrf;
-	pim_sgaddr sg_p;
+	pim_sgaddr sg_p = {
+#if PIM_IPV == 4
+		.src = me->source.v4,
+		.grp = me->group.v4,
+#else
+		.src = me->source.v6,
+		.grp = me->group.v6,
+#endif
+	};
 
 	RB_FOREACH (vrf, vrf_id_head, &vrfs_by_id) {
 		ifp = if_lookup_by_index(ntohl(me->iif_idx), vrf->vrf_id);
 		if (ifp)
 			break;
 	}
-	pim_ifp = ifp ? ifp->info : NULL;
-	if (PIM_DEBUG_MROUTE)
-		zlog_debug("%s: SPT_JOIN iif:%d(%s:%s) source:%pI4 group:%pI4",
-			   __func__, ntohl(me->iif_idx),
-			   ifp ? ifp->name : "unknown",
-			   ifp ? (pim_ifp ? "enabled" : "disabled")
-			       : "disabled",
-			   &me->source.v4, &me->group.v4);
-
-	/* Interface not found, quit. */
-	if (ifp == NULL || pim_ifp == NULL)
+	if (ifp == NULL) {
+		zlog_err("%s: SPT_JOIN %pSG interface %d not found",
+			 __func__, &sg_p, ntohl(me->iif_idx));
 		return;
+	}
 
-#if PIM_IPV == 4
-	sg_p.src = me->source.v4;
-	sg_p.grp = me->group.v4;
-#else
-	sg_p.src = me->source.v6;
-	sg_p.grp = me->group.v6;
-#endif
+	pim_ifp = ifp->info;
+	if (pim_ifp == NULL) {
+		zlog_err("%s: SPT_JOIN %pSG interface %s(%d) disabled",
+			 __func__, &sg_p, ifp->name, ifp->ifindex);
+		return;
+	}
+
+	if (PIM_DEBUG_MROUTE)
+		zlog_debug("%s: SPT_JOIN %pSG interface %s(%d)", __func__,
+			   &sg_p, ifp->name, ifp->ifindex);
+
 	up = pim_upstream_add(pim_ifp->pim, &sg_p, NULL,
 			      PIM_UPSTREAM_FLAG_MASK_SRC_PIM, __func__, NULL);
 	if (!up)
