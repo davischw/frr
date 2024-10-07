@@ -244,7 +244,7 @@ ssize_t vrrp_pkt_parse_datagram(int family, int version, struct msghdr *m,
 	} else if (family == AF_INET6) {
 		struct cmsghdr *c;
 
-		for (c = CMSG_FIRSTHDR(m); c != NULL; CMSG_NXTHDR(m, c)) {
+		for (c = CMSG_FIRSTHDR(m); c != NULL; c = CMSG_NXTHDR(m, c)) {
 			if (c->cmsg_level == IPPROTO_IPV6
 			    && c->cmsg_type == IPV6_HOPLIMIT)
 				break;
