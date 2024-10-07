@@ -414,6 +414,19 @@ typedef uint32_t route_tag_t;
 /* Name of hook calls */
 #define ZEBRA_ON_RIB_PROCESS_HOOK_CALL "on_rib_process_dplane_results"
 
+#undef CMSG_NXTHDR
+#define CMSG_NXTHDR(mhdr, cmsg)                                                \
+	((char *)(cmsg) == (char *)0 ? CMSG_FIRSTHDR(mhdr)                     \
+	 : ((char *)(cmsg) +                                                   \
+		    CMSG_ALIGN(((struct cmsghdr *)(cmsg))->cmsg_len) +         \
+		    CMSG_ALIGN(sizeof(struct cmsghdr)) >                       \
+	    (char *)(mhdr)->msg_control + (mhdr)->msg_controllen)              \
+		 ? (struct cmsghdr *)0                                         \
+		 : (struct cmsghdr                                             \
+			    *)(void *)((char *)(cmsg) +                        \
+				       CMSG_ALIGN(((struct cmsghdr *)(cmsg))   \
+							  ->cmsg_len)))
+
 #ifdef __cplusplus
 }
 #endif
