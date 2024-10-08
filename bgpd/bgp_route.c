@@ -15917,12 +15917,14 @@ static bool bgp_rib_in_filter_entry(struct route_parameters *route_args,
 			return true;
 		if (!BGP_ATTR_NEXTHOP_AFI_IP6(attr))
 			return true;
-		/* checking only global IPv6 address in &attr->mp_nexthop_global    *
-		 * Might need to check to either link-local or global IPv6 address  *
-		 * in &attr->mp_nexthop_global or &attr->mp_nexthop_local           */
+		/* checking IPv6 link-local and global IPv6 address in   *
+		 *  &attr-mp-nexthop_local and &attr->mp_nexthop_global  */
 		if (memcmp(&rib_args->next_hop.address.ipv6,
-			   &attr->mp_nexthop_global,
-			   sizeof(rib_args->next_hop.address.ipv6)))
+		      &attr->mp_nexthop_global,
+		      sizeof(rib_args->next_hop.address.ipv6)) &&
+		    memcmp(&rib_args->next_hop.address.ipv6,
+		      &attr->mp_nexthop_local,
+		      sizeof(rib_args->next_hop.address.ipv6)))
 			return true;
 	}
 
@@ -16152,7 +16154,7 @@ DEFPY(show_bgp_rib_out, show_bgp_rib_out_cmd,
       "Maximum amount of routes to display\n"
       "Filter by route next hop address\n"
       "Next hop IPv4 address\n"
-      "Next hop IPv6 address\n"
+      "Next hop IPv6 global or link-local address\n"
       "Filter by peer address\n"
       "Peer IPv4 address\n"
       "Peer IPv6 address\n"
@@ -16422,7 +16424,7 @@ DEFPY(show_bgp_rib_local, show_bgp_rib_local_cmd,
       "Maximum amount of routes to display\n"
       "Filter by route next hop address\n"
       "Next hop IPv4 address\n"
-      "Next hop IPv6 address\n"
+      "Next hop IPv6 global or link-local address\n"
       "Filter by peer address\n"
       "Peer IPv4 address\n"
       "Peer IPv6 address\n"
