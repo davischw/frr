@@ -15488,8 +15488,10 @@ static void print_route_inner_detailed(struct vty *vty,
 	/* Ugly hack so we can use BGP_ATTR_NEXTHOP_AFI_IP6() macro. */
 	struct attr *attr = &args->attr;
 
-	if (BGP_ATTR_NEXTHOP_AFI_IP6(attr))
+	if (BGP_ATTR_NEXTHOP_AFI_IP6(attr)) {
 		vty_out(vty, "\"nextHop\":\"%pI6\",", &attr->mp_nexthop_global);
+		vty_out(vty, "\"nextHopLL\":\"%pI6\",", &attr->mp_nexthop_local);
+		}
 	else
 		vty_out(vty, "\"nextHop\":\"%pI4\",", &attr->nexthop);
 
