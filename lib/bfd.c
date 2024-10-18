@@ -518,7 +518,7 @@ static void _bfd_sess_send(struct thread *t)
 			"%s: BFD session not valid (%pIA -> %pIA interface %s)",
 			__func__, &src, &dst,
 			bsp->args.ifnamelen ? bsp->args.ifname : "*");
-		return 0;
+		return;
 	}
 
 	if (bsp->lastev == BSE_INSTALL) {
