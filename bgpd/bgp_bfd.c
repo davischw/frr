@@ -370,12 +370,12 @@ void bgp_peer_configure_bfd(struct peer *p, bool manual)
 	if (BGP_DEBUG(bfd, BFD_LIB)) {
 		if (p->su.sa.sa_family == AF_INET)
 			zlog_info(
-				"BFD_DEBUG: bgp_peer_configure_bfd for peer %pI4",
-				&p->su_local->sin.sin_addr);
+				"BFD_DEBUG: bgp_peer_configure_bfd for peer %s",
+				p->conf_if ? p->conf_if : p->host);
 		else
 			zlog_info(
-				"BFD_DEBUG: bgp_peer_configure_bfd for peer %pI6",
-				&p->su_local->sin6.sin6_addr);
+				"BFD_DEBUG: bgp_peer_configure_bfd for peer %s",
+				p->conf_if ? p->conf_if : p->host);
 	}
 
 	/* Create new session and assign callback. */
