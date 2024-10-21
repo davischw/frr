@@ -769,6 +769,11 @@ void bfd_sess_uninstall(struct bfd_session_params *bsp)
 	thread_add_event(bsglobal.tm, _bfd_sess_send, bsp, 0, &bsp->installev);
 }
 
+bool bfd_sess_is_installed(struct bfd_session_params *bsp)
+{
+	return bsp->installed;
+}
+
 enum bfd_session_state bfd_sess_status(const struct bfd_session_params *bsp)
 {
 	return bsp->bss.state;

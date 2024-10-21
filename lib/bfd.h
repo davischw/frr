@@ -256,6 +256,11 @@ void bfd_sess_install(struct bfd_session_params *bsp);
 void bfd_sess_uninstall(struct bfd_session_params *bsp);
 
 /**
+ * Returns whether the BFD session is installed or not.
+ */
+bool bfd_sess_is_installed(struct bfd_session_params *bsp);
+
+/**
  * Get BFD session current status.
  *
  * \param bsp session parameters.

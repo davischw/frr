@@ -324,7 +324,8 @@ void bgp_peer_bfd_update_source(struct peer *p)
 		changed = true;
 	}
 
-	if (changed && bgp_peer_has_local_address(p)) {
+	if ((changed || !bfd_sess_is_installed(session))
+	    && bgp_peer_has_local_address(p)) {
 		if (BGP_DEBUG(bfd, BFD_LIB))
 			zlog_info("%s: peer %s BFD session install", __func__,
 				  p->conf_if ? p->conf_if : p->host);
