@@ -255,7 +255,7 @@ route_match_peer(void *rule, const struct prefix *prefix, void *object)
 	union sockunion su_def = {
 		.sin = {.sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY}};
 	struct peer_group *group;
-	struct peer *peer, *p;
+	struct peer *peer;
 	struct listnode *node, *nnode;
 
 	pc = rule;
@@ -263,10 +263,6 @@ route_match_peer(void *rule, const struct prefix *prefix, void *object)
 	peer = ((struct bgp_path_info *)object)->peer;
 
 	if (pc->interface) {
-		p = peer_lookup_by_address_list(peer->bgp, pc->interface);
-		if (p && strmatch(p->np->name, pc->interface))
-			return RMAP_MATCH;
-
 		if (!peer->conf_if || !peer->group)
 			return RMAP_NOMATCH;
 
