@@ -2677,6 +2677,7 @@ void pim_show_interfaces_single(struct pim_instance *pim, struct vty *vty,
 #endif
 
 			/* FHR */
+			json_fhr_sources = NULL;
 			frr_each (rb_pim_upstream, &pim->upstream_head, up) {
 				if (ifp != up->rpf.source_nexthop.interface)
 					continue;
