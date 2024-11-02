@@ -230,6 +230,22 @@ static void pim_nht_drop_maybe(struct pim_instance *pim,
 	}
 }
 
+void pim_delete_tracked_upstream(struct pim_upstream *upstream)
+{
+	struct pim_nexthop_cache *pnc;
+	struct pim_nexthop_cache lookup;
+
+	lookup.rpf.rpf_addr = upstream->upstream_addr;
+	pnc = hash_lookup(upstream->pim->rpf_hash, &lookup);
+	if (!pnc) {
+		zlog_warn("attempting to delete nonexistent NHT entry %pPA",
+			  &lookup.rpf.rpf_addr);
+		return;
+	}
+
+	hash_release(pnc->upstream_hash, upstream);
+}
+
 void pim_delete_tracked_nexthop(struct pim_instance *pim, pim_addr addr,
 				struct pim_upstream *up, struct rp_info *rp)
 {

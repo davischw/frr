@@ -90,6 +90,7 @@ int pim_find_or_track_nexthop(struct pim_instance *pim, pim_addr addr,
 			      struct pim_nexthop_data *out_pnc);
 void pim_delete_tracked_nexthop(struct pim_instance *pim, pim_addr addr,
 				struct pim_upstream *up, struct rp_info *rp);
+void pim_delete_tracked_upstream(struct pim_upstream *upstream);
 struct pim_nexthop_cache *pim_nexthop_cache_find(struct pim_instance *pim,
 						 struct pim_rpf *rpf);
 bool pim_nexthop_cache_wait(struct pim_instance *pim,
