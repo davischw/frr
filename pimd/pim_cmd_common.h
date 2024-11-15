@@ -50,6 +50,10 @@ int pim_process_rp_plist_cmd(struct vty *vty, const char *rp_str,
 			     const char *prefix_list, bool fallback);
 int pim_process_no_rp_plist_cmd(struct vty *vty, const char *rp_str,
 				const char *prefix_list, bool fallback);
+int pim_process_rp_alist_cmd(struct vty *vty, const char *rp_str,
+			     const char *access_list, bool fallback);
+int pim_process_no_rp_alist_cmd(struct vty *vty, const char *rp_str,
+				const char *access_list, const char *fallback);
 
 int pim_process_ip_pim_cmd(struct vty *vty);
 int pim_process_no_ip_pim_cmd(struct vty *vty);

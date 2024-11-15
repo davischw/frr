@@ -826,6 +826,35 @@ DEFPY (no_ipv6_pim_rp_prefix_list,
 	return pim_process_no_rp_plist_cmd(vty, rp_str, plist, !!fallback);
 }
 
+DEFPY_YANG (ipv6_pim_rp_access_list,
+       ipv6_pim_rp_access_list_cmd,
+       "ip pim rp A.B.C.D [fallback$fallback] access-list WORD$acl",
+       IP_STR
+       PIM_STR
+       "Rendezvous Point\n"
+       "ip address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
+       "group prefix-list filter\n"
+       "Name of a prefix-list\n")
+{
+       return pim_process_rp_alist_cmd(vty, rp_str, acl, !!fallback);
+}
+
+DEFPY_YANG (no_ipv6_pim_rp_access_list,
+       no_ipv6_pim_rp_access_list_cmd,
+       "no ip pim rp A.B.C.D [fallback$fallback] access-list WORD$acl",
+       NO_STR
+       IP_STR
+       PIM_STR
+       "Rendezvous Point\n"
+       "ip address of RP\n"
+       "Use RP for these groups only if BSR provides none\n"
+       "group prefix-list filter\n"
+       "Name of a prefix-list\n")
+{
+       return pim_process_no_rp_alist_cmd(vty, rp_str, acl, fallback);
+}
+
 DEFPY_YANG (ipv6_pim_candidate_rp,
        ipv6_pim_candidate_rp_cmd,
        "[no] ipv6 pim candidate-rp [{priority (0-255)|interval (1-4294967295)|source <address X:X::X:X|interface IFNAME|loopback$loopback|any$any>}]",

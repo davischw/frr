@@ -807,6 +807,83 @@ int pim_process_no_rp_plist_cmd(struct vty *vty, const char *rp_str,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+int pim_process_rp_alist_cmd(struct vty *vty, const char *rp_str,
+			     const char *access_list, bool fallback)
+{
+	const char *vrfname;
+	char rp_acl_xpath[XPATH_MAXLEN];
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(rp_acl_xpath, sizeof(rp_acl_xpath),
+		 FRR_PIM_STATIC_RP_XPATH "/%saccess-list",
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str, fallback ? "fallback-" : "");
+
+	nb_cli_enqueue_change(vty, rp_acl_xpath, NB_OP_MODIFY, access_list);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
+static bool rp_has_other(const struct lyd_node *dnode, const char *rp_xpath,
+			 const char *fallback)
+{
+	char group_list_xpath[XPATH_MAXLEN + 32];
+	char prefix_list_xpath[XPATH_MAXLEN + 32];
+
+	snprintf(group_list_xpath, sizeof(group_list_xpath), "%s/%sgroup-list",
+		 rp_xpath, fallback ? "" : "fallback-");
+	snprintf(prefix_list_xpath, sizeof(prefix_list_xpath),
+		 "%s/%sprefix-list", rp_xpath, fallback ? "" : "fallback-");
+
+	return yang_dnode_exists(dnode, group_list_xpath)
+		|| yang_dnode_exists(dnode, prefix_list_xpath);
+}
+
+int pim_process_no_rp_alist_cmd(struct vty *vty, const char *rp_str,
+				const char *access_list, const char *fallback)
+{
+	char rp_xpath[XPATH_MAXLEN];
+	char acl_xpath[XPATH_MAXLEN];
+	const char *vrfname;
+	const struct lyd_node *acl_dnode;
+	const char *plist;
+	const char *destroy;
+
+	vrfname = pim_cli_get_vrf_name(vty);
+	if (vrfname == NULL)
+		return CMD_WARNING_CONFIG_FAILED;
+
+	snprintf(rp_xpath, sizeof(rp_xpath), FRR_PIM_STATIC_RP_XPATH,
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str);
+
+	snprintf(acl_xpath, sizeof(acl_xpath),
+		 FRR_PIM_STATIC_RP_XPATH "/%saccess-list",
+		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+		 rp_str, fallback ? "fallback-" : "");
+
+	acl_dnode = yang_dnode_get(vty->candidate_config->dnode, acl_xpath);
+	if (!acl_dnode) {
+		vty_out(vty, "%% Unable to find specified RP\n");
+		return NB_OK;
+	}
+
+	plist = yang_dnode_get_string(acl_dnode, acl_xpath);
+	if (strcmp(access_list, plist)) {
+		vty_out(vty, "%% Unable to find specified RP\n");
+		return NB_OK;
+	}
+
+	destroy = rp_has_other(vty->candidate_config->dnode, rp_xpath,
+			       fallback) ? acl_xpath : rp_xpath;
+	nb_cli_enqueue_change(vty, destroy, NB_OP_DESTROY, NULL);
+
+	return nb_cli_apply_changes(vty, NULL);
+}
+
 bool pim_sgaddr_match(pim_sgaddr item, pim_sgaddr match)
 {
 	return (pim_addr_is_any(match.grp) ||

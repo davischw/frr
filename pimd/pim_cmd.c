@@ -3930,21 +3930,7 @@ DEFPY_YANG (ip_pim_rp_access_list,
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
-	const char *vrfname;
-	char rp_acl_xpath[XPATH_MAXLEN];
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(rp_acl_xpath, sizeof(rp_acl_xpath),
-		 FRR_PIM_STATIC_RP_XPATH "/%saccess-list",
-		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
-		 rp_str, fallback ? "fallback-" : "");
-
-	nb_cli_enqueue_change(vty, rp_acl_xpath, NB_OP_MODIFY, acl);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_rp_alist_cmd(vty, rp_str, acl, !!fallback);
 }
 
 DEFPY_YANG (no_ip_pim_rp,
@@ -4065,43 +4051,7 @@ DEFPY_YANG (no_ip_pim_rp_access_list,
        "group prefix-list filter\n"
        "Name of a prefix-list\n")
 {
-	char rp_xpath[XPATH_MAXLEN];
-	char acl_xpath[XPATH_MAXLEN];
-	const char *vrfname;
-	const struct lyd_node *acl_dnode;
-	const char *plist;
-	const char *destroy;
-
-	vrfname = pim_cli_get_vrf_name(vty);
-	if (vrfname == NULL)
-		return CMD_WARNING_CONFIG_FAILED;
-
-	snprintf(rp_xpath, sizeof(rp_xpath), FRR_PIM_STATIC_RP_XPATH,
-		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
-		 rp_str);
-
-	snprintf(acl_xpath, sizeof(acl_xpath),
-		 FRR_PIM_STATIC_RP_XPATH "/%saccess-list",
-		 "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
-		 rp_str, fallback ? "fallback-" : "");
-
-	acl_dnode = yang_dnode_get(vty->candidate_config->dnode, acl_xpath);
-	if (!acl_dnode) {
-		vty_out(vty, "%% Unable to find specified RP\n");
-		return NB_OK;
-	}
-
-	plist = yang_dnode_get_string(acl_dnode, acl_xpath);
-	if (strcmp(acl, plist)) {
-		vty_out(vty, "%% Unable to find specified RP\n");
-		return NB_OK;
-	}
-
-	destroy = rp_has_other(vty->candidate_config->dnode, rp_xpath,
-			       fallback) ? acl_xpath : rp_xpath;
-	nb_cli_enqueue_change(vty, destroy, NB_OP_DESTROY, NULL);
-
-	return nb_cli_apply_changes(vty, NULL);
+	return pim_process_no_rp_alist_cmd(vty, rp_str, acl, fallback);
 }
 
 DEFPY_YANG (ip_pim_candidate_rp,
