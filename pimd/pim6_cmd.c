@@ -828,7 +828,7 @@ DEFPY (no_ipv6_pim_rp_prefix_list,
 
 DEFPY_YANG (ipv6_pim_rp_access_list,
        ipv6_pim_rp_access_list_cmd,
-       "ip pim rp A.B.C.D [fallback$fallback] access-list WORD$acl",
+       "ipv6 pim rp X:X::X:X$rp [fallback$fallback] access-list WORD$acl",
        IP_STR
        PIM_STR
        "Rendezvous Point\n"
@@ -842,7 +842,7 @@ DEFPY_YANG (ipv6_pim_rp_access_list,
 
 DEFPY_YANG (no_ipv6_pim_rp_access_list,
        no_ipv6_pim_rp_access_list_cmd,
-       "no ip pim rp A.B.C.D [fallback$fallback] access-list WORD$acl",
+       "no ipv6 pim rp X:X::X:X$rp [fallback$fallback] access-list WORD$acl",
        NO_STR
        IP_STR
        PIM_STR
@@ -2513,6 +2513,10 @@ void pim_cmd_init(void)
 	install_element(VRF_NODE, &ipv6_pim_rp_prefix_list_cmd);
 	install_element(CONFIG_NODE, &no_ipv6_pim_rp_prefix_list_cmd);
 	install_element(VRF_NODE, &no_ipv6_pim_rp_prefix_list_cmd);
+	install_element(CONFIG_NODE, &ipv6_pim_rp_access_list_cmd);
+	install_element(VRF_NODE, &ipv6_pim_rp_access_list_cmd);
+	install_element(CONFIG_NODE, &no_ipv6_pim_rp_access_list_cmd);
+	install_element(VRF_NODE, &no_ipv6_pim_rp_access_list_cmd);
 	install_element(CONFIG_NODE, &ipv6_pim_candidate_rp_cmd);
 	install_element(VRF_NODE, &ipv6_pim_candidate_rp_cmd);
 	install_element(CONFIG_NODE, &ipv6_pim_candidate_rp_group_cmd);
