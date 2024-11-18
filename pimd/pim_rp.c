@@ -1856,7 +1856,7 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
 	struct filter_cisco *cfilter;
 	struct access_list *acl;
 
-	acl = access_list_lookup(AFI_IP, rp_info->alist);
+	acl = access_list_lookup(PIM_AFI, rp_info->alist);
 	if (!acl) {
 		if (!json)
 			vty_out(vty, "\t-- access list does not exist\n");
@@ -1864,8 +1864,12 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
 	}
 
 	for (item = acl->head; item; item = item->next) {
-		struct prefix_ipv4 p;
+		struct prefix p;
+#if PIM_IPV == 4
 		struct in_addr mask;
+#else
+		struct in6_addr mask;
+#endif
 
 		if (!item->cisco || !item->u.cfilter.extended) {
 			if (json)
@@ -1880,11 +1884,19 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
 
 		cfilter = &item->u.cfilter;
 
-		p.family = AF_INET;
-		mask = cfilter->sadr.dst_mask;
-		mask.s_addr = ~mask.s_addr;
+		p.family = PIM_AF;
+#if PIM_IPV == 4
+		mask.s_addr = ~cfilter->sadr.dst_mask.s_addr;
 		p.prefixlen = ip_masklen(mask);
-		p.prefix = cfilter->sadr.dst;
+		p.u.prefix4 = cfilter->sadr.dst;
+#else
+		for (unsigned long i = 0; i < sizeof(mask) / 4; i++)
+			mask.s6_addr32[i] =
+				~cfilter->sadr6.dst_mask.s6_addr32[i];
+
+		p.prefixlen = (uint16_t)ip6_masklen(mask);
+		p.u.prefix6 = cfilter->sadr6.dst;
+#endif /* PIM_IPV == 6 */
 		if (json) {
 			char buf[PREFIX_STRLEN];
 			prefix2str(&p, buf, sizeof(buf));
