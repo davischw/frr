@@ -1563,8 +1563,9 @@ static void ospf_abr_announce_stub_defaults(struct ospf *ospf)
 			zlog_debug("%s: looking at area %pI4", __func__,
 				   &area->area_id);
 
-		if ((area->external_routing != OSPF_AREA_STUB)
-		    && (area->external_routing != OSPF_AREA_NSSA))
+		if (!(area->external_routing == OSPF_AREA_STUB
+		      || (area->external_routing == OSPF_AREA_NSSA
+			  && area->no_summary)))
 			continue;
 
 		if (OSPF_IS_AREA_BACKBONE(area))
