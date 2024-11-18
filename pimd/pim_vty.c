@@ -342,7 +342,8 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 
 	if (pim->spt.plist)
 		vty_out(vty,
-			"%sip pim spt-switchover infinity-and-beyond prefix-list %s\n",
+			"%s" PIM_AF_NAME
+			" pim spt-switchover infinity-and-beyond prefix-list %s\n",
 			spaces, pim->spt.plist);
 
 	for (node = route_top(pim->spt.thresh_table); node;
@@ -354,15 +355,21 @@ int pim_global_config_write_worker(struct pim_instance *pim, struct vty *vty)
 
 		switch (cfg->spt_threshold) {
 		case PIM_SPT_THRESH_IMMEDIATE:
-			vty_out(vty, "%sip pim spt-switchover %pFX immediate\n",
+			vty_out(vty,
+				"%s" PIM_AF_NAME
+				" pim spt-switchover %pFX immediate\n",
 				spaces, &node->p);
 			break;
 		case PIM_SPT_THRESH_NEVER:
-			vty_out(vty, "%sip pim spt-switchover %pFX never\n",
+			vty_out(vty,
+				"%s" PIM_AF_NAME
+				" pim spt-switchover %pFX never\n",
 				spaces, &node->p);
 			break;
 		default:
-			vty_out(vty, "%sip pim spt-switchover %pFX %u\n",
+			vty_out(vty,
+				"%s" PIM_AF_NAME
+				" pim spt-switchover %pFX %u\n",
 				spaces, &node->p, cfg->spt_threshold);
 		}
 	}
