@@ -3241,10 +3241,13 @@ static void gm_show_groups(struct vty *vty, struct vrf *vrf, bool uj)
 				json_object_string_addf(json_group, "group",
 							"%pPAs",
 							&sg->sgaddr.grp);
-				json_object_string_add(json_group, "mode",
-						       sg->most_recent->is_excl
-							       ? "EXCLUDE"
-							       : "INCLUDE");
+				json_object_string_add(
+					json_group, "mode",
+					sg->most_recent
+						? (sg->most_recent->is_excl
+							   ? "EXCLUDE"
+							   : "INCLUDE")
+						: "EXCLUDE");
 				json_object_int_add(json_group, "sourcesCount",
 						    gm_group_count_sources(
 							    sg, gm_ifp->sgs));
