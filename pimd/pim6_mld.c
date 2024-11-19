@@ -483,7 +483,9 @@ static void gm_sg_update(struct gm_sg *sg, bool has_expired)
 			THREAD_OFF(sg->t_sg_query);
 			sg->query_sbit = false;
 			/* Trigger the specific queries only for querier. */
-			if (IPV6_ADDR_SAME(&gm_ifp->querier, &pim_ifp->ll_lowest)) {
+			if (!pim_ifp->gmp_immediate_leave &&
+			    IPV6_ADDR_SAME(&gm_ifp->querier,
+					   &pim_ifp->ll_lowest)) {
 				sg->n_query = gm_ifp->cur_lmqc;
 				gm_trigger_specific(sg);
 			}
