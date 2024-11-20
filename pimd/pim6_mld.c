@@ -1175,6 +1175,12 @@ static void gm_handle_v1_leave(struct gm_if *gm_ifp,
 
 	/* nothing more to do here, pass2 is no-op for leaves */
 	gm_subscriber_drop(&subscriber);
+
+#ifdef VENDOR_SOUTHBOUND
+	/* Insert MLD group back if removed */
+	if (pim_southbound_enabled)
+		pimsb_gm_join(gm_ifp->ifp);
+#endif /* VENDOR_SOUTHBOUND */
 }
 
 /* for each general query received (or sent), a timer is started to expire
