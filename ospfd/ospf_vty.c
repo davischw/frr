@@ -30,6 +30,7 @@
 #include "table.h"
 #include "vty.h"
 #include "command.h"
+#include "northbound_cli.h"
 #include "plist.h"
 #include "log.h"
 #include "zclient.h"
@@ -2727,35 +2728,14 @@ DEFPY(ospf_instance_shutdown, ospf_instance_shutdown_cmd,
       "Administrative shutdown\n")
 {
 	VTY_DECLVAR_INSTANCE_CONTEXT(ospf, ospf);
-	struct ospf_area *area;
-	struct ospf_interface *oi;
-	struct listnode *anode, *inode;
+	char base_xpath[XPATH_MAXLEN];
 
-	if (no) {
-		if (ospf->gr_info.restart_support) {
-			/* Reenable routing instance in the GR mode. */
-			ospf_gr_restart_enter(
-				ospf, OSPF_GR_SWITCH_CONTROL_PROCESSOR,
-				time(NULL) + ospf->gr_info.grace_period);
-
-			/*
-			 * RFC 3623 - Section 5 ("Unplanned Outages"):
-			 * "The grace-LSAs are encapsulated in Link State Update
-			 * Packets and sent out to all interfaces, even though
-			 * the restarted router has no adjacencies and no
-			 * knowledge of previous adjacencies".
-			 */
-			for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area))
-				for (ALL_LIST_ELEMENTS_RO(area->oiflist, inode,
-							  oi))
-					ospf_gr_unplanned_start_interface(oi);
-		}
-
-		ospf_shutdown(ospf, false, false);
-	} else
-		ospf_shutdown(ospf, true, !!ospf->gr_info.restart_support);
-
-	return CMD_SUCCESS;
+	snprintf(base_xpath, XPATH_MAXLEN,
+		 "/frr-ospf:ospf/instance[vrf='%s'][id='%u']",
+		 ospf->name ? ospf->name : VRF_DEFAULT_NAME, ospf->instance);
+	nb_cli_enqueue_change(vty, "./shutdown", NB_OP_MODIFY,
+			      no ? "false" : "true");
+	return nb_cli_apply_changes(vty, base_xpath);
 }
 
 DEFUN(ospf_ti_lfa, ospf_ti_lfa_cmd, "fast-reroute ti-lfa [node-protection]",
