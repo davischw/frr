@@ -1301,36 +1301,14 @@ DEFPY(ospf6_instance_shutdown, ospf6_instance_shutdown_cmd,
       "Administrative shutdown\n")
 {
 	VTY_DECLVAR_CONTEXT(ospf6, ospf6);
-	struct ospf6_area *area;
-	struct ospf6_interface *oi;
-	struct listnode *anode, *inode;
+	char base_xpath[XPATH_MAXLEN];
 
-	if (no) {
-		if (ospf6->gr_info.restart_support) {
-			/* Reenable routing instance in the GR mode. */
-			ospf6_gr_restart_enter(
-				ospf6, OSPF6_GR_SWITCH_CONTROL_PROCESSOR,
-				time(NULL) + ospf6->gr_info.grace_period);
-
-			/*
-			 * RFC 3623 - Section 5 ("Unplanned Outages"):
-			 * "The grace-LSAs are encapsulated in Link State Update
-			 * Packets and sent out to all interfaces, even though
-			 * the restarted router has no adjacencies and no
-			 * knowledge of previous adjacencies".
-			 */
-			for (ALL_LIST_ELEMENTS_RO(ospf6->area_list, anode,
-						  area))
-				for (ALL_LIST_ELEMENTS_RO(area->if_list, inode,
-							  oi))
-					ospf6_gr_unplanned_start_interface(oi);
-		}
-
-		ospf6_shutdown(ospf6, false, false);
-	} else
-		ospf6_shutdown(ospf6, true, !!ospf6->gr_info.restart_support);
-
-	return CMD_SUCCESS;
+	snprintf(base_xpath, XPATH_MAXLEN,
+		 "/frr-ospfv3:ospfv3/instance[vrf='%s']",
+		 ospf6->name ? ospf6->name : VRF_DEFAULT_NAME);
+	nb_cli_enqueue_change(vty, "./shutdown", NB_OP_MODIFY,
+			      no ? "false" : "true");
+	return nb_cli_apply_changes(vty, base_xpath);
 }
 
 static void ospf6_show(struct vty *vty, struct ospf6 *o, json_object *json,
