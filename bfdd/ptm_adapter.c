@@ -43,7 +43,6 @@ TAILQ_HEAD(pcnqueue, ptm_client_notification);
 
 struct ptm_client {
 	uint32_t pc_pid;
-	uint32_t pc_proto;
 	struct pcnqueue pc_pcnqueue;
 
 	TAILQ_ENTRY(ptm_client) pc_entry;
@@ -64,7 +63,7 @@ static int _ptm_msg_read(struct stream *msg, int command, vrf_id_t vrf_id,
 			 struct bfd_peer_cfg *bpc, struct ptm_client **pc);
 
 static struct ptm_client *pc_lookup(uint32_t pid);
-static struct ptm_client *pc_new(uint32_t pid, uint32_t proto);
+static struct ptm_client *pc_new(uint32_t pid);
 static void pc_free(struct ptm_client *pc);
 static void pc_free_all(void);
 static struct ptm_client_notification *pcn_new(struct ptm_client *pc,
@@ -146,28 +145,26 @@ static void _ptm_bfd_session_del(struct bfd_session *bs, uint8_t diag)
 	if (bglobal.debug_peer_event)
 		zlog_debug("session-delete: %s", bs_to_string(bs));
 
-	if (bs->refcount > 0)
-		return;
+	/* Change state and notify peer. */
+	bs->ses_state = PTM_BFD_DOWN;
+	bs->local_diag = diag;
+	ptm_bfd_snd(bs, 0);
 
 	/* Session reached refcount == 0, lets delete it. */
-
-	/*
-	 * Sanity check: if there is a refcount bug, we can't delete
-	 * the session a user configured manually. Lets leave a
-	 * message here so we can catch the bug if it exists.
-	 */
-	if (CHECK_FLAG(bs->flags, BFD_SESS_FLAG_CONFIG)) {
-		zlog_err(
-			"ptm-del-session: [%s] session refcount is zero but it was configured by CLI",
-			bs_to_string(bs));
-	} else {
-		/* Change state and notify peer. */
-		bs->ses_state = PTM_BFD_DOWN;
-		bs->local_diag = diag;
-		ptm_bfd_snd(bs, 0);
-
-		control_notify_config(BCM_NOTIFY_CONFIG_DELETE, bs);
-		bfd_session_free(bs);
+	if (bs->refcount == 0) {
+		/*
+		 * Sanity check: if there is a refcount bug, we can't delete
+		 * the session a user configured manually. Lets leave a
+		 * message here so we can catch the bug if it exists.
+		 */
+		if (CHECK_FLAG(bs->flags, BFD_SESS_FLAG_CONFIG)) {
+			zlog_err(
+				"ptm-del-session: [%s] session refcount is zero but it was configured by CLI",
+				bs_to_string(bs));
+		} else {
+			control_notify_config(BCM_NOTIFY_CONFIG_DELETE, bs);
+			bfd_session_free(bs);
+		}
 	}
 }
 
@@ -382,7 +379,7 @@ static int _ptm_msg_read(struct stream *msg, int command, vrf_id_t vrf_id,
 	/* Find or allocate process context data. */
 	STREAM_GETL(msg, pid);
 
-	*pc = pc_new(pid, bpc->bpc_origin_daemon);
+	*pc = pc_new(pid);
 
 	/* Register/update peer information. */
 	_ptm_msg_read_address(msg, &bpc->bpc_peer);
@@ -503,14 +500,7 @@ static void bfdd_dest_register(struct stream *msg, vrf_id_t vrf_id)
 		/*
 		 * BFD session was already created, we are just updating the
 		 * current peer.
-		 */
-
-		/* Update registered daemons in BFD session. */
-		if (bpc.bpc_origin_daemon)
-			SET_FLAG(bs->registered_daemons,
-				 (1 << bpc.bpc_origin_daemon));
-
-		/*
+		 *
 		 * `ptm-bfd` (or `HAVE_BFDD == 0`) is the only implementation
 		 * that allow users to set peer specific timers via protocol.
 		 * BFD daemon (this code) on the other hand only supports
@@ -573,13 +563,11 @@ static void bfdd_dest_deregister(struct stream *msg, vrf_id_t vrf_id)
 static void bfdd_client_register(struct stream *msg)
 {
 	uint32_t pid;
-	uint32_t proto;
 
 	/* Find or allocate process context data. */
 	STREAM_GETL(msg, pid);
-	STREAM_GETL(msg, proto);
 
-	pc_new(pid, proto);
+	pc_new(pid);
 
 	return;
 
@@ -922,7 +910,7 @@ static struct ptm_client *pc_lookup(uint32_t pid)
 	return pc;
 }
 
-static struct ptm_client *pc_new(uint32_t pid, uint32_t proto)
+static struct ptm_client *pc_new(uint32_t pid)
 {
 	struct ptm_client *pc;
 
@@ -935,7 +923,6 @@ static struct ptm_client *pc_new(uint32_t pid, uint32_t proto)
 	pc = XCALLOC(MTYPE_BFDD_CONTROL, sizeof(*pc));
 
 	pc->pc_pid = pid;
-	pc->pc_proto = proto;
 	TAILQ_INSERT_HEAD(&pcqueue, pc, pc_entry);
 	return pc;
 }
@@ -1003,42 +990,25 @@ static struct ptm_client_notification *pcn_lookup(struct ptm_client *pc,
 static void pcn_free(struct ptm_client_notification *pcn)
 {
 	struct ptm_client *pc;
-	struct ptm_client *pc_next;
 	struct bfd_session *bs;
-
-	pc = pcn->pcn_pc;
 
 	/* Handle session de-registration. */
 	bs = pcn->pcn_bs;
 	pcn->pcn_bs = NULL;
 	bs->refcount--;
 
-	/* Deregister daemon in BFD session. */
-	UNSET_FLAG(bs->registered_daemons, (1 << pc->pc_proto));
-
 	/* Log modification to users. */
 	if (bglobal.debug_zebra)
-		zlog_debug("ptm-del-session: (daemon: %s) [%s] refcount=%" PRIu64,
-			   zebra_route_string(pc->pc_proto), bs_to_string(bs),
-			   bs->refcount);
+		zlog_debug("ptm-del-session: [%s] refcount=%" PRIu64,
+			   bs_to_string(bs), bs->refcount);
 
 	/* Set session down. */
 	_ptm_bfd_session_del(bs, BD_NEIGHBOR_DOWN);
 
 	/* Handle ptm_client deregistration. */
+	pc = pcn->pcn_pc;
 	pcn->pcn_pc = NULL;
 	TAILQ_REMOVE(&pc->pc_pcnqueue, pcn, pcn_entry);
+
 	XFREE(MTYPE_BFDD_NOTIFICATION, pcn);
-
-	/* Update session to point to next daemon using it. */
-	TAILQ_FOREACH (pc_next, &pcqueue, pc_entry) {
-		pcn = pcn_lookup(pc_next, bs);
-		if (pcn == NULL)
-			continue;
-
-		/* set daemons name in bs */
-		bs->origin_daemon = pc_next->pc_proto;
-		bfd_dplane_update_session(bs);
-		break;
-	}
 }
