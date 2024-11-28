@@ -28,6 +28,7 @@
 #include "table.h"
 #include "thread.h"
 #include "command.h"
+#include "northbound_cli.h"
 #include "defaults.h"
 #include "lib/json.h"
 #include "lib_errors.h"
