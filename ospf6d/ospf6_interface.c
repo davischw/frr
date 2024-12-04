@@ -1892,11 +1892,6 @@ void ospf6_interface_stop(struct ospf6_interface *oi)
 	listnode_delete(oa->if_list, oi);
 	oi->area = NULL;
 
-	if (oa->if_list->count == 0) {
-		UNSET_FLAG(oa->flag, OSPF6_AREA_ENABLE);
-		ospf6_abr_disable_area(oa);
-	}
-
 	/*
 	 * Check if the interface connected routes need to be redistributed now
 	 * that they are no longer part of the AS.
@@ -1911,6 +1906,11 @@ void ospf6_interface_stop(struct ospf6_interface *oi)
 		zebra_redistribute_send(ZEBRA_REDISTRIBUTE_ADD, zclient,
 					AFI_IP6, ZEBRA_ROUTE_CONNECT, 0,
 					oa->ospf6->vrf_id);
+	}
+
+	if (oa->if_list->count == 0) {
+		ospf6_area_disable(oa);
+		ospf6_area_delete(oa);
 	}
 }
 
