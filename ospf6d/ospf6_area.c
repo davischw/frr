@@ -677,7 +677,7 @@ void ospf6_area_show(struct vty *vty, struct ospf6_area *oa,
 		vty_out(vty, "\n");
 
 		/* SPF Calculations */
-		vty_out(vty, "SPF algorithm executed %d times\n",
+		vty_out(vty, "     SPF algorithm executed %d times\n",
 			oa->spf_calculation);
 		if (oa->ts_spf.tv_sec || oa->ts_spf.tv_usec) {
 			result = monotime_since(&oa->ts_spf, NULL);
