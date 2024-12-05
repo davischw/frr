@@ -98,25 +98,10 @@ void bgp_advertise_free(struct bgp_advertise *adv)
 void bgp_advertise_add(struct bgp_advertise_attr *baa,
 		       struct bgp_advertise *adv)
 {
-	struct bgp_advertise *spot, *prev = NULL;
-
-	spot = baa->adv;
-
-	while (spot) {
-		prev = spot;
-		spot = spot->next;
-	}
-
-	if (prev) {
-		prev->next = adv;
-		adv->prev = prev;
-	} else
-		adv->prev = NULL;
-
-	adv->next = NULL;
-
-	if (!baa->adv)
-		baa->adv = adv;
+	adv->next = baa->adv;
+	if (baa->adv)
+		baa->adv->prev = adv;
+	baa->adv = adv;
 }
 
 void bgp_advertise_delete(struct bgp_advertise_attr *baa,
