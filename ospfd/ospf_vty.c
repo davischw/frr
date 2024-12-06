@@ -11963,6 +11963,118 @@ static void show_ip_ospf_virtual_link_neighbor_json(
 	bfd_sess_show(NULL, json, neighbor->bfd_session);
 }
 
+static void show_ip_ospf_vlink(struct vty *vty, struct ospf *ospf,
+			       json_object *json, bool uj)
+{
+	struct ospf_interface *oi;
+	struct listnode *ospf_node;
+
+	for (ALL_LIST_ELEMENTS_RO(ospf->oiflist, ospf_node, oi)) {
+		struct ospf_vl_data *vlink = oi->vl_data;
+		struct route_node *route_node;
+		const char *state = "down";
+
+		/* Skip non virtual interfaces. */
+		if (vlink == NULL)
+			continue;
+
+		for (route_node = route_top(oi->nbrs); route_node;
+		     route_node = route_next(route_node)) {
+			struct ospf_neighbor *neighbor = route_node->info;
+
+			if (neighbor && neighbor != oi->nbr_self &&
+			    neighbor->state == NSM_Full) {
+				state = "up";
+				break;
+			}
+		}
+
+		if (uj) {
+			json_object *json_vl;
+			char buf[INET_ADDRSTRLEN];
+
+			inet_ntop(AF_INET, &vlink->vl_peer, buf, sizeof(buf));
+			json_vl = json_object_new_object();
+			json_object_object_add(json, buf, json_vl);
+			json_object_string_add(json_vl, "state", state);
+			json_object_int_add(json_vl, "cost", oi->output_cost);
+			inet_ntop(AF_INET, &vlink->vl_area_id, buf,
+				  sizeof(buf));
+			json_object_string_add(json_vl, "transitArea", buf);
+			json_object_int_add(json_vl, "transmitDelay",
+					    OSPF_IF_PARAM(oi, transmit_delay));
+			json_object_int_add(json_vl,
+					    "timerIntervalsConfigHello",
+					    OSPF_IF_PARAM(oi, v_hello));
+			json_object_int_add(json_vl, "timerIntervalsConfigDead",
+					    OSPF_IF_PARAM(oi, v_wait));
+			json_object_int_add(
+				json_vl, "timerIntervalsConfigRetransmit",
+				OSPF_IF_PARAM(oi, retransmit_interval));
+		} else {
+			vty_out(vty, "Virtual Link to router %pI4 is %s\n",
+				&vlink->vl_peer, state);
+			vty_out(vty, "  Cost: %u\n", oi->output_cost);
+			vty_out(vty, "  Transit area: %pI4\n",
+				&vlink->vl_area_id);
+			vty_out(vty, "  Transmit delay: %u\n",
+				OSPF_IF_PARAM(oi, transmit_delay));
+			vty_out(vty, "  Timer intervals configured:\n");
+			vty_out(vty, "   Hello %u, Dead %u, Retransmit %u\n",
+				OSPF_IF_PARAM(oi, v_hello),
+				OSPF_IF_PARAM(oi, v_wait),
+				OSPF_IF_PARAM(oi, retransmit_interval));
+			vty_out(vty, "\n");
+		}
+	}
+}
+
+DEFPY (show_ip_ospf_virtual_link,
+       show_ip_ospf_virtual_link_cmd,
+       "show ip ospf [vrf <NAME|all>] virtual-link [json]",
+       SHOW_STR
+       IP_STR
+       OSPF_STR
+       VRF_CMD_HELP_STR
+       "All VRFs\n"
+       "Virtual link information\n"
+       JSON_STR)
+{
+	bool uj = use_json(argc, argv);
+	struct ospf *ospf;
+	json_object *json = NULL;
+	const char *vrf_name = NULL;
+	struct listnode *node;
+	bool all_vrf = false;
+	int idx_vrf = 0;
+
+	if (uj)
+		json = json_object_new_object();
+
+	OSPF_FIND_VRF_ARGS(argv, argc, idx_vrf, vrf_name, all_vrf);
+	if (!vrf_name)
+		vrf_name = VRF_DEFAULT_NAME;
+
+	for (ALL_LIST_ELEMENTS_RO(om->ospf, node, ospf)) {
+		if (!ospf->oi_running)
+			continue;
+		if (all_vrf || strcmp(ospf->name, vrf_name) == 0) {
+			show_ip_ospf_vlink(vty, ospf, json, uj);
+			if (!all_vrf)
+				break;
+		}
+	}
+
+	if (uj) {
+		vty_out(vty, "%s\n",
+			json_object_to_json_string_ext(
+				json, JSON_C_TO_STRING_PRETTY));
+		json_object_free(json);
+	}
+
+	return CMD_WARNING;
+}
+
 /**
  * Helper function to iterate over neighbors. Returns the neighbor list
  * inside the `json` parameter.
@@ -11970,8 +12082,8 @@ static void show_ip_ospf_virtual_link_neighbor_json(
  * \param json allocated JSON array object.
  * \param ospf the OSPF instance.
  */
-static void show_ip_ospf_virtual_link_json(struct json_object *json,
-					   const struct ospf *ospf)
+static void show_ip_ospf_virtual_link_nbrs_json(struct json_object *json,
+						const struct ospf *ospf)
 {
 	struct ospf_interface *ospf_interface;
 	struct json_object *json_neighbors;
@@ -12026,7 +12138,7 @@ static void show_ip_ospf_virtual_link_json(struct json_object *json,
 	}
 }
 
-DEFPY(show_ip_ospf_virtual_link, show_ip_ospf_virtual_link_cmd,
+DEFPY(show_ip_ospf_virtual_link_nbrs, show_ip_ospf_virtual_link_nbrs_cmd,
       "show ip ospf [vrf <all$vrf_all|NAME$vrf_name>] virtual-link neighbors json",
       SHOW_STR
       IP_STR
@@ -12052,7 +12164,7 @@ DEFPY(show_ip_ospf_virtual_link, show_ip_ospf_virtual_link_cmd,
 				continue;
 
 			json_vrf = json_object_new_object();
-			show_ip_ospf_virtual_link_json(json_vrf, ospf);
+			show_ip_ospf_virtual_link_nbrs_json(json_vrf, ospf);
 			if (ospf->name)
 				vrf_name = ospf->name;
 
@@ -12066,7 +12178,7 @@ DEFPY(show_ip_ospf_virtual_link, show_ip_ospf_virtual_link_cmd,
 		else
 			ospf = ospf_lookup_by_vrf_id(VRF_DEFAULT);
 
-		show_ip_ospf_virtual_link_json(json, ospf);
+		show_ip_ospf_virtual_link_nbrs_json(json, ospf);
 	}
 
 	vty_out(vty, "%s\n", json_object_to_json_string(json));
@@ -13146,8 +13258,9 @@ void ospf_vty_show_init(void)
 	/* "show ip ospf summary-address" command */
 	install_element(VIEW_NODE, &show_ip_ospf_external_aggregator_cmd);
 
-	/* "show ip ospf virtual link" command */
+	/* "show ip ospf virtual link" commands. */
 	install_element(VIEW_NODE, &show_ip_ospf_virtual_link_cmd);
+	install_element(VIEW_NODE, &show_ip_ospf_virtual_link_nbrs_cmd);
 
 	/* Show command for redistributed routes. */
 	install_element(ENABLE_NODE, &show_ospf_redist_cmd);
