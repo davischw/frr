@@ -841,9 +841,9 @@ int ripd_instance_default_bfd_profile_destroy(struct nb_cb_destroy_args *args)
 }
 
 /*
- * XPath: /frr-interface:lib/interface/frr-ripd:rip
+ * XPath: /frr-interface:lib/interface/frr-ripd:rip/enable
  */
-int lib_interface_rip_create(struct nb_cb_create_args *args)
+int lib_interface_rip_enable_modify(struct nb_cb_modify_args *args)
 {
 	struct rip_interface *rip_interface;
 	struct interface *interface;
@@ -853,26 +853,7 @@ int lib_interface_rip_create(struct nb_cb_create_args *args)
 
 	interface = nb_running_get_entry(args->dnode, NULL, true);
 	rip_interface = interface->info;
-	rip_interface->enabled = true;
-
-	/* Only attempt to configure if instance has started. */
-	if (rip_interface->rip)
-		rip_enable_apply_all(rip_interface->rip);
-
-	return NB_OK;
-}
-
-int lib_interface_rip_destroy(struct nb_cb_destroy_args *args)
-{
-	struct rip_interface *rip_interface;
-	struct interface *interface;
-
-	if (args->event != NB_EV_APPLY)
-		return NB_OK;
-
-	interface = nb_running_get_entry(args->dnode, NULL, true);
-	rip_interface = interface->info;
-	rip_interface->enabled = false;
+	rip_interface->enabled = yang_dnode_get_bool(args->dnode, NULL);
 
 	/* Only attempt to configure if instance has started. */
 	if (rip_interface->rip)

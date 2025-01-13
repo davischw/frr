@@ -454,9 +454,14 @@ module frr-ripd {
    */
   augment "/frr-interface:lib/frr-interface:interface" {
     container rip {
-      presence "Present if the RIP protocol is enabled in this interface.";
       description
         "RIP interface parameters.";
+      leaf enable {
+        type boolean;
+        default "false";
+        description
+          "Enable RIP on interface.";
+      }
       leaf split-horizon {
         type enumeration {
           enum "disabled" {

@@ -236,11 +236,10 @@ const struct frr_yang_module_info frr_ripd_info = {
 			},
 		},
 		{
-			.xpath = "/frr-interface:lib/interface/frr-ripd:rip",
+			.xpath = "/frr-interface:lib/interface/frr-ripd:rip/enable",
 			.cbs = {
-				.cli_show = cli_show_lib_interface_rip,
-				.create = lib_interface_rip_create,
-				.destroy = lib_interface_rip_destroy,
+				.cli_show = cli_show_lib_interface_rip_enable,
+				.modify = lib_interface_rip_enable_modify,
 			},
 		},
 		{

@@ -670,13 +670,14 @@ DEFPY_YANG(ip_rip_interface_enable, ip_rip_interface_enable_cmd,
 		return CMD_WARNING_CONFIG_FAILED;
 	}
 
-	nb_cli_enqueue_change(vty, "./frr-ripd:rip",
-			      no ? NB_OP_DESTROY : NB_OP_CREATE, NULL);
+	nb_cli_enqueue_change(vty, "./frr-ripd:rip/enable",
+			      no ? NB_OP_DESTROY : NB_OP_MODIFY, "true");
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-void cli_show_lib_interface_rip(struct vty *vty, const struct lyd_node *dnode,
-				bool show_default)
+void cli_show_lib_interface_rip_enable(struct vty *vty,
+				       const struct lyd_node *dnode,
+				       bool show_default)
 {
 	vty_out(vty, " ip rip\n");
 }
@@ -728,10 +729,10 @@ int ip_rip_interface_network_toggle(struct vty *vty,
 
 				snprintf(
 					xpath, sizeof(xpath),
-					"/frr-interface:lib/interface[name='%s']/frr-ripd:rip",
+					"/frr-interface:lib/interface[name='%s']/frr-ripd:rip/enable",
 					interface->name);
 				nb_cli_enqueue_change(vty_selected, xpath,
-						      NB_OP_CREATE, NULL);
+						      NB_OP_MODIFY, "true");
 				if (nb_cli_apply_changes(vty_selected, NULL) !=
 				    CMD_SUCCESS)
 					return_value = CMD_WARNING;
@@ -787,10 +788,10 @@ int ip_rip_interface_name_toggle(struct vty *vty, const char *name)
 
 			snprintf(
 				xpath, sizeof(xpath),
-				"/frr-interface:lib/interface[name='%s']/frr-ripd:rip",
+				"/frr-interface:lib/interface[name='%s']/frr-ripd:rip/enable",
 				interface->name);
-			nb_cli_enqueue_change(vty_selected, xpath, NB_OP_CREATE,
-					      NULL);
+			nb_cli_enqueue_change(vty_selected, xpath, NB_OP_MODIFY,
+					      "true");
 			if (nb_cli_apply_changes(vty_selected, NULL) !=
 			    CMD_SUCCESS)
 				return_value = CMD_WARNING;
