@@ -1675,6 +1675,7 @@ int ospf_area_no_summary_set(struct ospf *ospf, struct in_addr area_id)
 
 	area = ospf_area_get(ospf, area_id);
 	area->no_summary = 1;
+	ospf_schedule_abr_task(ospf);
 
 	return 1;
 }
@@ -1689,6 +1690,7 @@ int ospf_area_no_summary_unset(struct ospf *ospf, struct in_addr area_id)
 
 	area->no_summary = 0;
 	ospf_area_check_free(ospf, area_id);
+	ospf_schedule_abr_task(ospf);
 
 	return 1;
 }
