@@ -34,6 +34,7 @@
 #include "thread.h"
 #include "log.h"
 #include "memory.h"
+#include "northbound_cli.h"
 #include "lib_vty.h"
 #include "hash.h"
 #include "queue.h"
@@ -4611,20 +4612,24 @@ DEFPY(bgp_shutdown, bgp_shutdown_cmd, "bgp shutdown",
       BGP_STR "Administrative shutdown of the BGP instance\n")
 {
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
+	char base_xpath[XPATH_MAXLEN];
 
-	bgp_shutdown_enable(bgp, NULL);
-
-	return CMD_SUCCESS;
+	snprintf(base_xpath, XPATH_MAXLEN, "/frr-bgpd:bgpd/instance[vrf='%s']",
+		 bgp->name ? bgp->name : VRF_DEFAULT_NAME);
+	nb_cli_enqueue_change(vty, "./shutdown", NB_OP_MODIFY, "true");
+	return nb_cli_apply_changes(vty, base_xpath);
 }
 
 DEFPY(no_bgp_shutdown, no_bgp_shutdown_cmd, "no bgp shutdown",
       NO_STR BGP_STR "Administrative shutdown of the BGP instance\n")
 {
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
+	char base_xpath[XPATH_MAXLEN];
 
-	bgp_shutdown_disable(bgp);
-
-	return CMD_SUCCESS;
+	snprintf(base_xpath, XPATH_MAXLEN, "/frr-bgpd:bgpd/instance[vrf='%s']",
+		 bgp->name ? bgp->name : VRF_DEFAULT_NAME);
+	nb_cli_enqueue_change(vty, "./shutdown", NB_OP_MODIFY, "false");
+	return nb_cli_apply_changes(vty, base_xpath);
 }
 
 ALIAS(no_bgp_shutdown, no_bgp_shutdown_msg_cmd,
