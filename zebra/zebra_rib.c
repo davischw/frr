@@ -394,6 +394,9 @@ int zebra_check_addr(const struct prefix *p)
 		addr = p->u.prefix4.s_addr;
 		addr = ntohl(addr);
 
+		if (IPV4_CLASS_E(addr) && cmd_allow_reserved_ranges_get())
+			return 1;
+
 		if (IPV4_NET127(addr) || IN_CLASSD(addr)
 		    || IPV4_LINKLOCAL(addr))
 			return 0;
