@@ -1444,7 +1444,7 @@ bool ipv4_unicast_valid(const struct in_addr *addr)
 
 	if (IPV4_CLASS_E(ip)) {
 		zlog_debug("%s: class E address ip=%s", __func__,
-			   inet_ntoa(in_addr));
+			   inet_ntoa((*addr)));
 
 		if (cmd_allow_reserved_ranges_get()) {
 			zlog_debug("%s: allow-reserved-ranges",__func__);
