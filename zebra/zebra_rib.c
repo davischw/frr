@@ -394,8 +394,8 @@ int zebra_check_addr(const struct prefix *p)
 		addr = ntohl(p->u.prefix4.s_addr);
 
 		if (IPV4_CLASS_E(addr)) {
-			zlog_debug("%s: class E address ip=%s",
-				   __func__, inet_ntoa(p->u.prefix4));
+			zlog_debug("%s: class E address ip=%pI4", __func__,
+				   &(p->u.prefix4));
 
 			if (cmd_allow_reserved_ranges_get()) {
 				zlog_debug("%s: allow-reserved-ranges",
