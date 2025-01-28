@@ -1442,8 +1442,16 @@ bool ipv4_unicast_valid(const struct in_addr *addr)
 	if (IPV4_CLASS_D(ip))
 		return false;
 
-	if (IPV4_CLASS_E(ip) && cmd_allow_reserved_ranges_get())
+	if (IPV4_CLASS_E(ip)) {
+		zlog_debug("%s: class E address ip=%s", __func__,
+			   inet_ntoa(in_addr));
+
+		if (cmd_allow_reserved_ranges_get()) {
+			zlog_debug("%s: allow-reserved-ranges",__func__);
+		}
+
 		return true;
+	}
 
 	if (IPV4_NET0(ip) || IPV4_NET127(ip) || IPV4_CLASS_E(ip)) {
 		if (cmd_allow_reserved_ranges_get())

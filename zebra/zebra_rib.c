@@ -391,11 +391,19 @@ int zebra_check_addr(const struct prefix *p)
 	if (p->family == AF_INET) {
 		uint32_t addr;
 
-		addr = p->u.prefix4.s_addr;
-		addr = ntohl(addr);
+		addr = ntohl(p->u.prefix4.s_addr);
 
-		if (IPV4_CLASS_E(addr) && cmd_allow_reserved_ranges_get())
+		if (IPV4_CLASS_E(addr)) {
+			zlog_debug("%s: class E address ip=%s",
+				   __func__, inet_ntoa(p->u.prefix4));
+
+			if (cmd_allow_reserved_ranges_get()) {
+				zlog_debug("%s: allow-reserved-ranges",
+					   __func__);
+			}
+
 			return 1;
+		}
 
 		if (IPV4_NET127(addr) || IN_CLASSD(addr)
 		    || IPV4_LINKLOCAL(addr))
