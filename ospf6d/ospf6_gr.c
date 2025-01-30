@@ -62,6 +62,9 @@ static int ospf6_gr_lsa_originate(struct ospf6_interface *oi,
 	uint16_t lsa_length;
 	char buffer[OSPF6_MAX_LSASIZE];
 
+	if (oi->type == OSPF_IFTYPE_VIRTUALLINK)
+		return 0;
+
 	if (IS_OSPF6_DEBUG_ORIGINATE(LINK))
 		zlog_debug("Originate Grace-LSA for Interface %pOI", oi);
 
