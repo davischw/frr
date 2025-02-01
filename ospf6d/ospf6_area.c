@@ -347,8 +347,6 @@ void ospf6_area_delete(struct ospf6_area *oa)
 	struct listnode *n;
 	struct ospf6_interface *oi;
 
-	ospf6_vlink_area_fini(oa);
-
 	/* The ospf6_interface structs store configuration
 	 * information which should not be lost/reset when
 	 * deleting an area.

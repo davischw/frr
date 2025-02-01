@@ -57,6 +57,7 @@
 #include "lib/json.h"
 #include "ospf6_nssa.h"
 #include "ospf6_auth_trailer.h"
+#include "ospf6_vlink.h"
 
 DEFINE_MTYPE_STATIC(OSPF6D, OSPF6_TOP, "OSPF6 top");
 
@@ -599,6 +600,8 @@ void ospf6_delete(struct ospf6 *o)
 
 	ospf6_serv_close(&o->fd);
 
+	for (ALL_LIST_ELEMENTS(o->area_list, node, nnode, oa))
+		ospf6_vlink_area_fini(oa);
 	for (ALL_LIST_ELEMENTS(o->area_list, node, nnode, oa))
 		ospf6_area_delete(oa);
 
