@@ -785,7 +785,7 @@ bool bgp_zebra_nexthop_set(union sockunion *local, union sockunion *remote,
 	 * 127.0.0.1 and 127.0.0.2. In short, allow peering with self
 	 * via 127.0.0.0/8.
 	 */
-	if (!ifp && cmd_allow_reserved_ranges_get())
+	if (!ifp && !cmd_disallow_reserved_ranges_get())
 		ifp = if_get_vrf_loopback(peer->bgp->vrf_id);
 
 	if (!ifp) {
