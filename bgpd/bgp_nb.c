@@ -38,12 +38,15 @@ void bgp_nb_init(void)
 	bgp_nb_vty->node = CONFIG_NODE;
 	bgp_nb_vty->type = VTY_FILE;
 	bgp_nb_vty->config = true;
-	bgp_nb_vty->candidate_config = vty_shared_candidate_config;
 }
 
 static void vty_clear_enqueued_changes(struct vty *vty)
 {
-	/* Clear array of enqueued configuration changes. */
+	/*
+	 * Clear candidate configuration and array of enqueued configuration
+	 * changes.
+	 */
+	nb_config_free(bgp_nb_vty->candidate_config);
 	vty->num_cfg_changes = 0;
 	memset(&vty->cfg_changes, 0, sizeof(vty->cfg_changes));
 }
@@ -54,6 +57,7 @@ void bgp_nb_add_instance(struct bgp *bgp)
 	const char *vrf_name = bgp->name ? bgp->name : VRF_DEFAULT_NAME;
 
 	snprintf(xpath, sizeof(xpath), BGP_NB_INSTANCE_XPATH, vrf_name);
+	bgp_nb_vty->candidate_config = nb_config_dup(running_config);
 	nb_cli_enqueue_change(bgp_nb_vty, xpath, NB_OP_CREATE, NULL);
 	nb_cli_apply_changes(bgp_nb_vty, NULL);
 	vty_clear_enqueued_changes(bgp_nb_vty);
@@ -65,6 +69,7 @@ void bgp_nb_del_instance(struct bgp *bgp)
 	const char *vrf_name = bgp->name ? bgp->name : VRF_DEFAULT_NAME;
 
 	snprintf(xpath, sizeof(xpath), BGP_NB_INSTANCE_XPATH, vrf_name);
+	bgp_nb_vty->candidate_config = nb_config_dup(running_config);
 	nb_cli_enqueue_change(bgp_nb_vty, xpath, NB_OP_DESTROY, NULL);
 	nb_cli_apply_changes(bgp_nb_vty, NULL);
 	vty_clear_enqueued_changes(bgp_nb_vty);

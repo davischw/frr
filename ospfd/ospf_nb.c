@@ -46,12 +46,15 @@ void ospf_nb_init(void)
 	ospf_nb_vty->node = CONFIG_NODE;
 	ospf_nb_vty->type = VTY_FILE;
 	ospf_nb_vty->config = true;
-	ospf_nb_vty->candidate_config = vty_shared_candidate_config;
 }
 
 static void vty_clear_enqueued_changes(struct vty *vty)
 {
-	/* Clear array of enqueued configuration changes. */
+	/*
+	 * Clear candidate configuration and array of enqueued configuration
+	 * changes.
+	 */
+	nb_config_free(ospf_nb_vty->candidate_config);
 	vty->num_cfg_changes = 0;
 	memset(&vty->cfg_changes, 0, sizeof(vty->cfg_changes));
 }
@@ -63,6 +66,7 @@ void ospf_nb_add_instance(struct ospf *o)
 
 	snprintf(xpath, sizeof(xpath), OSPF_NB_INSTANCE_XPATH, vrf_name,
 		 o->instance);
+	ospf_nb_vty->candidate_config = nb_config_dup(running_config);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_CREATE, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
 	vty_clear_enqueued_changes(ospf_nb_vty);
@@ -75,6 +79,7 @@ void ospf_nb_del_instance(struct ospf *o)
 
 	snprintf(xpath, sizeof(xpath), OSPF_NB_INSTANCE_XPATH, vrf_name,
 		 o->instance);
+	ospf_nb_vty->candidate_config = nb_config_dup(running_config);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_DESTROY, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
 	vty_clear_enqueued_changes(ospf_nb_vty);
@@ -88,6 +93,7 @@ void ospf_nb_add_area(struct ospf_area *area)
 
 	snprintfrr(xpath, sizeof(xpath), OSPF_NB_AREA_XPATH, vrf_name,
 		   area->ospf->instance, &area->area_id);
+	ospf_nb_vty->candidate_config = nb_config_dup(running_config);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_CREATE, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
 	vty_clear_enqueued_changes(ospf_nb_vty);
@@ -101,6 +107,7 @@ void ospf_nb_del_area(struct ospf_area *area)
 
 	snprintfrr(xpath, sizeof(xpath), OSPF_NB_AREA_XPATH, vrf_name,
 		   area->ospf->instance, &area->area_id);
+	ospf_nb_vty->candidate_config = nb_config_dup(running_config);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_DESTROY, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
 	vty_clear_enqueued_changes(ospf_nb_vty);
@@ -114,6 +121,7 @@ void ospf_nb_add_interface(struct ospf_interface *oif)
 
 	snprintfrr(xpath, sizeof(xpath), OSPF_NB_INTERFACE_XPATH, vrf_name,
 		   oif->ospf->instance, &oif->area->area_id, oif->ifp->name);
+	ospf_nb_vty->candidate_config = nb_config_dup(running_config);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_CREATE, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
 	vty_clear_enqueued_changes(ospf_nb_vty);
@@ -127,6 +135,7 @@ void ospf_nb_del_interface(struct ospf_interface *oif)
 
 	snprintfrr(xpath, sizeof(xpath), OSPF_NB_INTERFACE_XPATH, vrf_name,
 		   oif->ospf->instance, &oif->area->area_id, oif->ifp->name);
+	ospf_nb_vty->candidate_config = nb_config_dup(running_config);
 	nb_cli_enqueue_change(ospf_nb_vty, xpath, NB_OP_DESTROY, NULL);
 	nb_cli_apply_changes(ospf_nb_vty, NULL);
 	vty_clear_enqueued_changes(ospf_nb_vty);
