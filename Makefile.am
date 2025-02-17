@@ -200,6 +200,7 @@ include ldpd/subdir.am
 include babeld/subdir.am
 include eigrpd/subdir.am
 include sharpd/subdir.am
+include lldpd/subdir.am
 include pimd/subdir.am
 include pbrd/subdir.am
 include staticd/subdir.am
@@ -340,7 +341,7 @@ redistclean:
 	$(MAKE) distclean CONFIG_CLEAN_FILES="$(filter-out $(EXTRA_DIST), $(CONFIG_CLEAN_FILES))"
 
 indent:
-	tools/indent.py `find sharpd bgpd mgmtd eigrpd include isisd lib nhrpd ospf6d ospfd pimd qpb ripd vtysh zebra -name '*.[ch]' | grep -v include/linux`
+	tools/indent.py `find sharpd lldpd bgpd mgmtd eigrpd include isisd lib nhrpd ospf6d ospfd pimd qpb ripd vtysh zebra -name '*.[ch]' | grep -v include/linux`
 
 if HAVE_GCOV
 

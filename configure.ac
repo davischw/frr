@@ -762,6 +762,8 @@ AC_ARG_ENABLE([pbrd],
   AS_HELP_STRING([--disable-pbrd], [do not build pbrd]))
 AC_ARG_ENABLE([sharpd],
   AS_HELP_STRING([--enable-sharpd], [build sharpd]))
+AC_ARG_ENABLE([lldpd],
+  AS_HELP_STRING([--enable-lldpd], [build lldpd]))
 AC_ARG_ENABLE([staticd],
   AS_HELP_STRING([--disable-staticd], [do not build staticd]))
 AC_ARG_ENABLE([fabricd],
@@ -1916,6 +1918,10 @@ AS_IF([test "$enable_sharpd" = "yes"], [
   AC_DEFINE([HAVE_SHARPD], [1], [sharpd])
 ])
 
+AS_IF([test "$enable_lldpd" = "yes"], [
+  AC_DEFINE([HAVE_LLDPD], [1], [lldpd])
+])
+
 AS_IF([test "$enable_staticd" != "no"], [
   AC_DEFINE([HAVE_STATICD], [1], [staticd])
 ])
@@ -2826,6 +2832,7 @@ AM_CONDITIONAL([PIMD], [test "$enable_pimd" != "no"])
 AM_CONDITIONAL([PIM6D], [test "$enable_pim6d" != "no"])
 AM_CONDITIONAL([PBRD], [test "$enable_pbrd" != "no"])
 AM_CONDITIONAL([SHARPD], [test "$enable_sharpd" = "yes"])
+AM_CONDITIONAL([LLDPD], [test "$enable_lldpd" = "yes"])
 AM_CONDITIONAL([STATICD], [test "$enable_staticd" != "no"])
 AM_CONDITIONAL([FABRICD], [test "$enable_fabricd" != "no"])
 AM_CONDITIONAL([VRRPD], [test "$enable_vrrpd" != "no"])
