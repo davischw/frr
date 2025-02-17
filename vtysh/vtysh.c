@@ -110,10 +110,10 @@ static void vtysh_pager_envdef(bool fallback)
 /* --- */
 
 /*
- * When updating this array, remember to change the array size here and in
+ * When updating this array, remember to change array size VTYSH_NUM_CLIENTS in
  * vtysh.h
  */
-struct vtysh_client vtysh_client[] = {
+struct vtysh_client vtysh_client[VTYSH_NUM_CLIENTS] = {
 	{.name = "mgmtd", .flag = VTYSH_MGMTD},
 	{.name = "zebra", .flag = VTYSH_ZEBRA},
 	{.name = "ripd", .flag = VTYSH_RIPD},
@@ -136,6 +136,7 @@ struct vtysh_client vtysh_client[] = {
 	{.name = "vrrpd", .flag = VTYSH_VRRPD},
 	{.name = "pathd", .flag = VTYSH_PATHD},
 	{.name = "pim6d", .flag = VTYSH_PIM6D},
+	{.name = "lldpd", .flag = VTYSH_LLDPD},
 };
 
 /* Searches for client by name, returns index */

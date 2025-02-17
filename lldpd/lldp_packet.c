@@ -31,16 +31,23 @@
 static int lldp_constr_ltv(struct stream *s, int type, unsigned char *TLV, int TLVlen)
 {
 	char buf[512];
-	unsigned char *value = (unsigned char *)(buf + sizeof(struct lldp_tlv));
-	struct lldp_tlv *tlv = (struct lldp_tlv *)buf;
+	unsigned char *value;
+	struct lldp_tlv *tlv;
+
+	value = (unsigned char *)(buf + sizeof(struct lldp_tlv));
+	tlv = (struct lldp_tlv *)buf;
+
 	if ((type > 127) || ((TLVlen > 0) && (NULL == TLV))) {
 		return -1;
 	}
+
 	LLDP_TLV_HDR(tlv, type, TLVlen);
 	memcpy(value, TLV, TLVlen);
 	stream_put(s, buf, TLVlen + sizeof(struct lldp_tlv));
+
 	return (TLVlen + sizeof(struct lldp_tlv));
 }
+
 
 static int lldp_constr_exp_ltv(struct stream *s, int orgtype, int subtype, unsigned char *TLV,
 			       int TLVlen)
@@ -135,6 +142,9 @@ static int lldp_constr_system_ltv(struct lldp_interface *lifp, struct stream *s)
 	lldp_constr_management_address_ltv(lifp, lifp->obuf);
 	return 0;
 }
+
+
+
 static int lldp_constr_org_ltv(struct lldp_interface *lifp, struct stream *s)
 {
 	int len;

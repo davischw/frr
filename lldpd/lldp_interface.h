@@ -1,19 +1,33 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * lldp_interface.h
+ * LLDPd - interface headers.
  *
- *  Created on: Oct 24, 2016
- *      Author: zhurish
+ * Copyright (c) 2016 zhurish
+ * Copyright (c) 2025 Network Device Education Foundation (NetDEF), Inc.
+ *                    David Schweizer
  */
 
-#ifndef LLDPD_LLDP_INTERFACE_H_
-#define LLDPD_LLDP_INTERFACE_H_
+
+#ifndef __LLDPD_LLDP_INTERFACE_H__
+#define __LLDPD_LLDP_INTERFACE_H__
+
+
+#include <zebra.h>
+
+#include "freebsd-queue.h"
+#include "if.h"
+#include "memory.h"
+#include "stream.h"
+#include "vty.h"
 
 
 #define LLDP_MAX_PACKET_SIZE 2048
 
+
 #ifndef ETH_ALEN
 #define ETH_ALEN 6
 #endif
+
 
 /* mode */
 #define LLDP_DISABLE	0 //
@@ -38,11 +52,14 @@
 #define SNAP_FRAME_TYPE 2
 
 
+/* LLDP interface information */
 struct lldp_interface {
 	int mode; /* 使能状态 */
+
 #ifdef LLDP_PROTOCOL_DEBUG
 	int protocol; /* 兼容协议 */
 #endif
+
 	int states;  /* 接口状态 */
 	int frame;   /* LLDP 帧封装格式 */
 	int Changed; /* 本地信息发生变动 */
@@ -59,7 +76,9 @@ struct lldp_interface {
 	unsigned char own_mac[ETH_ALEN];
 	unsigned char dst_mac[ETH_ALEN];
 
+	/* lldpd instance. */
 	struct lldpd *lldpd;
+
 	/* Interface data from zebra. */
 	struct interface *ifp;
 
@@ -68,15 +87,21 @@ struct lldp_interface {
 	struct stream *ibuf;
 	struct stream *obuf;
 	//unsigned char *outbuf;
+
 	/* Threads. */
 	struct thread *t_read;	/* read to output socket. */
 	struct thread *t_write; /* Write to output socket. */
 	struct thread *t_time;	/* Write to output socket. */
 
+	/* Statistics. */
 	int sen_pkts;
 	int rcv_pkts;
 	int err_pkts;
+
+	/* List entry */
+	TAILQ_ENTRY(lldp_interface) entry;
 };
+
 
 enum {
 	LLDP_DST_MAC1,
@@ -85,11 +110,22 @@ enum {
 	LLDP_DST_MAC4,
 	LLDP_DST_MAC_MAX,
 };
+
 extern unsigned char lldp_dst_mac[LLDP_DST_MAC_MAX][ETH_ALEN];
 
-/*lldp_interface.c*/
-extern int lldp_interface_init(void);
 
+extern void lldp_interface_init(void);
+
+extern void lldp_interface_terminate(void);
+
+extern int lldp_interface_add_hook(struct interface *ifp);
+
+extern int lldp_interface_remove_hook(struct interface *ifp);
+
+extern int show_lldp_interface_all(struct vty *vty);
+
+
+/* TODO: check what needs/can be implemented
 //lldp tlv-select basic-tlv (all|port-description|system-capability|system-description|system-name)
 //lldp tlv-select dot1-tlv (all|port-vlan-id|protocol-vlan-id|vlan-name)
 //lldp tlv-select dot3-tlv (all|link-aggregation|mac-physic|max-framc-size|power)
@@ -99,4 +135,10 @@ extern int lldp_interface_init(void);
 //lldp tlv-select network-policy 端口的VLAN-ID 支持的应用，应用的优先级，策了
 //lldp tlv-select power-via-mdi 设备供电能力
 //lldp tlv-select inventory 设备软硬件版本信息等
-#endif /* LLDPD_LLDP_INTERFACE_H_ */
+*/
+
+
+#endif /*__LLDPD_LLDP_INTERFACE_H__ */
+
+
+/* EOF */

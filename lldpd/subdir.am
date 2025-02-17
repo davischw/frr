@@ -6,21 +6,28 @@ if LLDPD
 noinst_LIBRARIES += lldpd/liblldp.a
 sbin_PROGRAMS += lldpd/lldpd
 vtysh_daemons += lldpd
-man8 += $(MANBUILD)/frr-lldpd.8
+#man8 += $(MANBUILD)/frr-lldpd.8 # TODO: doc, man
 endif
 
 
 lldpd_liblldp_a_SOURCES = \
-	lldpd/lldp_interface.c \
 	lldpd/lldp_zebra.c \
-	lldpd/lldp_db.c \
-	lldpd/lldpd.c \
-	lldpd/lldp_neighbor.c \
-	lldpd/lldp_write.c \
-	lldpd/lldp_read.c \
-	lldpd/lldp_packet.c \
-	lldpd/lldp_socket.c \
+	lldpd/lldp_interface.c \
+	lldpd/lldp_vty.c \
+	lldpd/lldp_memory.c \
 	#end
+
+#lldpd_liblldp_a_SOURCES = \
+#	lldpd/lldp_interface.c \
+#	lldpd/lldp_zebra.c \
+#	lldpd/lldp_db.c \
+#	lldpd/lldpd.c \
+#	lldpd/lldp_neighbor.c \
+#	lldpd/lldp_write.c \
+#	lldpd/lldp_read.c \
+#	lldpd/lldp_packet.c \
+#	lldpd/lldp_socket.c \
+#	#end
 
 # TODO: check sources for files referenced here:
 #	priv.c \
@@ -31,15 +38,23 @@ lldpd_liblldp_a_SOURCES = \
 
 noinst_HEADERS += \
 	lldpd/lldpd.h \
-	lldpd/lldp_db.h \
-	lldpd/lldp_neighbor.h \
+	lldpd/lldp_memory.h \
 	lldpd/lldp_interface.h \
-	lldpd/lldp_packet.h \
-	lldpd/lldp_socket.h \
+	lldpd/lldp_vty.h \
 	# end
 
+#noinst_HEADERS += \
+#	lldpd/lldpd.h \
+#	lldpd/lldp_db.h \
+#	lldpd/lldp_neighbor.h \
+#	lldpd/lldp_interface.h \
+#	lldpd/lldp_packet.h \
+#	lldpd/lldp_socket.h \
+#	lldpd/lldp_socket.h \
+#	# end
+
 clippy_scan += \
-	lldpd/lldpd_vty.c \
+	lldpd/lldp_vty.c \
 	# end
 
 lldpd_lldpd_SOURCES = lldpd/lldp_main.c
@@ -48,5 +63,5 @@ lldpd_lldpd_LDADD = lldpd/liblldp.a lib/libfrr.la $(LIBCAP)
 
 # TODO: check sources for files referenced here:
 #lldpctl_SOURCES = lldpctl.c log.c ctl.c
-#lldpctl_LDADD = ../lib/libzebra.la @LIBCAP@
+#lldpctl_LDADD = lib/libfrr.la $(LIBCAP)
 

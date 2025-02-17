@@ -1,53 +1,61 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * lldp_main.c
- *
- *  Created on: Oct 24, 2016
- *      Author: zhurish
+ * LLDP daemon code.
+ * Copyright (c) 2016 zhurish
+ * Copyright (c) 2025 Network Device Education Foundation (NetDEF), Inc.
  */
+
 
 #include <zebra.h>
 
-#include <lib/version.h>
+#include "lib/version.h"
 #include "getopt.h"
-#include "thread.h"
+#include "frr_pthread.h"
+#include "memory.h"
+#include "if.h"
+#include "sigevent.h"
+#include "log.h"
+#include "privs.h"
+#include "zclient.h"
+
+/*
 #include "prefix.h"
 #include "linklist.h"
-#include "if.h"
 #include "vector.h"
 #include "vty.h"
 #include "command.h"
 #include "filter.h"
 #include "plist.h"
 #include "stream.h"
-#include "log.h"
-#include "memory.h"
-#include "privs.h"
-#include "sigevent.h"
-#include "zclient.h"
+*/
 
 #include "lldpd.h"
 #include "lldp_interface.h"
+
+/*
 #include "lldp_neighbor.h"
 #include "lldp_db.h"
 #include "lldp_packet.h"
 #include "lldp_socket.h"
+*/
 
 
 /* Master of threads. */
-struct thread_master *master;
-static const char *pid_file = PATH_LLDPD_PID;
-static char config_default[] = SYSCONFDIR LLDP_DEFAULT_CONFIG;
+struct event_loop *master;
 
-zebra_capabilities_t _caps_p[] = {
+
+/* LLDPd privileges. */
+static zebra_capabilities_t _caps_p[] = {
 	ZCAP_NET_RAW,
 	ZCAP_BIND,
-	ZCAP_NET_ADMIN,
+	ZCAP_NET_ADMIN
 };
 
+
 struct zebra_privs_t lldp_privs = {
-#if defined(QUAGGA_USER) && defined(QUAGGA_GROUP)
-	.user = QUAGGA_USER,
-	.group = QUAGGA_GROUP,
+#if defined(FRR_USER) && defined(FRR_GROUP)
+	.user = FRR_USER,
+	.group = FRR_GROUP,
 #endif
 #if defined(VTY_GROUP)
 	.vty_group = VTY_GROUP,
@@ -57,19 +65,30 @@ struct zebra_privs_t lldp_privs = {
 	.cap_num_i = 0
 };
 
-struct option longopts[] = { { "daemon", no_argument, NULL, 'd' },
-			     { "config_file", required_argument, NULL, 'f' },
-			     { "pid_file", required_argument, NULL, 'i' },
-			     { "socket", required_argument, NULL, 'z' },
-			     { "help", no_argument, NULL, 'h' },
-			     { "vty_addr", required_argument, NULL, 'A' },
-			     { "vty_port", required_argument, NULL, 'P' },
-			     { "user", required_argument, NULL, 'u' },
-			     { "group", required_argument, NULL, 'g' },
-			     { "version", no_argument, NULL, 'v' },
-			     { 0 } };
+/* LLDP daemon information. */
+static struct frr_daemon_info lldpd_di;
+
+
+struct option longopts[] = {};
+/* TODO: longopts
+struct option longopts[] = {
+	{ "daemon", no_argument, NULL, 'd' },
+	{ "config_file", required_argument, NULL, 'f' },
+	{ "pid_file", required_argument, NULL, 'i' },
+	{ "socket", required_argument, NULL, 'z' },
+	{ "help", no_argument, NULL, 'h' },
+	{ "vty_addr", required_argument, NULL, 'A' },
+	{ "vty_port", required_argument, NULL, 'P' },
+	{ "user", required_argument, NULL, 'u' },
+	{ "group", required_argument, NULL, 'g' },
+	{ "version", no_argument, NULL, 'v' },
+	{ 0 }
+};
+*/
+
 
 /* Help information display. */
+/* TODO: replaced by frr_help_exit
 static void __attribute__((noreturn)) usage(char *progname, int status)
 {
 	if (status != 0)
@@ -93,27 +112,39 @@ Report bugs to %s\n",
 	}
 	exit(status);
 }
+*/
+
 
 /* SIGHUP handler. */
 static void sighup(void)
 {
-	zlog(NULL, LOG_INFO, "SIGHUP received");
+	zlog_info("SIGHUP received");
 }
+
 
 /* SIGINT / SIGTERM handler. */
 static void sigint(void)
 {
 	zlog_notice("Terminating on signal");
-	//ospf_terminate ();
+
+	lldp_zebra_terminate();
+
+	lldp_interface_terminate();
+
+	frr_fini();
+
+	exit(0);
 }
+
 
 /* SIGUSR1 handler. */
 static void sigusr1(void)
 {
-	zlog_rotate(NULL);
+	zlog_rotate();
 }
 
-struct quagga_signal_t lldp_signals[] = {
+
+struct frr_signal_t lldp_signals[] = {
 	{
 		.signal = SIGHUP,
 		.handler = &sighup,
@@ -133,8 +164,31 @@ struct quagga_signal_t lldp_signals[] = {
 };
 
 
+/* TODO: yang modules? */
+
+
+/* clang-format off */
+FRR_DAEMON_INFO(lldpd, LLDP,
+	.vty_port = LLDP_VTY_PORT,
+	.proghelp = "Implementation of the link layer discovery protocol.",
+
+	.signals = lldp_signals,
+	.n_signals = array_size(lldp_signals),
+
+	.privs = &lldp_privs,
+
+	/* TODO: yang?
+	.yang_modules = lldpd_yang_modules,
+	.n_yang_modules = array_size(lldpd_yang_modules),
+	*/
+);
+/* clang-format on */
+
+
+
 int main(int argc, char **argv)
 {
+	/* TODO: replace vars with config
 	char *p;
 	char *vty_addr = NULL;
 	int vty_port = LLDP_VTY_PORT;
@@ -142,22 +196,35 @@ int main(int argc, char **argv)
 	char *config_file = NULL;
 	char *progname;
 	struct thread thread;
+	*/
 
+	/* TODO: check if needed: */
 	/* Set umask before anything for security */
+	/*
 	umask(0027);
+	*/
 
 	/* get program name */
-	progname = ((p = strrchr(argv[0], '/')) ? ++p : argv[0]);
+	/*progname = ((p = strrchr(argv[0], '/')) ? ++p : argv[0]);*/
+
+	frr_preinit(&lldpd_di, argc, argv);
+	frr_opt_add("", longopts, "");
 
 	while (1) {
 		int opt;
-		opt = getopt_long(argc, argv, "df:i:z:hA:P:u:g:av", longopts, 0);
+
+		/* TODO: longopts
+		opt = getopt_long(argc, argv, "df:i:z:hA:P:u:g:av");
+		*/
+		opt = frr_getopt(argc, argv, NULL);
+
 		if (opt == EOF)
 			break;
 
 		switch (opt) {
 		case 0:
 			break;
+		/*
 		case 'd':
 			daemon_mode = 1;
 			break;
@@ -195,58 +262,74 @@ int main(int argc, char **argv)
 		case 'h':
 			usage(progname, 0);
 			break;
+		*/
 		default:
-			usage(progname, 1);
+			frr_help_exit(1);
 			break;
 		}
 	}
 
 	/* Invoked by a priviledged user? -- endo. */
+	/* TODO: check if needed
 	if (geteuid() != 0) {
 		errno = EPERM;
 		perror(progname);
 		exit(1);
 	}
+	*/
 
+	/* TODO: check how to replace
 	zlog_default = openzlog(progname, ZLOG_LLDP, LOG_CONS | LOG_NDELAY | LOG_PID, LOG_DAEMON);
+	*/
 
-	master = thread_master_create();
+	master = frr_init();
 
-	/* Library inits. */
+	/*
+	*//* Library inits. *//*
 	zprivs_init(&lldp_privs);
 	signal_init(master, array_size(lldp_signals), lldp_signals);
 	cmd_init(1);
+	*/
 
-	vty_init(master);
+	/*
+	 * vty_init(master);
+	 */
+	lldp_vty_init();
+
+	/*
 	memory_init();
 
 	lldp_config_init();
+	*/
 
 	lldp_interface_init();
 
-	lldp_zclient_init();
+	lldp_zebra_init();
 
-	/* Get configuration file. */
+	/* Get configuration file. *//*
 	vty_read_config(config_file, config_default);
 
-	/* Change to the daemon program. */
+	*//* Change to the daemon program. *//*
 	if (daemon_mode && daemon(0, 0) < 0) {
 		zlog_err("LLDPd daemon failed: %s", strerror(errno));
 		exit(1);
 	}
 
-	/* Process id file create. */
+	*//* Process id file create. *//*
 	pid_output(pid_file);
 
-	/* Create VTY socket */
+	*//* Create VTY socket *//*
 	vty_serv_sock(vty_addr, vty_port, LLDP_VTYSH_PATH);
 
-	/* Print banner. */
+	*//* Print banner. *//*
 	zlog_notice("LLDPd %s starting: vty@%d", QUAGGA_VERSION, vty_port);
 
-	/* Fetch next active thread. */
-	while (thread_fetch(master, &thread))
-		thread_call(&thread);
+	*//* Get configuration file. *//*
+	lldp_vty_init();
+	*/
+
+	frr_config_fork();
+	frr_run(master);
 
 	/* Not reached. */
 	return (0);

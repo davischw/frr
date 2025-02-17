@@ -1,18 +1,23 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * lldpd.h
- *
- *  Created on: Oct 25, 2016
- *      Author: zhurish
+ * LLDPd - lldpd header
+ * Copyright (c) 2016 zhurish
+ * Copyright (c) 2025 Network Device Education Foundation (NetDEF), Inc.
+ *                    David Schweizer
  */
+
 
 #ifndef LLDPD_LLDPD_H_
 #define LLDPD_LLDPD_H_
+
+
+#include "libfrr.h"
+
 
 #define LLDP_DEBUG
 //#define LLDP_DEBUG_TEST
 //#define LLDP_PROTOCOL_DEBUG
 
-#define LLDP_VTY_PORT	    2617
 #define LLDP_DEFAULT_CONFIG "lldpd.conf"
 
 
@@ -54,12 +59,17 @@ struct lldpd {
 	//struct thread *t_reinit_time;
 	//struct lldp_neighbor *tlv_db;
 };
-extern struct thread_master *master;
+
+extern struct event_loop *master;
 extern struct lldpd *lldpd_config;
 
 
 //lldp_zebra.c
-extern void lldp_zclient_init(void);
+extern void lldp_zebra_init(void);
+extern void lldp_zebra_terminate(void);
+
+// lldp_vty.c
+extern void lldp_vty_init(void);
 
 //lldpd.c
 extern int lldp_config_init(void);

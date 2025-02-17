@@ -35,6 +35,7 @@ extern struct event_loop *master;
 #define VTYSH_PATHD     0x80000
 #define VTYSH_PIM6D     0x100000
 #define VTYSH_MGMTD 0x200000
+#define VTYSH_LLDPD 0x400000
 
 #define VTYSH_RCV_BUF_MAX 16777216
 
@@ -50,7 +51,8 @@ extern struct event_loop *master;
 		VTYSH_LDPD | VTYSH_BGPD | VTYSH_ISISD | VTYSH_PIMD |           \
 		VTYSH_PIM6D | VTYSH_NHRPD | VTYSH_EIGRPD | VTYSH_BABELD |      \
 		VTYSH_SHARPD | VTYSH_PBRD | VTYSH_STATICD | VTYSH_BFDD |       \
-		VTYSH_FABRICD | VTYSH_VRRPD | VTYSH_PATHD | VTYSH_MGMTD
+		VTYSH_FABRICD | VTYSH_VRRPD | VTYSH_PATHD | VTYSH_MGMTD |      \
+		VTYSH_LLDPD
 #define VTYSH_ACL_CONFIG                                                       \
 	VTYSH_BFDD | VTYSH_BABELD | VTYSH_BGPD | VTYSH_EIGRPD | VTYSH_ISISD |  \
 		VTYSH_FABRICD | VTYSH_LDPD | VTYSH_NHRPD | VTYSH_OSPF6D |      \
@@ -82,7 +84,7 @@ extern struct event_loop *master;
 	VTYSH_OSPFD | VTYSH_OSPF6D | \
 		VTYSH_ISISD | VTYSH_PIMD | VTYSH_PIM6D | VTYSH_NHRPD |         \
 		VTYSH_EIGRPD | VTYSH_BABELD | VTYSH_PBRD | VTYSH_FABRICD |     \
-		VTYSH_VRRPD | VTYSH_MGMTD
+		VTYSH_VRRPD | VTYSH_MGMTD | VTYSH_LLDPD
 #define VTYSH_INTERFACE VTYSH_INTERFACE_SUBSET | VTYSH_BGPD
 #define VTYSH_VRF	VTYSH_INTERFACE_SUBSET | VTYSH_BGPD
 #define VTYSH_KEYS VTYSH_MGMTD | VTYSH_EIGRPD | VTYSH_OSPF6D | VTYSH_OSPFD
@@ -170,6 +172,10 @@ struct vtysh_client {
 	uint32_t lost_msgs;
 };
 
-extern struct vtysh_client vtysh_client[22];
+
+#define VTYSH_NUM_CLIENTS 23
+
+extern struct vtysh_client vtysh_client[VTYSH_NUM_CLIENTS];
+
 
 #endif /* VTYSH_H */
