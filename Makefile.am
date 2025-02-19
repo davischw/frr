@@ -210,6 +210,7 @@ include vrrpd/subdir.am
 include pceplib/subdir.am
 include pceplib/test/subdir.am
 include pathd/subdir.am
+include rsvpd/subdir.am
 
 include vtysh/subdir.am
 include tests/subdir.am
@@ -292,6 +293,7 @@ EXTRA_DIST += \
 	watchfrr/Makefile \
 	zebra/Makefile \
 	vrrpd/Makefile \
+	rsvpd/Makefile \
 	# end
 
 AM_V_LLVM_BC = $(am__v_LLVM_BC_$(V))
@@ -340,7 +342,7 @@ redistclean:
 	$(MAKE) distclean CONFIG_CLEAN_FILES="$(filter-out $(EXTRA_DIST), $(CONFIG_CLEAN_FILES))"
 
 indent:
-	tools/indent.py `find sharpd bgpd mgmtd eigrpd include isisd lib nhrpd ospf6d ospfd pimd qpb ripd vtysh zebra -name '*.[ch]' | grep -v include/linux`
+	tools/indent.py `find sharpd bgpd mgmtd eigrpd include isisd lib nhrpd ospf6d ospfd pimd qpb ripd rsvpd vtysh zebra -name '*.[ch]' | grep -v include/linux`
 
 if HAVE_GCOV
 

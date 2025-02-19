@@ -1,0 +1,64 @@
+#
+# rsvpd
+#
+
+if RSVPD
+noinst_LIBRARIES += rsvpd/librsvp.a
+sbin_PROGRAMS += rsvpd/rsvpd
+vtysh_daemons += rsvpd
+#man8 += $(MANBUILD)/frr-rsvpd.8
+endif
+
+rsvpd_librsvp_a_SOURCES = \
+	rsvpd/rsvp_zebra.c \
+	# end
+
+#rsvpd_librsvp_a_SOURCES = \
+#	rsvpd/jhash.c \
+#	rsvpd/avl.c \
+#	rsvpd/label_map.c \
+#	rsvpd/labelmgr.c \
+#	rsvpd/mpls_xc.c \
+#	rsvpd/ternary.c \
+#	rsvpd/rsvpd.c \
+#	rsvpd/rsvp_network.c \
+#	rsvpd/rsvp_packet.c \
+#	rsvpd/rsvp_if.c \
+#	rsvpd/rsvp_vty.c \
+#	rsvpd/rsvp_lsp.c \
+#	rsvpd/rsvp_obj.c \
+#	rsvpd/rsvp_state.c \
+#	rsvpd/rsvp_route.c \
+#	rsvpd/rsvp_tunnel.c \
+#	# end
+
+noinst_HEADERS += \
+	rsvpd/rsvpd.h \
+	rsvpd/rsvp_zebra.h \
+	# end
+
+#noinst_HEADERS += \
+#	rsvpd/jhash.h \
+#	rsvpd/avl.h \
+#	rsvpd/label_map.h \
+#	rsvpd/labelmgr.h \
+#	rsvpd/mpls_xc.h \
+#	rsvpd/ternary.h \
+#	rsvpd/rsvp_network.h \
+#	rsvpd/rsvp_packet.h \
+#	rsvpd/rsvp_if.h \
+#	rsvpd/rsvp_vty.h \
+#	rsvpd/rsvp_lsp.h \
+#	rsvpd/rsvp_obj.h \
+#	rsvpd/rsvp_state.h \
+#	rsvpd/rsvp_route.h \
+#	rsvpd/rsvp_tunnel.h \
+#	# end
+
+#clippy_scan += \
+#	rsvpd/rsvp_vty.c \
+#	# end
+
+rsvpd_rsvpd_SOURCES = rsvpd/rsvp_main.c
+rsvpd_rsvpd_LDADD = rsvpd/librsvp.a lib/libfrr.la $(LIBCAP)
+

@@ -20,7 +20,8 @@
 /*---------------------------------------------------------------------------
  * Function Prototypes
  *-------------------------------------------------------------------------*/
-void rsvp_zebra_init(void);
+extern void rsvp_zebra_init(void);
+extern void rsvp_zebra_terminate(void);
 struct interface *if_lookup_by_ipv4(struct in_addr *);
 struct interface *if_lookup_by_ipv4_exact(struct in_addr *);
 #ifdef HAVE_IPV6

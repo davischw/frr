@@ -23,7 +23,6 @@
 //#define zMPLS_RSVPD_VERSION  "0.95 build 01"
 
 /* Default configuration settings for RSVPD. */
-#define RSVPD_VTY_PORT 2619
 //#define RSVPD_VTYSH_PATH		"/tmp/.rsvpd"
 #define RSVPD_DEFAULT_CONFIG "rsvpd.conf"
 
@@ -44,7 +43,7 @@ struct rsvp_master {
 	struct rsvp *rsvp;
 
 	/* RSVP-TE Thread Master. */
-	struct thread_master *master;
+	struct event_loop *master;
 
 	/* RSVP-TE Start Time. */
 	time_t start_time;
@@ -282,8 +281,10 @@ struct rsvp_tunnel_if {
  * the AVL Tree for storing the Tunnels globally and its traverser.
  *--------------------------------------------------------------------------*/
 struct rsvp_tunnel_if_obj {
+	/*
 	struct avl_table *rsvp_tunnel_if_avl_table;
 	struct avl_traverser rsvp_tunnel_if_avl_table_traverser;
+	*/
 };
 
 /*----------------------------------------------------------------------------
@@ -371,7 +372,7 @@ struct rsvp_tunnel_if_obj {
 /*----------------------------------------------------------------------------
  * System wide globals.
  *--------------------------------------------------------------------------*/
-extern struct thread_master *master;
+extern struct event_loop *master;
 extern struct rsvp_master *rm;
 
 /*---------------------------------------------------------------------------
@@ -399,7 +400,7 @@ extern struct rsvp_master *rm;
 void rsvp_master_init(void);
 void rsvp_init(void);
 void rsvp_init_set_complete(void);
-void *rsvp_tunnel_if_obj_init();
+void *rsvp_tunnel_if_obj_init(void);
 
 struct rsvp *rsvp_create(char *);
 
@@ -442,7 +443,6 @@ void rsvp_tunnel_if_path_option_select_active(struct rsvp_tunnel_if *);
 
 /* List iteration macro. */
 //zhurish
-#define MPLS_STR	     "MPLS Information\n"
 #define LDP_STR		     "LDP Information\n"
 #define RSVP_STR	     "RSVP-TE Information\n"
 #define RSVP_TUNNEL_STR	     "Tunnel Information\n"

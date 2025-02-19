@@ -770,6 +770,8 @@ AC_ARG_ENABLE([vrrpd],
   AS_HELP_STRING([--disable-vrrpd], [do not build vrrpd]))
 AC_ARG_ENABLE([pathd],
   AS_HELP_STRING([--disable-pathd], [do not build pathd]))
+AC_ARG_ENABLE([rsvpd],
+  AS_HELP_STRING([--disable-rsvpd], [do not build rsvpd]))
 AC_ARG_ENABLE([bgp-announce],
   AS_HELP_STRING([--disable-bgp-announce], [turn off BGP route announcement]))
 AC_ARG_ENABLE([bgp-vnc],
@@ -1950,6 +1952,10 @@ AS_IF([test "$enable_pathd" != "no"], [
   AC_DEFINE([HAVE_PATHD], [1], [pathd])
 ])
 
+AS_IF([test "$enable_rsvpd" != "no"], [
+  AC_DEFINE([HAVE_RSVPD], [1], [rsvpd])
+])
+
 if test "$ac_cv_lib_json_c_json_object_get" = "no" -a "$BFDD" = "bfdd"; then
   AC_MSG_ERROR(["you must use json-c library to use bfdd"])
 fi
@@ -2832,6 +2838,7 @@ AM_CONDITIONAL([VRRPD], [test "$enable_vrrpd" != "no"])
 AM_CONDITIONAL([PATHD], [test "$enable_pathd" != "no"])
 AM_CONDITIONAL([PATHD_PCEP], [test "$enable_pathd" != "no"])
 AM_CONDITIONAL([DP_DPDK], [test "$enable_dp_dpdk" = "yes"])
+AM_CONDITIONAL([RSVPD], [test "$enable_rsvpd" != "no"])
 
 
 AM_CONDITIONAL([PYTHON_RUNTIME_DEPENDENCY], [test "$enable_python_runtime" != "no"])
