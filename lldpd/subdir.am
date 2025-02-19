@@ -38,8 +38,9 @@ lldpd_liblldp_a_SOURCES = \
 
 noinst_HEADERS += \
 	lldpd/lldpd.h \
-	lldpd/lldp_memory.h \
 	lldpd/lldp_interface.h \
+	lldpd/lldp_memory.h \
+	lldpd/lldp_socket.h \
 	lldpd/lldp_vty.h \
 	# end
 
@@ -49,8 +50,6 @@ noinst_HEADERS += \
 #	lldpd/lldp_neighbor.h \
 #	lldpd/lldp_interface.h \
 #	lldpd/lldp_packet.h \
-#	lldpd/lldp_socket.h \
-#	lldpd/lldp_socket.h \
 #	# end
 
 clippy_scan += \

@@ -44,16 +44,18 @@ int lldp_interface_enable(struct interface *ifp)
 		return CMD_WARNING;
 
 	ret = lldp_interface_socket_init(ifp);
-
 	if (ret <= 0) {
 		lifp->mode = LLDP_DISABLE;
 		zlog_debug("Can't enable lldp on interface %s (create socket error)", ifp->name);
 		return CMD_WARNING;
 	}
+
 	lifp->ibuf = stream_new(LLDP_PACKET_MAX_SIZE);
 	lifp->obuf = stream_new(LLDP_PACKET_MAX_SIZE);
 
+	/* TODO: remove ?
 	LLDP_DEBUG_LOG("%s:%s\n", __func__, ifp->name);
+	*/
 
 	if (lifp->mode & LLDP_WRITE_MODE)
 		lifp->t_time = thread_add_timer(master, lldp_timer, ifp, lifp->lldp_timer);
@@ -68,13 +70,17 @@ int lldp_interface_enable(struct interface *ifp)
 int lldp_interface_disable(struct interface *ifp)
 {
 	struct lldp_interface *lifp;
+
 	if (ifp == NULL)
 		return -1;
+
 	lifp = (struct lldp_interface *)ifp->info;
 	if (lifp == NULL)
 		return -1;
+
 	if (lifp->sock <= 0)
 		return CMD_SUCCESS;
+
 	if (lifp->mode == LLDP_DISABLE) {
 		if (lifp->t_read)
 			thread_cancel(lifp->t_read);
@@ -87,6 +93,7 @@ int lldp_interface_disable(struct interface *ifp)
 		if (lifp->obuf)
 			stream_free(lifp->ibuf);
 	}
+
 	return CMD_SUCCESS;
 }
 
@@ -94,13 +101,17 @@ int lldp_interface_disable(struct interface *ifp)
 int lldp_interface_transmit_enable(struct interface *ifp)
 {
 	struct lldp_interface *lifp;
+
 	if (ifp == NULL)
 		return -1;
+
 	lifp = (struct lldp_interface *)ifp->info;
 	if (lifp == NULL)
 		return -1;
+
 	if (lifp->sock <= 0)
 		return CMD_SUCCESS;
+
 	if (lifp->mode == LLDP_DISABLE) {
 		if (lifp->t_write)
 			thread_cancel(lifp->t_write);
@@ -109,6 +120,7 @@ int lldp_interface_transmit_enable(struct interface *ifp)
 		if (lifp->obuf)
 			stream_free(lifp->ibuf);
 	}
+
 	if (lifp->mode & LLDP_WRITE_MODE) {
 		if (lifp->t_write)
 			thread_cancel(lifp->t_write);
@@ -119,6 +131,7 @@ int lldp_interface_transmit_enable(struct interface *ifp)
 			thread_cancel(lifp->t_time);
 		lifp->t_time = thread_add_timer(master, lldp_timer, ifp, lifp->lldp_timer);
 	}
+
 	return CMD_SUCCESS;
 }
 
@@ -126,24 +139,30 @@ int lldp_interface_transmit_enable(struct interface *ifp)
 int lldp_interface_receive_enable(struct interface *ifp)
 {
 	struct lldp_interface *lifp;
+
 	if (ifp == NULL)
 		return -1;
+
 	lifp = (struct lldp_interface *)ifp->info;
 	if (lifp == NULL)
 		return -1;
+
 	if (lifp->sock <= 0)
 		return CMD_SUCCESS;
+
 	if (lifp->mode == LLDP_DISABLE) {
 		if (lifp->t_read)
 			thread_cancel(lifp->t_read);
 		if (lifp->ibuf)
 			stream_free(lifp->ibuf);
 	}
+
 	if (lifp->mode & LLDP_READ_MODE) {
 		if (lifp->t_read)
 			thread_cancel(lifp->t_read);
 		lifp->t_read = thread_add_read(master, lldp_read, ifp, lifp->sock);
 	}
+
 	return CMD_SUCCESS;
 }
 
@@ -155,18 +174,22 @@ int lldp_check_timer(struct thread *thread)
 	struct listnode *node;
 	struct interface *ifp;
 	struct lldp_interface *lifp;
+
 	config = THREAD_ARG(thread);
 	if (config) {
 		if (lldpd_config->lldp_enable == 0)
 			return CMD_SUCCESS;
+
 		//初始化本地数据库/获取本地数据库并检测是否发生变化
 		local_change = lldp_local_db_init();
+
 		//检测本地信息是否发生变化
 		//检测本地信息发生变化,触发发送LLDP更新报文
 		for (ALL_LIST_ELEMENTS_RO(iflist, node, ifp)) {
 			lifp = ifp->info;
 			if (lifp == NULL)
 				continue;
+
 			if ((lifp->Changed || local_change) &&
 			    (lifp->mode & LLDP_WRITE_MODE)) //端口数据发生变化，或者是系统发生变化
 			{
@@ -176,9 +199,11 @@ int lldp_check_timer(struct thread *thread)
 				lifp->Changed = 0;
 			}
 		}
+
 		config->t_ckeck_time = thread_add_timer(master, lldp_check_timer, config,
 							config->lldp_check_interval);
 	}
+
 	return CMD_SUCCESS;
 }
 
@@ -187,8 +212,13 @@ int lldp_change_event(void)
 {
 	if (lldpd_config->t_ckeck_time)
 		thread_cancel(lldpd_config->t_ckeck_time);
+
 	lldpd_config->t_ckeck_time = thread_add_event(master, lldp_check_timer, lldpd_config, 0);
+
+	/* TODO: remove ?
 	//lldpd_config->t_ckeck_time = thread_add_timer(master, lldp_check_timer, lldpd_config, lldpd_config->lldp_check_interval);
+	*/
+
 	return 0;
 }
 
