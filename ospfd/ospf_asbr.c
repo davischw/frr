@@ -294,9 +294,7 @@ void ospf_asbr_reoriginate(struct ospf *ospf) {
 				if (ei == NULL)
 					continue;
 
-				if (type == ZEBRA_ROUTE_CONNECT
-				    && !ospf_distribute_check_connected(ospf,
-									ei))
+				if (!ospf_redistribute_check(ospf, ei, NULL))
 					continue;
 
 				ospf_external_lsa_originate(ospf, ei);
