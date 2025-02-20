@@ -1,13 +1,21 @@
+/* TODO: licencse */
 /*
- * WPA Supplicant - Layer2 packet handling with Linux packet sockets
- * Copyright (c) 2003-2015, Jouni Malinen <j@w1.fi>
- *
- * This software may be distributed under the terms of the BSD license.
- * See README for more details.
+ * Copyright (c) 2016 zhurish
+ * Copyright (c) 2025 Network Device Education Foundation (NetDEF), Inc.
  */
+
+
+
+
+/* TODO: re-add as needed.
+#include <net/if_arp.h>
+#include <linux/if_ether.h>
+#include <linux/if_packet.h>
+*/
 
 #include <zebra.h>
 
+/* TODO: re-add as needed.
 #include <lib/version.h>
 #include "getopt.h"
 #include "thread.h"
@@ -26,19 +34,21 @@
 #include "sigevent.h"
 #include "sockopt.h"
 #include "zclient.h"
+*/
 
-#include <net/if_arp.h>
-#include <linux/if_ether.h>
-#include <linux/if_packet.h>
-
+/* 
 #include "lldpd.h"
 #include "lldp_interface.h"
 //#include "lldp_db.h"
 #include "lldp_packet.h"
 #include "lldp_socket.h"
+*/
+
 
 extern struct zebra_privs_t lldp_privs;
 
+
+/* TODO: forward port.
 static int lldp_socket_promisc(int fd, struct interface *ifp)
 {
 	struct ifreq ifr;
@@ -61,12 +71,17 @@ static int lldp_socket_promisc(int fd, struct interface *ifp)
 	}
 	return CMD_SUCCESS;
 }
+*/
+
+
+
+/* TODO: forward port
 struct stream *lldp_recv_packet(int fd, struct interface **ifp, struct stream *ibuf)
 {
 	int ret;
 	unsigned int ifindex = 0;
 	struct iovec iov;
-	/* Header and data both require alignment. */
+	*//* Header and data both require alignment. *//*
 	char buff[CMSG_SPACE(SOPT_SIZE_CMSG_IFINDEX_IPV4())];
 	struct msghdr msgh;
 
@@ -86,7 +101,10 @@ struct stream *lldp_recv_packet(int fd, struct interface **ifp, struct stream *i
 	*ifp = if_lookup_by_index(ifindex);
 	return ibuf;
 }
+*/
 
+
+/* TODO: forward port.
 int lldp_write_packet(int fd, struct interface *ifp, struct stream *obuf)
 {
 	int ret = 0;
@@ -119,7 +137,10 @@ int lldp_write_packet(int fd, struct interface *ifp, struct stream *obuf)
 	LLDP_DEBUG_LOG("sendto %x - %d: %s\n", lifp->dst_mac[5], lifp->sock, strerror(errno));
 	return ret;
 }
+*/
 
+
+/* Initialize LLDP interface socket */
 int lldp_interface_socket_init(struct interface *ifp)
 {
 	int sock = 0;
@@ -137,6 +158,7 @@ int lldp_interface_socket_init(struct interface *ifp)
 		LLDP_DEBUG_LOG("%s: socket: %s", __func__, strerror(errno));
 		return -1;
 	}
+
 	//memset(&ll, 0, sizeof(ll));
 	//LLDP_DEBUG_LOG("get %s %d %d",ifp->name,ifp->ifindex,ifr.ifr_ifindex);
 
@@ -161,8 +183,10 @@ int lldp_interface_socket_init(struct interface *ifp)
 			return -1;
 	  }
 	 */
+
 	memset(&ifr, 0, sizeof(ifr));
 	strcpy(ifr.ifr_name, ifp->name);
+
 	if (ioctl(sock, SIOCGIFHWADDR, &ifr) < 0) {
 		if (lldp_privs.change(ZPRIVS_LOWER))
 			zlog_err("%s: could not lower privs, %s", __func__, safe_strerror(errno));
@@ -205,6 +229,8 @@ int lldp_interface_socket_init(struct interface *ifp)
 	return sock;
 }
 
+
+/* TODO: deal with this LLDP_DEBUG_TEST mess. */
 /****************************************************************************************/
 #ifdef LLDP_DEBUG_TEST
 //only test
@@ -448,3 +474,6 @@ int aaa_test()
 	thread_add_timer(master, lldp_raw_write, NULL, 5);
 }
 #endif
+
+
+/* EOF */
