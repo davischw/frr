@@ -48,6 +48,7 @@ Software Foundation, Inc..59 Temple Place - Suite 330, Boston, MA
 
 #include "rsvpd/rsvpd.h"
 #include "rsvpd/rsvp_zebra.h"
+#include "rsvpd/rsvp_vty_example.h"
 
 /*
 //#include "rsvpd/config.h"
@@ -296,6 +297,8 @@ int main(int argc, char **argv)
 	*//* RSVP Related Initialization. *//*
 	rsvp_init();
 	*/
+
+	rsvp_vty_example_init();
 
 	rsvp_zebra_init();
 

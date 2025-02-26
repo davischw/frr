@@ -11,6 +11,7 @@ endif
 
 rsvpd_librsvp_a_SOURCES = \
 	rsvpd/rsvp_zebra.c \
+	rsvpd/rsvp_vty_example.c \
 	# end
 
 #rsvpd_librsvp_a_SOURCES = \
@@ -35,6 +36,7 @@ rsvpd_librsvp_a_SOURCES = \
 noinst_HEADERS += \
 	rsvpd/rsvpd.h \
 	rsvpd/rsvp_zebra.h \
+	rsvpd/rsvp_vty_example.h \
 	# end
 
 #noinst_HEADERS += \
@@ -54,6 +56,10 @@ noinst_HEADERS += \
 #	rsvpd/rsvp_route.h \
 #	rsvpd/rsvp_tunnel.h \
 #	# end
+
+clippy_scan += \
+	rsvpd/rsvp_vty_example.c \
+	# end
 
 #clippy_scan += \
 #	rsvpd/rsvp_vty.c \

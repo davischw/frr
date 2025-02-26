@@ -444,7 +444,6 @@ void rsvp_tunnel_if_path_option_select_active(struct rsvp_tunnel_if *);
 /* List iteration macro. */
 //zhurish
 #define LDP_STR		     "LDP Information\n"
-#define RSVP_STR	     "RSVP-TE Information\n"
 #define RSVP_TUNNEL_STR	     "Tunnel Information\n"
 #define RSVP_TE_STR	     "Traffic-Engg Information\n"
 #define IP_PATH_STR	     "IP Path Information\n"
