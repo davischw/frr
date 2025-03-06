@@ -179,9 +179,9 @@ static int ospfv3_instance_shutdown_modify(struct nb_cb_modify_args *args)
 					ospf6_gr_unplanned_start_interface(oi);
 		}
 
-		ospf6_shutdown(ospf6, false, false);
+		ospf6_shutdown(ospf6, false);
 	} else
-		ospf6_shutdown(ospf6, true, ospf6->gr_info.restart_support);
+		ospf6_shutdown(ospf6, true);
 
 	return NB_OK;
 }

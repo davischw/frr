@@ -343,9 +343,9 @@ static int ospf_instance_shutdown(struct nb_cb_modify_args *args)
 					ospf_gr_unplanned_start_interface(oi);
 		}
 
-		ospf_shutdown(ospf, false, false);
+		ospf_shutdown(ospf, false);
 	} else
-		ospf_shutdown(ospf, true, !!ospf->gr_info.restart_support);
+		ospf_shutdown(ospf, true);
 
 	return NB_OK;
 }

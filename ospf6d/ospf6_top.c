@@ -760,7 +760,7 @@ int ospf6_router_id_update(struct ospf6 *ospf6, bool init)
 	return 1;
 }
 
-void ospf6_shutdown(struct ospf6 *o, bool shutdown, bool graceful)
+void ospf6_shutdown(struct ospf6 *o, bool shutdown)
 {
 	struct listnode *node;
 	struct ospf6_area *oa;
@@ -772,8 +772,6 @@ void ospf6_shutdown(struct ospf6 *o, bool shutdown, bool graceful)
 
 	if (shutdown) {
 		SET_FLAG(o->flag, OSPF6_FLAG_SHUTDOWN);
-		if (graceful)
-			SET_FLAG(o->flag, OSPF6_FLAG_SHUTDOWN_GRACEFUL);
 		for (ALL_LIST_ELEMENTS_RO(o->area_list, node, oa))
 			ospf6_area_disable(oa);
 		ospf6_db_clear(o);

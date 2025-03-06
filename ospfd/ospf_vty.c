@@ -1002,7 +1002,7 @@ static int ospf_vl_set(struct ospf *ospf, struct ospf_vl_config_data *vl_config)
 	return CMD_SUCCESS;
 }
 
-void ospf_shutdown(struct ospf *ospf, bool shutdown, bool graceful)
+void ospf_shutdown(struct ospf *ospf, bool shutdown)
 {
 	struct ospf_area *area;
 	struct ospf_interface *oi;
@@ -1036,8 +1036,6 @@ void ospf_shutdown(struct ospf *ospf, bool shutdown, bool graceful)
 		}
 
 		SET_FLAG(ospf->config, OSPF_SHUTDOWN);
-		if (graceful)
-			SET_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL);
 	} else {
 		UNSET_FLAG(ospf->config, OSPF_SHUTDOWN);
 		UNSET_FLAG(ospf->config, OSPF_SHUTDOWN_GRACEFUL);
