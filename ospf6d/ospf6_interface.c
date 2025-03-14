@@ -1909,8 +1909,11 @@ void ospf6_interface_stop(struct ospf6_interface *oi)
 	}
 
 	if (oa->if_list->count == 0) {
-		ospf6_area_disable(oa);
-		ospf6_area_delete(oa);
+		UNSET_FLAG(oa->flag, OSPF6_AREA_ENABLE);
+		ospf6_abr_disable_area(oa);
+
+		/* Delete area if no interfaces or configuration. */
+		ospf6_area_no_config_delete(oa);
 	}
 }
 
