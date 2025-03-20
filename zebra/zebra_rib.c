@@ -2965,8 +2965,8 @@ static void process_subq_early_route_delete(struct zebra_early_route *ere)
 
 	struct nexthop *nh = NULL;
 
-	if (ere->re->nhe)
-		nh = ere->re->nhe->nhg.nexthop;
+	if (ere->re_nhe)
+		nh = ere->re_nhe->nhg.nexthop;
 
 	/* Lookup same type route. */
 	RNODE_FOREACH_RE (rn, re) {
@@ -2987,7 +2987,8 @@ static void process_subq_early_route_delete(struct zebra_early_route *ere)
 			continue;
 		if ((re->type == ZEBRA_ROUTE_CONNECT ||
 		     re->type == ZEBRA_ROUTE_LOCAL) &&
-		    (rtnh = nh) && rtnh->type == NEXTHOP_TYPE_IFINDEX && nh) {
+		    (rtnh = re->nhe->nhg.nexthop) &&
+		    rtnh->type == NEXTHOP_TYPE_IFINDEX && nh) {
 			if (rtnh->ifindex != nh->ifindex)
 				continue;
 			same = re;
