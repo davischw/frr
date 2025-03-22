@@ -437,8 +437,13 @@ bool aspath_check_as_sets(struct aspath *aspath)
 /* Check if aspath has BGP_AS_ZERO */
 bool aspath_check_as_zero(struct aspath *aspath)
 {
-	struct assegment *seg = aspath->segments;
+	struct assegment *seg;
 	unsigned int i;
+
+	if (!aspath)
+		return false;
+
+	seg = aspath->segments;
 
 	while (seg) {
 		for (i = 0; i < seg->length; i++)

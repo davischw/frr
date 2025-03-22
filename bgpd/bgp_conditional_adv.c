@@ -77,7 +77,6 @@ static void bgp_advmaps_evaluate(struct bgp_table *table, struct peer *peer,
 	struct bgp_dest *dest;
 	struct peer_af *paf = NULL;
 	struct update_subgroup *subgrp = NULL;
-	struct attr advmap_attr = {0};
 	struct bgp_filter *filter = &peer->filter[afi][safi];
 	struct bgp_filter *pg_filter =
 		peer->group ? &peer->group->conf->filter[afi][safi] : NULL;
@@ -166,7 +165,7 @@ static void bgp_advmaps_evaluate(struct bgp_table *table, struct peer *peer,
 		struct bgp_path_info *pi;
 		struct bgp_path_info path;
 		const struct prefix *dest_p;
-		struct attr dummy_attr = {0}, attr = {0};
+		struct attr advmap_attr = {0}, attr = {0};
 		struct bgp_path_info_extra path_extra = {0};
 		route_map_result_t ret;
 
@@ -178,22 +177,21 @@ static void bgp_advmaps_evaluate(struct bgp_table *table, struct peer *peer,
 			struct bgp_advmap *p_advmap;
 			struct bgp_advmap *pg_advmap = NULL;
 			enum update_type update_type;
-			advmap_attr = *pi->attr;
 
 			p_advmap = bgp_advmaps_first(filter->advmaps);
 			if (peer->group && pg_filter)
 				pg_advmap =
 					bgp_advmaps_first(pg_filter->advmaps);
 
-			dummy_attr = *pi->attr;
-
-			/* Fill temp path_info */
-			prep_for_rmap_apply(&path, &path_extra, dest, pi,
-					    pi->peer, &advmap_attr);
-
-			RESET_FLAG(advmap_attr.rmap_change_flags);
-
 			while (p_advmap || pg_advmap) {
+				advmap_attr = *pi->attr;
+
+				/* Fill temp path_info */
+				prep_for_rmap_apply(&path, &path_extra, dest,
+						    pi, pi->peer, &advmap_attr);
+
+				RESET_FLAG(advmap_attr.rmap_change_flags);
+
 				if ((p_advmap && pg_advmap &&
 				     p_advmap->seqno > pg_advmap->seqno) ||
 				    !p_advmap) {
@@ -209,9 +207,10 @@ static void bgp_advmaps_evaluate(struct bgp_table *table, struct peer *peer,
 				assert(now);
 
 				ret = route_map_apply(now->amap, dest_p, &path);
-				bgp_attr_flush(&dummy_attr);
 
-				if (ret == RMAP_PERMITMATCH)
+				if (ret != RMAP_PERMITMATCH)
+					bgp_attr_flush(&advmap_attr);
+				else
 					break;
 
 				now = NULL;
