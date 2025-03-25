@@ -183,7 +183,13 @@ int ospf6_sendmsg(struct in6_addr *src, struct in6_addr *dst, ifindex_t ifindex,
 	assert(dst);
 
 #ifdef VENDOR_SOUTHBOUND
-	if (ospf6_southbound_enabled)
+	/*
+	 * Send only multicast packets via southbound.
+	 *
+	 * When the interface index is not set it means we want to send
+	 * unicast packet and so the southbound is not necessary.
+	 */
+	if (ospf6_southbound_enabled && ifindex != 0)
 		return ospf6_sb_sendmsg(ospf6, src, dst, ifindex, message,
 					ospf6_sock);
 #endif /* VENDOR_SOUTHBOUND */
