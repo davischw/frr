@@ -1849,7 +1849,7 @@ void pim_rp_show_information(struct pim_instance *pim, struct prefix *range,
 	}
 }
 
-static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
+static void pim_rpinfo_show_alist(struct ttable *tt, struct rp_info *rp_info,
 				  json_object *json, const struct prefix *range)
 {
 	struct filter *item;
@@ -1857,11 +1857,8 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
 	struct access_list *acl;
 
 	acl = access_list_lookup(PIM_AFI, rp_info->alist);
-	if (!acl) {
-		if (!json)
-			vty_out(vty, "\t-- access list does not exist\n");
+	if (!acl)
 		return;
-	}
 
 	for (item = acl->head; item; item = item->next) {
 		struct prefix p;
@@ -1875,10 +1872,9 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
 			if (json)
 				continue;
 
-			vty_out(vty,
-				"\t-- INVALID ENTRY: seq %" PRId64
-				" is not an extended access-list item!\n",
-				item->seq);
+			ttable_add_row(
+				tt, "%pPA|(invalid entry seq %" PRIu64 ")||||",
+				&rp_info->rp.rpf_addr, item->seq);
 			continue;
 		}
 
@@ -1903,7 +1899,8 @@ static void pim_rpinfo_show_alist(struct vty *vty, struct rp_info *rp_info,
 			json_object_array_add(json,
 					      json_object_new_string(buf));
 		} else
-			vty_out(vty, "\t%pFX\n", &p);
+			ttable_add_row(tt, "%pPA|%pFX||||",
+				       &rp_info->rp.rpf_addr, &p);
 	}
 }
 
@@ -2084,7 +2081,7 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 				json_object_object_add(json_row,
 						       "accessListContents",
 						       json_aclrules);
-				pim_rpinfo_show_alist(vty, rp_info,
+				pim_rpinfo_show_alist(tt, rp_info,
 						      json_aclrules, range);
 			} else
 				json_object_string_add(json_row, "group", grp);
@@ -2109,8 +2106,7 @@ static void pim_rp_show_info_list(struct pim_instance *pim,
 					  source, group_type);
 
 			if (rp_info->alist)
-				pim_rpinfo_show_alist(vty, rp_info, json,
-						      range);
+				pim_rpinfo_show_alist(tt, rp_info, json, range);
 		}
 	}
 }
