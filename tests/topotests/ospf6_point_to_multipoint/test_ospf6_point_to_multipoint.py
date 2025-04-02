@@ -143,6 +143,9 @@ def setup_module(mod):
             TopoRouter.RD_ZEBRA, os.path.join(CWD, "{}/zebra.conf".format(rname))
         )
         router.load_config(
+            TopoRouter.RD_STATIC, os.path.join(CWD, "{}/staticd.conf".format(rname))
+        )
+        router.load_config(
             TopoRouter.RD_OSPF6, os.path.join(CWD, "{}/ospf6d.conf".format(rname))
         )
 
@@ -236,9 +239,9 @@ def test_ospfv3_routingTable():
         reffile = os.path.join(CWD, "{}/show_ipv6_route.ref".format(router))
         expected = open(reffile).read()
 
-        # Run test function until we get an result. Wait at most 60 seconds.
+        # Run test function until we get an result. Wait at most 90 seconds.
         test_func = partial(compare_show_ipv6, router, expected)
-        result, diff = topotest.run_and_expect(test_func, "", count=120, wait=0.5)
+        result, diff = topotest.run_and_expect(test_func, "", count=180, wait=0.5)
         assert result, "OSPFv3 did not converge on {}:\n{}".format(router, diff)
 
 

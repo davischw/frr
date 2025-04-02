@@ -832,6 +832,53 @@ def ip6_route_zebra(node, vrf_name=None):
     return "\n".join(lines)
 
 
+def ip6_route_zebra_json(node, vrf_name=None):
+    """
+    Retrieves the output of 'show ipv6 route [vrf vrf_name] json', then
+    canonicalizes it by masking timestamps and link-local addresses.
+    """
+
+    json_routes = None
+    tmp = None
+
+    if vrf_name == None:
+        tmp = node.vtysh_cmd("show ipv6 route json")
+    else:
+        tmp = node.vtysh_cmd("show ipv6 route vrf {0} json".format(vrf_name))
+
+    if isinstance(tmp, str) and tmp:
+        json_routes = json.loads(tmp)
+
+        for _, route_entries in json_routes.items():
+            if isinstance(route_entries, list):
+                for route_entry in route_entries:
+                    if isinstance(route_entry, dict):
+                        # Mask out timestamp
+                        if "uptime" in route_entry:
+                            if isinstance(route_entry["uptime"], str):
+                                route_entry["uptime"] = re.sub(
+                                    r"[0-2][0-9]:[0-5][0-9]:[0-5][0-9]",
+                                    "XX:XX:XX",
+                                    route_entry["uptime"]
+                                )
+
+                        # Mask out the link-local addresses
+                        if "nexthops" in route_entry:
+                            nexthops = route_entry["nexthops"]
+                            if isinstance(nexthops, list):
+                                for nexthop in nexthops:
+                                    if isinstance(nexthop, dict):
+                                        if "afi" in nexthop:
+                                            if nexthop["afi"] == "ipv6":
+                                                if "ip" in nexthop:
+                                                    nexthop["ip"] = re.sub(
+                                                        r"fe80::[^ ]+",
+                                                        "fe80::XXXX:XXXX:XXXX:XXXX",
+                                                        nexthop["ip"]
+                                                    )
+    return json_routes
+
+
 def proto_name_to_number(protocol):
     return {
         "bgp": "186",
