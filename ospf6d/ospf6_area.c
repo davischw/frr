@@ -379,6 +379,9 @@ void ospf6_area_delete(struct ospf6_area *oa)
 	ospf6_route_table_delete(oa->summary_router);
 
 	listnode_delete(oa->ospf6->area_list, oa);
+
+	if (oa->ospf6->backbone == oa)
+		oa->ospf6->backbone = NULL;
 	oa->ospf6 = NULL;
 
 	/* free area */
