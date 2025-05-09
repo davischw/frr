@@ -1,0 +1,548 @@
+{
+    "::/0": [
+        {
+            "prefix": "::/0",
+            "prefixLen": 0,
+            "protocol": "kernel",
+            "vrfId": 0,
+            "vrfName": "default",
+            "selected": true,
+            "destSelected": true,
+            "distance": 0,
+            "metric": 600,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 8,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 30,
+            "installedNexthopGroupId": 30,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "ip": "fe80::5876:c1ff:fefc:a1b",
+                    "afi": "ipv6",
+                    "interfaceIndex": 3,
+                    "interfaceName": "wlp0s20f3",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        }
+    ],
+    "2a02:169:59c5::/48": [
+        {
+            "prefix": "2a02:169:59c5::/48",
+            "prefixLen": 48,
+            "protocol": "kernel",
+            "vrfId": 0,
+            "vrfName": "default",
+            "selected": true,
+            "destSelected": true,
+            "distance": 0,
+            "metric": 600,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 8,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 30,
+            "installedNexthopGroupId": 30,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "ip": "fe80::5876:c1ff:fefc:a1b",
+                    "afi": "ipv6",
+                    "interfaceIndex": 3,
+                    "interfaceName": "wlp0s20f3",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        }
+    ],
+    "2a02:169:59c5::/64": [
+        {
+            "prefix": "2a02:169:59c5::/64",
+            "prefixLen": 64,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "selected": true,
+            "destSelected": true,
+            "distance": 0,
+            "metric": 600,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 8,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 18,
+            "installedNexthopGroupId": 18,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 3,
+                    "interfaceName": "wlp0s20f3",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        }
+    ],
+    "2a02:169:59c5::3a7/128": [
+        {
+            "prefix": "2a02:169:59c5::3a7/128",
+            "prefixLen": 128,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "distance": 0,
+            "metric": 600,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 0,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 18,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 3,
+                    "interfaceName": "wlp0s20f3",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "prefix": "2a02:169:59c5::3a7/128",
+            "prefixLen": 128,
+            "protocol": "local",
+            "vrfId": 0,
+            "vrfName": "default",
+            "selected": true,
+            "destSelected": true,
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 8,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 18,
+            "installedNexthopGroupId": 18,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 3,
+                    "interfaceName": "wlp0s20f3",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        }
+    ],
+    "2a02:169:59c5:0:538b:2afb:deca:5ee7/128": [
+        {
+            "prefix": "2a02:169:59c5:0:538b:2afb:deca:5ee7/128",
+            "prefixLen": 128,
+            "protocol": "local",
+            "vrfId": 0,
+            "vrfName": "default",
+            "selected": true,
+            "destSelected": true,
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 8,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 18,
+            "installedNexthopGroupId": 18,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 3,
+                    "interfaceName": "wlp0s20f3",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        }
+    ],
+    "fd00:192:168:80::/64": [
+        {
+            "prefix": "fd00:192:168:80::/64",
+            "prefixLen": 64,
+            "protocol": "kernel",
+            "vrfId": 0,
+            "vrfName": "default",
+            "selected": true,
+            "destSelected": true,
+            "distance": 0,
+            "metric": 600,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 8,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 18,
+            "installedNexthopGroupId": 18,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 3,
+                    "interfaceName": "wlp0s20f3",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        }
+    ],
+    "fd00:192:168:80::3a7/128": [
+        {
+            "prefix": "fd00:192:168:80::3a7/128",
+            "prefixLen": 128,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "distance": 0,
+            "metric": 600,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 0,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 18,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 3,
+                    "interfaceName": "wlp0s20f3",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "prefix": "fd00:192:168:80::3a7/128",
+            "prefixLen": 128,
+            "protocol": "local",
+            "vrfId": 0,
+            "vrfName": "default",
+            "selected": true,
+            "destSelected": true,
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 8,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 18,
+            "installedNexthopGroupId": 18,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 3,
+                    "interfaceName": "wlp0s20f3",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        }
+    ],
+    "fe80::/64": [
+        {
+            "prefix": "fe80::/64",
+            "prefixLen": 64,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 0,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 19,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 30,
+                    "interfaceName": "vnet16",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "prefix": "fe80::/64",
+            "prefixLen": 64,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 0,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 20,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 29,
+                    "interfaceName": "vnet15",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "prefix": "fe80::/64",
+            "prefixLen": 64,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 0,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 21,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 28,
+                    "interfaceName": "vnet14",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "prefix": "fe80::/64",
+            "prefixLen": 64,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 0,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 22,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 27,
+                    "interfaceName": "vnet13",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "prefix": "fe80::/64",
+            "prefixLen": 64,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 0,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 23,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 26,
+                    "interfaceName": "vnet12",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "prefix": "fe80::/64",
+            "prefixLen": 64,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 0,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 24,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 25,
+                    "interfaceName": "vnet11",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "prefix": "fe80::/64",
+            "prefixLen": 64,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 0,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 25,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 24,
+                    "interfaceName": "vnet10",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "prefix": "fe80::/64",
+            "prefixLen": 64,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 0,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 26,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 23,
+                    "interfaceName": "vnet9",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        },
+        {
+            "prefix": "fe80::/64",
+            "prefixLen": 64,
+            "protocol": "connected",
+            "vrfId": 0,
+            "vrfName": "default",
+            "selected": true,
+            "destSelected": true,
+            "distance": 0,
+            "metric": 0,
+            "installed": true,
+            "table": 254,
+            "internalStatus": 16,
+            "internalFlags": 8,
+            "internalNextHopNum": 1,
+            "internalNextHopActiveNum": 1,
+            "nexthopGroupId": 27,
+            "installedNexthopGroupId": 27,
+            "uptime": "00:03:27",
+            "nexthops": [
+                {
+                    "flags": 3,
+                    "fib": true,
+                    "directlyConnected": true,
+                    "interfaceIndex": 22,
+                    "interfaceName": "vnet8",
+                    "active": true,
+                    "weight": 1
+                }
+            ]
+        }
+    ]
+}
