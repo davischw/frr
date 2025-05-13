@@ -582,7 +582,7 @@ DEFPY_YANG(
 
 	/* If the user provided sequence number, then just go for it. */
 	if (seq_str != NULL)
-		return acl_remove(vty, "ipv4", name, seq);
+		return acl_remove(vty, "ipv6", name, seq);
 
 	/* Otherwise, to keep compatibility, we need to figure it out. */
 	ada.ada_type = "ipv6";
@@ -627,7 +627,7 @@ DEFPY_YANG(
 	else
 		return CMD_WARNING_CONFIG_FAILED;
 
-	return acl_remove(vty, "ipv4", name, sseq);
+	return acl_remove(vty, "ipv6", name, sseq);
 }
 
 /*
