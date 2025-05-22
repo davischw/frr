@@ -248,8 +248,8 @@ template <typename Q, typename S> class UnaryRpcState : public RpcStateBase
 	UnaryRpcState(Candidates *cdb, reqfunc_t rfunc,
 		      grpc::Status (*cb)(UnaryRpcState<Q, S> *),
 		      const char *name)
-	    : RpcStateBase(name), cdb(cdb), requestf(rfunc), callback(cb),
-	      responder(&ctx){};
+	    : RpcStateBase(name), cdb(cdb), responder(&ctx), callback(cb),
+	      requestf(rfunc){};
 
 	void do_request(::frr::Northbound::AsyncService *service,
 			::grpc::ServerCompletionQueue *cq,
@@ -300,8 +300,8 @@ class StreamRpcState : public RpcStateBase
 
 	StreamRpcState(reqsfunc_t rfunc, bool (*cb)(StreamRpcState<Q, S, X> *),
 		       const char *name)
-	    : RpcStateBase(name), requestsf(rfunc), callback(cb),
-	      async_responder(&ctx){};
+	    : RpcStateBase(name), async_responder(&ctx), callback(cb),
+	      requestsf(rfunc){};
 
 	void do_request(::frr::Northbound::AsyncService *service,
 			::grpc::ServerCompletionQueue *cq,
