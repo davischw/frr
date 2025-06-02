@@ -16380,11 +16380,11 @@ static bool print_local_route_detailed(struct vty *vty,
 		args->attr = *path->attr;
 
 		if (!bgp_rib_in_filter_entry(args, path, rib_args)) {
-			if (!first_route) {
-				vty_out(vty, ",\n");
-				first_route = false;
-			}
 			if (first_path) {
+				if (!first_route) {
+					vty_out(vty, ",\n");
+					first_route = false;
+				}
 				vty_out(vty, "\"%pFX\":[{", args->prefix);
 				first_path = false;
 			}
