@@ -13278,6 +13278,8 @@ static void bgp_show_peer(struct vty *vty, struct peer *p, bool use_json,
 					    : bgp->default_keepalive * 1000);
 		json_object_int_add(json_neigh, "bgpTimerHoldTimeMsecs",
 				    p->v_holdtime * 1000);
+		json_object_int_add(json_neigh, "bgpTimerSendHoldTimeMsecs",
+				    p->v_holdtime * 1000 * 2);
 		json_object_int_add(json_neigh,
 				    "bgpTimerKeepAliveIntervalMsecs",
 				    p->v_keepalive * 1000);
