@@ -66,15 +66,28 @@ route_match_metric(void *rule, const struct prefix *prefix, void *object)
 static void *route_match_metric_compile(const char *arg)
 {
 	uint32_t *metric;
+	long long value;
+	char *endp;
+
+	errno = 0;
+	value = strtoll(arg, &endp, 10);
+	/* Empty string */
+	if (value == 0 && arg == endp)
+		return NULL;
+	/* Invalid number with garbage at the end */
+	if (*endp != '\0')
+		return NULL;
+	/* Number overflowed or underflowed */
+	if ((value == LLONG_MIN || value == LLONG_MAX) && errno == ERANGE)
+		return NULL;
+	/* Overflowed destination variable */
+	if (value > UINT32_MAX)
+		return NULL;
 
 	metric = XMALLOC(MTYPE_ROUTE_MAP_COMPILED, sizeof(uint32_t));
-	*metric = atoi(arg);
+	*metric = (uint32_t)value;
 
-	if (*metric > 0)
-		return metric;
-
-	XFREE(MTYPE_ROUTE_MAP_COMPILED, metric);
-	return NULL;
+	return metric;
 }
 
 /* Free route map's compiled `match metric' value. */
