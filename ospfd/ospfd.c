@@ -737,8 +737,10 @@ static void ospf_finish_final(struct ospf *ospf)
 
 	ospf_opaque_finish();
 
-	if (!ospf->gr_info.prepare_in_progress)
+	if (!ospf->gr_info.prepare_in_progress) {
 		ospf_flush_self_originated_lsas_now(ospf);
+		ospf_gr_nvm_delete(ospf);
+	}
 	XFREE(MTYPE_TMP, ospf->gr_info.exit_reason);
 
 	/* Unregister redistribution */

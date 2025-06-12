@@ -590,8 +590,10 @@ void ospf6_delete(struct ospf6 *o)
 	QOBJ_UNREG(o);
 
 	ospf6_gr_helper_deinit(o);
-	if (!o->gr_info.prepare_in_progress)
+	if (!o->gr_info.prepare_in_progress) {
 		ospf6_flush_self_originated_lsas_now(o);
+		ospf6_gr_nvm_delete(o);
+	}
 	XFREE(MTYPE_TMP, o->gr_info.exit_reason);
 	ospf6_disable(o);
 	ospf6_del(o);
