@@ -1586,8 +1586,12 @@ DEFUN(no_debug_ospf_ldp_sync,
 DEFPY(debug_ospf_gr, debug_ospf_gr_cmd, "[no$no] debug ospf graceful-restart",
       NO_STR DEBUG_STR OSPF_STR "OSPF Graceful Restart\n")
 {
-	if (vty->node == CONFIG_NODE)
-		CONF_DEBUG_ON(gr, GR);
+	if (vty->node == CONFIG_NODE) { 
+		if (no)
+			CONF_DEBUG_ON(gr, GR);
+		else
+			CONF_DEBUG_OFF(gr, GR);
+	}
 
 	if (!no)
 		TERM_DEBUG_ON(gr, GR);
