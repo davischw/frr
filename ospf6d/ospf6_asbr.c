@@ -1332,8 +1332,15 @@ static void ospf6_asbr_redistribute_deactivate(struct ospf6 *ospf6,
 	ospf6_zebra_no_redistribute(type, ospf6->vrf_id);
 
 	for (route = ospf6_route_head(ospf6->external_table); route;
-	     route = ospf6_route_next(route))
+	     route = ospf6_route_next(route)) {
+		struct ospf6_external_info *info;
+
+		info = route->route_option;
+		if (info->type != type)
+			continue;
+
 		ospf6_asbr_redistribute_remove(route, ospf6);
+	}
 
 	--ospf6->redist_count;
 	ospf6_asbr_status_update(ospf6, ospf6->redist_count);
