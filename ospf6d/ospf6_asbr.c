@@ -3725,7 +3725,6 @@ void ospf6_handle_external_lsa_origination(struct ospf6 *ospf6,
 
 	struct ospf6_external_aggr_rt *aggr;
 	struct ospf6_external_info *info;
-	struct prefix prefix_id;
 
 	if (!is_default_prefix(p)) {
 		aggr = ospf6_external_aggr_match(ospf6,
@@ -3759,17 +3758,18 @@ void ospf6_handle_external_lsa_origination(struct ospf6 *ospf6,
 	/* When the info->id = 0, it means it is being originated for the
 	 * first time.
 	 */
-	if (!info->id) {
+	if (!info->id)
 		info->id = ospf6->external_id++;
-	} else {
-		prefix_id.family = AF_INET;
-		prefix_id.prefixlen = 32;
-		prefix_id.u.prefix4.s_addr = htonl(info->id);
-	}
+
 
 	rt->path.origin.id = htonl(info->id);
 
 	if (IS_OSPF6_DEBUG_ASBR) {
+		struct prefix prefix_id;
+
+		prefix_id.family = AF_INET;
+		prefix_id.prefixlen = 32;
+		prefix_id.u.prefix4.s_addr = htonl(info->id);
 		zlog_debug("Advertise new AS-External Id:%pI4 prefix %pFX metric %u",
 			   &prefix_id.u.prefix4, p, rt->path.metric_type);
 	}
