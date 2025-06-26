@@ -322,11 +322,10 @@ static void ospf6_vlink_refresh(struct ospf6_virtual_link *vlink, bool changed)
 		changed = true;
 	}
 
-	if (vlink->nbr->state < OSPF6_NEIGHBOR_ATTEMPT) {
-		ospf6_neighbor_vlink_change(vlink->nbr, true);
+	ospf6_neighbor_vlink_change(vlink->nbr, true);
+	if (!vlink->t_hello)
 		thread_add_timer(master, ospf6_vlink_hello, vlink,
 				 vlink->hello_interval, &vlink->t_hello);
-	}
 out:
 	if (changed) {
 		sb_vlink_send_info(vlink);
@@ -334,6 +333,27 @@ out:
 	}
 
 	ospf6_vlink_addr_delall(oldaddrs);
+}
+
+static void ospf6_virtual_link_start(struct ospf6_virtual_link *vlink)
+{
+	struct ospf6_area *oa =	vlink->area;
+
+	vlink->nbr = ospf6_neighbor_create(vlink->remote.s_addr, oa->ospf6->vlink_oi);
+	vlink->nbr->vlink = vlink;
+
+	ospf6_vlink_refresh(vlink, true);
+}
+
+static void ospf6_virtual_link_stop(struct ospf6_virtual_link *vlink)
+{
+	memset(&vlink->transport, 0, sizeof(vlink->transport));
+	sb_vlink_send_info(vlink);
+
+	THREAD_OFF(vlink->t_hello);
+
+	vlink->nbr->vlink = NULL;
+	ospf6_neighbor_delete(vlink->nbr);
 }
 
 void ospf6_vlink_area_calculation(struct ospf6_area *oa)
@@ -348,6 +368,22 @@ void ospf6_vlink_area_calculation(struct ospf6_area *oa)
 
 	frr_each (ospf6_area_vlinks, oa->vlinks, vlink)
 		ospf6_vlink_refresh(vlink, false);
+}
+
+void ospf6_vlink_area_start(struct ospf6_area *oa)
+{
+	struct ospf6_virtual_link *vlink;
+
+	frr_each (ospf6_area_vlinks, oa->vlinks, vlink)
+		ospf6_virtual_link_start(vlink);
+}
+
+void ospf6_vlink_area_stop(struct ospf6_area *oa)
+{
+	struct ospf6_virtual_link *vlink;
+
+	frr_each (ospf6_area_vlinks, oa->vlinks, vlink)
+		ospf6_virtual_link_stop(vlink);
 }
 
 void ospf6_vlink_prefix_update(struct ospf6_area *oa, in_addr_t rtr)
@@ -437,18 +473,12 @@ static void ospf6_virtual_link_free(struct ospf6_virtual_link **vlink)
 	if ((*vlink) == NULL)
 		return;
 
-	memset(&(*vlink)->transport, 0, sizeof((*vlink)->transport));
-	sb_vlink_send_info(*vlink);
+	ospf6_virtual_link_stop(*vlink);
 
 	oa = (*vlink)->area;
-	THREAD_OFF((*vlink)->t_hello);
-
 	if (ospf6_area_vlinks_count(oa->vlinks) == 0)
 		/* drop LA, maybe */
 		OSPF6_INTRA_PREFIX_LSA_SCHEDULE_STUB(oa);
-
-	(*vlink)->nbr->vlink = NULL;
-	ospf6_neighbor_delete((*vlink)->nbr);
 
 	ospf6_area_vlinks_del(oa->vlinks, (*vlink));
 	ospf6_virtual_links_del(oa->ospf6->vlinks, (*vlink));

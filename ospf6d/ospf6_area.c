@@ -45,6 +45,7 @@
 #include "ospf6_intra.h"
 #include "ospf6_abr.h"
 #include "ospf6_asbr.h"
+#include "ospf6_vlink.h"
 #include "ospf6_zebra.h"
 #include "ospf6d.h"
 #include "lib/json.h"
@@ -435,6 +436,8 @@ void ospf6_area_enable(struct ospf6_area *oa)
 
 	for (ALL_LIST_ELEMENTS(oa->if_list, node, nnode, oi))
 		ospf6_interface_enable(oi);
+
+	ospf6_vlink_area_start(oa);
 	ospf6_abr_enable_area(oa);
 }
 
@@ -449,6 +452,7 @@ void ospf6_area_disable(struct ospf6_area *oa)
 	for (ALL_LIST_ELEMENTS(oa->if_list, node, nnode, oi))
 		ospf6_interface_disable(oi);
 
+	ospf6_vlink_area_stop(oa);
 	ospf6_abr_disable_area(oa);
 	ospf6_lsdb_remove_all(oa->lsdb);
 	ospf6_lsdb_remove_all(oa->lsdb_self);

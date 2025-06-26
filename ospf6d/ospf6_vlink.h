@@ -104,6 +104,8 @@ void ospf6_vlink_area_calculation(struct ospf6_area *oa);
 void ospf6_vlink_prefix_update(struct ospf6_area *oa, in_addr_t rtr);
 void ospf6_vlink_area_la_change(struct ospf6_area *oa, struct in6_addr *addr);
 
+void ospf6_vlink_area_start(struct ospf6_area *oa);
+void ospf6_vlink_area_stop(struct ospf6_area *oa);
 void ospf6_vlink_area_init(struct ospf6_area *oa);
 void ospf6_vlink_area_fini(struct ospf6_area *oa);
 size_t ospf6_vlink_area_vlcount(struct ospf6_area *oa);
