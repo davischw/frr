@@ -23,6 +23,7 @@
 #include "memory.h"
 #include "zclient.h"
 
+DECLARE_MTYPE(RIP_BFD_PROFILE);
 DECLARE_MTYPE(RIP_INTERFACE_STRING);
 
 extern int rip_interface_down(int, struct zclient *, zebra_size_t, vrf_id_t);

@@ -45,6 +45,7 @@
 #include "ripd/rip_southbound.h"
 
 DEFINE_MTYPE_STATIC(RIPD, RIP_INTERFACE, "RIP interface");
+DEFINE_MTYPE(RIPD, RIP_BFD_PROFILE, "RIP BFD profile name");
 DEFINE_MTYPE(RIPD, RIP_INTERFACE_STRING, "RIP Interface String");
 DEFINE_HOOK(rip_ifaddr_add, (struct connected * ifc), (ifc));
 DEFINE_HOOK(rip_ifaddr_del, (struct connected * ifc), (ifc));
@@ -480,7 +481,7 @@ static void rip_interface_reset(struct rip_interface *ri)
 	ri->sent_updates = 0;
 
 	ri->passive = 0;
-	XFREE(MTYPE_TMP, ri->bfd.profile);
+	XFREE(MTYPE_RIP_BFD_PROFILE, ri->bfd.profile);
 
 	rip_interface_clean(ri);
 }
