@@ -3244,6 +3244,45 @@ DEFUN (show_ip_rip_status,
 	return CMD_SUCCESS;
 }
 
+
+/* Show RIP neighbor information in JSON format */
+DEFPY( show_ip_rip_neighbor_json,
+       show_ip_rip_neighbor_json_cmd,
+       "show ip rip [vrf $vrf] neighbor json",
+       SHOW_STR
+       IP_STR
+       "Show RIP routes\n"
+       VRF_CMD_HELP_STR
+       NEIGHBOR_STR
+       JSON_STR
+       "IP routing protocol process parameters and statistics\n")
+{
+	struct json_object *jo;
+
+	if (!vrf_name)
+		vrf_name = VRF_DEFAULT_NAME;
+
+	rip = rip_lookup_by_vrf_name(vrf_name);
+	if (rip) {
+		if (rip->enabled) {
+			/*
+			 * TODO:
+			 * - func rip_peer_display_json
+			 * - json out
+			 * - json free
+			 */
+			jo = rip_peer_display_json(vty, rip);
+			if (jo) {
+				vty_out_json( ... );
+
+				json_free(jo);
+		}
+	}
+
+	return CMD_SUCCESS;
+}
+
+
 /* Distribute-list update functions. */
 static void rip_distribute_update(struct distribute_ctx *ctx,
 				  struct distribute *dist)
