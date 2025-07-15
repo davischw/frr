@@ -98,11 +98,15 @@ static int filter_match_cisco(struct filter *mfilter, const struct prefix *p)
 			    == 0
 		    && memcmp(&check_mask, &filter->mask.s_addr,
 			      IPV4_MAX_BYTELEN)
-			       == 0)
+			       == 0) {
+		zlog_debug("cisco extended type");
 			return 1;
+		}
 	} else if (memcmp(&check_addr, &filter->addr.s_addr, IPV4_MAX_BYTELEN)
-		   == 0)
+		   == 0) {
+		zlog_debug("cisco standard type");
 		return 1;
+	}
 
 	return 0;
 }
@@ -280,11 +284,15 @@ enum filter_type access_list_apply(struct access_list *access,
 
 	for (filter = access->head; filter; filter = filter->next) {
 		if (filter->cisco) {
-			if (filter_match_cisco(filter, p))
+			if (filter_match_cisco(filter, p)) {
+				zlog_debug("cisco type");
 				return filter->type;
+			}
 		} else {
-			if (filter_match_zebra(filter, p))
+			if (filter_match_zebra(filter, p)) {
+				zlog_debug("zebra type");
 				return filter->type;
+			}
 		}
 	}
 
