@@ -100,8 +100,7 @@ static int filter_match_cisco(struct filter *mfilter, const struct prefix *p)
 			      IPV4_MAX_BYTELEN)
 			       == 0)
 			return 1;
-	} else if (memcmp(&check_addr, &filter->addr.s_addr, IPV4_MAX_BYTELEN)
-		   == 0)
+	} else if (check_addr == (filter->addr.s_addr & ~filter->addr_mask.s_addr))
 		return 1;
 
 	return 0;
