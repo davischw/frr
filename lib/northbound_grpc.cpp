@@ -1203,7 +1203,10 @@ static void *grpc_pthread_start(void *arg)
 		if (!ok) {
 			zlog_debug("%s: CQ->Next not ok, skipped", __func__);
 			delete static_cast<RpcStateBase *>(tag);
-			continue;
+			if (fpt->running)
+				continue;
+			else
+				break;
 		}
 
 		RpcStateBase *rpc = static_cast<RpcStateBase *>(tag);
