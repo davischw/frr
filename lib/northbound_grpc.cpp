@@ -1146,6 +1146,7 @@ static void *grpc_pthread_start(void *arg)
 
 	frr_pthread_set_name(fpt);
 
+	pthread_mutex_lock(&grpc_data->server_lock);
 	server_address << "0.0.0.0:" << grpc_data->port;
 	builder.AddListeningPort(server_address.str(),
 				 grpc::InsecureServerCredentials());
@@ -1185,6 +1186,7 @@ static void *grpc_pthread_start(void *arg)
 	zlog_notice("gRPC server listening on %s",
 		    server_address.str().c_str());
 	rcu_read_unlock();
+	pthread_mutex_unlock(&grpc_data->server_lock);
 
 	zlog_debug("%s: after rcu_read_unlock", __func__);
 
@@ -1218,15 +1220,7 @@ static void *grpc_pthread_start(void *arg)
 		}
 	}
 
-	/* This was probably done for us to get here, but let's be safe */
 	pthread_mutex_lock(&grpc_data->server_lock);
-	if (grpc_data->server) {
-		zlog_debug("%s: shutdown server and CQ", __func__);
-		server->Shutdown();
-		grpc_data->server = NULL;
-	}
-	pthread_mutex_unlock(&grpc_data->server_lock);
-
 	zlog_debug("%s: shutting down CQ", __func__);
 	cq->Shutdown();
 
@@ -1235,6 +1229,7 @@ static void *grpc_pthread_start(void *arg)
 		zlog_debug("%s: drain tag %p", __func__, tag);
 		delete static_cast<RpcStateBase *>(tag);
 	}
+	pthread_mutex_unlock(&grpc_data->server_lock);
 
 	zlog_info("%s: exiting from grpc pthread", __func__);
 	return NULL;
