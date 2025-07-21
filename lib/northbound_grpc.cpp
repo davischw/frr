@@ -1133,6 +1133,10 @@ static void *grpc_pthread_start(void *arg)
 	struct frr_pthread *fpt = static_cast<frr_pthread *>(arg);
 	struct grpc_pthread_data *grpc_data = static_cast<struct grpc_pthread_data *>(fpt->data);
 
+	/* Initialize thread attributes */
+	fpt->master->owner = pthread_self();
+	fpt->running = true;
+
 	Candidates candidates;
 	grpc::ServerBuilder builder;
 	std::stringstream server_address;
@@ -1233,12 +1237,38 @@ static void *grpc_pthread_start(void *arg)
 	return NULL;
 }
 
+static int grpc_pthread_stop(struct frr_pthread *fpt, void **result __attribute__((unused)))
+{
+	struct grpc_pthread_data *grpc_data = static_cast<struct grpc_pthread_data *>(fpt->data);
+
+	assert(fpt->running);
+	atomic_store_explicit(&fpt->running, false, memory_order_relaxed);
+
+	grpc_debug("%s: entered", __func__);
+
+	/*
+	 * Shut the server down here in main thread. This will cause the wait on
+	 * the completion queue (cq.Next()) to exit and cleanup everything else.
+	 */
+	pthread_mutex_lock(&grpc_data->server_lock);
+	if (grpc_data->server) {
+		grpc_debug("%s: shutdown server", __func__);
+		grpc_data->server->Shutdown();
+		grpc_data->server = NULL;
+	}
+	pthread_mutex_unlock(&grpc_data->server_lock);
+
+	grpc_debug("%s: joining and destroy grpc thread", __func__);
+	pthread_join(fpt->thread, NULL);
+
+	return 0;
+}
 
 static int frr_grpc_init(uint port)
 {
 	struct frr_pthread_attr attr = {
 		.start = grpc_pthread_start,
-		.stop = NULL,
+		.stop = grpc_pthread_stop,
 	};
 	static struct grpc_pthread_data grpc_data = {
 		.port = port,
@@ -1266,29 +1296,7 @@ static int frr_grpc_init(uint port)
 
 static int frr_grpc_finish(void)
 {
-	struct grpc_pthread_data *grpc_data;
-
-	grpc_debug("%s: entered", __func__);
-
-	if (!fpt)
-		return 0;
-
-	grpc_data = static_cast<struct grpc_pthread_data *>(fpt->data);
-
-	/*
-	 * Shut the server down here in main thread. This will cause the wait on
-	 * the completion queue (cq.Next()) to exit and cleanup everything else.
-	 */
-	pthread_mutex_lock(&grpc_data->server_lock);
-	if (grpc_data->server) {
-		grpc_debug("%s: shutdown server", __func__);
-		grpc_data->server->Shutdown();
-		grpc_data->server = NULL;
-	}
-	pthread_mutex_unlock(&grpc_data->server_lock);
-
-	grpc_debug("%s: joining and destroy grpc thread", __func__);
-	pthread_join(fpt->thread, NULL);
+	frr_pthread_stop(fpt, NULL);
 	frr_pthread_destroy(fpt);
 
 	// Fix protobuf 'memory leaks' during shutdown.
