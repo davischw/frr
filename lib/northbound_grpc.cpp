@@ -55,8 +55,6 @@ static struct thread_master *main_master;
 
 static struct frr_pthread *fpt;
 
-static bool grpc_running;
-
 struct grpc_pthread_data {
 	unsigned int port;
 	pthread_mutex_t server_lock;
@@ -1157,10 +1155,6 @@ static void *grpc_pthread_start(void *arg)
 
 	zlog_debug("%s: after gRPC registration", __func__);
 
-	pthread_mutex_lock(&grpc_data->server_lock); // Make coverity happy
-	grpc_running = true;
-	pthread_mutex_unlock(&grpc_data->server_lock); // Make coverity happy
-
 	zlog_debug("%s: before RPC registration", __func__);
 
 	/* Schedule unary RPC handlers */
@@ -1219,7 +1213,6 @@ static void *grpc_pthread_start(void *arg)
 
 	/* This was probably done for us to get here, but let's be safe */
 	pthread_mutex_lock(&grpc_data->server_lock);
-	grpc_running = false;
 	if (grpc_data->server) {
 		zlog_debug("%s: shutdown server and CQ", __func__);
 		server->Shutdown();
@@ -1287,7 +1280,6 @@ static int frr_grpc_finish(void)
 	 * the completion queue (cq.Next()) to exit and cleanup everything else.
 	 */
 	pthread_mutex_lock(&grpc_data->server_lock);
-	grpc_running = false;
 	if (grpc_data->server) {
 		grpc_debug("%s: shutdown server", __func__);
 		grpc_data->server->Shutdown();
