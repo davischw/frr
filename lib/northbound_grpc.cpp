@@ -1338,7 +1338,6 @@ error:
 static int frr_grpc_module_late_init(struct thread_master *tm)
 {
 	main_master = tm;
-	hook_register(frr_fini, frr_grpc_finish);
 	thread_add_event(tm, frr_grpc_module_very_late_init, NULL, 0, NULL);
 	return 0;
 }
@@ -1346,6 +1345,7 @@ static int frr_grpc_module_late_init(struct thread_master *tm)
 static int frr_grpc_module_init(void)
 {
 	hook_register(frr_late_init, frr_grpc_module_late_init);
+	hook_register(frr_fini, frr_grpc_finish);
 
 	return 0;
 }
