@@ -57,6 +57,12 @@ static struct frr_pthread *fpt;
 
 static bool grpc_running;
 
+struct grpc_pthread_data {
+	unsigned int port;
+	pthread_mutex_t server_lock;
+	grpc::Server *server;
+};
+
 #define grpc_debug(...)                                                        \
 	do {                                                                   \
 		if (nb_dbg_client_grpc)                                        \
@@ -1124,19 +1130,10 @@ grpc::Status HandleUnaryExecute(
 		_rpcState->do_request(&service, cq.get(), true);               \
 	} while (0)
 
-struct grpc_pthread_attr {
-	struct frr_pthread_attr attr;
-	unsigned long port;
-};
-
-// Capture these objects so we can try to shut down cleanly
-static pthread_mutex_t s_server_lock = PTHREAD_MUTEX_INITIALIZER;
-static grpc::Server *s_server;
-
 static void *grpc_pthread_start(void *arg)
 {
 	struct frr_pthread *fpt = static_cast<frr_pthread *>(arg);
-	uint port = (uint) reinterpret_cast<intptr_t>(fpt->data);
+	struct grpc_pthread_data *grpc_data = static_cast<struct grpc_pthread_data *>(fpt->data);
 
 	Candidates candidates;
 	grpc::ServerBuilder builder;
@@ -1147,7 +1144,7 @@ static void *grpc_pthread_start(void *arg)
 
 	frr_pthread_set_name(fpt);
 
-	server_address << "0.0.0.0:" << port;
+	server_address << "0.0.0.0:" << grpc_data->port;
 	builder.AddListeningPort(server_address.str(),
 				 grpc::InsecureServerCredentials());
 	builder.RegisterService(&service);
@@ -1156,13 +1153,13 @@ static void *grpc_pthread_start(void *arg)
 	std::unique_ptr<grpc::ServerCompletionQueue> cq =
 		builder.AddCompletionQueue();
 	std::unique_ptr<grpc::Server> server = builder.BuildAndStart();
-	s_server = server.get();
+	grpc_data->server = server.get();
 
 	zlog_debug("%s: after gRPC registration", __func__);
 
-	pthread_mutex_lock(&s_server_lock); // Make coverity happy
+	pthread_mutex_lock(&grpc_data->server_lock); // Make coverity happy
 	grpc_running = true;
-	pthread_mutex_unlock(&s_server_lock); // Make coverity happy
+	pthread_mutex_unlock(&grpc_data->server_lock); // Make coverity happy
 
 	zlog_debug("%s: before RPC registration", __func__);
 
@@ -1221,14 +1218,14 @@ static void *grpc_pthread_start(void *arg)
 	}
 
 	/* This was probably done for us to get here, but let's be safe */
-	pthread_mutex_lock(&s_server_lock);
+	pthread_mutex_lock(&grpc_data->server_lock);
 	grpc_running = false;
-	if (s_server) {
+	if (grpc_data->server) {
 		zlog_debug("%s: shutdown server and CQ", __func__);
 		server->Shutdown();
-		s_server = NULL;
+		grpc_data->server = NULL;
 	}
-	pthread_mutex_unlock(&s_server_lock);
+	pthread_mutex_unlock(&grpc_data->server_lock);
 
 	zlog_debug("%s: shutting down CQ", __func__);
 	cq->Shutdown();
@@ -1250,13 +1247,17 @@ static int frr_grpc_init(uint port)
 		.start = grpc_pthread_start,
 		.stop = NULL,
 	};
+	static struct grpc_pthread_data grpc_data = {
+		.port = port,
+		.server_lock = PTHREAD_MUTEX_INITIALIZER,
+	};
 
 	grpc_debug("%s: entered", __func__);
 
 	zlog_debug("%s: before pthread_run", __func__);
 
 	fpt = frr_pthread_new(&attr, "frr-grpc", "frr-grpc");
-	fpt->data = reinterpret_cast<void *>((intptr_t)port);
+	fpt->data = static_cast<void *>(&grpc_data);
 
 	/* Create a pthread for gRPC since it runs its own event loop. */
 	if (frr_pthread_run(fpt, NULL) < 0) {
@@ -1272,23 +1273,27 @@ static int frr_grpc_init(uint port)
 
 static int frr_grpc_finish(void)
 {
+	struct grpc_pthread_data *grpc_data;
+
 	grpc_debug("%s: entered", __func__);
 
 	if (!fpt)
 		return 0;
 
+	grpc_data = static_cast<struct grpc_pthread_data *>(fpt->data);
+
 	/*
 	 * Shut the server down here in main thread. This will cause the wait on
 	 * the completion queue (cq.Next()) to exit and cleanup everything else.
 	 */
-	pthread_mutex_lock(&s_server_lock);
+	pthread_mutex_lock(&grpc_data->server_lock);
 	grpc_running = false;
-	if (s_server) {
+	if (grpc_data->server) {
 		grpc_debug("%s: shutdown server", __func__);
-		s_server->Shutdown();
-		s_server = NULL;
+		grpc_data->server->Shutdown();
+		grpc_data->server = NULL;
 	}
-	pthread_mutex_unlock(&s_server_lock);
+	pthread_mutex_unlock(&grpc_data->server_lock);
 
 	grpc_debug("%s: joining and destroy grpc thread", __func__);
 	pthread_join(fpt->thread, NULL);
