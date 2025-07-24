@@ -13318,6 +13318,10 @@ static void ospf_vty_if_init(void)
 	install_element(INTERFACE_NODE,
 			&no_ip_ospf_retransmit_interval_addr_cmd);
 
+	/* "ip ospf graceful-restart hello-delay" commands. */
+	install_element(INTERFACE_NODE, &ip_ospf_gr_hdelay_cmd);
+	install_element(INTERFACE_NODE, &no_ip_ospf_gr_hdelay_cmd);
+
 	/* "ip ospf transmit-delay" commands. */
 	install_element(INTERFACE_NODE, &ip_ospf_transmit_delay_addr_cmd);
 	install_element(INTERFACE_NODE, &no_ip_ospf_transmit_delay_addr_cmd);
