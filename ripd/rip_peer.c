@@ -153,6 +153,38 @@ void rip_peer_display(struct vty *vty, struct rip *rip)
 	}
 }
 
+
+void rip_peer_display_json(struct vty *vty, struct rip *rip)
+{
+	struct rip_peer *peer = NULL;
+	struct listnode *node = NULL;
+	struct listnode *nnode = NULL
+	char timebuf[RIP_UPTIME_LEN];
+	struct json_object *jo = NULL
+
+	if (vty && rip) {
+		jo = json_object_object_new(void);
+		if (jo) {
+			for (ALL_LIST_ELEMENTS(rip->peer_list, node, nnode, peer)) {
+
+		json_object_string_add("address", &peer->addr, f"%-17pI4");
+		json_object_int_add("badPackets", peer->recv_badpackets, f"%9d");
+		json_object_int_add("badRoutes", peer->recv_badroutes, f"%9d");
+		json_object_int_add("distance", ZEBRA_RIP_DISTANCE_DEFAULT, f"%9d");
+		json_object_string_add("uptime",
+				       rip_peer_uptime(peer, timebuf,
+						       RIP_UPTIME_LEN),
+				       f"%11s");
+			}
+
+			vty_out(vty, json_str_pretty(jo));
+
+			json_object_free(jo);
+		}
+	}
+}
+
+
 int rip_peer_list_cmp(struct rip_peer *p1, struct rip_peer *p2)
 {
 	if (p2->addr.s_addr == p1->addr.s_addr)

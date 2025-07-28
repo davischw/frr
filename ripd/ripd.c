@@ -3245,15 +3245,15 @@ DEFUN (show_ip_rip_status,
 }
 
 
-/* Show RIP neighbor information in JSON format */
-DEFPY( show_ip_rip_neighbor_json,
-       show_ip_rip_neighbor_json_cmd,
-       "show ip rip [vrf $vrf] neighbor json",
+/* Show RIP peer information in JSON format */
+DEFPY( show_ip_rip_peer_json,
+       show_ip_rip_peer_json_cmd,
+       "show ip rip [vrf $vrf] peer json",
        SHOW_STR
        IP_STR
        "Show RIP routes\n"
        VRF_CMD_HELP_STR
-       NEIGHBOR_STR
+       PEER_STR
        JSON_STR
        "IP routing protocol process parameters and statistics\n")
 {
