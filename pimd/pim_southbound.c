@@ -3293,7 +3293,12 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 						 PIM_OIF_FLAG_PROTO_PIM));
 
 			json_object_boolean_add(
-				json_ifp_out, "protocolIgmp",
+				json_ifp_out,
+#if PIM_IPV == 4
+				"protocolIgmp",
+#else
+				"protocolMld",
+#endif
 				oil->oif_flags[oif_idx] &
 						PIM_OIF_FLAG_PROTO_GM ||
 					(i_oil &&
@@ -3555,7 +3560,11 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 			}
 
 			if (oil->oif_flags[oif_idx] & PIM_OIF_FLAG_PROTO_GM) {
+#if PIM_IPV == 4
 				strlcpy(proto, "IGMP", sizeof(proto));
+#else
+				strlcpy(proto, "MLD", sizeof(proto));
+#endif
 			}
 
 			if (oil->oif_flags[oif_idx] &
