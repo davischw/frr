@@ -42,6 +42,7 @@
 #include "zebra/kernel_netlink.h"
 #include "zebra/rib.h"
 #include "zebra/rt.h"
+#include "zebra/zebra_router.h"
 #include "zebra/vendor_southbound.h"
 #include "zebra/netconf_netlink.h"
 #include "zebra/rt_netlink.h"
@@ -194,6 +195,52 @@ static void vendor_southbound_socket_data_reset(const struct nlsock *nsc)
 			       VENDOR_SYNC_INTERFACES);
 }
 
+static void vendor_southbound_socket_set_rcvbuf(int sock)
+{
+	int value;
+	int initial_value;
+	socklen_t value_len;
+	int rv;
+
+	initial_value = value = 0;
+	value_len = sizeof(int);
+	rv = getsockopt(sock, SOL_SOCKET, SO_RCVBUF, &value, &value_len);
+	if (rv == -1)
+		flog_err_sys(
+			EC_LIB_SOCKET,
+			"%s: failed to detect netlink receive buffer size: %s",
+			__func__, safe_strerror(errno));
+	else
+		initial_value = value;
+
+	zlog_debug("%s: Netlink initial receive buffer size: %d", __func__,
+		   value);
+
+	value = (int)rcvbufsize;
+	rv = setsockopt(sock, SOL_SOCKET, SO_RCVBUFFORCE, &value, value_len);
+	/* Setting receive buffer force failed, lets try normal set */
+	if (rv == -1)
+		rv = setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &value, value_len);
+	if (rv == -1) {
+		flog_err_sys(
+			EC_LIB_SOCKET,
+			"%s: failed to set netlink receive buffer size: %s",
+			__func__, safe_strerror(errno));
+	}
+
+	value = 0;
+	value_len = sizeof(int);
+	rv = getsockopt(sock, SOL_SOCKET, SO_RCVBUF, &value, &value_len);
+	if (rv == -1)
+		flog_err_sys(
+			EC_LIB_SOCKET,
+			"%s: failed to detect final netlink receive buffer size: %s",
+			__func__, safe_strerror(errno));
+
+	zlog_debug("%s: Netlink buffer changed from %d to %d", __func__,
+		   initial_value, value);
+}
+
 static int vendor_southbound_socket(void)
 {
 	int sd;
@@ -256,6 +303,8 @@ static int vendor_southbound_socket(void)
 		if (fcntl(sd, F_SETFL, O_NONBLOCK) == -1)
 			flog_err_sys(EC_LIB_SOCKET, "%s: fcntl(O_NONBLOCK): %s",
 				     __func__, safe_strerror(errno));
+
+		vendor_southbound_socket_set_rcvbuf(sd);
 
 		/*
 		 * Don't use Nagle algorithm to delay TCP messages, we
