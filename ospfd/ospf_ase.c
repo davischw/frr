@@ -68,12 +68,15 @@ struct ospf_route *ospf_find_asbr_route(struct ospf *ospf,
 
 	/* First try to find intra-area non-bb paths. */
 	if (!CHECK_FLAG(ospf->config, OSPF_RFC1583_COMPATIBLE))
-		for (ALL_LIST_ELEMENTS_RO((struct list *)rn->info, node, or))
-			if (or->cost < OSPF_LS_INFINITY)
-				if (!OSPF_IS_AREA_ID_BACKBONE(or->u.std.area_id)
-					    &&
-				    or->path_type == OSPF_PATH_INTRA_AREA)
-					listnode_add(chosen, or);
+		for (ALL_LIST_ELEMENTS_RO((struct list *)rn->info, node, or)) {
+			if (or->cost >= OSPF_LS_INFINITY)
+				continue;
+			if (!CHECK_FLAG(or->u.std.flags, ROUTER_LSA_EXTERNAL))
+				continue;
+			if (!OSPF_IS_AREA_ID_BACKBONE(or->u.std.area_id) &&
+			    or->path_type == OSPF_PATH_INTRA_AREA)
+				listnode_add(chosen, or);
+		}
 
 	/* If none is found -- look through all. */
 	if (listcount(chosen) == 0) {
@@ -82,20 +85,20 @@ struct ospf_route *ospf_find_asbr_route(struct ospf *ospf,
 	}
 
 	/* Now find the route with least cost. */
-	for (ALL_LIST_ELEMENTS_RO(chosen, node, or))
-		if (or->cost < OSPF_LS_INFINITY) {
-			if (best == NULL)
-				best = or ;
-			else if (best->cost > or->cost)
-				best = or ;
-			else if (best->cost ==
-				 or->cost
-					   && IPV4_ADDR_CMP(
-						      &best->u.std.area_id,
-						      & or->u.std.area_id)
-						      < 0)
-				best = or ;
-		}
+	for (ALL_LIST_ELEMENTS_RO(chosen, node, or)) {
+		if (or->cost >= OSPF_LS_INFINITY)
+			continue;
+		if (!CHECK_FLAG(or->u.std.flags, ROUTER_LSA_EXTERNAL))
+			continue;
+		if (best == NULL)
+			best = or ;
+		else if (best->cost > or->cost)
+			best = or ;
+		else if (best->cost ==
+			 or->cost && IPV4_ADDR_CMP(&best->u.std.area_id,
+						   & or->u.std.area_id) < 0)
+			best = or ;
+	}
 
 	if (chosen != rn->info)
 		list_delete(&chosen);
