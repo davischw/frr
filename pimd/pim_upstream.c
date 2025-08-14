@@ -294,6 +294,12 @@ struct pim_upstream *pim_upstream_del(struct pim_instance *pim,
 		pim_delete_tracked_nexthop(pim, up->upstream_addr, up, NULL);
 	}
 
+#if PIM_IPV == 6
+	/* Embedded RPs learned via PIM join/connected source are freed here */
+	if (pim_embedded_rp_is_embedded(&up->sg.grp))
+		pim_embedded_rp_delete(pim, &up->sg.grp);
+#endif /* PIM_IPV == 6 */
+
 	XFREE(MTYPE_PIM_UPSTREAM, up);
 
 	return NULL;

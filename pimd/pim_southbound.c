@@ -1282,6 +1282,15 @@ static void pimsb_client_data_start(const struct mroute_event *me)
 		zlog_debug("%s: DATA_START %pSG interface %s(%d)", __func__,
 			   &sg_p, ifp->name, ifp->ifindex);
 
+#if PIM_IPV == 6
+	pim_addr embedded_rp;
+
+	if (pim_ifp->pim->embedded_rp.enable &&
+	    pim_embedded_rp_extract(&sg_p.grp, &embedded_rp) &&
+	    !pim_embedded_rp_filter_match(pim_ifp->pim, &sg_p.grp))
+		pim_embedded_rp_new(pim_ifp->pim, &sg_p.grp, &embedded_rp);
+#endif /* PIM_IPV == 6 */
+
 	/* Handle simplest case first. */
 	if (pim_if_connected_to_source(ifp, sg_p.src)) {
 		if (PIM_DEBUG_MROUTE)
