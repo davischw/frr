@@ -1070,6 +1070,7 @@ static void nlroute_dump(struct rtmsg *rtm, size_t msglen)
 {
 	struct rta_mfc_stats *mfc_stats;
 	struct rtattr *rta;
+	struct rtvia *rtv;
 	size_t plen;
 	uint32_t u32v;
 	uint64_t u64v;
@@ -1124,6 +1125,22 @@ next_rta:
 			   (uintmax_t)mfc_stats->mfcs_packets,
 			   (uintmax_t)mfc_stats->mfcs_bytes,
 			   (uintmax_t)mfc_stats->mfcs_wrong_if);
+		break;
+
+	case RTA_VIA:
+		rtv = (struct rtvia *)RTA_DATA(rta);
+		switch (rtv->rtvia_family) {
+		case AF_INET:
+			zlog_debug("      %pI4",
+				   (struct in_addr *)(rtv->rtvia_addr));
+			break;
+		case AF_INET6:
+			zlog_debug("      %pI6",
+				   (struct in6_addr *)(rtv->rtvia_addr));
+			break;
+		default:
+			break;
+		}
 		break;
 
 	default:
