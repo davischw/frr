@@ -2090,9 +2090,15 @@ static bool _netlink_route_build_singlepath(const struct prefix *p,
 		rtmsg->rtm_flags |= RTNH_F_ONLINK;
 
 	if (is_route_v4_over_v6(rtmsg->rtm_family, nexthop->type)) {
+		struct gw_family_t via;
+
 		rtmsg->rtm_flags |= RTNH_F_ONLINK;
-		if (!nl_attr_put(nlmsg, req_size, RTA_GATEWAY, &ipv4_ll, 4))
+
+		via.family = AF_INET6;
+		memcpy(&via.gate.ipv6, &nexthop->gate.ipv6, 16);
+		if (!nl_attr_put(nlmsg, req_size, RTA_VIA, &via.family, 18))
 			return false;
+
 		if (!nl_attr_put32(nlmsg, req_size, RTA_OIF, nexthop->ifindex))
 			return false;
 
@@ -2278,9 +2284,15 @@ static bool _netlink_route_build_multipath(const struct prefix *p,
 		rtnh->rtnh_flags |= RTNH_F_ONLINK;
 
 	if (is_route_v4_over_v6(rtmsg->rtm_family, nexthop->type)) {
+		struct gw_family_t via;
+
 		rtnh->rtnh_flags |= RTNH_F_ONLINK;
-		if (!nl_attr_put(nlmsg, req_size, RTA_GATEWAY, &ipv4_ll, 4))
+
+		via.family = AF_INET6;
+		memcpy(&via.gate.ipv6, &nexthop->gate.ipv6, 16);
+		if (!nl_attr_put(nlmsg, req_size, RTA_VIA, &via.family, 18))
 			return false;
+
 		rtnh->rtnh_ifindex = nexthop->ifindex;
 		if (nexthop->weight)
 			rtnh->rtnh_hops = nexthop->weight - 1;
