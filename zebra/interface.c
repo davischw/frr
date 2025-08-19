@@ -842,9 +842,11 @@ void if_nbr_mac_to_ipv4ll_neigh_update(struct interface *ifp,
 	 * resolve our leftover entries, fail, mark them unreachable and then
 	 * they'll be useless to us.
 	 */
+	/*
 	if (add)
 		kernel_neigh_update(add, ifp->ifindex, (void *)&ipv4_ll.s_addr,
 				    mac, 6, ns_id, AF_INET, true);
+	*/
 
 	memcpy(&zif->neigh_mac[0], &mac[0], 6);
 
