@@ -180,12 +180,7 @@ static int netlink_route_info_add_nh(struct netlink_route_info *ri,
 
 	if (nexthop->type == NEXTHOP_TYPE_IPV6
 	    || nexthop->type == NEXTHOP_TYPE_IPV6_IFINDEX) {
-		/* Special handling for IPv4 route with IPv6 Link Local next hop
-		 */
-		if (ri->af == AF_INET)
-			nhi.gateway = &ipv4ll_gateway;
-		else
-			nhi.gateway = &nexthop->gate;
+		nhi.gateway = &nexthop->gate;
 	}
 
 	if (nexthop->type == NEXTHOP_TYPE_IFINDEX) {
@@ -351,6 +346,7 @@ static int netlink_route_info_encode(struct netlink_route_info *ri,
 	struct rtnexthop *rtnh;
 	struct vxlan_encap_info_t *vxlan;
 	struct in6_addr ipv6;
+	struct gw_family_t via;
 
 	struct {
 		struct nlmsghdr n;
@@ -417,9 +413,23 @@ static int netlink_route_info_encode(struct netlink_route_info *ri,
 							 nhi->gateway->ipv4);
 				nl_attr_put(&req->n, in_buf_len, RTA_GATEWAY,
 					    &ipv6, bytelen);
-			} else
+			} else if ((nhi->type == NEXTHOP_TYPE_IPV6
+				    || nhi->type == NEXTHOP_TYPE_IPV6_IFINDEX)
+				   && ri->af == AF_INET) {
+				/* IPv4 route with IPv6 link-local nexthop */
+				rtmsg->rtm_flags |= RTNH_F_ONLINK;
+
+				memset(&rtv, 0, sizeof(struct rtvia));
+				rtv.rtvia_family = AF_INET6;
+				
+				memcpy rtv.rtvia_addr
+				nl_attr_put(&req->n, in_buf_len, RTA_VIA, rtv, 18);
+
+
+			} else {
 				nl_attr_put(&req->n, in_buf_len, RTA_GATEWAY,
 					    nhi->gateway, bytelen);
+			}
 		}
 
 		if (nhi->if_index) {
