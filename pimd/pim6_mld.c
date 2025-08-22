@@ -3196,10 +3196,20 @@ static void gm_show_groups(struct vty *vty, struct vrf *vrf, bool uj)
 	json_object *json_group = NULL;
 	json_object *json_groups = NULL;
 	struct pim_instance *pim = vrf->info;
+	size_t gm_groups_count = 0;
+
+	FOR_ALL_INTERFACES (vrf, ifp) {
+		struct pim_interface *pim_ifp = ifp->info;
+
+		if (pim_ifp == NULL || pim_ifp->mld == NULL)
+			continue;
+
+		gm_groups_count += pim_ifp->mld->groups_count;
+	}
 
 	if (uj) {
 		json = json_object_new_object();
-		json_object_int_add(json, "totalGroups", pim->gm_group_count);
+		json_object_int_add(json, "totalGroups", gm_groups_count);
 		json_object_int_add(json, "watermarkLimit",
 				    pim->gm_watermark_limit);
 	} else {
@@ -3210,7 +3220,7 @@ static void gm_show_groups(struct vty *vty, struct vrf *vrf, bool uj)
 		tt->style.corner = '+';
 		ttable_restyle(tt);
 
-		vty_out(vty, "Total MLD groups: %u\n", pim->gm_group_count);
+		vty_out(vty, "Total MLD groups: %zu\n", gm_groups_count);
 		vty_out(vty, "Watermark warn limit(%s): %u\n",
 			pim->gm_watermark_limit ? "Set" : "Not Set",
 			pim->gm_watermark_limit);
