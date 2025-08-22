@@ -2008,10 +2008,14 @@ DEFPY(clear_ipv6_mld_interfaces,
 		return CMD_WARNING;
 	}
 
-	FOR_ALL_INTERFACES (vrf, ifp)
-		pim_if_addr_del_all(ifp);
-	FOR_ALL_INTERFACES (vrf, ifp)
-		pim_if_addr_add_all(ifp);
+	FOR_ALL_INTERFACES (vrf, ifp) {
+		struct pim_interface *pim_ifp = ifp->info;
+
+		if (pim_ifp == NULL || pim_ifp->mld == NULL)
+			continue;
+
+		gm_group_delete(pim_ifp->mld);
+	}
 
 	return CMD_SUCCESS;
 }
