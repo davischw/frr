@@ -636,7 +636,7 @@ void pimsb_mroute_do(struct channel_oil *oil, bool install)
 		oifs[0] = 0;
 		SLIST_FOREACH (oif, &oil->oif_list, entry) {
 			if (oif->ifindex == PIM_REG_IF_IDX) {
-				snprintf(intf, sizeof(intf), "pimreg(%d),",
+				snprintf(intf, sizeof(intf), PIMREG "(%d),",
 					 oif->ifindex);
 				strlcat(oifs, intf, sizeof(oifs));
 				continue;
@@ -2896,7 +2896,7 @@ static void pimsb_mrt_iif(struct pim_instance *pim, const pim_addr *group,
 	/* Return PIMREG if it matches our RP interface. */
 	if (rp && rp->rp.source_nexthop.interface &&
 	    rp->rp.source_nexthop.interface->ifindex == ifp->ifindex)
-		strlcpy(ifname_out, "pimreg", ifname_len);
+		strlcpy(ifname_out, PIMREG, ifname_len);
 	else
 		strlcpy(ifname_out, ifp->name, ifname_len);
 }
