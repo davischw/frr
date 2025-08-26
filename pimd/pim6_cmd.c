@@ -33,6 +33,7 @@
 
 #include "pimd.h"
 #include "pim6_cmd.h"
+#include "pim6_mld.h"
 #include "pim_cmd_common.h"
 #include "pim_vty.h"
 #include "lib/northbound_cli.h"
