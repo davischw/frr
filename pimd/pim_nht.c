@@ -1477,6 +1477,7 @@ void pim_nht_init(void)
 	nht_zclient->sock = -1;
 	nht_zclient->privs = &pimd_privs;
 	nht_zclient->zebra_connected = nht_zebra_connect;
+	nht_zclient->wait_master->handle_signals = false;
 
 	thread_execute(router->master, nht_zclient_connect, NULL, 0);
 }
