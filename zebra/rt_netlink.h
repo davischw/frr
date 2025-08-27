@@ -62,6 +62,13 @@ extern "C" {
 #define RTPROT_OPENFABRIC  197
 #define RTPROT_SRTE        198
 
+/* frr-dpd-8.4-683-hack: */
+struct gw_family_t {
+	uint16_t filler;
+	uint16_t family;
+	union g_addr gate;
+};
+
 void rt_netlink_init(void);
 
 /* MPLS label forwarding table change, using dataplane context information. */

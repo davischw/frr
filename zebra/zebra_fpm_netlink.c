@@ -192,12 +192,17 @@ static int netlink_route_info_add_nh(struct netlink_route_info *ri,
 
 	if (nexthop->type == NEXTHOP_TYPE_IPV6
 	    || nexthop->type == NEXTHOP_TYPE_IPV6_IFINDEX) {
-		/* Special handling for IPv4 route with IPv6 Link Local next hop
+		/* frr-dpd-8.4-683-hack:
+		 *//* Special handling for IPv4 route with IPv6 Link Local next hop
+		 * *//*
+		 * if (ri->af == AF_INET)
+		 * 	nhi.gateway = &ipv4ll_gateway;
+		 * else
+		 * 	nhi.gateway = &nexthop->gate;
 		 */
-		if (ri->af == AF_INET)
-			nhi.gateway = &ipv4ll_gateway;
-		else
-			nhi.gateway = &nexthop->gate;
+
+		/* frr-dpd-8.4-683-hack: */
+		nhi.gateway = &nexthop->gate;
 	}
 
 	if (nexthop->type == NEXTHOP_TYPE_IFINDEX) {
@@ -437,6 +442,20 @@ static int netlink_route_info_encode(struct netlink_route_info *ri,
 							 nhi->gateway->ipv4);
 				nl_attr_put(&req->n, in_buf_len, RTA_GATEWAY,
 					    &ipv6, bytelen);
+
+			/* frr-dpd-8.4-683-hack: */
+			} else if (((nhi->type == NEXTHOP_TYPE_IPV6)
+				    || (nhi->type == NEXTHOP_TYPE_IPV6_IFINDEX))
+				   && (ri->af == AF_INET)) {
+				struct gw_family_t via;
+
+				req->r.rtm_flags |= RTNH_F_ONLINK;
+
+				via.family = AF_INET6;
+				memcpy(&via.gate.ipv6, &nhi->gateway->ipv6, 16);
+				nl_attr_put(&req->n, in_buf_len, RTA_VIA,
+					    &via.family, 18);
+
 			} else
 				nl_attr_put(&req->n, in_buf_len, RTA_GATEWAY,
 					    nhi->gateway, bytelen);
@@ -475,9 +494,30 @@ static int netlink_route_info_encode(struct netlink_route_info *ri,
 		rtnh = nl_attr_rtnh(&req->n, in_buf_len);
 		nhi = &ri->nhs[nexthop_num];
 
-		if (nhi->gateway)
-			nl_attr_put(&req->n, in_buf_len, RTA_GATEWAY,
-				    nhi->gateway, bytelen);
+		/* frr-dpd-8.4-683-hack:
+		 * if (nhi->gateway)
+		 * 	nl_attr_put(&req->n, in_buf_len, RTA_GATEWAY,
+		 * 		    nhi->gateway, bytelen);
+		 */
+
+		/* frr-dpd-8.4-683-hack: */
+		if (nhi->gateway) {
+			if (((nhi->type == NEXTHOP_TYPE_IPV6)
+			     || (nhi->type == NEXTHOP_TYPE_IPV6_IFINDEX))
+			    && (ri->af == AF_INET)) {
+				struct gw_family_t via;
+
+				req->r.rtm_flags |= RTNH_F_ONLINK;
+
+				via.family = AF_INET6;
+				memcpy(&via.gate.ipv6, &nhi->gateway->ipv6, 16);
+				nl_attr_put(&req->n, in_buf_len, RTA_VIA,
+					    &via.family, 18);
+			} else {
+				nl_attr_put(&req->n, in_buf_len, RTA_GATEWAY,
+					    nhi->gateway, bytelen);
+			}
+		}
 
 		if (nhi->if_index) {
 			rtnh->rtnh_ifindex = nhi->if_index;

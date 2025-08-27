@@ -100,11 +100,13 @@ static vlanid_t filter_vlan = 0;
  */
 static bool supports_nh;
 
-struct gw_family_t {
-	uint16_t filler;
-	uint16_t family;
-	union g_addr gate;
-};
+/* frr-dpd-8.4-683-hack:
+ * struct gw_family_t {
+ * 	uint16_t filler;
+ * 	uint16_t family;
+ * 	union g_addr gate;
+ * };
+ */
 
 static const char ipv4_ll_buf[16] = "169.254.0.1";
 static struct in_addr ipv4_ll;
@@ -1600,8 +1602,18 @@ static bool _netlink_route_build_singlepath(const struct prefix *p,
 
 	if (is_route_v4_over_v6(rtmsg->rtm_family, nexthop->type)) {
 		rtmsg->rtm_flags |= RTNH_F_ONLINK;
-		if (!nl_attr_put(nlmsg, req_size, RTA_GATEWAY, &ipv4_ll, 4))
+		/* frr-dpd-8.4-683-hack:
+		 * if (!nl_attr_put(nlmsg, req_size, RTA_GATEWAY, &ipv4_ll, 4))
+		 * 	return false;
+		 */
+
+		/* frr-dpd-8.4-683-hack: */
+		struct gw_family_t via;
+		via.family = AF_INET6;
+		memcpy(&via.gate.ipv6, &nexthop->gate.ipv6, 16);
+		if (!nl_attr_put(nlmsg, req_size, RTA_VIA, &via.family, 18))
 			return false;
+
 		if (!nl_attr_put32(nlmsg, req_size, RTA_OIF, nexthop->ifindex))
 			return false;
 
@@ -1761,8 +1773,18 @@ static bool _netlink_route_build_multipath(
 
 	if (is_route_v4_over_v6(rtmsg->rtm_family, nexthop->type)) {
 		rtnh->rtnh_flags |= RTNH_F_ONLINK;
-		if (!nl_attr_put(nlmsg, req_size, RTA_GATEWAY, &ipv4_ll, 4))
+		/* frr-dpd-8.4-683-hack:
+		 * if (!nl_attr_put(nlmsg, req_size, RTA_GATEWAY, &ipv4_ll, 4))
+		 * 	return false;
+		 */
+
+		/* frr-dpd-8.4-683-hack: */
+		struct gw_family_t via;
+		via.family = AF_INET6;
+		memcpy(&via.gate.ipv6, &nexthop->gate.ipv6, 16);
+		if (!nl_attr_put(nlmsg, req_size, RTA_GATEWAY, &via.family, 18))
 			return false;
+
 		rtnh->rtnh_ifindex = nexthop->ifindex;
 		if (nexthop->weight)
 			rtnh->rtnh_hops = nexthop->weight - 1;
