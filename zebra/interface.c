@@ -869,18 +869,25 @@ void if_nbr_mac_to_ipv4ll_neigh_update(struct interface *ifp,
 	struct zebra_if *zif = ifp->info;
 	char buf[16] = "169.254.0.1";
 	struct in_addr ipv4_ll;
-	ns_id_t ns_id;
+
+	/* frr-dpd-8.4-683-hack:
+	 * ns_id_t ns_id;
+	 */
 
 	inet_pton(AF_INET, buf, &ipv4_ll);
 
-	ns_id = zvrf->zns->ns_id;
+	/* frr-dpd-8.4-683-hack:
+	 * ns_id = zvrf->zns->ns_id;
+	 */
 
 	/*
 	 * Remove and re-add any existing neighbor entry for this address,
 	 * since Netlink doesn't currently offer update message types.
 	 */
-	kernel_neigh_update(0, ifp->ifindex, (void *)&ipv4_ll.s_addr, mac, 6,
-			    ns_id, AF_INET, true);
+	/* frr-dpd-8.4-683-hack:
+	 * kernel_neigh_update(0, ifp->ifindex, (void *)&ipv4_ll.s_addr, mac, 6,
+	 * 		    ns_id, AF_INET, true);
+	 */
 
 	/* Add new neighbor entry.
 	 *
@@ -891,9 +898,11 @@ void if_nbr_mac_to_ipv4ll_neigh_update(struct interface *ifp,
 	 * resolve our leftover entries, fail, mark them unreachable and then
 	 * they'll be useless to us.
 	 */
-	if (add)
-		kernel_neigh_update(add, ifp->ifindex, (void *)&ipv4_ll.s_addr,
-				    mac, 6, ns_id, AF_INET, true);
+	/* frr-dpd-8.4-683-hack:
+	 * if (add)
+	 * 	kernel_neigh_update(add, ifp->ifindex, (void *)&ipv4_ll.s_addr,
+	 * 			    mac, 6, ns_id, AF_INET, true);
+	 */
 
 	memcpy(&zif->neigh_mac[0], &mac[0], 6);
 
