@@ -545,6 +545,11 @@ const char *rtm_rta2str(int type)
 		return "NH_ID";
 	case RTA_EXPIRES:
 		return "EXPIRES";
+
+	/* frr-dpd-8.4-683-hack */
+	case RTA_VIA:
+		return "VIA";
+
 	default:
 		return "UNKNOWN";
 	}
@@ -1078,6 +1083,9 @@ static void nlroute_dump(struct rtmsg *rtm, size_t msglen)
 	uint32_t u32v;
 	uint64_t u64v;
 
+	/* frr-dpd-8.4-683-hack: */
+	struct rtvia *rtv;
+
 	/* Get the first attribute and go from there. */
 	rta = RTM_RTA(rtm);
 next_rta:
@@ -1128,6 +1136,23 @@ next_rta:
 			   (uintmax_t)mfc_stats->mfcs_packets,
 			   (uintmax_t)mfc_stats->mfcs_bytes,
 			   (uintmax_t)mfc_stats->mfcs_wrong_if);
+		break;
+
+	/* frr-dpd-8.4-683-hack: */
+	case RTA_VIA:
+		rtv = (struct rtvia *)RTA_DATA(rta);
+		switch (rtv->rtvia_family) {
+		case AF_INET:
+			zlog_debug("      %pI4",
+				   (struct in_addr *)(rtv->rtvia_addr));
+			break;
+		case AF_INET6:
+			zlog_debug("      %pI6",
+				   (struct in6_addr *)(rtv->rtvia_addr));
+			break;
+		default:
+			break;
+		}
 		break;
 
 	default:
