@@ -2699,6 +2699,55 @@ void pimsb_msg_send_frame(const pim_addr *src, const pim_addr *dst,
 			  strerror(errno));
 }
 
+struct pimsb_loopback_packet {
+	const struct gm_if *gm_if;
+	struct sockaddr_in6 src;
+	pim_addr dst;
+	int proto;
+
+	size_t data_len;
+	uint8_t data[];
+};
+
+static void pimsb_recv_loopback(struct thread *t)
+{
+	struct pimsb_loopback_packet *packet = THREAD_ARG(t);
+	gm_rx_process((struct gm_if *)packet->gm_if, &packet->src, &packet->dst,
+		      packet->proto, packet->data, packet->data_len);
+	XFREE(MTYPE_TMP, packet);
+}
+
+static void pimsb_send_loopback(const struct gm_if *gm_if,
+				const struct msghdr *msg)
+{
+	const struct ipv6_ph *ipv6 =
+		(const struct ipv6_ph *)msg->msg_iov[-1].iov_base;
+	struct pimsb_loopback_packet *packet;
+	size_t packet_len;
+
+	if (msg->msg_iovlen == 1)
+		packet_len = msg->msg_iov[0].iov_len;
+	else
+		packet_len = msg->msg_iov[0].iov_len + msg->msg_iov[1].iov_len;
+
+	packet = XCALLOC(MTYPE_TMP, sizeof(*packet) + packet_len);
+	packet->gm_if = gm_if;
+	packet->src = (struct sockaddr_in6){
+		.sin6_family = AF_INET6,
+		.sin6_addr = ipv6->src,
+	};
+	packet->dst = ipv6->dst;
+	packet->proto = ipv6->next_hdr;
+
+	packet->data_len = packet_len;
+	memcpy(packet->data, msg->msg_iov[0].iov_base, msg->msg_iov[0].iov_len);
+	if (msg->msg_iovlen == 2)
+		memcpy(packet->data + msg->msg_iov[0].iov_len,
+		       msg->msg_iov[1].iov_base, msg->msg_iov[1].iov_len);
+
+	thread_add_timer(router->master, pimsb_recv_loopback, packet, 0, NULL);
+}
+
 int pimsb_send_query(const struct gm_if *gm_ifp, struct msghdr *msg,
 		     struct in6_pktinfo *ipi6, int proto)
 {
@@ -2707,6 +2756,8 @@ int pimsb_send_query(const struct gm_if *gm_ifp, struct msghdr *msg,
 	struct sockaddr_in6 *dst;
 	int32_t ifindex;
 	int32_t vifindex;
+
+	pimsb_send_loopback(gm_ifp, msg);
 
 	ifindex = htonl(ifp->ifindex);
 	vifindex = ifp->vif_index ? ifp->vif_index : ifp->ifindex;
