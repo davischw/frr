@@ -3170,8 +3170,8 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 	bool i_am_rp = false;
 	bool i_am_lhr = false;
 	char mroute_uptime[16];
-	char grp_str[INET_ADDRSTRLEN];
-	char src_str[INET_ADDRSTRLEN];
+	char grp_str[PIM_ADDRSTRLEN];
+	char src_str[PIM_ADDRSTRLEN];
 	char in_ifname[INTERFACE_NAMSIZ + 1];
 	char out_ifname[INTERFACE_NAMSIZ + 1];
 	char state_str[PIM_REG_STATE_STR_LEN];
@@ -3454,8 +3454,8 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 	bool i_am_rp = false;
 	bool i_am_lhr = false;
 	char mroute_uptime[16];
-	char grp_str[INET_ADDRSTRLEN];
-	char src_str[INET_ADDRSTRLEN];
+	char grp_str[PIM_ADDRSTRLEN];
+	char src_str[PIM_ADDRSTRLEN];
 	char in_ifname[INTERFACE_NAMSIZ + 1];
 	char out_ifname[INTERFACE_NAMSIZ + 1];
 	char state_str[PIM_REG_STATE_STR_LEN];
