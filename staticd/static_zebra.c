@@ -184,7 +184,7 @@ static void zebra_connected(struct zclient *zclient)
 	static_fixup_vrf_ids(vrf);
 
 	/* Register as a graceful restart capable with zebra */
-	static_send_zebra_gr_cap(zclient, VRF_DEFAULT);
+	static_gr_vrf_enable(zclient, VRF_DEFAULT);
 
 	/*
 	 * It's possible that staticd connected after config was read
@@ -1509,7 +1509,8 @@ void static_zebra_vrf_register(struct vrf *vrf)
 	zclient_send_reg_requests(static_zclient, vrf->vrf_id);
 
 	/* Register the VRF as graceful restart capable with zebra */
-	static_send_zebra_gr_cap(static_zclient, vrf->vrf_id);
+	/* TODO: */
+	static_gr_vrf_enable(static_zclient, vrf->vrf_id);
 }
 
 void static_zebra_vrf_unregister(struct vrf *vrf)
