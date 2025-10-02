@@ -222,6 +222,37 @@ int static_gr_vrf_disable(vrf_id_t vrf_id)
 }
 
 
+int show_static_gr_vrf(struct vty *vty, char* vrf_name);
+
+
+struct json_object *show_static_gr_vrf_info_json(struct static_gr_vrf_info *gr_info)
+{
+	struct json_object *json = NULL;
+
+	if (gr_info) {
+		if (gr_info->init) {
+			json = json_object_object_new(void);
+			if (json) {
+				json_object_bool_add(json, "enabled", gr_info->enabled);
+				json_object_int_add(json, "staleRemovalTimeSeconds", gr_info->stale_removal_time_sec);
+				json_object_int_add(json, "gracePeriodSeconds", gr_info->grace_period_sec);
+				json_object_int add(json, "vrfId", gr_info->vrf_id);
+			}
+		}
+	}
+
+	return json;
+}
+
+
+int show_static_gr_vrf_json(struct vty *vty, vrf
+
+
+int show_static_gr_vrf_all_json(struct vty *vty)
+{
+	if (vty) {
+		if (vrf
+
 
 
 void static_gr_set_vrf_stale_removal_time(vrf_id_t vrf_id, uint32_t stale_removal_time);
