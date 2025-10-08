@@ -2800,9 +2800,8 @@ static void pimsb_mld_send(const struct interface *interface, bool join,
 	struct mld_packet *packet;
 	struct cmsghdr *cmsg;
 	uint8_t *dp;
-	struct iovec iov;
+	struct iovec iov[2];
 	struct msghdr msg;
-	struct in6_addr dest;
 	struct in6_pktinfo ipi6;
 	struct sockaddr_in6 sin6_src;
 	struct sockaddr_in6 sin6_dst;
@@ -2826,7 +2825,7 @@ static void pimsb_mld_send(const struct interface *interface, bool join,
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_control = cmsgbuf;
 	msg.msg_controllen = sizeof(cmsgbuf);
-	msg.msg_iov = &iov;
+	msg.msg_iov = &iov[1];
 	msg.msg_iovlen = 1;
 	msg.msg_name = &sin6_dst;
 	msg.msg_namelen = sizeof(sin6_dst);
@@ -2854,18 +2853,15 @@ static void pimsb_mld_send(const struct interface *interface, bool join,
 		ipi6.ipi6_addr = packet->ip6->src;
 		sin6_src.sin6_addr = packet->ip6->src;
 		sin6_dst.sin6_addr = packet->ip6->dst;
-		dest = packet->ip6->dst;
-		iov.iov_base = packet->icmp6;
-		iov.iov_len = packet->size;
+		iov[0].iov_base = packet->ip6;
+		iov[0].iov_len = sizeof(packet->ip6);
+		iov[1].iov_base = packet->icmp6;
+		iov[1].iov_len = packet->size;
 
 		frr_with_privs (&pimd_privs) {
 			pimsb_send_query(pim_interface->mld, &msg, &ipi6,
 					 PIM_IPV6_ENCAP_MLD);
 		}
-
-		gm_rx_process(pim_interface->mld, &sin6_src, &dest,
-			      PIM_IPV6_ENCAP_MLD, iov.iov_base,
-			      iov.iov_len);
 	}
 
 	mld_free_packet_list(packet_list);
