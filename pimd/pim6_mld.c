@@ -1693,6 +1693,12 @@ static void gm_handle_query(struct gm_if *gm_ifp,
 				     ntohs(hdr->n_src));
 		gm_ifp->stats.rx_query_new_groupsrc++;
 	}
+
+#ifdef VENDOR_SOUTHBOUND
+	/* Update all static group timers. */
+	if (pim_southbound_enabled)
+		pimsb_gm_join(gm_ifp->ifp);
+#endif /* VENDOR_SOUTHBOUND */
 }
 
 void gm_rx_process(struct gm_if *gm_ifp, const struct sockaddr_in6 *pkt_src,
