@@ -470,6 +470,7 @@ void bgp_generate_updgrp_packets(struct thread *thread)
 	struct bpacket *next_pkt;
 	uint32_t wpq;
 	uint32_t generated = 0;
+	bool is_withdraw;
 	afi_t afi;
 	safi_t safi;
 
@@ -509,11 +510,14 @@ void bgp_generate_updgrp_packets(struct thread *thread)
 			 * the end of the list. Always try to push out
 			 * WITHDRAWs first.
 			 */
+			is_withdraw = true;
 			if (!next_pkt || !next_pkt->buffer) {
 				next_pkt = subgroup_withdraw_packet(
 					PAF_SUBGRP(paf));
-				if (!next_pkt || !next_pkt->buffer)
+				if (!next_pkt || !next_pkt->buffer) {
 					subgroup_update_packet(PAF_SUBGRP(paf));
+					is_withdraw = false;
+				}
 				next_pkt = paf->next_pkt_to_send;
 			}
 
@@ -609,7 +613,7 @@ void bgp_generate_updgrp_packets(struct thread *thread)
 			/* Found a packet template to send, overwrite
 			 * packet with appropriate attributes from peer
 			 * and advance peer */
-			s = bpacket_reformat_for_peer(next_pkt, paf);
+			s = bpacket_reformat_for_peer(next_pkt, paf, is_withdraw);
 			if (s)
 				bgp_packet_add(peer, s);
 			bpacket_queue_advance_peer(paf);
