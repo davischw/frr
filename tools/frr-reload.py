@@ -1842,6 +1842,13 @@ def compare_context_objects(newconf, running, ignore_tag_start=None, ignore_tag_
     return (lines_to_add, lines_to_del)
 
 
+def reorder_address_list(lines):
+    for line in lines:
+        (ctx, _) = line
+        if "address-list " in ctx[0]:
+            lines.insert(0, lines.pop(lines.index(line)))
+
+
 if __name__ == "__main__":
     # Command line options
     parser = argparse.ArgumentParser(
@@ -2094,6 +2101,7 @@ if __name__ == "__main__":
             running.load_from_show_running(args.daemon)
 
         (lines_to_add, lines_to_del) = compare_context_objects(newconf, running, args.ignore_tag_start, args.ignore_tag_end)
+        reorder_address_list(lines_to_add)
 
         if lines_to_del:
             if not args.test_reset:
@@ -2196,6 +2204,7 @@ if __name__ == "__main__":
             log.debug("Running Frr Config (Pass #%d)\n%s", x, running.get_lines())
 
             (lines_to_add, lines_to_del) = compare_context_objects(newconf, running, args.ignore_tag_start, args.ignore_tag_end)
+            reorder_address_list(lines_to_add)
 
             if x == 0:
                 lines_to_add_first_pass = lines_to_add
