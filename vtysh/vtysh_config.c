@@ -483,7 +483,7 @@ void vtysh_config_parse_line(void *arg, const char *line)
 			config = config_get(RPKI_NODE, line);
 		else if (strncmp(line, "address-list",
 				 strlen("address-list")) == 0)
-			config = config_get(ACCESS_NODE, line);
+			config = config_get(ADDRESS_LIST_NODE, line);
 		else {
 			if (strncmp(line, "log", strlen("log")) == 0 ||
 			    strncmp(line, "hostname", strlen("hostname")) ==
@@ -524,7 +524,8 @@ void vtysh_config_parse_line(void *arg, const char *line)
 	 || (I) == FORWARDING_NODE || (I) == DEBUG_NODE || (I) == AAA_NODE     \
 	 || (I) == VRF_DEBUG_NODE || (I) == NORTHBOUND_DEBUG_NODE              \
 	 || (I) == RMAP_DEBUG_NODE || (I) == RESOLVER_DEBUG_NODE               \
-	 || (I) == MPLS_NODE || (I) == KEYCHAIN_KEY_NODE)
+	 || (I) == MPLS_NODE || (I) == KEYCHAIN_KEY_NODE                       \
+	 || (I) == ADDRESS_LIST_NODE)
 
 static void configvec_dump(vector vec, bool nested)
 {

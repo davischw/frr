@@ -91,6 +91,7 @@ struct host {
 
 /* List of CLI nodes. Please remember to update the name array in command.c. */
 enum node_type {
+	ADDRESS_LIST_NODE,       /* Address list node. */
 	AUTH_NODE,		 /* Authentication mode of vty interface. */
 	VIEW_NODE,		 /* View node. Default mode of vty interface. */
 	AUTH_ENABLE_NODE,	/* Authentication mode for change enable. */
