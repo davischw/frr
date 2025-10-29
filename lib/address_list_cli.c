@@ -37,11 +37,11 @@
 /*
  * Commands.
  */
-DEFPY(address_list_new, address_list_new_cmd,
-      "[no] address-list WORD$name",
-      NO_STR
-      ADDR_LIST_STR
-      ADDR_LIST_NAME_STR)
+DEFPY_YANG(address_list_new, address_list_new_cmd,
+           "[no] address-list WORD$name",
+           NO_STR
+           ADDR_LIST_STR
+           ADDR_LIST_NAME_STR)
 {
 	char xpath[XPATH_MAXLEN];
 
@@ -62,13 +62,13 @@ void address_list_show(struct vty *vty, const struct lyd_node *dnode,
 		yang_dnode_get_string(dnode, "./name"));
 }
 
-DEFPY(address_list_append, address_list_append_cmd,
-      "address-list WORD$name address <A.B.C.D|X:X::X:X>$addr",
-      ADDR_LIST_STR
-      ADDR_LIST_NAME_STR
-      ADDR_STR
-      IP_STR
-      IPV6_STR
+DEFPY_YANG(address_list_append, address_list_append_cmd,
+           "address-list WORD$name address <A.B.C.D|X:X::X:X>$addr",
+           ADDR_LIST_STR
+           ADDR_LIST_NAME_STR
+           ADDR_STR
+           IP_STR
+           IPV6_STR
 )
 {
 	char xpath[XPATH_MAXLEN], xpath_full[XPATH_MAXLEN];
@@ -95,14 +95,14 @@ void address_list_address_show(struct vty *vty, const struct lyd_node *dnode,
 	);
 }
 
-DEFPY(address_list_remove_entry, address_list_remove_entry_cmd,
-      "no address-list WORD$name address <A.B.C.D|X:X::X:X>$addr",
-      NO_STR
-      ADDR_LIST_STR
-      ADDR_LIST_NAME_STR
-      ADDR_STR
-      IP_STR
-      IPV6_STR)
+DEFPY_YANG(address_list_remove_entry, address_list_remove_entry_cmd,
+           "no address-list WORD$name address <A.B.C.D|X:X::X:X>$addr",
+           NO_STR
+           ADDR_LIST_STR
+           ADDR_LIST_NAME_STR
+           ADDR_STR
+           IP_STR
+           IPV6_STR)
 {
 	char xpath[XPATH_MAXLEN];
 
