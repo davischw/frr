@@ -2986,8 +2986,8 @@ void pimsb_show_state_json(struct vty *vty, struct pim_instance *pim,
 		else
 			isRpt = false;
 
-		snprintfrr(grp_str, sizeof(grp_str), "%pPA", oil_mcastgrp(oil));
-		snprintfrr(src_str, sizeof(src_str), "%pPA", oil_origin(oil));
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs", oil_mcastgrp(oil));
+		snprintfrr(src_str, sizeof(src_str), "%pPAs", oil_origin(oil));
 		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_incoming_vif(oil),
 			      in_ifname, sizeof(in_ifname));
 
@@ -3134,8 +3134,8 @@ void pimsb_show_state(struct vty *vty, struct pim_instance *pim,
 		else
 			isRpt = false;
 
-		snprintfrr(grp_str, sizeof(grp_str), "%pPA", oil_mcastgrp(oil));
-		snprintfrr(src_str, sizeof(src_str), "%pPA", oil_origin(oil));
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs", oil_mcastgrp(oil));
+		snprintfrr(src_str, sizeof(src_str), "%pPAs", oil_origin(oil));
 		pimsb_mrt_iif(pim, oil_mcastgrp(oil), *oil_incoming_vif(oil),
 			      in_ifname, sizeof(in_ifname));
 
@@ -3245,8 +3245,8 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		    pim_addr_cmp(sg->src, *oil_origin(oil)))
 			continue;
 
-		snprintfrr(grp_str, sizeof(grp_str), "%pPA", oil_mcastgrp(oil));
-		snprintfrr(src_str, sizeof(src_str), "%pPA", oil_origin(oil));
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs", oil_mcastgrp(oil));
+		snprintfrr(src_str, sizeof(src_str), "%pPAs", oil_origin(oil));
 
 		if (pim_is_grp_ssm(pim, *oil_mcastgrp(oil)))
 			strlcpy(state_str, "M", sizeof(state_str));
@@ -3410,8 +3410,8 @@ void pimsb_show_mroute_json(struct vty *vty, struct pim_instance *pim,
 		if (!s_route->c_oil.installed)
 			continue;
 
-		snprintfrr(grp_str, sizeof(grp_str), "%pPA", &s_route->group);
-		snprintfrr(src_str, sizeof(src_str), "%pPA", &s_route->source);
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs", &s_route->group);
+		snprintfrr(src_str, sizeof(src_str), "%pPAs", &s_route->source);
 		pimsb_mrt_iif(pim, &s_route->group, s_route->iif, in_ifname,
 			      sizeof(in_ifname));
 
@@ -3552,8 +3552,8 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 		    pim_addr_cmp(sg->src, *oil_origin(oil)))
 			continue;
 
-		snprintfrr(grp_str, sizeof(grp_str), "%pPA", oil_mcastgrp(oil));
-		snprintfrr(src_str, sizeof(src_str), "%pPA", oil_origin(oil));
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs", oil_mcastgrp(oil));
+		snprintfrr(src_str, sizeof(src_str), "%pPAs", oil_origin(oil));
 
 		if (pim_is_grp_ssm(pim, *oil_mcastgrp(oil)))
 			strlcpy(state_str, "M", sizeof(state_str));
@@ -3675,8 +3675,8 @@ void pimsb_show_mroute(struct vty *vty, struct pim_instance *pim,
 		if (!s_route->c_oil.installed)
 			continue;
 
-		snprintfrr(grp_str, sizeof(grp_str), "%pPA", &s_route->group);
-		snprintfrr(src_str, sizeof(src_str), "%pPA", &s_route->source);
+		snprintfrr(grp_str, sizeof(grp_str), "%pPAs", &s_route->group);
+		snprintfrr(src_str, sizeof(src_str), "%pPAs", &s_route->source);
 		pimsb_mrt_iif(pim, &s_route->group, s_route->iif, in_ifname,
 			      sizeof(in_ifname));
 		found_oif = false;
