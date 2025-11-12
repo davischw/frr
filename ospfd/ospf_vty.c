@@ -1026,14 +1026,11 @@ void ospf_shutdown(struct ospf *ospf, bool shutdown)
 			ospf_area_lsdb_discard_delete(area);
 			ospf_lsa_unlock(&area->router_lsa_self);
 		}
-		LSDB_LOOP (OPAQUE_AS_LSDB(ospf), rn, lsa) {
+		LSDB_LOOP (OPAQUE_AS_LSDB(ospf), rn, lsa)
 			ospf_discard_from_db(ospf, ospf->lsdb, lsa);
-			ospf_lsdb_delete_all(ospf->lsdb);
-		}
-		LSDB_LOOP (EXTERNAL_LSDB(ospf), rn, lsa) {
+		LSDB_LOOP (EXTERNAL_LSDB(ospf), rn, lsa)
 			ospf_discard_from_db(ospf, ospf->lsdb, lsa);
-			ospf_lsdb_delete_all(ospf->lsdb);
-		}
+		ospf_lsdb_delete_all(ospf->lsdb);
 
 		SET_FLAG(ospf->config, OSPF_SHUTDOWN);
 	} else {
