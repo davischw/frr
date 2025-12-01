@@ -21,7 +21,6 @@
 
 #include "lib/json.h"
 #include "command.h"
-#include "lib/compiler.h"
 #include "if.h"
 #include "prefix.h"
 #include "zclient.h"
@@ -436,7 +435,6 @@ static void igmp_show_interfaces_single(struct pim_instance *pim,
 	long qri_msec;
 	time_t now;
 	int lmqc;
-	int qrv;
 
 	json_object *json = NULL;
 	json_object *json_row = NULL;
@@ -467,10 +465,9 @@ static void igmp_show_interfaces_single(struct pim_instance *pim,
 						 sizeof(other_hhmmss),
 						 igmp->t_other_querier_timer);
 
-			qrv = MAX(igmp->querier_robustness_variable,
-				  pim_ifp->gm_last_member_query_count);
 			gmi_msec = PIM_IGMP_GMI_MSEC(
-				qrv, igmp->querier_query_interval,
+				igmp->querier_robustness_variable,
+				igmp->querier_query_interval,
 				pim_ifp->gm_query_max_response_time_dsec);
 
 			sqi = PIM_IGMP_SQI(pim_ifp->gm_default_query_interval);
