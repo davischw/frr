@@ -479,7 +479,7 @@ static void igmp_show_interfaces_single(struct pim_instance *pim,
 
 			lmqt_msec = PIM_IGMP_LMQT_MSEC(
 				pim_ifp->gm_specific_query_max_response_time_dsec,
-				pim_ifp->gm_last_member_query_count);
+				if_gm_last_member_query_count(pim_ifp));
 
 			ohpi_msec =
 				PIM_IGMP_OHPI_DSEC(
@@ -490,7 +490,7 @@ static void igmp_show_interfaces_single(struct pim_instance *pim,
 
 			qri_msec =
 				pim_ifp->gm_query_max_response_time_dsec * 100;
-			lmqc = pim_ifp->gm_last_member_query_count;
+			lmqc = if_gm_last_member_query_count(pim_ifp);
 
 			if (uj) {
 				json_row = json_object_new_object();

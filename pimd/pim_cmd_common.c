@@ -3715,7 +3715,7 @@ int gm_process_last_member_query_count_cmd(struct vty *vty,
 					      "true");
 	}
 
-	nb_cli_enqueue_change(vty, "./robustness-variable", NB_OP_MODIFY,
+	nb_cli_enqueue_change(vty, "./last-member-query-count", NB_OP_MODIFY,
 			      lmqc_str);
 	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
 				    FRR_PIM_AF_XPATH_VAL);
@@ -3723,7 +3723,7 @@ int gm_process_last_member_query_count_cmd(struct vty *vty,
 
 int gm_process_no_last_member_query_count_cmd(struct vty *vty)
 {
-	nb_cli_enqueue_change(vty, "./robustness-variable", NB_OP_DESTROY,
+	nb_cli_enqueue_change(vty, "./last-member-query-count", NB_OP_DESTROY,
 			      NULL);
 	return nb_cli_apply_changes(vty, FRR_GMP_INTERFACE_XPATH,
 				    FRR_PIM_AF_XPATH_VAL);
