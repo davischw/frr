@@ -1541,6 +1541,9 @@ static void gm_t_other_querier(struct thread *t)
 
 	zlog_info(log_ifp("other querier timer expired"));
 
+	/* Other querier is gone, apply our setting to QRV */
+	gm_ifp->cur_qrv = pim_ifp->gm_default_robustness_variable;
+
 	gm_ifp->querier = pim_ifp->ll_lowest;
 	gm_ifp->n_startup = gm_ifp->cur_qrv;
 
@@ -1650,6 +1653,9 @@ static void gm_handle_query(struct gm_if *gm_ifp,
 
 	if (IPV6_ADDR_CMP(&pkt_src->sin6_addr, &pim_ifp->ll_lowest) < 0) {
 		unsigned int other_ms;
+
+		/* Use the other querier robustness value */
+		gm_ifp->cur_qrv = (hdr->flags & 0x7) ?: 2;
 
 		THREAD_OFF(gm_ifp->t_query);
 		THREAD_OFF(gm_ifp->t_other_querier);
@@ -2529,6 +2535,10 @@ void gm_ifp_update(struct interface *ifp)
 
 	if (gm_ifp->cur_max_resp != cfg_max_response)
 		gm_ifp->cur_max_resp = cfg_max_response;
+
+	/* Only adjust the QRV if no other querier is available */
+	if (gm_ifp->t_other_querier == NULL)
+		gm_ifp->cur_qrv = pim_ifp->gm_default_robustness_variable;
 
 	gm_ifp->cur_lmqc = if_gm_last_member_query_count(pim_ifp);
 
