@@ -1239,7 +1239,9 @@ static int grpc_pthread_stop(struct frr_pthread *fpt, void **result __attribute_
 {
 	struct grpc_pthread_data *grpc_data = static_cast<struct grpc_pthread_data *>(fpt->data);
 
-	assert(fpt->running);
+	if (atomic_load_explicit(&fpt->running, memory_order_relaxed) == false)
+		return 0;
+
 	atomic_store_explicit(&fpt->running, false, memory_order_relaxed);
 
 	grpc_debug("%s: entered", __func__);
