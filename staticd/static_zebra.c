@@ -27,6 +27,7 @@
 #include "static_vrf.h"
 #include "static_routes.h"
 #include "static_zebra.h"
+#include "static_gr.h"
 #include "static_nht.h"
 #include "static_vty.h"
 #include "static_debug.h"
@@ -181,6 +182,9 @@ static void zebra_connected(struct zclient *zclient)
 	vrf = vrf_lookup_by_id(VRF_DEFAULT);
 	assert(vrf);
 	static_fixup_vrf_ids(vrf);
+
+	/* Register as a graceful restart capable with zebra */
+	static_gr_vrf_enable(zclient, VRF_DEFAULT);
 
 	/*
 	 * It's possible that staticd connected after config was read
@@ -1503,6 +1507,10 @@ void static_zebra_vrf_register(struct vrf *vrf)
 	if (vrf->vrf_id == VRF_DEFAULT)
 		return;
 	zclient_send_reg_requests(static_zclient, vrf->vrf_id);
+
+	/* Register the VRF as graceful restart capable with zebra */
+	/* TODO: */
+	static_gr_vrf_enable(static_zclient, vrf->vrf_id);
 }
 
 void static_zebra_vrf_unregister(struct vrf *vrf)

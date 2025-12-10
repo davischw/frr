@@ -6,6 +6,11 @@
 #ifndef _ZEBRA_LINKLIST_H
 #define _ZEBRA_LINKLIST_H
 
+
+#include <assert.h>
+#include <inttypes.h>
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
