@@ -76,6 +76,9 @@ static FRR_NORETURN void sigint(void)
 
 	static_vrf_terminate();
 
+	/* Clean up graceful restart data structures */
+	static_gr_exit();
+
 	static_zebra_stop();
 
 	/* clean up SRv6 data structures */
@@ -173,6 +176,10 @@ int main(int argc, char **argv, char **envp)
 	static_srv6_init();
 
 	static_zebra_init();
+
+	/* Initialize graceful restart data structures */
+	static_gr_init();
+
 	static_vty_init();
 
 	/* Initialize MGMT backend functionalities */
