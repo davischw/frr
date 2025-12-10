@@ -28,6 +28,7 @@
 #include "frrdistance.h"
 */
 
+#include "staticd/static_gr_vty_clippy.c"
 /*
 #include "static_vrf.h"
 #include "static_vty.h"
