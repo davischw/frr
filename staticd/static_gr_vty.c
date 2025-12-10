@@ -40,6 +40,9 @@
 */
 
 
+/* clang-format off */
+
+
 DEFPY(staticd_show_graceful_restart, staticd_show_graceful_restart_cmd,
       "show static graceful-restart [vrf]$vrf_name [json]",
       SHOW_STR
@@ -48,7 +51,6 @@ DEFPY(staticd_show_graceful_restart, staticd_show_graceful_restart_cmd,
       VRF_STR
       JSON_STR)
 {
-	/* clang-format off */
 
 	vrf_id_t vrf_id;
 
@@ -68,8 +70,10 @@ DEFPY(staticd_show_graceful_restart, staticd_show_graceful_restart_cmd,
 
         return CMD_SUCCESS;
 
-	/* clang-format on */
 }
+
+
+/* clang-format on */
 
 
 /* EOF */
