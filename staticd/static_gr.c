@@ -162,23 +162,18 @@ int static_gr_vrf_enable(struct zclient *zclient, vrf_id_t vrf_id)
 	if (zclient) {
 		gr_info = static_gr_vrf_info_new();
 		if (gr_info) {
+			gr_info->zclient = zclient;
+			gr_info->vrf_id = vrf_id;
 			TAILQ_INSERT_HEAD(&gr_info_queue, gr_info, entries);
 
-			if (!static_gr_vrf_info_init(gr_info)) {
-				gr_info->zclient = zclient;
-				gr_info->vrf_id = vrf_id;
+			if (!static_announce_zebra_gr_cap(gr_info)) {
+				gr_info->enabled = true;
 
-				if (!static_announce_zebra_gr_cap(gr_info)) {
-					gr_info->enabled = true;
-
-					return 0;
-				}
+				return 0;
 			}
 
 			/* Failure case cleanup */
-			static_gr_vrf_info_exit(gr_info);
 			TAILQ_REMOVE(&gr_info_queue, gr_info, entries);
-
 			static_gr_vrf_info_delete(gr_info);
 		}
 	}
@@ -223,8 +218,8 @@ struct json_object *show_static_gr_vrf_info_json(struct static_gr_vrf_info *gr_i
 		if (gr_info->init) {
 			json = json_object_new(void);
 			if (json) {
-				json_object_int add(json, "vrfId", gr_info->vrf_id);
-				json_object_bool_add(json, "enabled", gr_info->enabled);
+				json_object_int_add(json, "vrfId", gr_info->vrf_id);
+				json_object_boolean_add(json, "enabled", gr_info->enabled);
 				json_object_int_add(json, "staleRemovalTimeSeconds", gr_info->stale_removal_time_sec);
 				json_object_int_add(json, "gracePeriodSeconds", gr_info->grace_period_sec);
 			}
@@ -235,7 +230,12 @@ struct json_object *show_static_gr_vrf_info_json(struct static_gr_vrf_info *gr_i
 }
 
 
-int show_static_gr_vrf_json(struct vty *vty, vrf
+int show_static_gr_vrf_json(struct vty *vty, char* vrf_name)
+{
+	/* TODO: Implement */
+
+	return -1
+}
 
 
 /* TODO:
