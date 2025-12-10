@@ -45,21 +45,21 @@ int static_gr_init(void) {
 
 
 int static_gr_exit(void) {
-	/* TODO: Iterate trough gr_info list, clean up elements
-	while (!TAILQ_EMPTY(&q)) {
+	struct static_gr_vrf_info *gr_info = NULL;
+
+	/* TODO: Iterate trough gr_info list, clean up elements */
+	while (!TAILQ_EMPTY(&gr_info_queue)) {
 		gr_info = TAILQ_FIRST(&gr_info_queue);
 		if (gr_info) {
-			if (gr_info->)
+			if (gr_info->enabled)
+				static_gr_vrf_disable(gr_info->vrf_id);
 
-
-
+			TAILQ_REMOVE(&gr_info_queue, gr_info, entries);
+			static_gr_vrf_info_delete(gr_info);
 		}
-
-		TAILQ_REMOVE(&q, p, tailq);
 	}
-	*/
 
-	return -1;
+	return 0;
 }
 
 
@@ -219,7 +219,7 @@ struct json_object *show_static_gr_vrf_info_json(struct static_gr_vrf_info *gr_i
 
 	if (gr_info) {
 		if (gr_info->init) {
-			json = json_object_new_object(void);
+			json = json_object_new_object();
 			if (json) {
 				json_object_int_add(json, "vrfId", gr_info->vrf_id);
 				json_object_boolean_add(json, "enabled", gr_info->enabled);
