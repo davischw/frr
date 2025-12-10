@@ -13,6 +13,7 @@ staticd_libstatic_a_SOURCES = \
 	staticd/static_bfd.c \
 	staticd/static_debug.c \
 	staticd/static_gr.c \
+	staticd/static_gr_vty.c \
 	staticd/static_nht.c \
 	staticd/static_routes.c \
 	staticd/static_zebra.c \
@@ -37,6 +38,7 @@ noinst_HEADERS += \
 
 clippy_scan += \
 	staticd/static_vty.c \
+	staticd/static_gr_vty.c \
 	# end
 
 staticd_staticd_SOURCES = staticd/static_main.c

@@ -19,9 +19,10 @@
 
 struct static_gr_info_queue gr_info_queue;
 
+
 /* Function prototypes */
-static int static_gr_vrf_info_init(struct static_gr_vrf_info *gr_info);
-static int static_gr_vrf_info_exit(struct static_gr_vrf_info *gr_info);
+static struct static_gr_vrf_info *static_gr_vrf_info_new(void);
+static void static_gr_vrf_info_delete(struct static_gr_vrf_info *gr_info);
 static struct static_gr_vrf_info *static_gr_vrf_info_lookup(vrf_id_t vrf_id);
 static int static_announce_zebra_gr_cap(struct static_gr_vrf_info *gr_info);
 
@@ -30,8 +31,6 @@ static int static_update_zebra_gr_cap(struct static_gr_vrf_info *gr_info);
 */
 
 static int static_revoke_zebra_gr_cap(struct static_gr_vrf_info *gr_info);
-
-
 
 
 int static_gr_init(void) {

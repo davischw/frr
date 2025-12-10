@@ -1,14 +1,43 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 
+/*
+ * staticd - graceful restart vty code
+ * Copyright (c) 2025 Network Device Education Foundation (NetDEF), Inc.
+ *               David Schweizer
+ */
 
 
+#include <zebra.h>
 
+#include "command.h"
+#include "vty.h"
 
+/*
+#include "vrf.h"
+#include "prefix.h"
+#include "nexthop.h"
+#include "table.h"
+#include "srcdest_table.h"
+#include "mgmt_be_client.h"
+#include "mpls.h"
+#include "northbound.h"
+#include "libfrr.h"
+#include "routing_nb.h"
+#include "northbound_cli.h"
+#include "frrdistance.h"
+*/
 
-
-
-
-/* clang-format off */
+/*
+#include "static_vrf.h"
+#include "static_vty.h"
+#include "static_routes.h"
+#include "static_debug.h"
+#include "staticd/static_vty_clippy.c"
+#include "static_nb.h"
+#include "static_srv6.h"
+#include "static_zebra.h"
+*/
 
 
 DEFPY(staticd_show_graceful_restart, staticd_show_graceful_restart_cmd,
@@ -19,6 +48,8 @@ DEFPY(staticd_show_graceful_restart, staticd_show_graceful_restart_cmd,
       VRF_STR
       JSON_STR)
 {
+	/* clang-format off */
+
 	vrf_id_t vrf_id;
 
 	if (vrf_name) {
@@ -36,6 +67,8 @@ DEFPY(staticd_show_graceful_restart, staticd_show_graceful_restart_cmd,
 	}
 
         return CMD_SUCCESS;
+
+	/* clang-format on */
 }
 
 
