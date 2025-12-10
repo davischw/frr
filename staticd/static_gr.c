@@ -32,6 +32,9 @@ static int static_update_zebra_gr_cap(struct static_gr_vrf_info *gr_info);
 
 static int static_revoke_zebra_gr_cap(struct static_gr_vrf_info *gr_info);
 
+struct json_object *show_static_gr_vrf_info_json(struct static_gr_vrf_info *gr_info);
+int show_static_gr_vrf_json(struct vty *vty, char* vrf_name);
+
 
 int static_gr_init(void) {
 	/* Initialize per VRF info queue */
@@ -160,21 +163,25 @@ int static_gr_vrf_enable(struct zclient *zclient, vrf_id_t vrf_id)
 	/* TODO: check vrf_id validity */
 
 	if (zclient) {
-		gr_info = static_gr_vrf_info_new();
-		if (gr_info) {
+		gr_info = static_gr_vrf_info_lookup(vrf_id);
+		if (!gr_info) {
+			gr_info = static_gr_vrf_info_new();
 			gr_info->zclient = zclient;
 			gr_info->vrf_id = vrf_id;
 			TAILQ_INSERT_HEAD(&gr_info_queue, gr_info, entries);
+		}
 
-			if (!static_announce_zebra_gr_cap(gr_info)) {
+		/* TODO: Updating zclient pointer for existing entries? */
+
+		if (gr_info) {
+			if (gr_info->enabled) {
+				/* Already enabled */
+				return 0;
+			} else if (!static_announce_zebra_gr_cap(gr_info)) {
 				gr_info->enabled = true;
 
 				return 0;
 			}
-
-			/* Failure case cleanup */
-			TAILQ_REMOVE(&gr_info_queue, gr_info, entries);
-			static_gr_vrf_info_delete(gr_info);
 		}
 	}
 
@@ -193,10 +200,6 @@ int static_gr_vrf_disable(vrf_id_t vrf_id)
 		if (gr_info->enabled) {
 			if (!static_revoke_zebra_gr_cap(gr_info)) {
 				gr_info->enabled = false;
-				static_gr_vrf_info_exit(gr_info);
-				TAILQ_REMOVE(&gr_info_queue, gr_info, entries);
-
-				static_gr_vrf_info_delete(gr_info);
 
 				return 0;
 			}
@@ -216,7 +219,7 @@ struct json_object *show_static_gr_vrf_info_json(struct static_gr_vrf_info *gr_i
 
 	if (gr_info) {
 		if (gr_info->init) {
-			json = json_object_new(void);
+			json = json_object_new_object(void);
 			if (json) {
 				json_object_int_add(json, "vrfId", gr_info->vrf_id);
 				json_object_boolean_add(json, "enabled", gr_info->enabled);
@@ -234,7 +237,7 @@ int show_static_gr_vrf_json(struct vty *vty, char* vrf_name)
 {
 	/* TODO: Implement */
 
-	return -1
+	return -1;
 }
 
 
