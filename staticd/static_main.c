@@ -20,6 +20,7 @@
 #include "filter.h"
 #include "routing_nb.h"
 
+#include "static_gr.h"
 #include "static_vrf.h"
 #include "static_vty.h"
 #include "static_routes.h"
