@@ -49,7 +49,7 @@
 
 DEFPY( staticd_show_graceful_restart,
        staticd_show_graceful_restart_cmd,
-       "show static graceful-restart [vrf$vrf_name] [json]",
+       "show static graceful-restart [vrf$vrf_name] [json$json]",
        SHOW_STR
        STATICD_STR
        "GRACEFUL_RESTART_STR"
