@@ -292,53 +292,6 @@ ssize_t ospf6_sb_sendmsg(struct ospf6 *ospf6, const struct in6_addr *src,
 	return message[0].iov_len;
 }
 
-static struct ospf6_interface *
-interface_lookup_by_vif_and_address(int vif, const struct in6_addr *address)
-{
-	struct interface *interface;
-	struct connected *connected;
-	struct listnode *node;
-	struct vrf *vrf;
-
-	RB_FOREACH (vrf, vrf_id_head, &vrfs_by_id) {
-		FOR_ALL_INTERFACES (vrf, interface) {
-			/* Handle data planes with OS vifs and without. */
-			if (interface->vif_index && interface->vif_index != vif)
-				continue;
-			else if (interface->vif_index == 0 &&
-				 interface->ifindex != vif)
-				continue;
-
-			FOR_ALL_INTERFACES_ADDRESSES (interface, connected,
-						      node) {
-				if (connected->address->family != AF_INET6)
-					continue;
-
-				if (memcmp(&connected->address->u.prefix6,
-					   address, sizeof(*address)) == 0)
-					return interface->info;
-			}
-		}
-	}
-
-	return NULL;
-}
-
-/** Matches the data plane local address (::127.254.X.Y). */
-static bool ospf6_is_dataplane_address(const struct in6_addr *i6a)
-{
-	int idx = 0;
-
-	for (idx = 0; idx < 12; idx++)
-		if (i6a->s6_addr[idx] != 0)
-			return false;
-
-	if (i6a->s6_addr[12] == 0x7F && i6a->s6_addr[13] == 0xFE)
-		return true;
-
-	return false;
-}
-
 enum ospf6_read_return_enum
 ospf6_sb_read_helper(int ospf6_sock, uint8_t *msgbuf, size_t msgbuflen)
 {
@@ -401,29 +354,6 @@ ospf6_sb_read_helper(int ospf6_sock, uint8_t *msgbuf, size_t msgbuflen)
 		zlog_debug("%s: src=%pI6 dst=%pI6 ifindex=%d flowinfo=0x%08x",
 			   __func__, &src, &dst, ifindex, flowinfo);
 
-	/*
-	 * Southbound flow information should not be used for global
-	 * addresses.
-	 *
-	 * When dealing with global address messages we must translate
-	 * the OS interface index to the data plane interface index so
-	 * the rest of the code know what to do.
-	 */
-	if (!ospf6_is_dataplane_address(&dst) && !IN6_IS_ADDR_LINKLOCAL(&dst) &&
-	    !IN6_IS_ADDR_MULTICAST(&dst)) {
-		oi = interface_lookup_by_vif_and_address(ifindex, &dst);
-		if (oi != NULL) {
-			ifindex = oi->interface->ifindex;
-			for (ALL_LIST_ELEMENTS_RO(om6->ospf6, node, ospf6))
-				if (ospf6->vrf_id == oi->interface->vrf->vrf_id)
-					break;
-
-			assert(ospf6 != NULL);
-		}
-
-		goto interface_check;
-	}
-
 	ifindex = flowinfo;
 
 	oi = NULL;
@@ -433,7 +363,6 @@ ospf6_sb_read_helper(int ospf6_sock, uint8_t *msgbuf, size_t msgbuflen)
 			break;
 	}
 
-interface_check:
 	if (oi == NULL || oi->area == NULL ||
 	    CHECK_FLAG(oi->flag, OSPF6_INTERFACE_DISABLE)) {
 		if (IS_OSPF6_DEBUG_MESSAGE(OSPF6_MESSAGE_TYPE_UNKNOWN,
