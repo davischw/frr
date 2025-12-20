@@ -3505,7 +3505,8 @@ struct ospf_lsa *ospf_lsa_lookup_by_id(struct ospf_area *area, uint32_t type,
 		for (rn = route_top(NETWORK_LSDB(area)); rn;
 		     rn = route_next(rn))
 			if ((lsa = rn->info))
-				if (IPV4_ADDR_SAME(&lsa->data->id, &id)) {
+				if (IPV4_ADDR_SAME(&lsa->data->id, &id) &&
+				    !IS_LSA_MAXAGE(lsa)) {
 					route_unlock_node(rn);
 					return lsa;
 				}

@@ -193,10 +193,12 @@ static void ospf_process_self_originated_lsa(struct ospf *ospf,
 			/* These are sanity check. */
 			if (IPV4_ADDR_SAME(&oi->address->u.prefix4,
 					   &new->data->id)) {
-				if (oi->area != area
-				    || oi->type != OSPF_IFTYPE_BROADCAST
-				    || !IPV4_ADDR_SAME(&oi->address->u.prefix4,
-						       &DR(oi))) {
+				if (oi->area != area ||
+				    oi->type != OSPF_IFTYPE_BROADCAST ||
+				    !IPV4_ADDR_SAME(&oi->address->u.prefix4,
+						    &DR(oi)) ||
+				    !IPV4_ADDR_SAME(&ospf->router_id,
+						    &new->data->adv_router)) {
 					ospf_schedule_lsa_flush_area(area, new);
 					return;
 				}
