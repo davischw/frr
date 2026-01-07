@@ -767,6 +767,7 @@ void subgroup_announce_route(struct update_subgroup *subgrp)
 	struct bgp_dest *dest;
 	struct bgp_table *table;
 	struct peer *onlypeer;
+	bool force_update;
 
 	if (update_subgroup_needs_refresh(subgrp)) {
 		update_subgroup_set_needs_refresh(subgrp, 0);
@@ -782,18 +783,31 @@ void subgroup_announce_route(struct update_subgroup *subgrp)
 				   PEER_STATUS_ORF_WAIT_REFRESH))
 		return;
 
+	force_update = !!CHECK_FLAG(subgrp->sflags, SUBGRP_STATUS_FORCE_UPDATES);
+
 	if (SUBGRP_SAFI(subgrp) != SAFI_MPLS_VPN
 	    && SUBGRP_SAFI(subgrp) != SAFI_ENCAP
 	    && SUBGRP_SAFI(subgrp) != SAFI_EVPN)
 		subgroup_announce_table(subgrp, NULL);
-	else
-		for (dest = bgp_table_top(update_subgroup_rib(subgrp)); dest;
-		     dest = bgp_route_next(dest)) {
+	else {
+		struct bgp_table *rib = update_subgroup_rib(subgrp);
+
+		if (!rib) {
+			if (force_update)
+				UNSET_FLAG(subgrp->sflags, SUBGRP_STATUS_FORCE_UPDATES);
+			return;
+		}
+
+		for (dest = bgp_table_top(rib); dest; dest = bgp_route_next(dest)) {
 			table = bgp_dest_get_bgp_table_info(dest);
 			if (!table)
 				continue;
 			subgroup_announce_table(subgrp, table);
 		}
+	}
+
+	if (force_update)
+		UNSET_FLAG(subgrp->sflags, SUBGRP_STATUS_FORCE_UPDATES);
 }
 
 void subgroup_default_originate(struct update_subgroup *subgrp, int withdraw)
