@@ -317,6 +317,9 @@ class Config(object):
             ):
                 continue
 
+            # Trim multiple spaces into one in the middle of the string
+            line = re.sub(r' +', ' ', line)
+
             self.lines.append(line)
 
         self.load_contexts()
