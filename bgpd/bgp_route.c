@@ -2089,9 +2089,11 @@ bool subgroup_announce_check(struct bgp_dest *dest, struct bgp_path_info *pi,
 	if (CHECK_FLAG(peer->flags, PEER_FLAG_AS_LOOP_DETECTION) &&
 	    aspath_loop_check(piattr->aspath, peer->as)) {
 		if (bgp_debug_update(NULL, p, subgrp->update_group, 0))
-			zlog_debug(
-				"%pBP [Update:SEND] suppress announcement to peer AS %u that is part of AS path.",
-				onlypeer, onlypeer->as);
+			zlog_debug("%pBP [Update:SEND] suppress %pFX to peer AS %u that is part of AS path.",
+				   peer, p, peer->as);
+
+		frrtrace(4, frr_bgp, upd_as_path_loop_filter, peer->host, pfxprint, peer->as, 0);
+
 		return false;
 	}
 
