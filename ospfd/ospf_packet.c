@@ -412,8 +412,14 @@ static int ospf_make_md5_digest(struct ospf_interface *oi,
 
 	if (t > oi->crypt_seqnum)
 		oi->crypt_seqnum = t;
+	/* For compability with other platforms and to partially
+	   offset platforms which have a packet reordering issue,
+	   we'll only increase the sequence number based on time
+	   and send packets flooded during the same second with the
+	   same sequence number
 	else
 		oi->crypt_seqnum++;
+	*/
 
 	ospfh->u.crypt.crypt_seqnum = htonl(oi->crypt_seqnum);
 
