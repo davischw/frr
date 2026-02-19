@@ -1585,7 +1585,7 @@ static void ospf_abr_announce_stub_defaults(struct ospf *ospf)
 
 static void ospf_abr_nssa_type7_default_create(struct ospf *ospf,
 					       struct ospf_area *area,
-					       struct ospf_lsa *lsa)
+					       struct ospf_lsa *lsa, bool p_bit)
 {
 	struct external_info ei;
 
@@ -1615,7 +1615,7 @@ static void ospf_abr_nssa_type7_default_create(struct ospf *ospf,
 		ei.route_map_set.metric_type = DEFAULT_METRIC_TYPE;
 
 	if (!lsa)
-		ospf_nssa_lsa_originate(area, &ei, false);
+		ospf_nssa_lsa_originate(area, &ei, p_bit);
 	else
 		ospf_nssa_lsa_refresh(area, lsa, &ei);
 }
@@ -1652,9 +1652,10 @@ void ospf_abr_nssa_type7_defaults(struct ospf *ospf)
 		    && area->nssa_default_originate.enabled
 		    && (IS_OSPF_ABR(ospf)
 			|| (IS_OSPF_ASBR(ospf)
-			    && ospf->nssa_default_import_check.status)))
-			ospf_abr_nssa_type7_default_create(ospf, area, lsa);
-		else
+			    && ospf->nssa_default_import_check.status))) {
+			bool p_bit = IS_OSPF_ASBR(ospf) && !IS_OSPF_ABR(ospf);
+			ospf_abr_nssa_type7_default_create(ospf, area, lsa, p_bit);
+		} else
 			ospf_abr_nssa_type7_default_delete(ospf, area, lsa);
 	}
 }
