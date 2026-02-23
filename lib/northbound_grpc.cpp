@@ -1135,7 +1135,6 @@ static void *grpc_pthread_start(void *arg)
 
 	/* Initialize thread attributes */
 	fpt->master->owner = pthread_self();
-	fpt->running = true;
 
 	Candidates candidates;
 	grpc::ServerBuilder builder;
@@ -1239,12 +1238,18 @@ static int grpc_pthread_stop(struct frr_pthread *fpt, void **result __attribute_
 {
 	struct grpc_pthread_data *grpc_data = static_cast<struct grpc_pthread_data *>(fpt->data);
 
-	if (atomic_load_explicit(&fpt->running, memory_order_relaxed) == false)
+	zlog_debug("%s: before running test", __func__);
+
+	if (atomic_load_explicit(&fpt->running, memory_order_relaxed) == false) {
+		zlog_debug("%s: running test FAILED", __func__);
 		return 0;
+	}
 
 	atomic_store_explicit(&fpt->running, false, memory_order_relaxed);
 
 	grpc_debug("%s: entered", __func__);
+
+	zlog_debug("%s: after running test", __func__);
 
 	/*
 	 * Shut the server down here in main thread. This will cause the wait on
@@ -1281,6 +1286,7 @@ static int frr_grpc_init(uint port)
 
 	fpt = frr_pthread_new(&attr, "frr-grpc", "frr-grpc");
 	fpt->data = static_cast<void *>(&grpc_data);
+	fpt->running = true;
 
 	/* Create a pthread for gRPC since it runs its own event loop. */
 	if (frr_pthread_run(fpt, NULL) < 0) {
@@ -1296,8 +1302,15 @@ static int frr_grpc_init(uint port)
 
 static int frr_grpc_finish(void)
 {
+	zlog_debug("%s: before frr_pthread_stop", __func__);
+
 	frr_pthread_stop(fpt, NULL);
+
+	zlog_debug("%s: before frr_pthread_destroy", __func__);
+
 	frr_pthread_destroy(fpt);
+
+	zlog_debug("%s: before protobuf library shutdown", __func__);
 
 	// Fix protobuf 'memory leaks' during shutdown.
 	// https://groups.google.com/g/protobuf/c/4y_EmQiCGgs
