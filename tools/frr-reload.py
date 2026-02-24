@@ -1540,13 +1540,12 @@ def ignore_delete_re_add_lines(lines_to_add, lines_to_del):
     return (lines_to_add, lines_to_del)
 
 
-def ignore_unconfigurable_lines(lines_to_add, lines_to_del, ignore_tag_start=None, ignore_tag_end=None):
+def ignore_unconfigurable_lines(lines_to_add, lines_to_del):
     """
     There are certain commands that cannot be removed.  Remove
     those commands from lines_to_del.
     """
     lines_to_del_to_del = []
-    lines_to_del_to_add = []
 
     for (ctx_keys, line) in lines_to_del:
 
@@ -1573,24 +1572,10 @@ def ignore_unconfigurable_lines(lines_to_add, lines_to_del, ignore_tag_start=Non
     for (ctx_keys, line) in lines_to_del_to_del:
         lines_to_del.remove((ctx_keys, line))
 
-    for (ctx_keys, line) in lines_to_add:
-        if ignore_tag_start is not None and ignore_tag_end is not None:
-            route_match = re.match(r'no ip route.+ tag ([0-9]+)', ctx_keys[0])
-            if route_match:
-                tag = int(route_match[1])
-                if tag < ignore_tag_start or tag > ignore_tag_end:
-                    continue
-
-                log.info('ignoring tagged route "%s"' % ctx_keys[0])
-                lines_to_del_to_add.append((ctx_keys, line))
-
-    for (ctx_keys, line) in lines_to_del_to_add:
-        lines_to_add.remove((ctx_keys, line))
-
     return (lines_to_add, lines_to_del)
 
 
-def compare_context_objects(newconf, running, ignore_tag_start=None, ignore_tag_end=None):
+def compare_context_objects(newconf, running):
     """
     Create a context diff for the two specified contexts
     """
@@ -1838,7 +1823,7 @@ def compare_context_objects(newconf, running, ignore_tag_start=None, ignore_tag_
     )
     (lines_to_add, lines_to_del) = delete_move_lines(lines_to_add, lines_to_del)
     (lines_to_add, lines_to_del) = ignore_unconfigurable_lines(
-        lines_to_add, lines_to_del, ignore_tag_start, ignore_tag_end
+        lines_to_add, lines_to_del
     )
 
     return (lines_to_add, lines_to_del)
@@ -1929,18 +1914,6 @@ if __name__ == "__main__":
 	default="/var/log/frr/frr-reload.log"
     )
 
-    # Route tag ignoring command line options
-    parser.add_argument(
-        "--ignore-tag-start",
-        type=int,
-        help="Route tag range start to ignore when reloading a configuration"
-    )
-    parser.add_argument(
-        "--ignore-tag-end",
-        type=int,
-        help="Route tag range end to ignore when reloading a configuration"
-    )
-
     args = parser.parse_args()
 
     # Logging
@@ -1986,26 +1959,6 @@ if __name__ == "__main__":
         stdout_hdlr.setLevel(logging.ERROR)
         stdout_hdlr.setFormatter(logging.Formatter())
         log.addHandler(stdout_hdlr)
-
-    # Verify ignore tag start/end usage
-    if args.ignore_tag_start is None and args.ignore_tag_end is not None:
-        log.error("Ignore tag end was supplied but ignore tag start was not (--ignore-tag-start missing)")
-        sys.exit(1)
-    if args.ignore_tag_start is not None and args.ignore_tag_end is None:
-        log.error("Ignore tag start was supplied but ignore tag end was not (--ignore-tag-end missing)")
-        sys.exit(1)
-
-    if args.ignore_tag_start is not None and args.ignore_tag_end is not None:
-        if args.ignore_tag_start <= 0 or args.ignore_tag_start > 4294967295:
-            log.error("Ignore tag range start '%d' is invalid (must be between 1 and 4294967295)" % args.ignore_tag_start)
-            sys.exit(1)
-        if args.ignore_tag_end <= 0 or args.ignore_tag_end > 4294967295:
-            log.error("Ignore tag range end '%d' is invalid (must be between 1 and 4294967295)" % args.ignore_tag_end)
-            sys.exit(1)
-
-        if args.ignore_tag_start > args.ignore_tag_end:
-            log.error("Ignore tag range start can't be greater than end (%d > %d)" % (args.ignore_tag_start, args.ignore_tag_end))
-            sys.exit(1)
 
     # Verify the new config file is valid
     if not os.path.isfile(args.filename):
@@ -2102,7 +2055,7 @@ if __name__ == "__main__":
         else:
             running.load_from_show_running(args.daemon)
 
-        (lines_to_add, lines_to_del) = compare_context_objects(newconf, running, args.ignore_tag_start, args.ignore_tag_end)
+        (lines_to_add, lines_to_del) = compare_context_objects(newconf, running)
         reorder_address_list(lines_to_add)
 
         if lines_to_del:
@@ -2205,7 +2158,7 @@ if __name__ == "__main__":
             running.load_from_show_running(args.daemon)
             log.debug("Running Frr Config (Pass #%d)\n%s", x, running.get_lines())
 
-            (lines_to_add, lines_to_del) = compare_context_objects(newconf, running, args.ignore_tag_start, args.ignore_tag_end)
+            (lines_to_add, lines_to_del) = compare_context_objects(newconf, running)
             reorder_address_list(lines_to_add)
 
             if x == 0:
