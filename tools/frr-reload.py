@@ -1573,7 +1573,6 @@ def ignore_unconfigurable_lines(lines_to_add, lines_to_del, ignore_tag_start=Non
     for (ctx_keys, line) in lines_to_del_to_del:
         lines_to_del.remove((ctx_keys, line))
 
-    tagged_routes_removed = 0
     for (ctx_keys, line) in lines_to_add:
         if ignore_tag_start is not None and ignore_tag_end is not None:
             route_match = re.match(r'no ip route.+ tag ([0-9]+)', ctx_keys[0])
@@ -1582,14 +1581,11 @@ def ignore_unconfigurable_lines(lines_to_add, lines_to_del, ignore_tag_start=Non
                 if tag < ignore_tag_start or tag > ignore_tag_end:
                     continue
 
-                tagged_routes_removed += 1
+                log.info('ignoring tagged route "%s"' % ctx_keys[0])
                 lines_to_del_to_add.append((ctx_keys, line))
 
     for (ctx_keys, line) in lines_to_del_to_add:
         lines_to_add.remove((ctx_keys, line))
-
-    if ignore_tag_start is not None and ignore_tag_end is not None:
-        log.info('ignored %d tagged routes' % tagged_routes_removed)
 
     return (lines_to_add, lines_to_del)
 
