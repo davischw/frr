@@ -264,7 +264,7 @@ route_match_peer(void *rule, const struct prefix *prefix, void *object)
 
 	if (pc->interface) {
 		p = peer_lookup_by_address_list(peer->bgp, pc->interface);
-		if (p && strmatch(p->np->name, pc->interface))
+		if (p && p == peer)
 			return RMAP_MATCH;
 
 		if (!peer->conf_if || !peer->group)
