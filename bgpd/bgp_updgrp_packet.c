@@ -347,8 +347,7 @@ void bpacket_queue_show_vty(struct bpacket_queue *q, struct vty *vty)
 }
 
 struct stream *bpacket_reformat_for_peer(struct bpacket *pkt,
-					 struct peer_af *paf,
-					 bool is_withdraw)
+					 struct peer_af *paf)
 {
 	struct stream *s = NULL;
 	bpacket_attr_vec *vec;
@@ -358,8 +357,7 @@ struct stream *bpacket_reformat_for_peer(struct bpacket *pkt,
 	peer = PAF_PEER(paf);
 
 	/* Perform AS Path loop detection right before sending to wire. */
-	/* Only perform for BGP announce, not withdraws                 */
-	if (is_withdraw && peer->as_path_loop_detection && pkt->aspath) {
+	if (peer->as_path_loop_detection && pkt->aspath) {
 		int i;
 
 		for (i = 0; i < pkt->aspathlen; i++) {

@@ -416,8 +416,7 @@ bool subgroup_packets_to_build(struct update_subgroup *subgrp);
 extern struct bpacket *subgroup_update_packet(struct update_subgroup *s);
 extern struct bpacket *subgroup_withdraw_packet(struct update_subgroup *s);
 extern struct stream *bpacket_reformat_for_peer(struct bpacket *pkt,
-						struct peer_af *paf,
-						bool is_withdraw);
+						struct peer_af *paf);
 extern void bpacket_attr_vec_arr_reset(struct bpacket_attr_vec_arr *vecarr);
 extern void bpacket_attr_vec_arr_set_vec(struct bpacket_attr_vec_arr *vecarr,
 					 enum bpacket_attr_vec_type type,
