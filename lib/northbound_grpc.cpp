@@ -1155,6 +1155,15 @@ static void *grpc_pthread_start(void *arg)
 	std::unique_ptr<grpc::ServerCompletionQueue> cq =
 		builder.AddCompletionQueue();
 	std::unique_ptr<grpc::Server> server = builder.BuildAndStart();
+	if (!server) {
+		flog_err(EC_LIB_GRPC_INIT,
+			 "%s: failed to build and start gRPC server on %s",
+			 __func__, server_address.str().c_str());
+		fpt->running = false;
+		rcu_read_unlock();
+		pthread_mutex_unlock(&grpc_data->server_lock);
+		return NULL;
+	}
 	grpc_data->server = server.get();
 
 	zlog_debug("%s: after gRPC registration", __func__);
