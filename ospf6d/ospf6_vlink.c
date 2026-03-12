@@ -352,8 +352,11 @@ static void ospf6_virtual_link_stop(struct ospf6_virtual_link *vlink)
 
 	THREAD_OFF(vlink->t_hello);
 
-	vlink->nbr->vlink = NULL;
-	ospf6_neighbor_delete(vlink->nbr);
+	if (vlink->nbr) {
+		vlink->nbr->vlink = NULL;
+		ospf6_neighbor_delete(vlink->nbr);
+		vlink->nbr = NULL;
+	}
 }
 
 void ospf6_vlink_area_calculation(struct ospf6_area *oa)
