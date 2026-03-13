@@ -12173,6 +12173,15 @@ DEFPY(show_ip_ospf_virtual_link_nbrs, show_ip_ospf_virtual_link_nbrs_cmd,
 		else
 			ospf = ospf_lookup_by_vrf_id(VRF_DEFAULT);
 
+		/*
+		 * Return empty JSON if OSPF instance is not configured or
+		 * running yet.
+		 */
+		if (ospf == NULL || !ospf->oi_running) {
+			vty_json(vty, json);
+			return CMD_SUCCESS;
+		}
+
 		show_ip_ospf_virtual_link_nbrs_json(json, ospf);
 	}
 
