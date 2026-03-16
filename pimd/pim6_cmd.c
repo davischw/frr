@@ -2041,6 +2041,13 @@ DEFPY(clear_ipv6_mld_interfaces,
 		gm_group_delete(pim_ifp->mld);
 	}
 
+#ifdef VENDOR_SOUTHBOUND
+	/* Resend all static multicast joins. */
+	if (pim_southbound_enabled)
+		FOR_ALL_INTERFACES (vrf, ifp)
+			pimsb_gm_join(ifp);
+#endif /* VENDOR_SOUTHBOUND */
+
 	return CMD_SUCCESS;
 }
 
