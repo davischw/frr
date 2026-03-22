@@ -1977,6 +1977,8 @@ static struct ospf_lsa *ospf_lsa_translated_nssa_new(struct ospf *ospf,
 
 	/* copy over Type-7 data to new */
 	extnew->e[0].tos = ext->e[0].tos;
+	memcpy(extnew->e[0].metric, ext->e[0].metric,
+	       sizeof(extnew->e[0].metric));
 	extnew->e[0].route_tag = ext->e[0].route_tag;
 	if (type7->area->suppress_fa) {
 		extnew->e[0].fwd_addr.s_addr = 0;
