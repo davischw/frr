@@ -2059,6 +2059,8 @@ struct ospf_lsa *ospf_translated_nssa_refresh(struct ospf *ospf,
 	struct ospf_lsa *new = NULL, *translated_lsa = NULL;
 	struct as_external_lsa *extold = NULL;
 	uint32_t ls_seqnum = 0;
+	struct ospf_route *r7, *r5;
+	int cmp;
 
 	/* Sanity checks. */
 	assert(type7 || type5);
@@ -2113,12 +2115,35 @@ struct ospf_lsa *ospf_translated_nssa_refresh(struct ospf *ospf,
 		return NULL;
 	}
 
-	/* do we have valid translated type5? */
-	if (type5 == NULL || !CHECK_FLAG(type5->flags, OSPF_LSA_LOCAL_XLT)) {
+	if (type5 == NULL) {
 		if (IS_DEBUG_OSPF_NSSA)
-			zlog_debug(
-				"%s: No translated Type-5 found for Type-7 with Id %pI4",
-				__func__, &type7->data->id);
+			zlog_debug("%s: No Type-5 for Type-7 with Id %pI4",
+				   __func__, &type7->data->id);
+		return NULL;
+	}
+
+	/* Do not supplant a better self-originated Type-5. */
+	r7 = ospf_ase_external_path(ospf, type7);
+	r5 = ospf_ase_external_path(ospf, type5);
+	if (!r7 || !r5) {
+		if (r7)
+			ospf_route_free(r7);
+		if (r5)
+			ospf_route_free(r5);
+		if (IS_DEBUG_OSPF_NSSA)
+			zlog_debug("%s: cannot compare paths for Id %pI4",
+				   __func__, &type7->data->id);
+		return NULL;
+	}
+	cmp = ospf_route_cmp(ospf, r7, r5);
+	ospf_route_free(r7);
+	ospf_route_free(r5);
+	if (cmp < 0)
+		zlog_debug("%s: Type-7 preferred over Type-5 Id %pI4", __func__,
+			   &type7->data->id);
+	else {
+		zlog_debug("%s: existing Type-5 preferred over Type-7 Id %pI4",
+			   __func__, &type7->data->id);
 		return NULL;
 	}
 
@@ -2140,6 +2165,10 @@ struct ospf_lsa *ospf_translated_nssa_refresh(struct ospf *ospf,
 				__func__, &type7->data->id);
 		return NULL;
 	}
+
+	/* Update LSA sequence number from translated Type-5 LSA */
+	if (type5)
+		translated_lsa->data->ls_seqnum = lsa_seqnum_increment(type5);
 
 	if (type7->area->suppress_fa == 1) {
 		if (extold->e[0].fwd_addr.s_addr == 0)

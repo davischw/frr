@@ -472,6 +472,68 @@ int ospf_ase_calculate_route(struct ospf *ospf, struct ospf_lsa *lsa)
 	return 0;
 }
 
+/*
+ * Build the external path for LSA for metric comparison.
+ * Caller must ospf_route_free() the result.
+ */
+struct ospf_route *ospf_ase_external_path(struct ospf *ospf,
+					  struct ospf_lsa *lsa)
+{
+	uint32_t metric;
+	struct as_external_lsa *al;
+	struct ospf_route *asbr_route;
+	struct prefix_ipv4 asbr;
+	struct route_node *rn;
+
+	if (!ospf || !lsa || !lsa->data)
+		return NULL;
+	if (!ospf->new_rtrs || !ospf->new_table)
+		return NULL;
+
+	if (lsa->data->type != OSPF_AS_EXTERNAL_LSA &&
+	    lsa->data->type != OSPF_AS_NSSA_LSA)
+		return NULL;
+
+	al = (struct as_external_lsa *)lsa->data;
+
+	if ((metric = GET_METRIC(al->e[0].metric)) >= OSPF_LS_INFINITY)
+		return NULL;
+	if (IS_LSA_MAXAGE(lsa))
+		return NULL;
+
+	asbr.family = AF_INET;
+	asbr.prefix = al->header.adv_router;
+	asbr.prefixlen = IPV4_MAX_BITLEN;
+	apply_mask_ipv4(&asbr);
+
+	if (al->e[0].fwd_addr.s_addr == INADDR_ANY) {
+		asbr_route = ospf_find_asbr_route(ospf, ospf->new_rtrs, &asbr);
+		if (asbr_route == NULL)
+			return NULL;
+		if (!(asbr_route->u.std.flags & ROUTER_LSA_EXTERNAL))
+			return NULL;
+	} else {
+		if (!ospf_ase_forward_address_check(ospf, al->e[0].fwd_addr))
+			return NULL;
+
+		asbr.family = AF_INET;
+		asbr.prefix = al->e[0].fwd_addr;
+		asbr.prefixlen = IPV4_MAX_BITLEN;
+
+		rn = route_node_match(ospf->new_table, (struct prefix *)&asbr);
+
+		if (rn == NULL || (asbr_route = rn->info) == NULL) {
+			if (rn)
+				route_unlock_node(rn);
+			return NULL;
+		}
+
+		route_unlock_node(rn);
+	}
+
+	return ospf_ase_calculate_new_route(lsa, asbr_route, metric);
+}
+
 static int ospf_ase_route_match_same(struct route_table *rt,
 				     struct prefix *prefix,
 				     struct ospf_route *newor)
