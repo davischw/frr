@@ -1045,7 +1045,7 @@ int ospf_distribute_check_connected(struct ospf *ospf, struct external_info *ei)
 
 
 	for (ALL_LIST_ELEMENTS_RO(ospf->oiflist, node, oi))
-		if (prefix_match(oi->address, (struct prefix *)&ei->p))
+		if (prefix_same(oi->address, (struct prefix *)&ei->p))
 			return 0;
 	return 1;
 }
