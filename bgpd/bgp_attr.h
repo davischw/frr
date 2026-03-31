@@ -490,8 +490,7 @@ static inline int bgp_rmap_nhop_changed(uint32_t out_rmap_flags,
 			       BATTR_RMAP_IPV6_GLOBAL_NHOP_CHANGED)
 		 || CHECK_FLAG(out_rmap_flags,
 			       BATTR_RMAP_IPV6_PREFER_GLOBAL_CHANGED)
-		 || CHECK_FLAG(out_rmap_flags, BATTR_RMAP_IPV6_LL_NHOP_CHANGED)
-		 || CHECK_FLAG(in_rmap_flags, BATTR_RMAP_NEXTHOP_UNCHANGED))
+		 || CHECK_FLAG(out_rmap_flags, BATTR_RMAP_IPV6_LL_NHOP_CHANGED))
 			? 1
 			: 0);
 }
