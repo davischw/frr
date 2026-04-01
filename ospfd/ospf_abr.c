@@ -1588,11 +1588,7 @@ static void ospf_abr_nssa_type7_default_create(struct ospf *ospf,
 					       struct ospf_lsa *lsa, bool p_bit)
 {
 	struct external_info ei;
-
-	if (IS_DEBUG_OSPF_NSSA)
-		zlog_debug(
-			"Announcing Type-7 default route into NSSA area %pI4",
-			&area->area_id);
+	struct as_external_lsa *extlsa;
 
 	/* Prepare the extrenal_info for aggregator */
 	memset(&ei, 0, sizeof(struct external_info));
@@ -1614,10 +1610,32 @@ static void ospf_abr_nssa_type7_default_create(struct ospf *ospf,
 	else
 		ei.route_map_set.metric_type = DEFAULT_METRIC_TYPE;
 
-	if (!lsa)
+	if (!lsa || IS_LSA_MAXAGE(lsa)) {
+		if (IS_DEBUG_OSPF_NSSA)
+			zlog_debug(
+				"Announcing Type-7 default route into NSSA area %pI4",
+				&area->area_id);
 		ospf_nssa_lsa_originate(area, &ei, p_bit);
-	else
-		ospf_nssa_lsa_refresh(area, lsa, &ei);
+		return;
+	}
+
+	/*
+	 * Only refresh if metric or metric-type changed; otherwise the
+	 * periodic refresh is handled by the LSA refresh walker and there
+	 * is no need to install a new LSA instance (which would needlessly
+	 * reschedule the ABR task via ospf_lsa_install).
+	 */
+	extlsa = (struct as_external_lsa *)lsa->data;
+	if (GET_METRIC(extlsa->e[0].metric) == (uint32_t)ei.route_map_set.metric
+	    && (IS_EXTERNAL_METRIC(extlsa->e[0].tos) ? EXTERNAL_METRIC_TYPE_2
+						     : EXTERNAL_METRIC_TYPE_1)
+		       == ei.route_map_set.metric_type)
+		return;
+
+	if (IS_DEBUG_OSPF_NSSA)
+		zlog_debug("Updating Type-7 default route in NSSA area %pI4",
+			   &area->area_id);
+	ospf_nssa_lsa_refresh(area, lsa, &ei);
 }
 
 static void ospf_abr_nssa_type7_default_delete(struct ospf *ospf,
