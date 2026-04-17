@@ -1245,6 +1245,15 @@ static void gm_t_expire(struct thread *t)
 
 	if (PIM_DEBUG_GM_EVENTS)
 		zlog_debug(log_ifp("next general expiry waiting for query"));
+
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * After general expiry, static joins may have been removed from the
+	 * state machine. Re-inject them so they survive the next expiry cycle.
+	 */
+	if (pim_southbound_enabled)
+		pimsb_gm_join(gm_ifp->ifp);
+#endif /* VENDOR_SOUTHBOUND */
 }
 
 /* NB: the receive handlers will also run when sending packets, since we
@@ -1674,6 +1683,12 @@ static void gm_handle_query(struct gm_if *gm_ifp,
 			gm_handle_q_group(gm_ifp, &timers, hdr->grp);
 			gm_ifp->stats.rx_query_old_group++;
 		}
+
+#ifdef VENDOR_SOUTHBOUND
+		/* Update all static group timers (MLDv1 path). */
+		if (pim_southbound_enabled)
+			pimsb_gm_join(gm_ifp->ifp);
+#endif /* VENDOR_SOUTHBOUND */
 		return;
 	}
 
