@@ -625,7 +625,13 @@ void pim_if_addr_add(struct connected *ifc)
 					  true);
 		}
 	} /* igmp mtrace only */
-#endif
+#else /* PIM_IPV != 4*/
+#ifdef VENDOR_SOUTHBOUND
+	if (pim_southbound_enabled)
+		if (pim_ifp->gm_enable && pim_ifp->gm_join_list != NULL)
+			pimsb_gm_join(ifp);
+#endif /* VENDOR_SOUTHBOUND */
+#endif /* PIM_IPV != 4*/
 
 	if (pim_ifp->pim_enable) {
 
