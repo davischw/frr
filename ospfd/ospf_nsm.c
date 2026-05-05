@@ -314,12 +314,15 @@ static int nsm_negotiation_done(struct ospf_neighbor *nbr)
 	}
 
 	/* For Stub/NSSA area, we should not send Type-4 and Type-5 LSAs */
-	if (nbr->oi->type != OSPF_IFTYPE_VIRTUALLINK
-	    && area->external_routing == OSPF_AREA_DEFAULT) {
+	if (area->external_routing == OSPF_AREA_DEFAULT) {
 		LSDB_LOOP (ASBR_SUMMARY_LSDB(area), rn, lsa)
 			ospf_db_summary_add(nbr, lsa);
-		LSDB_LOOP (EXTERNAL_LSDB(nbr->oi->ospf), rn, lsa)
-			ospf_db_summary_add(nbr, lsa);
+
+		/* Type-5 LSAs are never flooded over virtual links */
+		if (nbr->oi->type != OSPF_IFTYPE_VIRTUALLINK) {
+			LSDB_LOOP (EXTERNAL_LSDB(nbr->oi->ospf), rn, lsa)
+				ospf_db_summary_add(nbr, lsa);
+		}
 	}
 
 	if (CHECK_FLAG(nbr->options, OSPF_OPTION_O)
