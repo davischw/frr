@@ -3981,6 +3981,7 @@ struct ospf_lsa *ospf_lsa_refresh(struct ospf *ospf, struct ospf_lsa *lsa)
 	struct ospf_lsa *new = NULL;
 	struct as_external_lsa *al;
 	struct prefix_ipv4 p;
+	struct ospf_area *area;
 
 	assert(CHECK_FLAG(lsa->flags, OSPF_LSA_SELF));
 	assert(IS_LSA_SELF(lsa));
@@ -4038,12 +4039,18 @@ struct ospf_lsa *ospf_lsa_refresh(struct ospf *ospf, struct ospf_lsa *lsa)
 		}
 		break;
 	case OSPF_AS_NSSA_LSA:
-		ei = ospf_external_info_check(ospf, lsa);
-		if (ei)
-			new = ospf_nssa_lsa_refresh(lsa->area, lsa, ei);
+		area = lsa->area;
+		if (area->nssa_default_originate.enabled
+		    && lsa->data->id.s_addr == INADDR_ANY)
+			new = ospf_abr_nssa_type7_default_refresh(area, lsa);
 		else {
-			ospf_lsa_flush_as(ospf, lsa);
-			ospf_flood_through_area(lsa->area, NULL, lsa);
+			ei = ospf_external_info_check(ospf, lsa);
+			if (ei)
+				new = ospf_nssa_lsa_refresh(area, lsa, ei);
+			else {
+				ospf_lsa_flush_as(ospf, lsa);
+				ospf_flood_through_area(area, NULL, lsa);
+			}
 		}
 		break;
 	case OSPF_OPAQUE_LINK_LSA:

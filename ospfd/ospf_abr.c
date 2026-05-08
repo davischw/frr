@@ -1594,8 +1594,6 @@ static void ospf_abr_nssa_type7_default_create(struct ospf *ospf,
 	memset(&ei, 0, sizeof(struct external_info));
 	ei.p.family = AF_INET;
 	ei.p.prefixlen = 0;
-	ei.tag = 0;
-	ei.type = 0;
 	ei.instance = ospf->instance;
 
 	/* Compute default route type and metric. */
@@ -1610,12 +1608,21 @@ static void ospf_abr_nssa_type7_default_create(struct ospf *ospf,
 	else
 		ei.route_map_set.metric_type = DEFAULT_METRIC_TYPE;
 
-	if (!lsa || IS_LSA_MAXAGE(lsa)) {
+	if (!lsa) {
 		if (IS_DEBUG_OSPF_NSSA)
 			zlog_debug(
 				"Announcing Type-7 default route into NSSA area %pI4",
 				&area->area_id);
 		ospf_nssa_lsa_originate(area, &ei, p_bit);
+		return;
+	}
+
+	if (IS_LSA_MAXAGE(lsa)) {
+		if (IS_DEBUG_OSPF_NSSA)
+			zlog_debug(
+				"Refreshing Type-7 default route in NSSA area %pI4",
+				&area->area_id);
+		ospf_nssa_lsa_refresh(area, lsa, &ei);
 		return;
 	}
 
@@ -1636,6 +1643,35 @@ static void ospf_abr_nssa_type7_default_create(struct ospf *ospf,
 		zlog_debug("Updating Type-7 default route in NSSA area %pI4",
 			   &area->area_id);
 	ospf_nssa_lsa_refresh(area, lsa, &ei);
+}
+
+/*
+ * Refresh an existing NSSA Type-7 default route LSA using the configured
+ * metric and metric-type.
+ */
+struct ospf_lsa *ospf_abr_nssa_type7_default_refresh(struct ospf_area *area,
+						     struct ospf_lsa *lsa)
+{
+	struct external_info ei;
+
+	memset(&ei, 0, sizeof(ei));
+	ei.p.family = AF_INET;
+	ei.p.prefixlen = 0;
+	ei.instance = area->ospf->instance;
+
+	/* Compute default route type and metric. */
+	if (area->nssa_default_originate.metric_value != -1)
+		ei.route_map_set.metric =
+			area->nssa_default_originate.metric_value;
+	else
+		ei.route_map_set.metric = DEFAULT_DEFAULT_ALWAYS_METRIC;
+	if (area->nssa_default_originate.metric_type != -1)
+		ei.route_map_set.metric_type =
+			area->nssa_default_originate.metric_type;
+	else
+		ei.route_map_set.metric_type = DEFAULT_METRIC_TYPE;
+
+	return ospf_nssa_lsa_refresh(area, lsa, &ei);
 }
 
 static void ospf_abr_nssa_type7_default_delete(struct ospf *ospf,
