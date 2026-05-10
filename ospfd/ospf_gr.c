@@ -270,6 +270,18 @@ static void ospf_gr_restart_exit(struct ospf *ospf, const char *reason)
 			 */
 			if (oi->state == ISM_DR)
 				ospf_network_lsa_update(oi);
+			else {
+				struct ospf_lsa *lsa;
+
+				lsa = ospf_lsa_lookup_by_id(
+					area, OSPF_NETWORK_LSA,
+					oi->address->u.prefix4);
+				if (lsa && IS_LSA_SELF(lsa)) {
+					ospf_lsa_flush_area(lsa, area);
+					ospf_lsa_unlock(&oi->network_lsa_self);
+					oi->network_lsa_self = NULL;
+				}
+			}
 		}
 	}
 
