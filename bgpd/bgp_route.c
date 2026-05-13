@@ -15981,6 +15981,8 @@ struct peer_rib_out_args {
 	struct vty *vty;
 	/** First peer being printed? */
 	bool first_peer;
+	/* First route being printed for the current peer? */
+	bool first_route;
 };
 
 static void bgp_peer_rib_out_print(struct peer_rib_out_args *args,
@@ -15990,9 +15992,6 @@ static void bgp_peer_rib_out_print(struct peer_rib_out_args *args,
 	struct bgp_adj_out *adj_out;
 	struct bgp_dest *dest;
 	struct peer_af *paf;
-	bool first_route;
-
-	first_route = true;
 
 	for (dest = bgp_table_top(table); dest; dest = bgp_route_next(dest)) {
 		RB_FOREACH (adj_out, bgp_adj_out_rb, &dest->adj_out) {
@@ -16004,8 +16003,8 @@ static void bgp_peer_rib_out_print(struct peer_rib_out_args *args,
 					    args->rib_args, dest, adj_out, paf))
 					continue;
 
-				if (first_route)
-					first_route = false;
+				if (args->first_route)
+					args->first_route = false;
 				else
 					vty_out(args->vty, ",\n");
 
@@ -16041,6 +16040,7 @@ static int bgp_peer_rib_out(struct hash_bucket *bucket, void *arg)
 		vty_out(args->vty, ",");
 
 	vty_out(args->vty, "\"%s\":{", peer->host);
+	args->first_route = true;
 	for (afi = AFI_IP; afi < AFI_MAX; afi++) {
 		/* Skip non configured AFIs. */
 		if (rib_args->afi != AF_UNSPEC && rib_args->afi != afi)
