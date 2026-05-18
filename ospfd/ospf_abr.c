@@ -1969,6 +1969,9 @@ static void ospf_abr_task_timer(struct thread *thread)
 
 	ospf->t_abr_task = 0;
 
+	if (CHECK_FLAG(ospf->config, OSPF_SHUTDOWN))
+		return;
+
 	if (IS_DEBUG_OSPF_EVENT)
 		zlog_debug("Running ABR task on timer");
 

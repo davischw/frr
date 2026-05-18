@@ -845,6 +845,9 @@ static struct ospf_lsa *ospf_router_lsa_originate(struct ospf_area *area)
 {
 	struct ospf_lsa *new;
 
+	if (CHECK_FLAG(area->ospf->config, OSPF_SHUTDOWN))
+		return NULL;
+
 	if (area->ospf->gr_info.restart_in_progress) {
 		if (IS_DEBUG_OSPF(lsa, LSA_GENERATE))
 			zlog_debug(
@@ -928,6 +931,9 @@ int ospf_router_lsa_update_area(struct ospf_area *area)
 {
 	if (IS_DEBUG_OSPF_EVENT)
 		zlog_debug("[router-LSA]: (router-LSA area update)");
+
+	if (CHECK_FLAG(area->ospf->config, OSPF_SHUTDOWN))
+		return 0;
 
 	/* Now refresh router-LSA. */
 	if (area->router_lsa_self)

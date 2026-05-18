@@ -1032,6 +1032,13 @@ void ospf_shutdown(struct ospf *ospf, bool shutdown)
 			ospf_discard_from_db(ospf, ospf->lsdb, lsa);
 		ospf_lsdb_delete_all(ospf->lsdb);
 
+		/* Cancel pending timers. */
+		THREAD_OFF(ospf->t_spf_calc);
+		THREAD_OFF(ospf->t_ase_calc);
+		THREAD_OFF(ospf->t_abr_task);
+		for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area))
+			THREAD_OFF(area->t_stub_router);
+
 		SET_FLAG(ospf->config, OSPF_SHUTDOWN);
 	} else {
 		UNSET_FLAG(ospf->config, OSPF_SHUTDOWN);
