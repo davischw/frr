@@ -594,8 +594,7 @@ static struct ospf *ospf_lookup_by_name(const char *vrf_name)
  * ospf_deferred_shutdown_check.
  *
  * Function is to cleanup G-R state, if required then call ospf_finish_final
- * to complete shutdown of this ospf instance. Possibly exit if the
- * whole process is being shutdown and this was the last OSPF instance.
+ * to complete shutdown of this ospf instance.
  */
 static void ospf_deferred_shutdown_finish(struct ospf *ospf)
 {
@@ -603,17 +602,6 @@ static void ospf_deferred_shutdown_finish(struct ospf *ospf)
 	THREAD_OFF(ospf->t_deferred_shutdown);
 
 	ospf_finish_final(ospf);
-
-	/* *ospf is now invalid */
-
-	/* ospfd being shut-down? If so, was this the last ospf instance? */
-	if (CHECK_FLAG(om->options, OSPF_MASTER_SHUTDOWN)
-	    && (listcount(om->ospf) == 0)) {
-		frr_fini();
-		exit(0);
-	}
-
-	return;
 }
 
 /* Timer thread for G-R */
