@@ -1085,6 +1085,9 @@ void ospf_network_lsa_update(struct ospf_interface *oi)
 {
 	struct ospf_lsa *new;
 
+	if (CHECK_FLAG(oi->area->ospf->config, OSPF_SHUTDOWN))
+		return;
+
 	if (oi->area->ospf->gr_info.restart_in_progress) {
 		if (IS_DEBUG_OSPF(lsa, LSA_GENERATE))
 			zlog_debug(
@@ -2200,6 +2203,9 @@ struct ospf_lsa *ospf_external_lsa_originate(struct ospf *ospf,
 					     struct external_info *ei)
 {
 	struct ospf_lsa *new;
+
+	if (CHECK_FLAG(ospf->config, OSPF_SHUTDOWN))
+		return NULL;
 
 	if (ospf->gr_info.restart_in_progress) {
 		if (IS_DEBUG_OSPF(lsa, LSA_GENERATE))
