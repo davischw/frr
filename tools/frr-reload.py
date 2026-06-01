@@ -1001,15 +1001,14 @@ def delete_move_lines(lines_to_add, lines_to_del):
             #  neighbor uplink1 interface remote-as internal
             #
             # 'no neighbor peer [interface] remote-as <>'
-            nb_remoteas = "neighbor (\S+) .*remote-as (\S+)"
-            re_nb_remoteas = re.search(nb_remoteas, line)
+            re_nb_remoteas = re.search(r"neighbor (\S+) .*remote-as (\S+)", line)
             if re_nb_remoteas:
                 lines_to_del_to_app.append((ctx_keys, line))
 
             # 'no neighbor peer [interface] peer-group <>' is in lines_to_del
             # copy the neighbor and look for all config removal lines associated
             # to neighbor and delete them from the lines_to_del
-            re_nbr_pg = re.search("neighbor (\S+) .*peer-group (\S+)", line)
+            re_nbr_pg = re.search(r"neighbor (\S+) .*peer-group (\S+)", line)
             if re_nbr_pg:
                 if ctx_keys[0] not in del_nbr_dict:
                     del_nbr_dict[ctx_keys[0]] = list()
@@ -1021,9 +1020,12 @@ def delete_move_lines(lines_to_add, lines_to_del):
             if ctx_keys[0] not in del_dict:
                 del_dict[ctx_keys[0]] = dict()
             # find 'no neighbor <pg_name> peer-group'
-            re_pg = re.match("neighbor (\S+) peer-group$", line)
+            re_pg = re.match(r"neighbor (\S+) peer-group$", line)
             if re_pg and re_pg.group(1) not in del_dict[ctx_keys[0]]:
-                del_dict[ctx_keys[0]][re_pg.group(1)] = list()
+                del_dict[ctx_keys[0]][re_pg.group(1)] = {}
+                del_dict[ctx_keys[0]][re_pg.group(1)]["neighbors"] = list()
+                del_dict[ctx_keys[0]][re_pg.group(1)]["re-neighbor-peergroup"] = re.compile(f"neighbor (\S+) .*peer-group {re_pg.group(1)}$")
+                del_dict[ctx_keys[0]][re_pg.group(1)]["re-peergroup"] = re.compile(f"neighbor {re_pg.group(1)} peer-group$")
                 found_pg_del_cmd = True
 
     if found_pg_del_cmd == False:
@@ -1047,13 +1049,13 @@ def delete_move_lines(lines_to_add, lines_to_del):
             if ctx_keys[0] in del_dict:
                 for pg_key in del_dict[ctx_keys[0]]:
                     # 'neighbor <peer> [interface] peer-group <pg_name>'
-                    nb_pg = "neighbor (\S+) .*peer-group %s$" % pg_key
-                    re_nbr_pg = re.search(nb_pg, line)
+                    re_nbr_pg = re.search(del_dict[ctx_keys[0]][pg_key]["re-neighbor-peergroup"], line)
                     if (
                         re_nbr_pg
-                        and re_nbr_pg.group(1) not in del_dict[ctx_keys[0]][pg_key]
+                        and re_nbr_pg.group(1) not in del_dict[ctx_keys[0]][pg_key]["neighbors"]
                     ):
-                        del_dict[ctx_keys[0]][pg_key].append(re_nbr_pg.group(1))
+                        del_dict[ctx_keys[0]][pg_key]["neighbors"].append(re_nbr_pg.group(1))
+                        del_dict[ctx_keys[0]][pg_key][f"re-neighbor-{re_nbr_pg.group(1)}"] = re.compile(f"neighbor {re_nbr_pg.group(1)} .*")
 
     lines_to_del_to_app = []
     for (ctx_keys, line) in lines_to_del:
@@ -1064,15 +1066,13 @@ def delete_move_lines(lines_to_add, lines_to_del):
         ):
             if ctx_keys[0] in del_dict:
                 for pg in del_dict[ctx_keys[0]]:
-                    for nbr in del_dict[ctx_keys[0]][pg]:
-                        nb_exp = "neighbor %s .*" % nbr
-                        re_nb = re.search(nb_exp, line)
+                    for nbr in del_dict[ctx_keys[0]][pg]["neighbors"]:
+                        re_nb = re.search(del_dict[ctx_keys[0]][pg][f"re-neighbor-{nbr}"], line)
                         # add peer configs to delete list.
                         if re_nb and line not in lines_to_del_to_del:
                             lines_to_del_to_del.append((ctx_keys, line))
 
-                    pg_exp = "neighbor %s peer-group$" % pg
-                    re_pg = re.match(pg_exp, line)
+                    re_pg = re.match(del_dict[ctx_keys[0]][pg]["re-peergroup"], line)
                     if re_pg:
                         lines_to_del_to_app.append((ctx_keys, line))
 
