@@ -2559,10 +2559,40 @@ static int bgp_route_refresh_receive(struct peer *peer, bgp_size_t size)
 		}
 
 		if (peer->t_refresh_stalepath) {
+			/*
+			 * A new BoRR arrived while a refresh is still in
+			 * progress (pipelined route-refresh requests).
+			 * Restart the safety timer from this BoRR so a
+			 * slow peer is not timed out prematurely.
+			 * The BORR_RECEIVED / EORR_RECEIVED flags are
+			 * intentionally left unchanged: they already
+			 * reflect the in-progress refresh (only an EoRR
+			 * flips them, and an EoRR would have cleared
+			 * t_refresh_stalepath).
+			 *
+			 * We deliberately do NOT re-mark routes stale here.
+			 * Re-snapshotting would re-expose prefixes that an
+			 * earlier overlapping refresh cycle already validated
+			 * to deletion at the genuine EoRR, working against the
+			 * "keep valid routes, tolerate a lingering stale
+			 * withdrawal" trade-off this fix is built around. The
+			 * cost is that a prefix re-advertised in an earlier
+			 * cycle and implicitly withdrawn in a later one is not
+			 * reconciled until the next refresh / explicit withdraw
+			 * / session reset.
+			 */
 			if (bgp_debug_neighbor_events(peer))
 				zlog_debug(
-					"%pBP rcvd route-refresh (BoRR) for %s/%s, whereas BoRR already received",
-					peer, afi2str(afi), safi2str(safi));
+					"%pBP rcvd route-refresh (BoRR) for %s/%s, whereas BoRR already received, restarting timer for %u seconds",
+					peer, afi2str(afi), safi2str(safi),
+					peer->bgp->stalepath_time);
+			THREAD_OFF(peer->t_refresh_stalepath);
+			if (peer_established(peer))
+				thread_add_timer(
+					bm->master,
+					bgp_refresh_stalepath_timer_expire,
+					paf, peer->bgp->stalepath_time,
+					&peer->t_refresh_stalepath);
 			return BGP_PACKET_NOOP;
 		}
 
