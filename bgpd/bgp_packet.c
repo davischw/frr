@@ -1778,12 +1778,25 @@ static void bgp_refresh_stalepath_timer_expire(struct thread *thread)
 
 	peer->t_refresh_stalepath = NULL;
 
-	if (peer->nsf[afi][safi])
-		bgp_clear_stale_route(peer, afi, safi);
+	/*
+	 * RFC 7313 route-refresh safety timer fired before the peer sent the
+	 * EoRR. The session is still Established (it never went down), so the
+	 * routes still marked stale are almost certainly valid and the peer
+	 * was simply slow to finish (e.g. several route-refresh requests
+	 * pipelined back-to-back). Deleting them here causes a transient FIB
+	 * withdrawal and traffic loss. Restore them instead by clearing the
+	 * stale marking; a genuine withdraw is still handled when the real
+	 * EoRR / UPDATE arrives. Trade-off: if the peer actually withdrew
+	 * a prefix during the refresh and the EoRR/UPDATE never arrives,
+	 * that prefix lingers until the next refresh or session reset
+	 * rather than being reconciled on timeout - strictly safer than
+	 * deleting valid routes.
+	 */
+	bgp_unset_stale_route(peer, afi, safi);
 
 	if (bgp_debug_neighbor_events(peer))
 		zlog_debug(
-			"%pBP route-refresh (BoRR) timer expired for afi/safi: %d/%d",
+			"%pBP route-refresh (BoRR) timer expired for afi/safi: %d/%d, restoring stale routes",
 			peer, afi, safi);
 
 	bgp_timer_set(peer);
