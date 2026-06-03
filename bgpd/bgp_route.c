@@ -5688,6 +5688,61 @@ void bgp_set_stale_route(struct peer *peer, afi_t afi, safi_t safi)
 	}
 }
 
+/*
+ * Counterpart to bgp_set_stale_route(): clear the BGP_PATH_STALE marking on
+ * all paths learned from this peer and re-run best-path selection, WITHOUT
+ * removing them. Used when an Enhanced Route Refresh (RFC 7313) safety timer
+ * expires on an established session: the routes are almost certainly still
+ * valid (the peer was merely slow to send EoRR), so we restore them rather
+ * than withdraw them and cause traffic loss.
+ */
+void bgp_unset_stale_route(struct peer *peer, afi_t afi, safi_t safi)
+{
+	struct bgp_dest *dest, *ndest;
+	struct bgp_path_info *pi;
+	struct bgp_table *table;
+
+	if (safi == SAFI_MPLS_VPN || safi == SAFI_ENCAP || safi == SAFI_EVPN) {
+		for (dest = bgp_table_top(peer->bgp->rib[afi][safi]); dest;
+		     dest = bgp_route_next(dest)) {
+			table = bgp_dest_get_bgp_table_info(dest);
+			if (!table)
+				continue;
+
+			for (ndest = bgp_table_top(table); ndest;
+			     ndest = bgp_route_next(ndest)) {
+				for (pi = bgp_dest_get_bgp_path_info(ndest); pi;
+				     pi = pi->next) {
+					if (pi->peer != peer)
+						continue;
+					if (!CHECK_FLAG(pi->flags,
+							BGP_PATH_STALE))
+						continue;
+
+					bgp_path_info_unset_flag(
+						ndest, pi, BGP_PATH_STALE);
+					bgp_process(peer->bgp, ndest, afi, safi);
+				}
+			}
+		}
+	} else {
+		for (dest = bgp_table_top(peer->bgp->rib[afi][safi]); dest;
+		     dest = bgp_route_next(dest)) {
+			for (pi = bgp_dest_get_bgp_path_info(dest); pi;
+			     pi = pi->next) {
+				if (pi->peer != peer)
+					continue;
+				if (!CHECK_FLAG(pi->flags, BGP_PATH_STALE))
+					continue;
+
+				bgp_path_info_unset_flag(dest, pi,
+							 BGP_PATH_STALE);
+				bgp_process(peer->bgp, dest, afi, safi);
+			}
+		}
+	}
+}
+
 bool bgp_outbound_policy_exists(struct peer *peer, struct bgp_filter *filter)
 {
 	if (peer->sort == BGP_PEER_IBGP)
