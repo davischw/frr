@@ -13582,7 +13582,7 @@ static void bgp_show_peer(struct vty *vty, struct peer *p, bool use_json,
 					}
 					json_object_object_add(
 						json_cap,
-						"extendedNexthopFamililesByPeer",
+						"extendedNexthopFamiliesByPeer",
 						json_nxt);
 				}
 			}
