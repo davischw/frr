@@ -1039,6 +1039,18 @@ void ospf_shutdown(struct ospf *ospf, bool shutdown)
 		for (ALL_LIST_ELEMENTS_RO(ospf->areas, anode, area))
 			THREAD_OFF(area->t_stub_router);
 
+		/* Uninstall all routes from the RIB. */
+		if (ospf->new_table) {
+			ospf_route_delete(ospf, ospf->new_table);
+			ospf_route_table_free(ospf->new_table);
+			ospf->new_table = route_table_init();
+		}
+		if (ospf->old_external_route) {
+			ospf_route_delete(ospf, ospf->old_external_route);
+			ospf_route_table_free(ospf->old_external_route);
+			ospf->old_external_route = route_table_init();
+		}
+
 		SET_FLAG(ospf->config, OSPF_SHUTDOWN);
 	} else {
 		UNSET_FLAG(ospf->config, OSPF_SHUTDOWN);
