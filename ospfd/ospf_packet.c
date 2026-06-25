@@ -1935,6 +1935,7 @@ static void ospf_ls_upd(struct ospf *ospf, struct ip *iph,
 	for (ALL_LIST_ELEMENTS(lsas, node, nnode, lsa)) {
 		struct ospf_lsa *ls_ret, *current;
 		int ret = 1;
+		uint8_t lsa_type;
 
 		if (IS_DEBUG_OSPF(lsa, LSA))
 			zlog_debug("LSA Type-%d from %pI4, ID: %pI4, ADV: %pI4",
@@ -2144,6 +2145,15 @@ static void ospf_ls_upd(struct ospf *ospf, struct ip *iph,
 				DISCARD_LSA(lsa, 4);
 			}
 
+			/*
+			 * Save the LSA type before flooding it. ospf_flood()
+			 * may free the LSA (e.g. when a received
+			 * self-originated LSA is re-originated, the previously
+			 * installed copy - which is this same LSA - is
+			 * discarded), so it must not be dereferenced afterwards.
+			 */
+			lsa_type = lsa->data->type;
+
 			/* Actual flooding procedure. */
 			if (ospf_flood(oi->ospf, nbr, current, lsa)
 			    < 0) /* Trap NSSA later. */
@@ -2151,8 +2161,8 @@ static void ospf_ls_upd(struct ospf *ospf, struct ip *iph,
 
 			/* GR: check for network topology change. */
 			if (ospf->gr_info.restart_in_progress &&
-			    ((lsa->data->type == OSPF_ROUTER_LSA ||
-			      lsa->data->type == OSPF_NETWORK_LSA)))
+			    (lsa_type == OSPF_ROUTER_LSA ||
+			     lsa_type == OSPF_NETWORK_LSA))
 				ospf_gr_check_lsdb_consistency(oi->ospf,
 							       oi->area);
 
