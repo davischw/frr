@@ -24,6 +24,33 @@ from lib.topotest import g_extra_config as topotest_extra_config
 from lib.topotest import json_cmp_result
 
 
+def pytest_collection_modifyitems(items):
+    """Keep the ltemplate memory-leak check last within each test module.
+
+    ltemplate-based test modules do ``from lib.ltemplate import *`` at the top
+    of the file, which imports ``test_memory_leak`` into the module namespace
+    *before* the module's own test functions are defined. pytest collects
+    module-level tests in namespace insertion order, so without this hook
+    ``test_memory_leak`` runs first, calls ``report_memory_leaks()`` which stops
+    all daemons, and every subsequent functional test then runs against dead
+    daemons -- e.g. ``adjacencies.py`` waits ~40 min on ``vtysh`` timeouts and
+    trips the CI hang detector. Re-order so it always runs last within its own
+    module while preserving module and intra-module ordering otherwise.
+    """
+    from itertools import groupby
+
+    reordered = []
+    for _module, group in groupby(items, key=lambda it: it.nodeid.split("::", 1)[0]):
+        group = list(group)
+        group.sort(
+            key=lambda it: 1
+            if getattr(it, "originalname", it.name) == "test_memory_leak"
+            else 0
+        )
+        reordered.extend(group)
+    items[:] = reordered
+
+
 def pytest_addoption(parser):
     """
     Add topology-only option to the topology tester. This option makes pytest
