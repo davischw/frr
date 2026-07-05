@@ -450,6 +450,17 @@ _Static_assert(sizeof(_uint64_t) == 8 && sizeof(_int64_t) == 8,
 #pragma diag_suppress 167
 #endif /* __INTELISENSE__ */
 
+/* Stringify a macro's *expansion* rather than its name.
+ * The two-level form is required so the argument is macro-expanded before the
+ * '#' operator stringifies it, e.g. with #define MULTIPATH_NUM 256:
+ *   STRINGIFY(MULTIPATH_NUM)  -> "256"   (expand then stringify)
+ *   _STRINGIFY(MULTIPATH_NUM) -> "MULTIPATH_NUM"
+ * Handy for sizing a buffer to a build-time constant:
+ *   char buf[sizeof(STRINGIFY(MULTIPATH_NUM))];
+ */
+#define _STRINGIFY(x) #x
+#define STRINGIFY(x) _STRINGIFY(x)
+
 #ifdef __cplusplus
 }
 #endif
