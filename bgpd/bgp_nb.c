@@ -144,16 +144,53 @@ static int bgpd_instance_destroy(struct nb_cb_destroy_args *args)
 static int bgpd_instance_shutdown_modify(struct nb_cb_modify_args *args)
 {
 	struct bgp *bgp;
+	const char *msg = NULL;
 
 	if (args->event != NB_EV_APPLY)
 		return NB_OK;
 
 	bgp = nb_running_get_entry(args->dnode, NULL, true);
 
-	if (yang_dnode_get_bool(args->dnode, NULL))
-		bgp_shutdown_enable(bgp, NULL);
-	else
+	if (yang_dnode_get_bool(args->dnode, NULL)) {
+		/*
+		 * The optional shutdown message is a sibling leaf. Read it
+		 * from the candidate configuration (which is fully built at
+		 * apply time) so the result does not depend on the order in
+		 * which the sibling callbacks run.
+		 */
+		if (yang_dnode_exists(args->dnode, "../shutdown-message"))
+			msg = yang_dnode_get_string(args->dnode,
+						    "../shutdown-message");
+		bgp_shutdown_enable(bgp, msg);
+	} else {
 		bgp_shutdown_disable(bgp);
+	}
+
+	return NB_OK;
+}
+
+/*
+ * XPath: /frr-bgpd:bgpd/instance/shutdown-message
+ *
+ * The shutdown message only carries the RFC 8203 text to the shutdown
+ * handler; it is consumed by bgpd_instance_shutdown_modify() above. No
+ * dedicated action is required here, but the callbacks must exist so the
+ * northbound layer accepts edits to this leaf.
+ */
+static int
+bgpd_instance_shutdown_message_modify(struct nb_cb_modify_args *args)
+{
+	if (args->event != NB_EV_APPLY)
+		return NB_OK;
+
+	return NB_OK;
+}
+
+static int
+bgpd_instance_shutdown_message_destroy(struct nb_cb_destroy_args *args)
+{
+	if (args->event != NB_EV_APPLY)
+		return NB_OK;
 
 	return NB_OK;
 }
@@ -173,6 +210,13 @@ const struct frr_yang_module_info frr_bgpd_info = {
 			.xpath = "/frr-bgpd:bgpd/instance/shutdown",
 			.cbs = {
 				.modify = bgpd_instance_shutdown_modify,
+			}
+		},
+		{
+			.xpath = "/frr-bgpd:bgpd/instance/shutdown-message",
+			.cbs = {
+				.modify = bgpd_instance_shutdown_message_modify,
+				.destroy = bgpd_instance_shutdown_message_destroy,
 			}
 		},
 		{

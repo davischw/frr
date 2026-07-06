@@ -4567,9 +4567,10 @@ DEFPY(bgp_shutdown_msg, bgp_shutdown_msg_cmd, "bgp shutdown message MSG...",
       "Add a shutdown message (RFC 8203)\n"
       "Shutdown message\n")
 {
-	char *msgstr = NULL;
-
 	VTY_DECLVAR_CONTEXT(bgp, bgp);
+	char base_xpath[XPATH_MAXLEN];
+	char *msgstr = NULL;
+	int ret;
 
 	if (argc > 3)
 		msgstr = argv_concat(argv, argc, 3);
@@ -4577,13 +4578,19 @@ DEFPY(bgp_shutdown_msg, bgp_shutdown_msg_cmd, "bgp shutdown message MSG...",
 	if (msgstr && strlen(msgstr) > BGP_ADMIN_SHUTDOWN_MSG_LEN) {
 		vty_out(vty, "%% Shutdown message size exceeded %d\n",
 			BGP_ADMIN_SHUTDOWN_MSG_LEN);
+		XFREE(MTYPE_TMP, msgstr);
 		return CMD_WARNING_CONFIG_FAILED;
 	}
 
-	bgp_shutdown_enable(bgp, msgstr);
+	snprintf(base_xpath, XPATH_MAXLEN, "/frr-bgpd:bgpd/instance[vrf='%s']",
+		 bgp->name ? bgp->name : VRF_DEFAULT_NAME);
+	nb_cli_enqueue_change(vty, "./shutdown-message", NB_OP_MODIFY, msgstr);
+	nb_cli_enqueue_change(vty, "./shutdown", NB_OP_MODIFY, "true");
+	ret = nb_cli_apply_changes(vty, base_xpath);
+
 	XFREE(MTYPE_TMP, msgstr);
 
-	return CMD_SUCCESS;
+	return ret;
 }
 
 DEFPY(bgp_shutdown, bgp_shutdown_cmd, "bgp shutdown",
@@ -4594,6 +4601,7 @@ DEFPY(bgp_shutdown, bgp_shutdown_cmd, "bgp shutdown",
 
 	snprintf(base_xpath, XPATH_MAXLEN, "/frr-bgpd:bgpd/instance[vrf='%s']",
 		 bgp->name ? bgp->name : VRF_DEFAULT_NAME);
+	nb_cli_enqueue_change(vty, "./shutdown-message", NB_OP_DESTROY, NULL);
 	nb_cli_enqueue_change(vty, "./shutdown", NB_OP_MODIFY, "true");
 	return nb_cli_apply_changes(vty, base_xpath);
 }
@@ -4606,6 +4614,7 @@ DEFPY(no_bgp_shutdown, no_bgp_shutdown_cmd, "no bgp shutdown",
 
 	snprintf(base_xpath, XPATH_MAXLEN, "/frr-bgpd:bgpd/instance[vrf='%s']",
 		 bgp->name ? bgp->name : VRF_DEFAULT_NAME);
+	nb_cli_enqueue_change(vty, "./shutdown-message", NB_OP_DESTROY, NULL);
 	nb_cli_enqueue_change(vty, "./shutdown", NB_OP_MODIFY, "false");
 	return nb_cli_apply_changes(vty, base_xpath);
 }

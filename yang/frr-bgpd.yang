@@ -61,6 +61,15 @@ module frr-bgpd {
         description
           "Disable or enable an BGP instance";
       }
+
+      leaf shutdown-message {
+        type string {
+          length "1..255";
+        }
+        description
+          "Administrative shutdown message (RFC 8203) sent to peers
+           when the BGP instance is shut down.";
+      }
     }
   }
 }
