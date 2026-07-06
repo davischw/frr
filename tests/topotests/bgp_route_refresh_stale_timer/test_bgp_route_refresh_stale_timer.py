@@ -96,6 +96,18 @@ STALEPATH_TIME = 5
 # this; if convergence is too slow, lower it.
 NUM_BULK_ROUTES = 5000
 
+# Peer TCP socket buffer (bytes) for both bgpd's, passed as -s/--socket_size and
+# pinned into the per-netns tcp_rmem/tcp_wmem. Deliberately tiny so r2 hits TCP
+# flow-control during the BoRR re-advertisement and cannot finish the walk (and
+# reach the EoRR) before the test samples the probe as stale. See setup_module().
+BGP_SOCKET_BUFFER = 4096
+
+# Per-port one-way latency added to the r1<->r2 link (via netem). Combined with
+# the tiny socket buffer above, this caps r2's re-advertisement throughput
+# (~= buffer / RTT) so the BoRR->EoRR window stretches to seconds. See
+# setup_module().
+LINK_DELAY_MS = 50
+
 
 def build_topo(tgen):
     for routern in range(1, 3):
@@ -112,12 +124,53 @@ def setup_module(mod):
 
     router_list = tgen.routers()
 
+    # Force real TCP flow-control on the r1<->r2 BGP session.
+    #
+    # The test must observe the probe in its transient BoRR->EoRR "stale"
+    # window. On a fast host, r2 re-advertises the whole table in ~150ms and
+    # the window closes before the poller (a fresh vtysh per sample, ~230ms
+    # apart) ever sees it -- the test then fails with "never observed stale".
+    #
+    # Shrinking the BGP peer socket buffers keeps r2 from blasting the entire
+    # re-advertised table into r1 in one burst: r1's small receive window fills,
+    # r2 blocks on write() and drains in lock-step with r1's per-prefix
+    # processing, stretching the BoRR->EoRR window to seconds regardless of host
+    # speed. Because the probe sorts last it stays stale for that whole span.
+    #
+    # bgp_socket_set_buffer_size() only ever *raises* the socket buffer to
+    # bm->socket_buffer (default 65536), so shrinking requires BOTH: lower the
+    # per-netns tcp_rmem/tcp_wmem AND pass a matching small -s/--socket_size so
+    # bgpd does not bump it back up.
+    for rname, router in router_list.items():
+        # tcp_rmem/tcp_wmem are per-netns, so this only touches this router's
+        # namespace (unlike net.core.*mem_max/_default, which are not namespaced
+        # on older kernels and would leak into parallel CI runs). Pinning all
+        # three fields caps TCP window autotuning at BGP_SOCKET_BUFFER.
+        for knob in (
+            "net.ipv4.tcp_rmem=4096 {0} {0}".format(BGP_SOCKET_BUFFER),
+            "net.ipv4.tcp_wmem=4096 {0} {0}".format(BGP_SOCKET_BUFFER),
+        ):
+            router.run('sysctl -qw "{}"'.format(knob))
+        # A small socket buffer only throttles when the bandwidth-delay product
+        # is small. Over veth the RTT is ~0, so a tiny window still sustains huge
+        # throughput. Add link latency so throughput ~= window/RTT actually
+        # bounds r2's send rate and TCP flow-control engages. Applied on both
+        # ports of the r1<->r2 link (keepalives are tiny and only see the added
+        # delay, never head-of-line blocking, so the session is unaffected).
+        router.run(
+            "tc qdisc add dev {}-eth0 root netem delay {}ms".format(
+                rname, LINK_DELAY_MS
+            )
+        )
+
     for rname, router in router_list.items():
         router.load_config(
             TopoRouter.RD_ZEBRA, os.path.join(CWD, "{}/zebra.conf".format(rname))
         )
         router.load_config(
-            TopoRouter.RD_BGP, os.path.join(CWD, "{}/bgpd.conf".format(rname))
+            TopoRouter.RD_BGP,
+            os.path.join(CWD, "{}/bgpd.conf".format(rname)),
+            "-s {}".format(BGP_SOCKET_BUFFER),
         )
 
     # Only r2 sources routes redistributed into BGP:
