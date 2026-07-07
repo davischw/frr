@@ -262,7 +262,13 @@ int ospf6_abr_originate_summary_to_area(struct ospf6_route *route,
 
 		route_area =
 			ospf6_area_lookup(route->path.area_id, area->ospf6);
-		assert(route_area);
+		if (route_area == NULL) {
+			if (IS_OSPF6_DEBUG_ABR)
+				zlog_debug(
+					"%s: route area %pI4 not found, skipping",
+					__func__, &route->path.area_id);
+			return 0;
+		}
 
 		/* Check export-list */
 		if (EXPORT_LIST(route_area)
@@ -468,7 +474,14 @@ int ospf6_abr_originate_summary_to_area(struct ospf6_route *route,
 		/* Do not generate if area is NSSA */
 		route_area =
 			ospf6_area_lookup(route->path.area_id, area->ospf6);
-		assert(route_area);
+		if (route_area == NULL) {
+			if (is_debug)
+				zlog_debug(
+					"%s: route area %pI4 not found, skipping",
+					__func__, &route->path.area_id);
+			ospf6_abr_delete_route(summary, summary_table, old);
+			return 0;
+		}
 
 		if (IS_AREA_NSSA(route_area)) {
 			if (is_debug)
@@ -490,7 +503,13 @@ int ospf6_abr_originate_summary_to_area(struct ospf6_route *route,
 		/* search for configured address range for the route's area */
 		route_area =
 			ospf6_area_lookup(route->path.area_id, area->ospf6);
-		assert(route_area);
+		if (route_area == NULL) {
+			if (is_debug)
+				zlog_debug(
+					"%s: route area %pI4 not found, skipping",
+					__func__, &route->path.area_id);
+			return 0;
+		}
 		range = ospf6_route_lookup_bestmatch(&route->prefix,
 						     route_area->range_table);
 

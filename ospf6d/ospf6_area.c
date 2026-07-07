@@ -441,10 +441,44 @@ void ospf6_area_enable(struct ospf6_area *oa)
 	ospf6_abr_enable_area(oa);
 }
 
+static void ospf6_area_disable_stale_routes(struct ospf6_area *oa)
+{
+	struct ospf6 *ospf6 = oa->ospf6;
+	struct ospf6_route *route, *next;
+	uint32_t area_id = oa->area_id;
+
+	/* Remove stale routes from global routing tables that reference
+	 * this area. This can happen when an area ID is modified - the
+	 * old area is replaced by a new area with a different ID, but
+	 * route entries in the global tables still reference the old
+	 * area_id. Without this cleanup, ABR task processing will crash
+	 * when trying to look up the non-existent old area.
+	 */
+	for (route = ospf6_route_head(ospf6->route_table); route;
+	     route = next) {
+		next = ospf6_route_next(route);
+		if (route->path.area_id == area_id)
+			ospf6_route_remove(route, ospf6->route_table);
+	}
+
+	for (route = ospf6_route_head(ospf6->brouter_table); route;
+	     route = next) {
+		next = ospf6_route_next(route);
+		if (route->path.area_id == area_id)
+			ospf6_route_remove(route, ospf6->brouter_table);
+	}
+}
+
 void ospf6_area_disable(struct ospf6_area *oa)
 {
 	struct listnode *node, *nnode;
 	struct ospf6_interface *oi;
+
+	/* Clean up stale routes from global tables before disabling.
+	 * This must happen before flag changes and interface disabling
+	 * to ensure routes are removed while area context is still valid.
+	 */
+	ospf6_area_disable_stale_routes(oa);
 
 	UNSET_FLAG(oa->flag, OSPF6_AREA_ACTIVE);
 	UNSET_FLAG(oa->flag, OSPF6_AREA_ENABLE);
