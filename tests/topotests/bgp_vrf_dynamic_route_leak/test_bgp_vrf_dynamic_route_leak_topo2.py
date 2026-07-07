@@ -502,11 +502,7 @@ def test_bgp_best_path_with_dynamic_import_p0(request):
         step("Verify bestpath is installed as per highest localpref")
 
         input_routes_r3 = {
-            "r3": {
-                "static_routes": [
-                    {"network": [NETWORK3_3[addr_type], NETWORK3_4[addr_type]]}
-                ]
-            }
+            "r3": {"static_routes": [{"network": [NETWORK3_4[addr_type]]}]}
         }
 
         result = verify_best_path_as_per_bgp_attribute(
@@ -549,11 +545,7 @@ def test_bgp_best_path_with_dynamic_import_p0(request):
         step("Verify bestpath is changed as per highest localpref")
 
         input_routes_r3 = {
-            "r3": {
-                "static_routes": [
-                    {"network": [NETWORK3_3[addr_type], NETWORK3_4[addr_type]]}
-                ]
-            }
+            "r3": {"static_routes": [{"network": [NETWORK3_4[addr_type]]}]}
         }
 
         result = verify_best_path_as_per_bgp_attribute(
@@ -601,11 +593,7 @@ def test_bgp_best_path_with_dynamic_import_p0(request):
         step("Verify bestpath is changed as per shortest as-path")
 
         input_routes_r3 = {
-            "r3": {
-                "static_routes": [
-                    {"network": [NETWORK3_3[addr_type], NETWORK3_4[addr_type]]}
-                ]
-            }
+            "r3": {"static_routes": [{"network": [NETWORK3_4[addr_type]]}]}
         }
 
         result = verify_best_path_as_per_bgp_attribute(
