@@ -78,11 +78,6 @@
       ],
       "summaryLinkStates":[
         {
-          "lsId":"0.0.0.0",
-          "advertisedRouter":"6.6.6.6",
-          "summaryAddress":"0.0.0.0\/0"
-        },
-        {
           "lsId":"1.1.1.1",
           "advertisedRouter":"6.6.6.6",
           "summaryAddress":"1.1.1.1\/32"
