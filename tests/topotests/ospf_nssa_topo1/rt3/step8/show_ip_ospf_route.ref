@@ -1,15 +1,4 @@
 {
-  "0.0.0.0\/0":{
-    "routeType":"N IA",
-    "cost":11,
-    "area":"0.0.0.1",
-    "nexthops":[
-      {
-        "ip":"10.0.2.2",
-        "via":"eth-rt2"
-      }
-    ]
-  },
   "1.1.1.1\/32":{
     "routeType":"N IA",
     "cost":20,

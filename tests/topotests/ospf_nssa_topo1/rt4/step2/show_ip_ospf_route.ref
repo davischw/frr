@@ -1,8 +1,9 @@
 {
   "0.0.0.0\/0":{
-    "routeType":"N IA",
-    "cost":11,
-    "area":"0.0.0.1",
+    "routeType":"N E2",
+    "cost":20,
+    "type2cost":1,
+    "tag":0,
     "nexthops":[
       {
         "ip":"10.0.3.2",
