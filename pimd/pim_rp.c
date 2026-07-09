@@ -679,6 +679,19 @@ static void pim_rp_refresh_group_to_rp_mapping_thread(struct thread *t)
 			/* RP not found for the group grp */
 			if (!trp_info ||
 			    pim_addr_is_any(trp_info->rp.rpf_addr)) {
+				/*
+				 * The (*,G) upstream is tracked in the RP's
+				 * nexthop cache keyed by up->upstream_addr.
+				 * Remove it from that bucket before clearing the
+				 * RPF and resetting upstream_addr; otherwise the
+				 * stale entry survives (pim_upstream_del() later
+				 * releases NHT tracking keyed by the by-then ANY
+				 * upstream_addr and misses the old bucket),
+				 * leaving a dangling upstream pointer that a
+				 * later Zebra nexthop update would walk.
+				 */
+				if (!pim_addr_is_any(up->upstream_addr))
+					pim_delete_tracked_upstream(up);
 				pim_upstream_rpf_clear(pim, up);
 				pim_upstream_remove_address(up);
 				pim_rp_set_upstream_addr(pim, &up->upstream_addr,
