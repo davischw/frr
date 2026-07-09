@@ -597,7 +597,29 @@ static size_t pim_jp_groups_fill(struct pim_jp_groups *grp, struct pim_jp_agg_gr
 			struct pim_rpf *rpf = pim_rp_g(pim, source->up->sg.grp);
 
 			bits = PIM_ENCODE_SPARSE_BIT | PIM_ENCODE_WC_BIT | PIM_ENCODE_RPT_BIT;
-			stosend = rpf->rpf_addr;
+			/*
+			 * The encoded address of a (*,G) entry is the group's
+			 * RP. pim_rp_g() only resolves an RP that is currently
+			 * reachable, so it returns NULL when the RP has become
+			 * unreachable or is being torn down. In that case fall
+			 * back to the RP address the upstream is still tracking
+			 * (up->upstream_addr) so the (*,G) join/prune keeps
+			 * flowing toward the RP; only if no RP address is known
+			 * at all do we skip this source, rather than
+			 * dereferencing a NULL RPF and crashing.
+			 */
+			if (rpf) {
+				stosend = rpf->rpf_addr;
+			} else if (!pim_addr_is_any(source->up->upstream_addr)) {
+				stosend = source->up->upstream_addr;
+			} else {
+				if (PIM_DEBUG_PIM_J_P)
+					zlog_debug("%s: no RP for group %pPA, skipping (*,G) source",
+						   __func__, &source->up->sg.grp);
+				bytes_written -= sizeof(pim_encoded_source);
+				bytes_left += sizeof(pim_encoded_source);
+				continue;
+			}
 			/* Only Send SGRpt in case of *,G Join */
 			if (source->is_join)
 				upstream = source->up;
