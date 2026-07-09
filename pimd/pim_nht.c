@@ -766,9 +766,18 @@ static int pim_ecmp_nexthop_search(struct pim_instance *pim,
 static void nht_pending_drain(struct thread *t)
 {
 	struct pim_nexthop_cache *pnc;
-	struct pim_instance *pim = pim_get_pim_instance(VRF_DEFAULT);
 
 	while ((pnc = pending_pncs_pop(nht_pending_pncs))) {
+		/*
+		 * A pnc belongs to the VRF it was registered in; its RP and
+		 * upstream nexthops must be resolved against that VRF's RIB.
+		 * Use the pnc's own pim instance rather than the default VRF,
+		 * otherwise a non-default-VRF RP whose nexthop is drained here
+		 * is looked up in the (wrong) default RIB, fails to resolve and
+		 * gets its nexthop cleared.
+		 */
+		struct pim_instance *pim = pnc->pim;
+
 		pim_rpf_set_refresh_time(pim);
 
 		if (listcount(pnc->rp_list))
