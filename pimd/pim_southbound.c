@@ -1558,14 +1558,25 @@ static void pimsb_client_spt_join(const struct mroute_event *me)
 
 	/*
 	 * pim_upstream_add unconditionally added a ref above.  but the ref
-	 * we track here is bound to the SPT_DESIRED flag (otherwise we leak
-	 * later)
+	 * we track here is bound to the SPT_DESIRED/SRC_LHR flag (otherwise
+	 * we leak later)
 	 */
-	if (up->flags & PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED) {
+	if (up->flags & (PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED |
+			 PIM_UPSTREAM_FLAG_MASK_SRC_LHR)) {
 		assert(up->ref_count >= 2);
 		pim_upstream_del(pim_ifp->pim, up, __func__);
-	} else
-		up->flags |= PIM_UPSTREAM_FLAG_MASK_SPT_DESIRED;
+	} else {
+		/*
+		 * Once the data plane switches this flow over to the SPT it
+		 * is handled entirely in hardware, so a follow-up DATA_START
+		 * (which is what normally moves SPT_DESIRED to SRC_LHR) may
+		 * never show up.  Mark this as SRC_LHR right away instead of
+		 * waiting on that event, otherwise nothing ever keeps this
+		 * upstream's keepalive timer running and the SPT silently
+		 * reverts back to the RPT once it expires.
+		 */
+		up->flags |= PIM_UPSTREAM_FLAG_MASK_SRC_LHR;
+	}
 
 	pim_upstream_keep_alive_timer_start(up, pim_ifp->pim->keep_alive_time);
 	pim_upstream_inherited_olist(pim_ifp->pim, up);

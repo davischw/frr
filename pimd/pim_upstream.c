@@ -53,6 +53,9 @@
 #include "pim_ssm.h"
 #include "pim_vxlan.h"
 #include "pim_mlag.h"
+#ifdef VENDOR_SOUTHBOUND
+#include "pim_southbound.h"
+#endif /* VENDOR_SOUTHBOUND */
 
 static void join_timer_stop(struct pim_upstream *up);
 static void
@@ -2179,6 +2182,17 @@ static bool pim_upstream_sg_running_proc(struct pim_upstream *up)
 	pim_mroute_update_counters(up->channel_oil);
 
 	// Have we seen packets?
+#ifdef VENDOR_SOUTHBOUND
+	/*
+	 * The vendor southbound data plane does not report per route packet
+	 * counters, so oldpktcnt/pktcnt/lastused never move and the check
+	 * below would always look idle, expiring the KAT (and reverting SPT
+	 * to RPT) regardless of real traffic. Southbound already tears the
+	 * upstream down directly (DATA_STOP) when the source goes silent, so
+	 * trust that instead of the packet counters here.
+	 */
+	if (!pim_southbound_enabled)
+#endif /* VENDOR_SOUTHBOUND */
 	if ((up->channel_oil->cc.oldpktcnt >= up->channel_oil->cc.pktcnt)
 	    && (up->channel_oil->cc.lastused / 100 > 30)) {
 		if (PIM_DEBUG_PIM_TRACE) {
@@ -2196,9 +2210,18 @@ static bool pim_upstream_sg_running_proc(struct pim_upstream *up)
 		pim_upstream_keep_alive_timer_start(up, pim->keep_alive_time);
 		rv = true;
 	} else if (PIM_UPSTREAM_FLAG_TEST_SRC_LHR(up->flags)) {
-		zlog_warn(
-			"KAT restart for %s[%s]: LHR set but kat_start_ok is false",
-			up->sg_str, pim->vrf->name);
+#ifdef VENDOR_SOUTHBOUND
+		/*
+		 * This is the routine renewal path for a southbound-managed
+		 * LHR SPT upstream (the data plane never reports counters
+		 * kat_start_ok() could use), not an anomaly - don't warn
+		 * every keep-alive interval.
+		 */
+		if (!pim_southbound_enabled)
+#endif /* VENDOR_SOUTHBOUND */
+			zlog_warn(
+				"KAT restart for %s[%s]: LHR set but kat_start_ok is false",
+				up->sg_str, pim->vrf->name);
 
 		pim_upstream_keep_alive_timer_start(up, pim->keep_alive_time);
 		rv = true;
