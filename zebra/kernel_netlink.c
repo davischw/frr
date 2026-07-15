@@ -1743,9 +1743,20 @@ void kernel_update_multi(struct dplane_ctx_q *ctx_list)
 		if (ctx == NULL)
 			break;
 
-		/* Interrupt as soon as shutdown is detected. */
-		if (dplane_is_in_shutdown())
-			break;
+		/*
+		 * During shutdown the netlink socket may already be closed,
+		 * so we must not encode/send this context (that would
+		 * dereference a NULL nlsock and crash). But we still have to
+		 * keep the context flowing to the outbound queue so it is
+		 * handed back to zebra main and freed -- otherwise it leaks.
+		 * This mirrors the upstream skip-kernel idiom, which likewise
+		 * rides the context along in the batch without setting status
+		 * (the ctx is already ZEBRA_DPLANE_REQUEST_SUCCESS from init).
+		 */
+		if (dplane_is_in_shutdown()) {
+			dplane_ctx_enqueue_tail(&(batch.ctx_list), ctx);
+			continue;
+		}
 
 		if (batch.zns != NULL
 		    && batch.zns->ns_id != dplane_ctx_get_ns(ctx)->ns_id)
