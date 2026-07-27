@@ -2086,13 +2086,21 @@ int netlink_link_change(struct nlmsghdr *h, ns_id_t ns_id, int startup)
 				} else if (if_is_operative(ifp)) {
 					bool mac_updated = false;
 
-					/* Must notify client daemons of new
-					 * interface status. */
+					/*
+					 * Must notify client daemons of new
+					 * interface status. Only call if_up()
+					 * when the interface was not already up
+					 * before the flags update. Calling
+					 * if_up() on an already-up interface
+					 * sends ZEBRA_INTERFACE_UP to clients.
+					 */
 					if (IS_ZEBRA_DEBUG_KERNEL)
 						zlog_debug(
-							"Intf %s(%u) PTM up, notifying clients",
-							name, ifp->ifindex);
-					if_up(ifp, !is_up);
+							"Intf %s(%u) PTM up, notifying clients (is_up=%d)",
+							name, ifp->ifindex,
+							is_up);
+					if (!is_up)
+						if_up(ifp, true);
 
 					/* Update EVPN VNI when SVI MAC change
 					 */
