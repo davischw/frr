@@ -3362,8 +3362,24 @@ static wq_item_status bgp_process_wq(struct work_queue *wq, void *data)
 static void bgp_processq_del(struct work_queue *wq, void *data)
 {
 	struct bgp_process_queue *pqnode = data;
+	struct bgp_table *table;
+	struct bgp_dest *dest;
 
 	bgp_unlock(pqnode->bgp);
+
+	/* Dests still queued here were never handed to bgp_process_wq(), so
+	 * they still hold the references taken in bgp_process().  This happens
+	 * when the work queue is flushed on instance delete/shutdown.
+	 */
+	while (!STAILQ_EMPTY(&pqnode->pqueue)) {
+		dest = STAILQ_FIRST(&pqnode->pqueue);
+		STAILQ_REMOVE_HEAD(&pqnode->pqueue, pq);
+		STAILQ_NEXT(dest, pq) = NULL; /* complete unlink */
+		table = bgp_dest_table(dest);
+
+		bgp_dest_unlock_node(dest);
+		bgp_table_unlock(table);
+	}
 
 	XFREE(MTYPE_BGP_PROCESS_QUEUE, pqnode);
 }
@@ -3446,7 +3462,7 @@ void bgp_process(struct bgp *bgp, struct bgp_dest *dest, afi_t afi, safi_t safi)
 			pqnode_reuse = 1;
 	} else
 		pqnode = bgp_processq_alloc(bgp);
-	/* all unlocked in bgp_process_wq */
+	/* all unlocked in bgp_process_wq or bgp_processq_del */
 	bgp_table_lock(bgp_dest_table(dest));
 
 	SET_FLAG(dest->flags, BGP_NODE_PROCESS_SCHEDULED);
