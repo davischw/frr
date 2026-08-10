@@ -355,6 +355,9 @@ void ospf_if_cleanup(struct ospf_interface *oi)
 
 void ospf_if_free(struct ospf_interface *oi)
 {
+	struct listnode *node;
+	struct ospf_lsa *lsa;
+
 	ospf_nb_del_interface(oi);
 
 	ospf_if_down(oi);
@@ -377,6 +380,10 @@ void ospf_if_free(struct ospf_interface *oi)
 
 	/* Free any lists that should be freed */
 	list_delete(&oi->nbr_nbma);
+
+	/* Cleanup Link State Direct Acknowledgment list. */
+	for (ALL_LIST_ELEMENTS_RO(oi->ls_ack_direct.ls_ack, node, lsa))
+		ospf_lsa_unlock(&lsa); /* oi->ls_ack_direct.ls_ack */
 
 	list_delete(&oi->ls_ack);
 	list_delete(&oi->ls_ack_direct.ls_ack);
