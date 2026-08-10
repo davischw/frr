@@ -2272,7 +2272,16 @@ struct ospf_lsa *ospf_external_lsa_originate(struct ospf *ospf,
 		/* Install/Flood Type-7 to all NSSAs */
 		ospf_install_flood_nssa(ospf, new);
 
-		return new;
+		/*
+		 * Discard the template LSA allocated by `new`, because
+		 * `ospf_install_flood_nssa` duplicates it per-area.
+		 * Without this we have a memory leak.
+		 *
+		 * Return `NULL` since we don't have a pointer to the
+		 * actually managed LSA.
+		 */
+		ospf_lsa_discard(new);
+		return NULL;
 	}
 
 	/* Install newly created LSA into Type-5 LSDB, lock = 1. */
