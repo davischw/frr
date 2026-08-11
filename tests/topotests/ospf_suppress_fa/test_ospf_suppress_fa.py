@@ -37,6 +37,7 @@ import os
 import sys
 import re
 import pytest
+from functools import partial
 
 # Save the Current Working Directory to find configuration files.
 CWD = os.path.dirname(os.path.realpath(__file__))
@@ -147,9 +148,25 @@ def ospf_get_lsa_type5(router_name):
     return result
 
 
+def ospf_wait_lsa_type5(router_name, count):
+    "Wait for the expected number of type-5 LSAs to show up in router_name"
+
+    def lsa_count_check(router_name, count):
+        return None if len(ospf_get_lsa_type5(router_name)) == count else False
+
+    test_func = partial(lsa_count_check, router_name, count)
+    _, result = topotest.run_and_expect(test_func, None, count=60, wait=1)
+    assertmsg = '"{}" doesn\'t have {} type-5 LSAs'.format(router_name, count)
+    assert result is None, assertmsg
+
+
 @pytest.fixture(scope="module", name="original")
 def test_ospf_set_suppress_fa():
     "Test OSPF area [x] nssa suppress-fa"
+
+    # The Type-7 LSAs are only translated once their originator is reachable,
+    # which can take longer than the initial convergence wait above.
+    ospf_wait_lsa_type5("r1", 3)
 
     # Get current forwarding address for each LSA type-5 in r1
     initial = ospf_get_lsa_type5("r1")

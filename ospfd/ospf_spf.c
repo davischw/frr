@@ -1928,6 +1928,13 @@ static void ospf_spf_calculate_schedule_worker(struct thread *thread)
 			ospf_abr_nssa_check_status(ospf);
 		ospf_abr_task(ospf);
 	}
+	/*
+	 * Rescan the Type-7 LSDB, as translations depend on the routing
+	 * tables. This needs to run even when this router isn't an ABR
+	 * anymore, to flush any previously translated LSAs.
+	 */
+	if (ospf->anyNSSA)
+		ospf_abr_nssa_task(ospf);
 	abr_time = monotime_since(&start_time, NULL);
 
 	/* Schedule Segment Routing update */

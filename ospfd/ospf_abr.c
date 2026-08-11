@@ -588,6 +588,40 @@ static void set_metric(struct ospf_lsa *lsa, uint32_t metric)
 	memcpy(header->metric, mp, 3);
 }
 
+/* Check whether a route is computed out of the given Type-7 LSA */
+static bool ospf_abr_nssa_lsa_installed(struct ospf *ospf, struct ospf_lsa *lsa)
+{
+	struct as_external_lsa *ext = (struct as_external_lsa *)lsa->data;
+	struct prefix_ipv4 asbr, fwd_addr;
+	struct route_node *rn;
+
+	if (ospf->new_table == NULL || ospf->new_rtrs == NULL)
+		return false;
+
+	/* Skip LSAs advertising an infinite cost. */
+	if (GET_METRIC(ext->e[0].metric) >= OSPF_LS_INFINITY)
+		return false;
+
+	/* The originating ASBR needs to be reachable. */
+	asbr.family = AF_INET;
+	asbr.prefix = lsa->data->adv_router;
+	asbr.prefixlen = IPV4_MAX_BITLEN;
+	apply_mask_ipv4(&asbr);
+	if (ospf_find_asbr_route(ospf, ospf->new_rtrs, &asbr) == NULL)
+		return false;
+
+	/* The forwarding address needs to be reachable. */
+	fwd_addr.family = AF_INET;
+	fwd_addr.prefix = ext->e[0].fwd_addr;
+	fwd_addr.prefixlen = IPV4_MAX_BITLEN;
+	rn = route_node_match(ospf->new_table, (struct prefix *)&fwd_addr);
+	if (rn == NULL)
+		return false;
+	route_unlock_node(rn);
+
+	return true;
+}
+
 /* ospf_abr_translate_nssa */
 static int ospf_abr_translate_nssa(struct ospf_area *area, struct ospf_lsa *lsa)
 {
@@ -619,6 +653,7 @@ static int ospf_abr_translate_nssa(struct ospf_area *area, struct ospf_lsa *lsa)
 			   &lsa->data->id);
 
 	ext7 = (struct as_external_lsa *)(lsa->data);
+	p.family = AF_INET;
 	p.prefix = lsa->data->id;
 	p.prefixlen = ip_masklen(ext7->mask);
 
@@ -644,6 +679,20 @@ static int ospf_abr_translate_nssa(struct ospf_area *area, struct ospf_lsa *lsa)
 		}
 		/* if type-7 is removed and type-5 does not exist, do not
 		 * originate */
+		return 1;
+	}
+
+	/*
+	 * RFC 3101 - Section 3.2:
+	 * "Only installed Type-7 LSAs and those non-default Type-7 LSAs
+	 * originated by the router itself should be examined".
+	 */
+	if (!IS_LSA_SELF(lsa) &&
+	    !ospf_abr_nssa_lsa_installed(area->ospf, lsa)) {
+		if (IS_DEBUG_OSPF_NSSA)
+			zlog_debug(
+				"%s: LSA Id %pI4, not installed, NO Translation",
+				__func__, &lsa->data->id);
 		return 1;
 	}
 
@@ -1717,8 +1766,24 @@ void ospf_abr_nssa_type7_defaults(struct ospf *ospf)
 static int ospf_abr_remove_unapproved_translates_apply(struct ospf *ospf,
 						       struct ospf_lsa *lsa)
 {
+	struct external_info *ei;
+
 	if (CHECK_FLAG(lsa->flags, OSPF_LSA_LOCAL_XLT)
 	    && !CHECK_FLAG(lsa->flags, OSPF_LSA_APPROVED)) {
+		/*
+		 * Prefixes redistributed by this router are advertised as
+		 * translated Type-5 LSAs too. Those need to be reoriginated as
+		 * regular AS-external LSAs instead of being flushed.
+		 */
+		ei = ospf_external_info_check(ospf, lsa);
+		if (ei) {
+			zlog_info("%s: untranslating LSA, ID: %pI4", __func__,
+				  &lsa->data->id);
+			ospf_external_lsa_refresh(ospf, lsa, ei,
+						  LSA_REFRESH_FORCE, false);
+			return 0;
+		}
+
 		zlog_info("%s: removing unapproved translates, ID: %pI4",
 			  __func__, &lsa->data->id);
 
