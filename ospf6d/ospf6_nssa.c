@@ -156,6 +156,7 @@ ospf6_nssa_find_translated_type5(struct ospf6 *ospf6, struct ospf6_lsa *type7)
 
 			/* Reuse pre-existing non-translated Type-5 LSA. */
 			SET_FLAG(type5->flag, OSPF6_LSA_LOCAL_XLT);
+			ospf6_lsa_unlock(type5);
 			found = true;
 			break;
 		}
