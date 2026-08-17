@@ -1726,7 +1726,11 @@ ospf6_asbr_summary_remove_lsa_and_route(struct ospf6 *ospf6,
 			zlog_debug(
 				"%s: Remove the blackhole route",
 				__func__);
+
 		ospf6_zebra_route_update_remove(aggr->route, ospf6);
+		if (aggr->route->route_option)
+			XFREE(MTYPE_OSPF6_EXTERNAL_INFO,
+			      aggr->route->route_option);
 		ospf6_route_delete(aggr->route);
 		aggr->route = NULL;
 	}
