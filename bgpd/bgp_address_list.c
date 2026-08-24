@@ -41,6 +41,9 @@
  */
 DEFINE_MTYPE_STATIC(BGPD, BGP_NAMED_PEER, "BGP peer address list name");
 
+/** Set while `bgp_address_list_peers_free` removes all named peers. */
+static bool address_list_peers_freeing;
+
 /*
  * Functions.
  */
@@ -68,16 +71,96 @@ static void bgp_peer_su_update(struct peer *peer, const union sockunion *su)
 	hash_get(peer->bgp->peerhash, peer, hash_alloc_intern);
 }
 
+/** Tells whether address list entry `ae` holds the address `su`. */
+static bool address_entry_matches_su(const struct address_entry *ae,
+				     const union sockunion *su)
+{
+	switch (ae->ae_ip.ipa_type) {
+	case IPADDR_V4:
+		return su->sa.sa_family == AF_INET &&
+		       su->sin.sin_addr.s_addr == ae->ae_ip.ip._v4_addr.s_addr;
+	case IPADDR_V6:
+		return su->sa.sa_family == AF_INET6 &&
+		       memcmp(&su->sin6.sin6_addr, &ae->ae_ip.ip._v6_addr,
+			      sizeof(su->sin6.sin6_addr)) == 0;
+
+	default:
+		return false;
+	}
+}
+
+static void address_list_peer_bind(struct bgp_named_peer *np,
+				   const struct address_entry *ae);
+
+/**
+ * Hand an address that was just given up over to a named peer that wanted it,
+ * but had to be left without address because the address was taken at the
+ * time its configuration was applied.
+ *
+ * Without this the losing peer would stay in `Idle` forever: the only thing
+ * that retries the address assignment is the address list selection hook and
+ * that peer's own address list did not change.
+ */
+static void address_list_peer_address_released(struct bgp *bgp,
+					       union sockunion *su)
+{
+	struct bgp_named_peer *np;
+	struct address_list *al;
+
+	/* Don't bring peers up while they are all going away. */
+	if (address_list_peers_freeing ||
+	    CHECK_FLAG(bgp->flags, BGP_FLAG_DELETE_IN_PROGRESS))
+		return;
+
+	/* Address was taken over by another peer already, nothing to do. */
+	if (peer_lookup(bgp, su) != NULL)
+		return;
+
+	LIST_FOREACH (np, &bgp->named_peer_list, entry) {
+		/* Skip peers that already got an address. */
+		if (np->peer == NULL || np->peer->su.sa.sa_family != AF_UNSPEC)
+			continue;
+
+		al = address_list_lookup(np->name);
+		if (al == NULL || al->al_selected == NULL)
+			continue;
+
+		if (!address_entry_matches_su(al->al_selected, su))
+			continue;
+
+		if (BGP_DEBUG(neighbor_events, NEIGHBOR_EVENTS))
+			zlog_debug("%s: assigning released address to peer %s",
+				   __func__, np->name);
+
+		/*
+		 * Only assign the address here: the peer has no address, so
+		 * this will not release another one and recurse back into us.
+		 */
+		address_list_peer_bind(np, al->al_selected);
+
+		/* Only one peer may use an address. */
+		break;
+	}
+}
+
 static void address_list_peer_toggle(struct bgp_named_peer *np,
 				     const struct address_entry *ae)
 {
-	union sockunion su;
+	union sockunion released = {};
+	bool has_released = false;
 
 	if (BGP_DEBUG(neighbor_events, NEIGHBOR_EVENTS))
 		zlog_debug("%s: removing previously configured peer", __func__);
 
 	/* Only disable peer if address was configured. */
 	if (np->peer->su.sa.sa_family != AF_UNSPEC) {
+		/*
+		 * Remember the address we are about to give up so another
+		 * named peer waiting for it may use it (see below).
+		 */
+		released = np->peer->su;
+		has_released = true;
+
 		/* Remove peer registration before throwing away the address. */
 		hash_release(np->peer->bgp->peerhash, np->peer);
 
@@ -116,6 +199,22 @@ static void address_list_peer_toggle(struct bgp_named_peer *np,
 			np->peer->su_remote = NULL;
 		}
 	}
+
+	address_list_peer_bind(np, ae);
+
+	/*
+	 * Now that our peer settled with its new address (if any) let other
+	 * named peers use the address we gave up.
+	 */
+	if (has_released)
+		address_list_peer_address_released(np->bgp, &released);
+}
+
+/** Assigns the address of `ae` (if any) to the named peer `np`. */
+static void address_list_peer_bind(struct bgp_named_peer *np,
+				   const struct address_entry *ae)
+{
+	union sockunion su;
 
 	/* No more entries in the list. */
 	if (ae == NULL) {
@@ -308,12 +407,22 @@ void address_list_peer_free(struct bgp_named_peer **npp)
 {
 	struct peer *peer;
 	struct bgp_named_peer *np = *npp;
+	struct bgp *bgp;
+	union sockunion released = {};
+	bool has_released = false;
 
 	if (np == NULL)
 		return;
 
+	bgp = np->bgp;
 	peer = np->peer;
 	if (peer) {
+		/* Remember the address so another named peer may use it. */
+		if (peer->su.sa.sa_family != AF_UNSPEC) {
+			released = peer->su;
+			has_released = true;
+		}
+
 		*npp = NULL;
 		peer->np = NULL;
 		if (CHECK_FLAG(peer->flags, PEER_FLAG_CAPABILITY_ENHE))
@@ -325,14 +434,23 @@ void address_list_peer_free(struct bgp_named_peer **npp)
 
 	LIST_REMOVE(np, entry);
 	XFREE(MTYPE_BGP_NAMED_PEER, np);
+
+	/* Let other named peers use the address this peer had. */
+	if (has_released)
+		address_list_peer_address_released(bgp, &released);
 }
 
 void bgp_address_list_peers_free(struct bgp *bgp)
 {
 	struct bgp_named_peer *np;
 
+	/* Don't hand addresses over while removing all peers. */
+	address_list_peers_freeing = true;
+
 	while ((np = LIST_FIRST(&bgp->named_peer_list)) != NULL)
 		address_list_peer_free(&np);
+
+	address_list_peers_freeing = false;
 }
 
 void peer_address_list_remote_as(struct bgp *bgp, const char *name, as_t as,
