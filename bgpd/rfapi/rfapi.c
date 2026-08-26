@@ -3690,6 +3690,20 @@ void rfapi_delete(struct bgp *bgp)
 	 */
 	if (bgp->rfapi)
 		rfp_clear_vnc_nve_all();
+
+	/*
+	 * close any remaining descriptors
+	 */
+	struct rfapi *h = bgp->rfapi;
+
+	if (h && h->descriptors.count) {
+		struct listnode *node, *nnode;
+		struct rfapi_descriptor *rfd;
+
+		for (ALL_LIST_ELEMENTS(&h->descriptors, node, nnode, rfd))
+			(void)rfapi_close(rfd);
+	}
+
 	bgp_rfapi_cfg_destroy(bgp, bgp->rfapi_cfg);
 	bgp->rfapi_cfg = NULL;
 	bgp_rfapi_destroy(bgp, bgp->rfapi);
