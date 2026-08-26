@@ -1065,17 +1065,16 @@ DEFUN (debug_bgp_bestpath_prefix,
        "IPv4 prefix\n"
        "IPv6 prefix\n")
 {
-	struct prefix *argv_p;
+	struct prefix argv_p;
 	int idx_ipv4_ipv6_prefixlen = 3;
 
-	argv_p = prefix_new();
-	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, argv_p);
-	apply_mask(argv_p);
+	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, &argv_p);
+	apply_mask(&argv_p);
 
 	if (!bgp_debug_bestpath_prefixes)
 		bgp_debug_bestpath_prefixes = list_new();
 
-	if (bgp_debug_list_has_entry(bgp_debug_bestpath_prefixes, NULL, argv_p,
+	if (bgp_debug_list_has_entry(bgp_debug_bestpath_prefixes, NULL, &argv_p,
 				     NULL)) {
 		vty_out(vty,
 			"BGP bestpath debugging is already enabled for %s\n",
@@ -1083,7 +1082,7 @@ DEFUN (debug_bgp_bestpath_prefix,
 		return CMD_SUCCESS;
 	}
 
-	bgp_debug_list_add_entry(bgp_debug_bestpath_prefixes, NULL, argv_p,
+	bgp_debug_list_add_entry(bgp_debug_bestpath_prefixes, NULL, &argv_p,
 				 NULL);
 
 	if (vty->node == CONFIG_NODE) {
@@ -1108,17 +1107,16 @@ DEFUN (no_debug_bgp_bestpath_prefix,
        "IPv6 prefix\n")
 {
 	int idx_ipv4_ipv6_prefixlen = 4;
-	struct prefix *argv_p;
+	struct prefix argv_p;
 	int found_prefix = 0;
 
-	argv_p = prefix_new();
-	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, argv_p);
-	apply_mask(argv_p);
+	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, &argv_p);
+	apply_mask(&argv_p);
 
 	if (bgp_debug_bestpath_prefixes
 	    && !list_isempty(bgp_debug_bestpath_prefixes)) {
 		found_prefix = bgp_debug_list_remove_entry(
-			bgp_debug_bestpath_prefixes, NULL, argv_p);
+			bgp_debug_bestpath_prefixes, NULL, &argv_p);
 
 		if (list_isempty(bgp_debug_bestpath_prefixes)) {
 			if (vty->node == CONFIG_NODE) {
@@ -1617,16 +1615,15 @@ DEFUN (debug_bgp_update_prefix,
        "IPv6 prefix\n")
 {
 	int idx_ipv4_ipv6_prefixlen = 4;
-	struct prefix *argv_p;
+	struct prefix argv_p;
 
-	argv_p = prefix_new();
-	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, argv_p);
-	apply_mask(argv_p);
+	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, &argv_p);
+	apply_mask(&argv_p);
 
 	if (!bgp_debug_update_prefixes)
 		bgp_debug_update_prefixes = list_new();
 
-	if (bgp_debug_list_has_entry(bgp_debug_update_prefixes, NULL, argv_p,
+	if (bgp_debug_list_has_entry(bgp_debug_update_prefixes, NULL, &argv_p,
 				     NULL)) {
 		vty_out(vty,
 			"BGP updates debugging is already enabled for %s\n",
@@ -1634,7 +1631,8 @@ DEFUN (debug_bgp_update_prefix,
 		return CMD_SUCCESS;
 	}
 
-	bgp_debug_list_add_entry(bgp_debug_update_prefixes, NULL, argv_p, NULL);
+	bgp_debug_list_add_entry(bgp_debug_update_prefixes, NULL, &argv_p,
+				 NULL);
 
 	if (vty->node == CONFIG_NODE) {
 		DEBUG_ON(update, UPDATE_PREFIX);
@@ -1659,17 +1657,16 @@ DEFUN (no_debug_bgp_update_prefix,
        "IPv6 prefix\n")
 {
 	int idx_ipv4_ipv6_prefixlen = 5;
-	struct prefix *argv_p;
+	struct prefix argv_p;
 	int found_prefix = 0;
 
-	argv_p = prefix_new();
-	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, argv_p);
-	apply_mask(argv_p);
+	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, &argv_p);
+	apply_mask(&argv_p);
 
 	if (bgp_debug_update_prefixes
 	    && !list_isempty(bgp_debug_update_prefixes)) {
 		found_prefix = bgp_debug_list_remove_entry(
-			bgp_debug_update_prefixes, NULL, argv_p);
+			bgp_debug_update_prefixes, NULL, &argv_p);
 
 		if (list_isempty(bgp_debug_update_prefixes)) {
 			if (vty->node == CONFIG_NODE) {
@@ -1768,23 +1765,22 @@ DEFUN (debug_bgp_zebra_prefix,
        "IPv6 prefix\n")
 {
 	int idx_ipv4_ipv6_prefixlen = 4;
-	struct prefix *argv_p;
+	struct prefix argv_p;
 
-	argv_p = prefix_new();
-	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, argv_p);
-	apply_mask(argv_p);
+	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, &argv_p);
+	apply_mask(&argv_p);
 
 	if (!bgp_debug_zebra_prefixes)
 		bgp_debug_zebra_prefixes = list_new();
 
-	if (bgp_debug_list_has_entry(bgp_debug_zebra_prefixes, NULL, argv_p,
+	if (bgp_debug_list_has_entry(bgp_debug_zebra_prefixes, NULL, &argv_p,
 				     NULL)) {
 		vty_out(vty, "BGP zebra debugging is already enabled for %s\n",
 			argv[idx_ipv4_ipv6_prefixlen]->arg);
 		return CMD_SUCCESS;
 	}
 
-	bgp_debug_list_add_entry(bgp_debug_zebra_prefixes, NULL, argv_p, NULL);
+	bgp_debug_list_add_entry(bgp_debug_zebra_prefixes, NULL, &argv_p, NULL);
 
 	if (vty->node == CONFIG_NODE)
 		DEBUG_ON(zebra, ZEBRA);
@@ -1845,17 +1841,16 @@ DEFUN (no_debug_bgp_zebra_prefix,
        "IPv6 prefix\n")
 {
 	int idx_ipv4_ipv6_prefixlen = 5;
-	struct prefix *argv_p;
+	struct prefix argv_p;
 	int found_prefix = 0;
 
-	argv_p = prefix_new();
-	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, argv_p);
-	apply_mask(argv_p);
+	(void)str2prefix(argv[idx_ipv4_ipv6_prefixlen]->arg, &argv_p);
+	apply_mask(&argv_p);
 
 	if (bgp_debug_zebra_prefixes
 	    && !list_isempty(bgp_debug_zebra_prefixes)) {
 		found_prefix = bgp_debug_list_remove_entry(
-			bgp_debug_zebra_prefixes, NULL, argv_p);
+			bgp_debug_zebra_prefixes, NULL, &argv_p);
 
 		if (list_isempty(bgp_debug_zebra_prefixes)) {
 			if (vty->node == CONFIG_NODE)
