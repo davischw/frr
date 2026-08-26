@@ -3881,6 +3881,12 @@ void bgp_free(struct bgp *bgp)
 		dir = BGP_VPN_POLICY_DIR_TOVPN;
 		if (bgp->vpn_policy[afi].rtlist[dir])
 			ecommunity_free(&bgp->vpn_policy[afi].rtlist[dir]);
+
+		XFREE(MTYPE_BGP_SRV6_SID, bgp->vpn_policy[afi].tovpn_sid);
+		XFREE(MTYPE_BGP_SRV6_SID,
+		      bgp->vpn_policy[afi].tovpn_sid_locator);
+		XFREE(MTYPE_BGP_SRV6_SID,
+		      bgp->vpn_policy[afi].tovpn_zebra_vrf_sid_last_sent);
 	}
 
 	XFREE(MTYPE_BGP, bgp->name);
