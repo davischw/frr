@@ -1,0 +1,101 @@
+name: Bug / Issue Report
+description: Submit a new FRR issue
+title: "[Issue]: "
+labels: ["triage"]
+body:
+  - type: input
+    id: pan-jira-id
+    attributes:
+      label: PAN JIRA ID
+      placeholder: "e.g., PAN-123456"
+    validations:
+      required: true
+
+  - type: input
+    id: panos-version
+    attributes:
+      label: PANOS Version
+      placeholder: "e.g., 11.2.13"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frr-version
+    attributes:
+      label: FRR Version
+      options:
+        - "8.0"
+        - "8.4"
+    validations:
+      required: true
+
+  - type: input
+    id: commit-id
+    attributes:
+      label: frr-dpd-pan commit id
+
+  - type: dropdown
+    id: reproducible
+    attributes:
+      label: Reproducible
+      options:
+        - "Customer"
+        - "Local"
+        - "No"
+        - "Not Tried"
+    validations:
+      required: true
+
+  - type: input
+    id: ref-issue
+    attributes:
+      label: Reference to other FRR Issue
+      placeholder: "Issue number or link"
+
+  - type: dropdown
+    id: topology-attached
+    attributes:
+      label: Topology attached
+      options:
+        - "Yes"
+        - "No"
+
+  - type: dropdown
+    id: conf-attached
+    attributes:
+      label: frr.conf attached
+      options:
+        - "Yes"
+        - "No"
+
+  - type: dropdown
+    id: logs-attached
+    attributes:
+      label: Logs attached
+      options:
+        - "Yes"
+        - "No"
+
+  - type: dropdown
+    id: frr-tsf
+    attributes:
+      label: FRR TSF
+      options:
+        - "Yes"
+        - "No"
+
+  - type: dropdown
+    id: symptoms-explained
+    attributes:
+      label: Symptoms explained
+      options:
+        - "Yes"
+        - "No"
+
+  - type: dropdown
+    id: steps-explained
+    attributes:
+      label: Steps explained
+      options:
+        - "Yes"
+        - "No"
