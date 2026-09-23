@@ -462,12 +462,13 @@ int ospf6_abr_originate_summary_to_area(struct ospf6_route *route,
 
 	/* if this is a route to ASBR */
 	if (route->type == OSPF6_DEST_TYPE_ROUTER) {
-		/* Only the preferred best path is considered */
+		/* Only the preferred best path is considered. The summary
+		 * belongs to the best path, so leave it alone.
+		 */
 		if (!CHECK_FLAG(route->flag, OSPF6_ROUTE_BEST)) {
 			if (is_debug)
 				zlog_debug(
 					"This is the secondary path to the ASBR, ignore");
-			ospf6_abr_delete_route(summary, summary_table, old);
 			return 0;
 		}
 
