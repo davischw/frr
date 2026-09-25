@@ -552,7 +552,6 @@ static struct ospf6_lsa *ospf6_lsa_translated_nssa_new(struct ospf6_area *area,
 	if (CHECK_FLAG(ext->bits_metric, OSPF6_ASBR_BIT_T)) {
 		memcpy(&network_order, (caddr_t)ext + tag_offset,
 		       sizeof(network_order));
-		network_order = htonl(network_order);
 		memcpy(new_ptr, &network_order, sizeof(network_order));
 		new_ptr += sizeof(network_order);
 	}
