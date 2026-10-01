@@ -228,6 +228,16 @@ static void ospf_process_self_originated_lsa(struct ospf *ospf,
 			return;
 		}
 
+		/* Type-7 default route originated by "area X nssa
+		 * default-information-originate".
+		 */
+		if (new->data->type == OSPF_AS_NSSA_LSA
+		    && area->nssa_default_originate.enabled
+		    && new->data->id.s_addr == INADDR_ANY) {
+			ospf_abr_nssa_type7_default_refresh(area, new);
+			return;
+		}
+
 		al = (struct as_external_lsa *)new->data;
 		p.family = AF_INET;
 		p.prefixlen = ip_masklen(al->mask);
@@ -256,7 +266,7 @@ static void ospf_process_self_originated_lsa(struct ospf *ospf,
 							  LSA_REFRESH_FORCE,
 							  false);
 			else
-				ospf_nssa_lsa_refresh(area, new, ei);
+				ospf_nssa_lsa_refresh(area, new, ei, true);
 		} else {
 			aggr = (struct ospf_external_aggr_rt *)
 				ospf_extrenal_aggregator_lookup(ospf, &p);
@@ -279,7 +289,8 @@ static void ospf_process_self_originated_lsa(struct ospf *ospf,
 						aggr->flags,
 						OSPF_EXTERNAL_AGGRT_ORIGINATED);
 				} else
-					ospf_nssa_lsa_refresh(area, new, ei);
+					ospf_nssa_lsa_refresh(area, new,
+							      &ei_aggr, true);
 			} else
 				ospf_lsa_flush_as(ospf, new);
 		}

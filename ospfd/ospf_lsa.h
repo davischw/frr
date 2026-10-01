@@ -294,7 +294,8 @@ extern struct ospf_lsa *ospf_nssa_lsa_originate(struct ospf_area *area,
 						bool p_bit);
 extern struct ospf_lsa *ospf_nssa_lsa_refresh(struct ospf_area *area,
 					      struct ospf_lsa *lsa,
-					      struct external_info *ei);
+					      struct external_info *ei,
+					      bool p_bit);
 extern void ospf_external_lsa_rid_change(struct ospf *ospf);
 extern struct ospf_lsa *ospf_lsa_lookup(struct ospf *ospf, struct ospf_area *,
 					uint32_t, struct in_addr,

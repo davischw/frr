@@ -1632,6 +1632,12 @@ static void ospf_abr_announce_stub_defaults(struct ospf *ospf)
 }
 
 
+/* Only NSSA ASBRs that aren't ABRs set the P-bit in the Type-7 default. */
+static bool ospf_abr_nssa_type7_default_p_bit(struct ospf *ospf)
+{
+	return IS_OSPF_ASBR(ospf) && !IS_OSPF_ABR(ospf);
+}
+
 static void ospf_abr_nssa_type7_default_create(struct ospf *ospf,
 					       struct ospf_area *area,
 					       struct ospf_lsa *lsa, bool p_bit)
@@ -1671,12 +1677,12 @@ static void ospf_abr_nssa_type7_default_create(struct ospf *ospf,
 			zlog_debug(
 				"Refreshing Type-7 default route in NSSA area %pI4",
 				&area->area_id);
-		ospf_nssa_lsa_refresh(area, lsa, &ei);
+		ospf_nssa_lsa_refresh(area, lsa, &ei, p_bit);
 		return;
 	}
 
 	/*
-	 * Only refresh if metric or metric-type changed; otherwise the
+	 * Only refresh if metric, metric-type or P-bit changed; otherwise the
 	 * periodic refresh is handled by the LSA refresh walker and there
 	 * is no need to install a new LSA instance (which would needlessly
 	 * reschedule the ABR task via ospf_lsa_install).
@@ -1685,13 +1691,14 @@ static void ospf_abr_nssa_type7_default_create(struct ospf *ospf,
 	if (GET_METRIC(extlsa->e[0].metric) == (uint32_t)ei.route_map_set.metric
 	    && (IS_EXTERNAL_METRIC(extlsa->e[0].tos) ? EXTERNAL_METRIC_TYPE_2
 						     : EXTERNAL_METRIC_TYPE_1)
-		       == ei.route_map_set.metric_type)
+		       == ei.route_map_set.metric_type
+	    && !!CHECK_FLAG(lsa->data->options, OSPF_OPTION_NP) == p_bit)
 		return;
 
 	if (IS_DEBUG_OSPF_NSSA)
 		zlog_debug("Updating Type-7 default route in NSSA area %pI4",
 			   &area->area_id);
-	ospf_nssa_lsa_refresh(area, lsa, &ei);
+	ospf_nssa_lsa_refresh(area, lsa, &ei, p_bit);
 }
 
 /*
@@ -1720,7 +1727,8 @@ struct ospf_lsa *ospf_abr_nssa_type7_default_refresh(struct ospf_area *area,
 	else
 		ei.route_map_set.metric_type = DEFAULT_METRIC_TYPE;
 
-	return ospf_nssa_lsa_refresh(area, lsa, &ei);
+	return ospf_nssa_lsa_refresh(
+		area, lsa, &ei, ospf_abr_nssa_type7_default_p_bit(area->ospf));
 }
 
 static void ospf_abr_nssa_type7_default_delete(struct ospf *ospf,
@@ -1756,7 +1764,7 @@ void ospf_abr_nssa_type7_defaults(struct ospf *ospf)
 		    && (IS_OSPF_ABR(ospf)
 			|| (IS_OSPF_ASBR(ospf)
 			    && ospf->nssa_default_import_check.status))) {
-			bool p_bit = IS_OSPF_ASBR(ospf) && !IS_OSPF_ABR(ospf);
+			bool p_bit = ospf_abr_nssa_type7_default_p_bit(ospf);
 			ospf_abr_nssa_type7_default_create(ospf, area, lsa, p_bit);
 		} else
 			ospf_abr_nssa_type7_default_delete(ospf, area, lsa);

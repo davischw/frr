@@ -2375,11 +2375,11 @@ struct ospf_lsa *ospf_nssa_lsa_originate(struct ospf_area *area,
 /* Refresh NSSA-LSA. */
 struct ospf_lsa *ospf_nssa_lsa_refresh(struct ospf_area *area,
 				       struct ospf_lsa *lsa,
-				       struct external_info *ei)
+				       struct external_info *ei, bool p_bit)
 {
 	struct ospf *ospf = area->ospf;
 	struct ospf_lsa *new;
-	struct as_external_lsa *extlsa_old, *extlsa_new;
+	struct as_external_lsa *extlsa;
 
 	/* Delete LSA from neighbor retransmit-list. */
 	ospf_ls_retransmit_delete_nbr_as(ospf, lsa);
@@ -2399,12 +2399,16 @@ struct ospf_lsa *ospf_nssa_lsa_refresh(struct ospf_area *area,
 	new->data->ls_seqnum = lsa_seqnum_increment(lsa);
 	new->area = area;
 
-	/* Preserve the NP bit and forwarding address. */
-	if (CHECK_FLAG(lsa->data->options, OSPF_OPTION_NP))
+	/*
+	 * Set the P-bit and forward address the same way as when originating
+	 * the LSA. Don't copy them from the old instance, which might be a
+	 * stale copy received from a neighbor (e.g. after a restart).
+	 */
+	if (p_bit)
 		SET_FLAG(new->data->options, OSPF_OPTION_NP);
-	extlsa_old = (struct as_external_lsa *)lsa->data;
-	extlsa_new = (struct as_external_lsa *)new->data;
-	extlsa_new->e[0].fwd_addr = extlsa_old->e[0].fwd_addr;
+	extlsa = (struct as_external_lsa *)(new->data);
+	if (extlsa->e[0].fwd_addr.s_addr == INADDR_ANY)
+		extlsa->e[0].fwd_addr = ospf_get_nssa_ip(area);
 
 	/* Install newly created LSA into Type-7 LSDB. */
 	ospf_lsa_install(ospf, NULL, new);
@@ -4067,7 +4071,8 @@ struct ospf_lsa *ospf_lsa_refresh(struct ospf *ospf, struct ospf_lsa *lsa)
 		else {
 			ei = ospf_external_info_check(ospf, lsa);
 			if (ei)
-				new = ospf_nssa_lsa_refresh(area, lsa, ei);
+				new = ospf_nssa_lsa_refresh(area, lsa, ei,
+							    true);
 			else {
 				ospf_lsa_flush_as(ospf, lsa);
 				ospf_flood_through_area(area, NULL, lsa);

@@ -332,7 +332,8 @@ static void ospf_nssa_lsa_refresh_type(struct ospf *ospf, uint8_t type,
 					area->lsdb, OSPF_AS_NSSA_LSA, &ei->p,
 					ospf->router_id);
 				if (lsa)
-					ospf_nssa_lsa_refresh(area, lsa, ei);
+					ospf_nssa_lsa_refresh(area, lsa, ei,
+							      true);
 				else {
 					if (!ospf_redistribute_check(ospf, ei,
 								     NULL))
