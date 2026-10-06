@@ -52,6 +52,7 @@
 #include "zebra/zebra_evpn.h"
 #include "zebra/zebra_evpn_mac.h"
 #include "zebra/zebra_vxlan_private.h"
+#include "zebra/zebra_evpn_mh.h"
 #include "zebra/kernel_netlink.h"
 #include "zebra/rt_netlink.h"
 #include "zebra/debug.h"
@@ -1247,12 +1248,13 @@ static void fpm_rib_send(struct thread *t)
 }
 
 /*
- * The next three functions will handle RMAC enqueue.
+ * The next functions will handle RMAC and L2VNI remote MAC enqueue.
  */
 struct fpm_rmac_arg {
 	struct zebra_dplane_ctx *ctx;
 	struct fpm_nl_ctx *fnc;
 	struct zebra_l3vni *zl3vni;
+	struct zebra_evpn *zevpn;
 	bool complete;
 };
 
@@ -1290,7 +1292,10 @@ static void fpm_enqueue_rmac_table(struct hash_bucket *bucket, void *arg)
 		thread_add_timer(zrouter.master, fpm_rmac_send,
 				 fra->fnc, 1, &fra->fnc->t_rmacwalk);
 		fra->complete = false;
+		return;
 	}
+
+	SET_FLAG(zrmac->flags, ZEBRA_MAC_FPM_SENT);
 }
 
 static void fpm_enqueue_l3vni_table(struct hash_bucket *bucket, void *arg)
@@ -1302,14 +1307,92 @@ static void fpm_enqueue_l3vni_table(struct hash_bucket *bucket, void *arg)
 	hash_iterate(zl3vni->rmac_table, fpm_enqueue_rmac_table, fra);
 }
 
+/*
+ * L2VNI remote MACs: the same entries `zebra_evpn_rem_mac_install()`
+ * programs.
+ */
+static void fpm_enqueue_l2vni_mac_table(struct hash_bucket *bucket, void *arg)
+{
+	struct fpm_rmac_arg *fra = arg;
+	struct zebra_mac *mac = bucket->data;
+	struct zebra_evpn *zevpn = fra->zevpn;
+	struct zebra_if *zif = zevpn->vxlan_if->info;
+	const struct zebra_l2info_vxlan *vxl = &zif->l2info.vxl;
+	struct zebra_if *br_zif = zif->brslave_info.br_if->info;
+	struct in_addr vtep_ip;
+	uint32_t nhg_id = 0;
+	vlanid_t vid;
+	bool sticky;
+
+	if (!CHECK_FLAG(mac->flags, ZEBRA_MAC_REMOTE) ||
+	    CHECK_FLAG(mac->flags, ZEBRA_MAC_FPM_SENT) || !fra->complete)
+		return;
+
+	if (mac->es) {
+		/* Not installed until the ES next hop group is active. */
+		if (!CHECK_FLAG(mac->es->flags, ZEBRA_EVPNES_NHG_ACTIVE))
+			return;
+
+		nhg_id = mac->es->nhg_id;
+		vtep_ip.s_addr = INADDR_ANY;
+	} else
+		vtep_ip = mac->fwd_info.r_vtep_ip;
+
+	sticky = !!CHECK_FLAG(mac->flags,
+			      (ZEBRA_MAC_STICKY | ZEBRA_MAC_REMOTE_DEF_GW));
+	vid = IS_ZEBRA_IF_BRIDGE_VLAN_AWARE(br_zif) ? vxl->access_vlan : 0;
+
+	dplane_ctx_reset(fra->ctx);
+	dplane_ctx_set_op(fra->ctx, DPLANE_OP_MAC_INSTALL);
+	dplane_mac_init(fra->ctx, zevpn->vxlan_if, zif->brslave_info.br_if,
+			vid, &mac->macaddr, vtep_ip, sticky, nhg_id,
+			DPLANE_MAC_REMOTE);
+
+	/* Set sequence number if this is a reply. */
+	if (fra->fnc->resp_seq)
+		dplane_ctx_set_seq(fra->ctx, fra->fnc->resp_seq);
+
+	if (fpm_nl_enqueue(fra->fnc, fra->ctx) == -1) {
+		thread_add_timer(zrouter.master, fpm_rmac_send,
+				 fra->fnc, 1, &fra->fnc->t_rmacwalk);
+		fra->complete = false;
+		return;
+	}
+
+	SET_FLAG(mac->flags, ZEBRA_MAC_FPM_SENT);
+}
+
+static void fpm_enqueue_l2vni_table(struct hash_bucket *bucket, void *arg)
+{
+	struct fpm_rmac_arg *fra = arg;
+	struct zebra_evpn *zevpn = bucket->data;
+	struct zebra_if *zif;
+
+	/* Remote MACs are only installed on a bridged VXLAN interface. */
+	if (!zevpn->vxlan_if || !zevpn->mac_table)
+		return;
+
+	zif = zevpn->vxlan_if->info;
+	if (!zif || !zif->brslave_info.br_if)
+		return;
+
+	fra->zevpn = zevpn;
+	hash_iterate(zevpn->mac_table, fpm_enqueue_l2vni_mac_table, fra);
+}
+
 static void fpm_rmac_send(struct thread *t)
 {
 	struct fpm_rmac_arg fra;
+	struct zebra_vrf *zvrf;
 
 	fra.fnc = THREAD_ARG(t);
 	fra.ctx = dplane_ctx_alloc();
 	fra.complete = true;
 	hash_iterate(zrouter.l3vni_table, fpm_enqueue_l3vni_table, &fra);
+	zvrf = zebra_vrf_get_evpn();
+	if (zvrf && zvrf->evpn_table)
+		hash_iterate(zvrf->evpn_table, fpm_enqueue_l2vni_table, &fra);
+
 	dplane_ctx_fini(&fra.ctx);
 
 	/* RMAC walk completed. */
@@ -1387,7 +1470,7 @@ static void fpm_rib_reset(struct thread *t)
 }
 
 /*
- * The next three function will handle RMAC table reset.
+ * The next functions will handle RMAC and L2VNI remote MAC table reset.
  */
 static void fpm_unset_rmac_table(struct hash_bucket *bucket, void *arg)
 {
@@ -1403,11 +1486,22 @@ static void fpm_unset_l3vni_table(struct hash_bucket *bucket, void *arg)
 	hash_iterate(zl3vni->rmac_table, fpm_unset_rmac_table, zl3vni);
 }
 
+static void fpm_unset_l2vni_table(struct hash_bucket *bucket, void *arg)
+{
+	struct zebra_evpn *zevpn = bucket->data;
+
+	if (zevpn->mac_table)
+		hash_iterate(zevpn->mac_table, fpm_unset_rmac_table, NULL);
+}
+
 static void fpm_rmac_reset(struct thread *t)
 {
 	struct fpm_nl_ctx *fnc = THREAD_ARG(t);
+	struct zebra_vrf *zvrf = zebra_vrf_get_evpn();
 
 	hash_iterate(zrouter.l3vni_table, fpm_unset_l3vni_table, NULL);
+	if (zvrf && zvrf->evpn_table)
+		hash_iterate(zvrf->evpn_table, fpm_unset_l2vni_table, NULL);
 
 	/* Schedule next event: send RMAC entries. */
 	thread_add_event(zrouter.master, fpm_rmac_send, fnc, 0,
