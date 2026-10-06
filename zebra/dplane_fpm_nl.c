@@ -1280,7 +1280,7 @@ static void fpm_enqueue_rmac_table(struct hash_bucket *bucket, void *arg)
 	dplane_mac_init(fra->ctx, fra->zl3vni->vxlan_if,
 			zif->brslave_info.br_if, vid,
 			&zrmac->macaddr, zrmac->fwd_info.r_vtep_ip, sticky,
-			0 /*nhg*/, 0 /*update_flags*/);
+			0 /*nhg*/, DPLANE_MAC_REMOTE);
 
 	/* Set sequence number if this is a reply. */
 	if (fra->fnc->resp_seq)
