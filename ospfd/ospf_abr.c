@@ -640,6 +640,7 @@ static int ospf_abr_translate_nssa(struct ospf_area *area, struct ospf_lsa *lsa)
 	struct as_external_lsa *ext7;
 	struct prefix_ipv4 p;
 	struct ospf_area_range *range;
+	bool stale;
 
 	if (!CHECK_FLAG(lsa->data->options, OSPF_OPTION_NP)) {
 		if (IS_DEBUG_OSPF_NSSA)
@@ -708,7 +709,21 @@ static int ospf_abr_translate_nssa(struct ospf_area *area, struct ospf_lsa *lsa)
 		return 1;
 	}
 
-	if (old && CHECK_FLAG(old->flags, OSPF_LSA_APPROVED)) {
+	/*
+	 * A regular AS-external-LSA for the prefix of one of our own Type-7
+	 * LSAs is either a stale copy of an earlier translation or the one
+	 * originated while the Type-7 LSA wasn't translated (see
+	 * ospf_abr_remove_unapproved_translates_apply()). Supersede it with
+	 * the translation instead of taking it for one, which would fail to
+	 * refresh forever.
+	 */
+	stale = old && IS_LSA_SELF(lsa)
+		&& !CHECK_FLAG(old->flags, OSPF_LSA_LOCAL_XLT);
+	if (stale && IS_DEBUG_OSPF_NSSA)
+		zlog_debug("%s: superseding regular LSA Id %pI4", __func__,
+			   &old->data->id);
+
+	if (old && CHECK_FLAG(old->flags, OSPF_LSA_APPROVED) && !stale) {
 		if (IS_DEBUG_OSPF_NSSA)
 			zlog_debug(
 				"%s: found old translated LSA Id %pI4, refreshing",
