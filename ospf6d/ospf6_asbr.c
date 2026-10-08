@@ -530,6 +530,26 @@ static int ospf6_ase_forward_address_check(struct ospf6 *ospf6,
 	return 1;
 }
 
+/*
+ * The route to a forwarding address on a directly attached network only has
+ * interface nexthops. Use the forwarding address as their gateway, like
+ * ospf_ase_complete_direct_routes() does in ospfd.
+ */
+static void ospf6_ase_complete_direct_nexthops(struct ospf6_route *route,
+					       const struct in6_addr *fwd_addr)
+{
+	struct listnode *node;
+	struct ospf6_nexthop *nh;
+
+	for (ALL_LIST_ELEMENTS_RO(route->nh_list, node, nh)) {
+		if (nh->type != NEXTHOP_TYPE_IFINDEX)
+			continue;
+
+		nh->type = NEXTHOP_TYPE_IPV6_IFINDEX;
+		nh->address = *fwd_addr;
+	}
+}
+
 void ospf6_asbr_lsa_add(struct ospf6_lsa *lsa)
 {
 	struct ospf6_as_external_lsa *external;
@@ -695,9 +715,12 @@ void ospf6_asbr_lsa_add(struct ospf6_lsa *lsa)
 	route->path.tag = ospf6_as_external_lsa_get_tag(lsa);
 
 	ospf6_route_copy_nexthops(route, asbr_entry);
+	if (CHECK_FLAG(external->bits_metric, OSPF6_ASBR_BIT_F)
+	    && !IN6_IS_ADDR_UNSPECIFIED(&fwd_addr.u.prefix6))
+		ospf6_ase_complete_direct_nexthops(route, &fwd_addr.u.prefix6);
 
 	path = ospf6_path_dup(&route->path);
-	ospf6_copy_nexthops(path->nh_list, asbr_entry->nh_list);
+	ospf6_copy_nexthops(path->nh_list, route->nh_list);
 	listnode_add_sort(route->paths, path);
 
 
