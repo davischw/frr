@@ -1276,8 +1276,8 @@ static void fpm_rib_send(struct thread *t)
 }
 
 /*
- * The next functions will handle RMAC, L2VNI remote MAC, remote neighbor
- * and flood list enqueue.
+ * The next functions will handle RMAC, L3VNI next hop, L2VNI remote MAC,
+ * remote neighbor and flood list enqueue.
  */
 struct fpm_rmac_arg {
 	struct zebra_dplane_ctx *ctx;
@@ -1328,6 +1328,44 @@ static void fpm_enqueue_rmac_table(struct hash_bucket *bucket, void *arg)
 	SET_FLAG(zrmac->flags, ZEBRA_MAC_FPM_SENT);
 }
 
+/*
+ * L3VNI next hops: the remote VTEP neighbors `zl3vni_nh_install()` programs
+ * on the L3VNI SVI.
+ */
+static void fpm_enqueue_l3vni_nh_table(struct hash_bucket *bucket, void *arg)
+{
+	struct fpm_rmac_arg *fra = arg;
+	struct zebra_neigh *n = bucket->data;
+	uint32_t flags;
+
+	if (!CHECK_FLAG(n->flags, ZEBRA_NEIGH_REMOTE) ||
+	    !CHECK_FLAG(n->flags, ZEBRA_NEIGH_REMOTE_NH) ||
+	    CHECK_FLAG(n->flags, ZEBRA_NEIGH_FPM_SENT) || !fra->complete)
+		return;
+
+	flags = DPLANE_NTF_EXT_LEARNED;
+	if (CHECK_FLAG(n->flags, ZEBRA_NEIGH_ROUTER_FLAG))
+		flags |= DPLANE_NTF_ROUTER;
+
+	dplane_ctx_reset(fra->ctx);
+	dplane_ctx_set_op(fra->ctx, DPLANE_OP_NEIGH_INSTALL);
+	dplane_rem_neigh_init(fra->ctx, fra->zl3vni->svi_if, &n->ip, &n->emac,
+			      flags);
+
+	/* Set sequence number if this is a reply. */
+	if (fra->fnc->resp_seq)
+		dplane_ctx_set_seq(fra->ctx, fra->fnc->resp_seq);
+
+	if (fpm_nl_enqueue(fra->fnc, fra->ctx) == -1) {
+		thread_add_timer(zrouter.master, fpm_rmac_send, fra->fnc, 1,
+				 &fra->fnc->t_rmacwalk);
+		fra->complete = false;
+		return;
+	}
+
+	SET_FLAG(n->flags, ZEBRA_NEIGH_FPM_SENT);
+}
+
 static void fpm_enqueue_l3vni_table(struct hash_bucket *bucket, void *arg)
 {
 	struct fpm_rmac_arg *fra = arg;
@@ -1335,6 +1373,10 @@ static void fpm_enqueue_l3vni_table(struct hash_bucket *bucket, void *arg)
 
 	fra->zl3vni = zl3vni;
 	hash_iterate(zl3vni->rmac_table, fpm_enqueue_rmac_table, fra);
+
+	/* Next hops are only installed while the L3VNI is up. */
+	if (is_l3vni_oper_up(zl3vni) && zl3vni->nh_table)
+		hash_iterate(zl3vni->nh_table, fpm_enqueue_l3vni_nh_table, fra);
 }
 
 /*
@@ -1582,8 +1624,8 @@ static void fpm_rib_reset(struct thread *t)
 }
 
 /*
- * The next functions will handle RMAC, L2VNI remote MAC, remote neighbor and
- * flood list reset.
+ * The next functions will handle RMAC, L3VNI next hop, L2VNI remote MAC,
+ * remote neighbor and flood list reset.
  */
 static void fpm_unset_rmac_table(struct hash_bucket *bucket, void *arg)
 {
@@ -1604,6 +1646,8 @@ static void fpm_unset_l3vni_table(struct hash_bucket *bucket, void *arg)
 	struct zebra_l3vni *zl3vni = bucket->data;
 
 	hash_iterate(zl3vni->rmac_table, fpm_unset_rmac_table, zl3vni);
+	if (zl3vni->nh_table)
+		hash_iterate(zl3vni->nh_table, fpm_unset_neigh_table, NULL);
 }
 
 static void fpm_unset_l2vni_table(struct hash_bucket *bucket, void *arg)
