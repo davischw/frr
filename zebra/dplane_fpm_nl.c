@@ -51,6 +51,7 @@
 #include "zebra/zebra_mroute.h"
 #include "zebra/zebra_evpn.h"
 #include "zebra/zebra_evpn_mac.h"
+#include "zebra/zebra_evpn_neigh.h"
 #include "zebra/zebra_vxlan_private.h"
 #include "zebra/zebra_evpn_mh.h"
 #include "zebra/kernel_netlink.h"
@@ -934,6 +935,23 @@ static int fpm_nl_enqueue(struct fpm_nl_ctx *fnc, struct zebra_dplane_ctx *ctx)
 		nl_buf_len = (size_t)rv;
 		break;
 
+	case DPLANE_OP_NEIGH_INSTALL:
+	case DPLANE_OP_NEIGH_UPDATE:
+	case DPLANE_OP_NEIGH_DELETE:
+		rv = netlink_neigh_update_ctx(ctx,
+					      op == DPLANE_OP_NEIGH_DELETE
+						      ? RTM_DELNEIGH
+						      : RTM_NEWNEIGH,
+					      nl_buf, sizeof(nl_buf));
+		if (rv <= 0) {
+			zlog_err("%s: netlink_neigh_update_ctx failed",
+				 __func__);
+			return 0;
+		}
+
+		nl_buf_len = (size_t)rv;
+		break;
+
 	case DPLANE_OP_NH_DELETE:
 		rv = netlink_nexthop_msg_encode(RTM_DELNEXTHOP, ctx, nl_buf,
 						sizeof(nl_buf));
@@ -976,9 +994,6 @@ static int fpm_nl_enqueue(struct fpm_nl_ctx *fnc, struct zebra_dplane_ctx *ctx)
 	case DPLANE_OP_PW_UNINSTALL:
 	case DPLANE_OP_ADDR_INSTALL:
 	case DPLANE_OP_ADDR_UNINSTALL:
-	case DPLANE_OP_NEIGH_INSTALL:
-	case DPLANE_OP_NEIGH_UPDATE:
-	case DPLANE_OP_NEIGH_DELETE:
 	case DPLANE_OP_SYS_ROUTE_ADD:
 	case DPLANE_OP_SYS_ROUTE_DELETE:
 	case DPLANE_OP_ROUTE_NOTIFY:
@@ -1261,14 +1276,15 @@ static void fpm_rib_send(struct thread *t)
 }
 
 /*
- * The next functions will handle RMAC, L2VNI remote MAC and flood list
- * enqueue.
+ * The next functions will handle RMAC, L2VNI remote MAC, remote neighbor
+ * and flood list enqueue.
  */
 struct fpm_rmac_arg {
 	struct zebra_dplane_ctx *ctx;
 	struct fpm_nl_ctx *fnc;
 	struct zebra_l3vni *zl3vni;
 	struct zebra_evpn *zevpn;
+	struct interface *svi;
 	bool complete;
 };
 
@@ -1409,6 +1425,43 @@ static void fpm_enqueue_l2vni_vtep(struct fpm_rmac_arg *fra,
 	SET_FLAG(zvtep->flags, ZEBRA_VTEP_FPM_SENT);
 }
 
+/*
+ * L2VNI remote neighbors: the same entries `zebra_evpn_rem_neigh_install()`
+ * programs on the SVI.
+ */
+static void fpm_enqueue_l2vni_neigh_table(struct hash_bucket *bucket, void *arg)
+{
+	struct fpm_rmac_arg *fra = arg;
+	struct zebra_neigh *n = bucket->data;
+	uint32_t flags;
+
+	if (!CHECK_FLAG(n->flags, ZEBRA_NEIGH_REMOTE) ||
+	    !IS_ZEBRA_NEIGH_ACTIVE(n) ||
+	    CHECK_FLAG(n->flags, ZEBRA_NEIGH_FPM_SENT) || !fra->complete)
+		return;
+
+	flags = DPLANE_NTF_EXT_LEARNED;
+	if (CHECK_FLAG(n->flags, ZEBRA_NEIGH_ROUTER_FLAG))
+		flags |= DPLANE_NTF_ROUTER;
+
+	dplane_ctx_reset(fra->ctx);
+	dplane_ctx_set_op(fra->ctx, DPLANE_OP_NEIGH_INSTALL);
+	dplane_rem_neigh_init(fra->ctx, fra->svi, &n->ip, &n->emac, flags);
+
+	/* Set sequence number if this is a reply. */
+	if (fra->fnc->resp_seq)
+		dplane_ctx_set_seq(fra->ctx, fra->fnc->resp_seq);
+
+	if (fpm_nl_enqueue(fra->fnc, fra->ctx) == -1) {
+		thread_add_timer(zrouter.master, fpm_rmac_send, fra->fnc, 1,
+				 &fra->fnc->t_rmacwalk);
+		fra->complete = false;
+		return;
+	}
+
+	SET_FLAG(n->flags, ZEBRA_NEIGH_FPM_SENT);
+}
+
 static void fpm_enqueue_l2vni_table(struct hash_bucket *bucket, void *arg)
 {
 	struct fpm_rmac_arg *fra = arg;
@@ -1425,10 +1478,18 @@ static void fpm_enqueue_l2vni_table(struct hash_bucket *bucket, void *arg)
 
 	/* Remote MACs are only installed on a bridged VXLAN interface. */
 	zif = zevpn->vxlan_if->info;
-	if (!zif || !zif->brslave_info.br_if || !zevpn->mac_table)
+	if (!zif || !zif->brslave_info.br_if)
 		return;
 
-	hash_iterate(zevpn->mac_table, fpm_enqueue_l2vni_mac_table, fra);
+	if (zevpn->mac_table)
+		hash_iterate(zevpn->mac_table, fpm_enqueue_l2vni_mac_table,
+			     fra);
+
+	/* Remote neighbors are only installed on the VNI's SVI. */
+	fra->svi = zevpn_map_to_svi(zevpn);
+	if (fra->svi && zevpn->neigh_table)
+		hash_iterate(zevpn->neigh_table, fpm_enqueue_l2vni_neigh_table,
+			     fra);
 }
 
 static void fpm_rmac_send(struct thread *t)
@@ -1521,13 +1582,21 @@ static void fpm_rib_reset(struct thread *t)
 }
 
 /*
- * The next functions will handle RMAC, L2VNI remote MAC and flood list reset.
+ * The next functions will handle RMAC, L2VNI remote MAC, remote neighbor and
+ * flood list reset.
  */
 static void fpm_unset_rmac_table(struct hash_bucket *bucket, void *arg)
 {
 	struct zebra_mac *zrmac = bucket->data;
 
 	UNSET_FLAG(zrmac->flags, ZEBRA_MAC_FPM_SENT);
+}
+
+static void fpm_unset_neigh_table(struct hash_bucket *bucket, void *arg)
+{
+	struct zebra_neigh *n = bucket->data;
+
+	UNSET_FLAG(n->flags, ZEBRA_NEIGH_FPM_SENT);
 }
 
 static void fpm_unset_l3vni_table(struct hash_bucket *bucket, void *arg)
@@ -1547,6 +1616,9 @@ static void fpm_unset_l2vni_table(struct hash_bucket *bucket, void *arg)
 
 	if (zevpn->mac_table)
 		hash_iterate(zevpn->mac_table, fpm_unset_rmac_table, NULL);
+
+	if (zevpn->neigh_table)
+		hash_iterate(zevpn->neigh_table, fpm_unset_neigh_table, NULL);
 }
 
 static void fpm_rmac_reset(struct thread *t)
