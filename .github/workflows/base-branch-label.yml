@@ -13,7 +13,20 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      # Label with the base branch name. For frr-dpd-x.y* branches, also
+      # add the x.y version as label (e.g. frr-dpd-8.4-devel -> 8.4).
+      - id: labels
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          {
+            echo 'labels<<LABELS_EOF'
+            echo "$BASE_REF"
+            if [[ "$BASE_REF" =~ ^frr-dpd-([0-9]+\.[0-9]+) ]]; then
+              echo "${BASH_REMATCH[1]}"
+            fi
+            echo 'LABELS_EOF'
+          } >> "$GITHUB_OUTPUT"
       - uses: actions-ecosystem/action-add-labels@v1
         with:
-          labels: |
-            ${{ github.event.pull_request.base.ref }}
+          labels: ${{ steps.labels.outputs.labels }}
