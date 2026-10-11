@@ -1450,8 +1450,6 @@ DEFUN (ospf_area_stub,
 		return CMD_WARNING_CONFIG_FAILED;
 	}
 
-	/* Flush the external LSAs from the specified area */
-	ospf_flush_lsa_from_area(ospf, area_id, OSPF_AS_EXTERNAL_LSA);
 	ospf_area_no_summary_unset(ospf, area_id);
 
 	return CMD_SUCCESS;
@@ -1609,8 +1607,6 @@ DEFPY (ospf_area_nssa,
 	else
 		ospf_area_nssa_suppress_fa_unset(ospf, area_id);
 
-	/* Flush the external LSA for the specified area */
-	ospf_flush_lsa_from_area(ospf, area_id, OSPF_AS_EXTERNAL_LSA);
 	ospf_schedule_abr_task(ospf);
 	ospf_schedule_asbr_nssa_redist_update(ospf);
 
