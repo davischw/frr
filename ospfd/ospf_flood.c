@@ -1101,7 +1101,8 @@ void ospf_lsa_flush_area(struct ospf_lsa *lsa, struct ospf_area *area)
 		p.prefix = lsa->data->id;
 		p.prefixlen = ip_masklen(ext7->mask);
 		type5 = ospf_external_info_find_lsa(area->ospf, &p);
-		if (type5 && !CHECK_FLAG(type5->flags, OSPF_LSA_IN_MAXAGE))
+		if (type5 && CHECK_FLAG(type5->flags, OSPF_LSA_LOCAL_XLT) &&
+		    !CHECK_FLAG(type5->flags, OSPF_LSA_IN_MAXAGE))
 			ospf_lsa_flush_as(ospf, type5);
 	}
 }
