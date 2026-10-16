@@ -5163,6 +5163,7 @@ int zebra_vxlan_if_update(struct interface *ifp, uint16_t chgflags)
 		else if (chgflags & ZEBRA_VXLIF_VLAN_CHANGE) {
 			struct mac_walk_ctx m_wctx;
 			struct neigh_walk_ctx n_wctx;
+			struct zebra_vtep *zvtep;
 
 			zebra_evpn_read_mac_neigh(zevpn, ifp);
 
@@ -5175,10 +5176,45 @@ int zebra_vxlan_if_update(struct interface *ifp, uint16_t chgflags)
 			n_wctx.zevpn = zevpn;
 			hash_iterate(zevpn->neigh_table,
 				     zebra_evpn_install_neigh_hash, &n_wctx);
+
+			/* Flood list withdrawn by
+			 * zebra_vxlan_if_vlan_pre_change().
+			 */
+			for (zvtep = zevpn->vteps; zvtep; zvtep = zvtep->next)
+				zebra_evpn_vtep_install(zevpn, zvtep);
 		}
 	}
 
 	return 0;
+}
+
+/*
+ * Handle a VxLAN interface access VLAN that is about to change: uninstall
+ * the L2VNI flood list while its entries still carry the old VLAN, so that
+ * dataplanes keying them by VLAN remove them. zebra_vxlan_if_update()
+ * installs them again with the new VLAN (ZEBRA_VXLIF_VLAN_CHANGE).
+ */
+void zebra_vxlan_if_vlan_pre_change(struct interface *ifp)
+{
+	struct zebra_if *zif = ifp->info;
+	struct zebra_evpn *zevpn;
+	struct zebra_vtep *zvtep;
+
+	if (!is_evpn_enabled() || !is_vxlan_flooding_head_end())
+		return;
+
+	/* Same conditions zebra_vxlan_if_update() reinstalls them with. */
+	if (!if_is_operative(ifp) || !zif->brslave_info.br_if)
+		return;
+
+	zevpn = zebra_evpn_lookup(zif->l2info.vxl.vni);
+	if (!zevpn || zevpn->vxlan_if != ifp)
+		return;
+
+	for (zvtep = zevpn->vteps; zvtep; zvtep = zvtep->next) {
+		if (zvtep->flood_control == VXLAN_FLOOD_HEAD_END_REPL)
+			zebra_evpn_vtep_uninstall(zevpn, &zvtep->vtep_ip);
+	}
 }
 
 /*

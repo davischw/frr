@@ -920,6 +920,10 @@ static int fpm_nl_enqueue(struct fpm_nl_ctx *fnc, struct zebra_dplane_ctx *ctx)
 		nl_buf_len = (size_t)rv;
 		break;
 
+	/*
+	 * EVPN type-3 (IMET) remote VTEP flood entries. Encoded as an FDB
+	 * entry with an all-zero MAC, matching the kernel data plane.
+	 */
 	case DPLANE_OP_VTEP_ADD:
 	case DPLANE_OP_VTEP_DELETE:
 		rv = netlink_vxlan_flood_update_ctx(
@@ -1451,7 +1455,8 @@ static void fpm_enqueue_l2vni_vtep(struct fpm_rmac_arg *fra,
 
 	dplane_ctx_reset(fra->ctx);
 	dplane_ctx_set_op(fra->ctx, DPLANE_OP_VTEP_ADD);
-	dplane_vtep_init(fra->ctx, zevpn->vxlan_if, &zvtep->vtep_ip);
+	dplane_vtep_init(fra->ctx, zevpn->vxlan_if, &zvtep->vtep_ip,
+			 zevpn->vni, zebra_evpn_access_vid(zevpn));
 
 	/* Set sequence number if this is a reply. */
 	if (fra->fnc->resp_seq)

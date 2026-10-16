@@ -202,6 +202,7 @@ struct zebra_vtep *zebra_evpn_vtep_add(struct zebra_evpn *zevpn,
 				       int flood_control);
 int zebra_evpn_vtep_del(struct zebra_evpn *zevpn, struct zebra_vtep *zvtep);
 int zebra_evpn_vtep_del_all(struct zebra_evpn *zevpn, int uninstall);
+vlanid_t zebra_evpn_access_vid(const struct zebra_evpn *zevpn);
 int zebra_evpn_vtep_install(struct zebra_evpn *zevpn, struct zebra_vtep *zvtep);
 int zebra_evpn_vtep_uninstall(struct zebra_evpn *zevpn,
 			      struct in_addr *vtep_ip);

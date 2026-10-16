@@ -1244,6 +1244,29 @@ int zebra_evpn_vtep_del_all(struct zebra_evpn *zevpn, int uninstall)
 }
 
 /*
+ * Access VLAN to program the EVPN remote MACs (type-2) and flood list
+ * (type-3) entries with: only meaningful when the vxlan interface is
+ * enslaved to a VLAN-aware bridge, and 0 otherwise.
+ */
+vlanid_t zebra_evpn_access_vid(const struct zebra_evpn *zevpn)
+{
+	const struct zebra_if *zif, *br_zif;
+
+	if (!zevpn->vxlan_if)
+		return 0;
+
+	zif = zevpn->vxlan_if->info;
+	if (!zif || !zif->brslave_info.br_if)
+		return 0;
+
+	br_zif = (const struct zebra_if *)zif->brslave_info.br_if->info;
+	if (!br_zif || !IS_ZEBRA_IF_BRIDGE_VLAN_AWARE(br_zif))
+		return 0;
+
+	return zif->l2info.vxl.access_vlan;
+}
+
+/*
  * Install remote VTEP into the kernel if the remote VTEP has asked
  * for head-end-replication.
  */
@@ -1252,8 +1275,8 @@ int zebra_evpn_vtep_install(struct zebra_evpn *zevpn, struct zebra_vtep *zvtep)
 	if (is_vxlan_flooding_head_end() &&
 	    (zvtep->flood_control == VXLAN_FLOOD_HEAD_END_REPL)) {
 		if (ZEBRA_DPLANE_REQUEST_FAILURE ==
-		    dplane_vtep_add(zevpn->vxlan_if,
-				    &zvtep->vtep_ip, zevpn->vni))
+		    dplane_vtep_add(zevpn->vxlan_if, &zvtep->vtep_ip,
+				    zevpn->vni, zebra_evpn_access_vid(zevpn)))
 			return -1;
 	}
 
@@ -1272,7 +1295,8 @@ int zebra_evpn_vtep_uninstall(struct zebra_evpn *zevpn, struct in_addr *vtep_ip)
 	}
 
 	if (ZEBRA_DPLANE_REQUEST_FAILURE ==
-	    dplane_vtep_delete(zevpn->vxlan_if, vtep_ip, zevpn->vni))
+	    dplane_vtep_delete(zevpn->vxlan_if, vtep_ip, zevpn->vni,
+			       zebra_evpn_access_vid(zevpn)))
 		return -1;
 
 	return 0;

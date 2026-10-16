@@ -557,6 +557,17 @@ dplane_ctx_neigh_get_link_ip(const struct zebra_dplane_ctx *ctx);
 uint32_t dplane_ctx_neigh_get_flags(const struct zebra_dplane_ctx *ctx);
 uint16_t dplane_ctx_neigh_get_state(const struct zebra_dplane_ctx *ctx);
 uint32_t dplane_ctx_neigh_get_update_flags(const struct zebra_dplane_ctx *ctx);
+/*
+ * VNI of an EVPN VTEP (type-3) flood entry. Only meaningful for
+ * DPLANE_OP_VTEP_ADD / DPLANE_OP_VTEP_DELETE contexts; zero otherwise.
+ */
+vni_t dplane_ctx_neigh_get_vni(const struct zebra_dplane_ctx *ctx);
+/*
+ * Access VLAN of an EVPN VTEP (type-3) flood entry. Only meaningful for
+ * DPLANE_OP_VTEP_ADD / DPLANE_OP_VTEP_DELETE contexts, and only non-zero
+ * when the associated bridge is VLAN-aware.
+ */
+vlanid_t dplane_ctx_neigh_get_vid(const struct zebra_dplane_ctx *ctx);
 
 /* Accessors for policy based routing rule information */
 int dplane_ctx_rule_get_sock(const struct zebra_dplane_ctx *ctx);
@@ -812,15 +823,15 @@ enum zebra_dplane_result dplane_rem_neigh_delete(const struct interface *ifp,
  * Enqueue evpn VTEP updates for the dataplane.
  */
 enum zebra_dplane_result dplane_vtep_add(const struct interface *ifp,
-					 const struct in_addr *ip,
-					 vni_t vni);
+					 const struct in_addr *ip, vni_t vni,
+					 vlanid_t vid);
 enum zebra_dplane_result dplane_vtep_delete(const struct interface *ifp,
-					    const struct in_addr *ip,
-					    vni_t vni);
+					    const struct in_addr *ip, vni_t vni,
+					    vlanid_t vid);
 
 /* Helper api to init an empty or new context for a VTEP flood list update */
 void dplane_vtep_init(struct zebra_dplane_ctx *ctx, const struct interface *ifp,
-		      const struct in_addr *ip);
+		      const struct in_addr *ip, vni_t vni, vlanid_t vid);
 
 /* Helper api to init an empty or new context for a remote neighbor add */
 void dplane_rem_neigh_init(struct zebra_dplane_ctx *ctx,

@@ -3503,6 +3503,29 @@ static ssize_t netlink_neigh_update_msg_encode(
 			return 0;
 	}
 
+	/*
+	 * For EVPN type-3 (IMET) flood entries the VNI and the access VLAN are
+	 * otherwise only implied by the vxlan interface ifindex. Advertise
+	 * both explicitly so that data plane implementations which do not own
+	 * a kernel vxlan netdevice can still associate the entry with its VNI
+	 * and bridge domain: the VLAN as type-2 entries carry it, and the VNI.
+	 *
+	 * The kernel gets them too: it ignores NDA_VLAN on a vxlan FDB entry
+	 * and takes NDA_VNI as the remote VNI, which is the device VNI here
+	 * (one VNI per vxlan device). Revisit this with single vxlan device
+	 * support, where the remote VNI may differ from the device's.
+	 */
+	if (op == DPLANE_OP_VTEP_ADD || op == DPLANE_OP_VTEP_DELETE) {
+		vni_t vni = dplane_ctx_neigh_get_vni(ctx);
+		vlanid_t vid = dplane_ctx_neigh_get_vid(ctx);
+
+		if (vid > 0 && !nl_attr_put16(&req->n, datalen, NDA_VLAN, vid))
+			return 0;
+
+		if (vni && !nl_attr_put32(&req->n, datalen, NDA_VNI, vni))
+			return 0;
+	}
+
 	return NLMSG_ALIGN(req->n.nlmsg_len);
 }
 
