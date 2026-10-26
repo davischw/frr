@@ -419,9 +419,8 @@ static inline bool pim_rp_try_alist(struct rp_info *rp_info,
 /*
  * Given a group, return the rp_info for that group
  */
-static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
-						     const struct prefix *group,
-						     bool any)
+struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
+					const struct prefix *group)
 {
 	struct listnode *node;
 	struct rp_info *best = NULL;
@@ -452,7 +451,7 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 
 	bp = NULL;
 	for (ALL_LIST_ELEMENTS_RO(pim->rp_list, node, rp_info)) {
-		if (!rp_info->rp.source_nexthop.interface && !any)
+		if (!rp_info->rp.source_nexthop.interface)
 			continue;
 
 		if (rp_info->plist) {
@@ -520,7 +519,7 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 	for (rp_info = NULL; rn; rn = rn->parent, rp_info = NULL) {
 		rp_info = rn->info;
 
-		if (rp_info && (rp_info->rp.source_nexthop.interface || any))
+		if (rp_info && rp_info->rp.source_nexthop.interface)
 			break;
 	}
 
@@ -540,7 +539,7 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 	}
 
 	for (ALL_LIST_ELEMENTS_RO(pim->fb_rp_list, node, rp_info)) {
-		if (!rp_info->rp.source_nexthop.interface && !any)
+		if (!rp_info->rp.source_nexthop.interface)
 			continue;
 
 		if (rp_info->plist) {
@@ -588,8 +587,7 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 		for (; rn; rn = rn->parent, rp_info = NULL) {
 			rp_info = rn->info;
 
-			if (rp_info &&
-			    (rp_info->rp.source_nexthop.interface || any))
+			if (rp_info && rp_info->rp.source_nexthop.interface)
 				break;
 		}
 	}
@@ -619,20 +617,22 @@ static struct rp_info *pim_rp_find_match_group_inner(struct pim_instance *pim,
 	return best;
 }
 
-struct rp_info *pim_rp_find_match_group(struct pim_instance *pim,
-					const struct prefix *group)
+/*
+ * Return the 224.0.0.0/4 pseudo-RP: it always exists in the RP table, even
+ * when unconfigured (RP address is any) or unreachable, and it must not be
+ * confused with a fallback RP covering the same range.
+ */
+struct rp_info *pim_rp_find_match_root(struct pim_instance *pim)
 {
-	return pim_rp_find_match_group_inner(pim, group, false);
-}
-
-static struct rp_info *pim_rp_find_match_root(struct pim_instance *pim)
-{
+	struct route_node *rn;
 	struct rp_info *rpi;
 	struct prefix g;
 
 	pim_get_all_mcast_group(&g);
-	rpi = pim_rp_find_match_group_inner(pim, &g, true);
-	assertf(rpi, "cannot find dummy RP for all multicast");
+	rn = route_node_lookup(pim->rp_table, &g);
+	assertf(rn && rn->info, "cannot find dummy RP for all multicast");
+	rpi = rn->info;
+	route_unlock_node(rn);
 	return rpi;
 }
 
@@ -1183,6 +1183,29 @@ int pim_rp_new(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 				}
 			}
 		}
+
+		/*
+		 * The lookup above skips unreachable RPs, but the range may
+		 * still have one: change it like a reachable one instead of
+		 * replacing its RP table node (which, for 224.0.0.0/4, is
+		 * the pseudo-RP).
+		 */
+		rn = route_node_lookup(table, &rp_info->group);
+		if (rn) {
+			tmp_rp_info = rn->info;
+			route_unlock_node(rn);
+			if (!pim_addr_is_any(tmp_rp_info->rp.rpf_addr)) {
+				XFREE(MTYPE_PIM_RP, rp_info);
+				if ((rp_src_flag == RP_SRC_BSR) &&
+				    (tmp_rp_info->rp_src == rp_src_flag))
+					return PIM_GROUP_OVERLAP;
+
+				return pim_rp_change(pim, rp_addr,
+						     tmp_rp_info->group,
+						     rp_src_flag);
+			}
+		}
+
 		rn = route_node_get(table, &rp_info->group);
 		rn->info = rp_info;
 	}

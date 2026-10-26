@@ -463,7 +463,6 @@ static void pim_instate_pend_list(struct bsgrp_node *bsgrp_node)
 	struct route_node *rn;
 	struct pim_instance *pim;
 	struct rp_info *rp_all;
-	struct prefix group_all;
 	bool had_rp_node = true;
 
 	pim = bsgrp_node->scope->pim;
@@ -479,10 +478,7 @@ static void pim_instate_pend_list(struct bsgrp_node *bsgrp_node)
 
 	pend = bsm_rpinfos_first(bsgrp_node->partial_bsrp_list);
 
-	if (!pim_get_all_mcast_group(&group_all))
-		return;
-
-	rp_all = pim_rp_find_match_group(pim, &group_all);
+	rp_all = pim_rp_find_match_root(pim);
 	rn = route_node_lookup(pim->rp_table, &bsgrp_node->group);
 
 	if (pend)
@@ -635,7 +631,6 @@ void pim_bsm_clear(struct pim_instance *pim)
 	struct route_node *rpnode;
 	struct bsgrp_node *bsgrp;
 	pim_addr nht_p;
-	struct prefix g_all;
 	struct rp_info *rp_all;
 	struct rp_info *rp_info;
 	bool upstream_updated = false;
@@ -688,10 +683,7 @@ void pim_bsm_clear(struct pim_instance *pim)
 
 		pim_delete_tracked_nexthop(pim, nht_p, NULL, rp_info);
 
-		if (!pim_get_all_mcast_group(&g_all))
-			return;
-
-		rp_all = pim_rp_find_match_group(pim, &g_all);
+		rp_all = pim_rp_find_match_root(pim);
 
 		if (rp_all == rp_info) {
 			rp_all->rp.rpf_addr = PIMADDR_ANY;
