@@ -42,6 +42,9 @@ int pim_process_rp_kat_cmd(struct vty *vty, const char *rpkat);
 int pim_process_no_rp_kat_cmd(struct vty *vty);
 int pim_process_register_suppress_cmd(struct vty *vty, const char *rst);
 int pim_process_no_register_suppress_cmd(struct vty *vty);
+const char *pim_rp_group_owner(const struct lyd_node *dnode,
+			       const char *vrfname, pim_addr rp_addr,
+			       const struct prefix *group, bool fallback);
 int pim_process_rp_cmd(struct vty *vty, const char *rp_str,
 		       const char *group_str, bool fallback);
 bool pim_rp_has_other(const struct lyd_node *dnode, const char *rp_xpath,

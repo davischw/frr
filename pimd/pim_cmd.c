@@ -3831,9 +3831,11 @@ DEFPY_YANG (ip_pim_rp,
        "Group Address range to cover\n")
 {
 	const char *vrfname;
+	const char *owner;
 	char rp_group_xpath[XPATH_MAXLEN];
 	int result = 0;
 	struct in_addr rp_addr;
+	struct prefix group_prefix;
 
 	vty_out(vty, "%% [VENDOR] use extended access list to configure RPs to avoid bugs\n");
 
@@ -3859,6 +3861,15 @@ DEFPY_YANG (ip_pim_rp,
 	vrfname = pim_cli_get_vrf_name(vty);
 	if (vrfname == NULL)
 		return CMD_WARNING_CONFIG_FAILED;
+
+	str2prefix(group_str, &group_prefix);
+	owner = pim_rp_group_owner(vty->candidate_config->dnode, vrfname,
+				   rp_addr, &group_prefix, !!fallback);
+	if (owner) {
+		vty_out(vty, "%% Group range %s already has RP %s\n", group_str,
+			owner);
+		return CMD_WARNING_CONFIG_FAILED;
+	}
 
 	snprintf(rp_group_xpath, sizeof(rp_group_xpath),
 		 FRR_PIM_STATIC_RP_XPATH "/%sgroup-list",

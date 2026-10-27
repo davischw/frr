@@ -625,10 +625,59 @@ int pim_process_no_ip_mroute_cmd(struct vty *vty, const char *interface,
 				    group_str);
 }
 
+struct rp_group_owner {
+	pim_addr rp_addr;
+	struct prefix group;
+	const char *owner;
+};
+
+static int pim_rp_group_owner_cb(const struct lyd_node *dnode, void *arg)
+{
+	struct rp_group_owner *ctx = arg;
+	struct prefix group;
+	pim_addr rp_addr;
+	const char *rp_str;
+
+	yang_dnode_get_prefix(&group, dnode, NULL);
+	apply_mask(&group);
+	if (!prefix_same(&group, &ctx->group))
+		return YANG_ITER_CONTINUE;
+
+	rp_str = yang_dnode_get_string(dnode, "../rp-address");
+	if (inet_pton(PIM_AF, rp_str, &rp_addr) == 1 &&
+	    !pim_addr_cmp(rp_addr, ctx->rp_addr))
+		return YANG_ITER_CONTINUE;
+
+	ctx->owner = rp_str;
+	return YANG_ITER_STOP;
+}
+
+/*
+ * pimd keeps one RP of each kind (static or fallback) per group range:
+ * return the address of another RP configured with `group`, if any.
+ */
+const char *pim_rp_group_owner(const struct lyd_node *dnode,
+			       const char *vrfname, pim_addr rp_addr,
+			       const struct prefix *group, bool fallback)
+{
+	struct rp_group_owner ctx = {.rp_addr = rp_addr};
+
+	prefix_copy(&ctx.group, group);
+	apply_mask(&ctx.group);
+	yang_dnode_iterate(pim_rp_group_owner_cb, &ctx, dnode,
+			   FRR_PIM_VRF_XPATH
+			   "/frr-pim-rp:rp/static-rp/rp-list/%sgroup-list",
+			   "frr-pim:pimd", "pim", vrfname, FRR_PIM_AF_XPATH_VAL,
+			   fallback ? "fallback-" : "");
+
+	return ctx.owner;
+}
+
 int pim_process_rp_cmd(struct vty *vty, const char *rp_str,
 		       const char *group_str, bool fallback)
 {
 	const char *vrfname;
+	const char *owner;
 	char rp_group_xpath[XPATH_MAXLEN];
 	int result = 0;
 	struct prefix group;
@@ -673,6 +722,14 @@ int pim_process_rp_cmd(struct vty *vty, const char *rp_str,
 	vrfname = pim_cli_get_vrf_name(vty);
 	if (vrfname == NULL)
 		return CMD_WARNING_CONFIG_FAILED;
+
+	owner = pim_rp_group_owner(vty->candidate_config->dnode, vrfname,
+				   rp_addr, &group, fallback);
+	if (owner) {
+		vty_out(vty, "%% Group range %s already has RP %s\n", group_str,
+			owner);
+		return CMD_WARNING_CONFIG_FAILED;
+	}
 
 	snprintf(rp_group_xpath, sizeof(rp_group_xpath),
 		 FRR_PIM_STATIC_RP_XPATH, "frr-pim:pimd", "pim", vrfname,
