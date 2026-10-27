@@ -3820,21 +3820,6 @@ DEFPY_YANG (no_ip_pim_v6_secondary,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
-static bool rp_has_other(const struct lyd_node *dnode, const char *rp_xpath,
-			 const char *fallback)
-{
-	char group_list_xpath[XPATH_MAXLEN + 32];
-	char prefix_list_xpath[XPATH_MAXLEN + 32];
-
-	snprintf(group_list_xpath, sizeof(group_list_xpath), "%s/%sgroup-list",
-		 rp_xpath, fallback ? "" : "fallback-");
-	snprintf(prefix_list_xpath, sizeof(prefix_list_xpath),
-		 "%s/%sprefix-list", rp_xpath, fallback ? "" : "fallback-");
-
-	return yang_dnode_exists(dnode, group_list_xpath)
-		|| yang_dnode_exists(dnode, prefix_list_xpath);
-}
-
 DEFPY_YANG (ip_pim_rp,
        ip_pim_rp_cmd,
        "ip pim rp A.B.C.D [fallback$fallback] [A.B.C.D/M$group]",
@@ -3973,8 +3958,9 @@ DEFPY_YANG (no_ip_pim_rp,
 
 	group_dnode = yang_dnode_get(vty->candidate_config->dnode, group_xpath);
 
-	if (yang_is_last_list_dnode(group_dnode)
-	    && !rp_has_other(vty->candidate_config->dnode, rp_xpath, fallback))
+	if (yang_is_last_list_dnode(group_dnode) &&
+	    !pim_rp_has_other(vty->candidate_config->dnode, rp_xpath,
+			      !!fallback))
 		nb_cli_enqueue_change(vty, rp_xpath, NB_OP_DESTROY, NULL);
 	else
 		nb_cli_enqueue_change(vty, group_list_xpath, NB_OP_DESTROY,
@@ -4029,8 +4015,10 @@ DEFPY_YANG (no_ip_pim_rp_prefix_list,
 		return NB_OK;
 	}
 
-	destroy = rp_has_other(vty->candidate_config->dnode, rp_xpath,
-			       fallback) ? plist_xpath : rp_xpath;
+	destroy = pim_rp_has_other(vty->candidate_config->dnode, rp_xpath,
+				   !!fallback)
+			  ? plist_xpath
+			  : rp_xpath;
 	nb_cli_enqueue_change(vty, destroy, NB_OP_DESTROY, NULL);
 
 	return nb_cli_apply_changes(vty, NULL);

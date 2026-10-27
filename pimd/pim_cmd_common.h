@@ -44,6 +44,8 @@ int pim_process_register_suppress_cmd(struct vty *vty, const char *rst);
 int pim_process_no_register_suppress_cmd(struct vty *vty);
 int pim_process_rp_cmd(struct vty *vty, const char *rp_str,
 		       const char *group_str, bool fallback);
+bool pim_rp_has_other(const struct lyd_node *dnode, const char *rp_xpath,
+		      bool fallback);
 int pim_process_no_rp_cmd(struct vty *vty, const char *rp_str,
 			  const char *group_str, bool fallback);
 int pim_process_rp_plist_cmd(struct vty *vty, const char *rp_str,

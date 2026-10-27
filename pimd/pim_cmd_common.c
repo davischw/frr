@@ -688,6 +688,29 @@ int pim_process_rp_cmd(struct vty *vty, const char *rp_str,
 	return nb_cli_apply_changes(vty, NULL);
 }
 
+/*
+ * Return whether the RP address `rp_xpath` has configuration of the other
+ * kind than `fallback` (static or fallback): removing the last group range,
+ * prefix-list or access-list of one kind must keep the other one.
+ */
+bool pim_rp_has_other(const struct lyd_node *dnode, const char *rp_xpath,
+		      bool fallback)
+{
+	static const char *const items[] = {"group-list", "prefix-list",
+					    "access-list"};
+	char xpath[XPATH_MAXLEN + 32];
+	size_t i;
+
+	for (i = 0; i < array_size(items); i++) {
+		snprintf(xpath, sizeof(xpath), "%s/%s%s", rp_xpath,
+			 fallback ? "" : "fallback-", items[i]);
+		if (yang_dnode_exists(dnode, xpath))
+			return true;
+	}
+
+	return false;
+}
+
 int pim_process_no_rp_cmd(struct vty *vty, const char *rp_str,
 			  const char *group_str, bool fallback)
 {
@@ -733,7 +756,8 @@ int pim_process_no_rp_cmd(struct vty *vty, const char *rp_str,
 		return NB_OK;
 	}
 
-	if (yang_is_last_list_dnode(group_dnode))
+	if (yang_is_last_list_dnode(group_dnode) &&
+	    !pim_rp_has_other(vty->candidate_config->dnode, rp_xpath, fallback))
 		nb_cli_enqueue_change(vty, rp_xpath, NB_OP_DESTROY, NULL);
 	else
 		nb_cli_enqueue_change(vty, group_list_xpath, NB_OP_DESTROY,
@@ -802,7 +826,10 @@ int pim_process_no_rp_plist_cmd(struct vty *vty, const char *rp_str,
 		return NB_OK;
 	}
 
-	nb_cli_enqueue_change(vty, rp_xpath, NB_OP_DESTROY, NULL);
+	if (pim_rp_has_other(vty->candidate_config->dnode, rp_xpath, fallback))
+		nb_cli_enqueue_change(vty, plist_xpath, NB_OP_DESTROY, NULL);
+	else
+		nb_cli_enqueue_change(vty, rp_xpath, NB_OP_DESTROY, NULL);
 
 	return nb_cli_apply_changes(vty, NULL);
 }
@@ -825,21 +852,6 @@ int pim_process_rp_alist_cmd(struct vty *vty, const char *rp_str,
 	nb_cli_enqueue_change(vty, rp_acl_xpath, NB_OP_MODIFY, access_list);
 
 	return nb_cli_apply_changes(vty, NULL);
-}
-
-static bool rp_has_other(const struct lyd_node *dnode, const char *rp_xpath,
-			 const char *fallback)
-{
-	char group_list_xpath[XPATH_MAXLEN + 32];
-	char prefix_list_xpath[XPATH_MAXLEN + 32];
-
-	snprintf(group_list_xpath, sizeof(group_list_xpath), "%s/%sgroup-list",
-		 rp_xpath, fallback ? "" : "fallback-");
-	snprintf(prefix_list_xpath, sizeof(prefix_list_xpath),
-		 "%s/%sprefix-list", rp_xpath, fallback ? "" : "fallback-");
-
-	return yang_dnode_exists(dnode, group_list_xpath)
-		|| yang_dnode_exists(dnode, prefix_list_xpath);
 }
 
 int pim_process_no_rp_alist_cmd(struct vty *vty, const char *rp_str,
@@ -877,8 +889,10 @@ int pim_process_no_rp_alist_cmd(struct vty *vty, const char *rp_str,
 		return NB_OK;
 	}
 
-	destroy = rp_has_other(vty->candidate_config->dnode, rp_xpath,
-			       fallback) ? acl_xpath : rp_xpath;
+	destroy = pim_rp_has_other(vty->candidate_config->dnode, rp_xpath,
+				   !!fallback)
+			  ? acl_xpath
+			  : rp_xpath;
 	nb_cli_enqueue_change(vty, destroy, NB_OP_DESTROY, NULL);
 
 	return nb_cli_apply_changes(vty, NULL);
