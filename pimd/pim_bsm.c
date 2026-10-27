@@ -379,11 +379,10 @@ static void pim_on_g2rp_timer(struct thread *t)
 	}
 
 	rp_info = (struct rp_info *)rn->info;
+	route_unlock_node(rn);
 
-	if (!rp_info) {
-		route_unlock_node(rn);
+	if (!rp_info)
 		return;
-	}
 
 	if (rp_info->rp_src != RP_SRC_STATIC) {
 		/* If new rp available, change it else delete the existing */
@@ -493,6 +492,8 @@ static void pim_instate_pend_list(struct bsgrp_node *bsgrp_node)
 	     pim_rpf_addr_is_inaddr_any(&rp_all->rp))) {
 		if (PIM_DEBUG_BSM)
 			zlog_debug("%s: Route node doesn't exist", __func__);
+		if (rn)
+			route_unlock_node(rn);
 		if (pend)
 			pim_rp_new(pim, pend->rp_address, bsgrp_node->group,
 				   NULL, NULL, RP_SRC_BSR);
@@ -667,6 +668,7 @@ void pim_bsm_clear(struct pim_instance *pim)
 		rp_info = (struct rp_info *)rpnode->info;
 
 		if ((!rp_info) || (rp_info->rp_src != RP_SRC_BSR)) {
+			route_unlock_node(rpnode);
 			pim_free_bsgrp_node(bsgrp->scope->bsrp_table,
 					    &bsgrp->group);
 			pim_free_bsgrp_data(bsgrp);
@@ -689,6 +691,7 @@ void pim_bsm_clear(struct pim_instance *pim)
 			rp_all->rp.rpf_addr = PIMADDR_ANY;
 			rp_all->i_am_rp = 0;
 			pim_rp_nexthop_del(rp_all);
+			route_unlock_node(rpnode);
 		} else {
 			/* Delete the rp_info from rp-list */
 			listnode_delete(pim->rp_list, rp_info);
