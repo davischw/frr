@@ -301,6 +301,40 @@ static int pim_rp_cmd_worker(const struct lyd_node *dnode, int event,
 	return pim_rp_errmsg(result, errmsg, errmsg_len, &rp_addr, &group);
 }
 
+/*
+ * Delete every `rp_src` RP configured with `rp_addr`, whatever its group
+ * range, and return the result of the first deletion.
+ */
+static int pim_rp_del_addr(struct pim_instance *pim, pim_addr rp_addr,
+			   enum rp_source rp_src)
+{
+	struct prefix any = {.family = PIM_AF, .prefixlen = 0};
+	struct list *list;
+	struct listnode *node;
+	struct rp_info *rp_info;
+	unsigned int count = 0;
+	int first = PIM_RP_NOT_FOUND;
+	int result;
+
+	list = (rp_src != RP_SRC_FALLBACK) ? pim->rp_list : pim->fb_rp_list;
+	for (ALL_LIST_ELEMENTS_RO(list, node, rp_info))
+		if (!pim_addr_cmp(rp_info->rp.rpf_addr, rp_addr) &&
+		    rp_info->rp_src == rp_src)
+			count++;
+
+	/* Each deletion removes one of them (or makes it a BSR RP). */
+	while (count--) {
+		result = pim_rp_del(pim, rp_addr, any, NULL, NULL, rp_src);
+		/* Replaced by an unreachable BSR RP: deleted all the same. */
+		if (result == PIM_RP_NO_PATH)
+			result = PIM_SUCCESS;
+		if (first == PIM_RP_NOT_FOUND)
+			first = result;
+	}
+
+	return first;
+}
+
 static int pim_no_rp_cmd_worker(struct pim_instance *pim, pim_addr rp_addr,
 				struct prefix group, const char *plist,
 				const char *alist, bool fallback, bool all,
@@ -312,12 +346,10 @@ static int pim_no_rp_cmd_worker(struct pim_instance *pim, pim_addr rp_addr,
 	prefix2str(&group, group_str, sizeof(group_str));
 
 	if (all) {
-		struct prefix dummy = {.family = PIM_AF, .prefixlen = 0};
 		int r1, r2;
 
-		r1 = pim_rp_del(pim, rp_addr, dummy, NULL, NULL, RP_SRC_STATIC);
-		r2 = pim_rp_del(pim, rp_addr, dummy, NULL, NULL,
-				RP_SRC_FALLBACK);
+		r1 = pim_rp_del_addr(pim, rp_addr, RP_SRC_STATIC);
+		r2 = pim_rp_del_addr(pim, rp_addr, RP_SRC_FALLBACK);
 		result = r1 ? r2 : r1;
 	} else {
 		result = pim_rp_del(pim, rp_addr, group, plist, alist,
@@ -3475,7 +3507,7 @@ int routing_control_plane_protocols_control_plane_protocol_pim_address_family_rp
 		apply_mask(&group);
 
 		return pim_no_rp_cmd_worker(pim, rp_addr, group, NULL, NULL,
-					    false, true, args->errmsg,
+					    false, false, args->errmsg,
 					    args->errmsg_len);
 	}
 

@@ -1332,8 +1332,13 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 	 *
 	 * (not necessary for RP_SRC_FALLBACK)
 	 */
-	if (rp_src_flag == RP_SRC_STATIC) {
-		bsgrp = pim_bsm_get_bsgrp_node(&pim->global_scope, &group);
+	if (rp_src_flag == RP_SRC_STATIC && !was_plist && !was_alist) {
+		/*
+		 * Use the deleted RP group range: `group` is a /0 prefix when
+		 * deleting by RP address.
+		 */
+		bsgrp = pim_bsm_get_bsgrp_node(&pim->global_scope,
+					       &rp_info->group);
 
 		if (bsgrp) {
 			bsrp = bsm_rpinfos_first(bsgrp->bsrp_list);
@@ -1342,15 +1347,16 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 					zlog_debug(
 						"%s: BSM RP %pPA found for the group %pFX",
 						__func__, &bsrp->rp_address,
-						&group);
+						&rp_info->group);
 				return pim_rp_change(pim, bsrp->rp_address,
-						     group, RP_SRC_BSR);
+						     rp_info->group,
+						     RP_SRC_BSR);
 			}
 		} else {
 			if (PIM_DEBUG_PIM_TRACE)
 				zlog_debug(
 					"%s: BSM RP not found for the group %pFX",
-					__func__, &group);
+					__func__, &rp_info->group);
 		}
 	}
 
@@ -1517,6 +1523,12 @@ int pim_rp_change(struct pim_instance *pim, pim_addr new_rp_addr,
 	if (!pim_ecmp_nexthop_lookup(pim, &rp_info->rp.source_nexthop, nht_p,
 				     &rp_info->group, 1)) {
 		route_unlock_node(rn);
+		/*
+		 * The upstream update above skipped the groups now using an
+		 * unreachable RP: let them look up another RP (e.g. a
+		 * fallback RP) instead of staying with the old one.
+		 */
+		pim_rp_refresh_group_to_rp_mapping(pim);
 		return PIM_RP_NO_PATH;
 	}
 
