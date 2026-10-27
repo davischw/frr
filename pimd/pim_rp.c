@@ -1386,6 +1386,12 @@ int pim_rp_del(struct pim_instance *pim, pim_addr rp_addr, struct prefix group,
 		}
 		rp_all->rp.rpf_addr = PIMADDR_ANY;
 		rp_all->i_am_rp = 0;
+		pim_rp_nexthop_del(rp_all);
+		/*
+		 * The cleared (*,G)s may be covered by another RP (e.g. a
+		 * fallback RP for the same range): let them look it up.
+		 */
+		pim_rp_refresh_group_to_rp_mapping(pim);
 		return PIM_SUCCESS;
 	}
 
