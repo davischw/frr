@@ -12964,7 +12964,7 @@ static void bgp_show_peer(struct vty *vty, struct peer *p, bool use_json,
 	char dn_flag[2];
 	afi_t afi;
 	safi_t safi;
-	uint16_t i;
+	size_t i;
 	uint8_t *msg;
 	json_object *json_neigh = NULL;
 	time_t epoch_tbuf;
