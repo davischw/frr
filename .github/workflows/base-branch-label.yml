@@ -8,25 +8,26 @@ on:
 
 jobs:
   label:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: Debian13
+      labels: [native]
     permissions:
       contents: read
       pull-requests: write
     steps:
       # Label with the base branch name. For frr-dpd-x.y* branches, also
       # add the x.y version as label (e.g. frr-dpd-8.4-devel -> 8.4).
-      - id: labels
+      - name: Add base branch labels
+        shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          {
-            echo 'labels<<LABELS_EOF'
-            echo "$BASE_REF"
-            if [[ "$BASE_REF" =~ ^frr-dpd-([0-9]+\.[0-9]+) ]]; then
-              echo "${BASH_REMATCH[1]}"
-            fi
-            echo 'LABELS_EOF'
-          } >> "$GITHUB_OUTPUT"
-      - uses: actions-ecosystem/action-add-labels@v1
-        with:
-          labels: ${{ steps.labels.outputs.labels }}
+          labels=(-f "labels[]=$BASE_REF")
+          if [[ "$BASE_REF" =~ ^frr-dpd-([0-9]+\.[0-9]+) ]]; then
+            labels+=(-f "labels[]=${BASH_REMATCH[1]}")
+          fi
+          gh api --method POST "repos/$REPO/issues/$PR_NUMBER/labels" \
+            "${labels[@]}" > /dev/null
