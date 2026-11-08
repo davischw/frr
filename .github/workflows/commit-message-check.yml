@@ -1,0 +1,194 @@
+name: Commit message check
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+
+concurrency:
+  group: commit-message-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on:
+      group: Debian13
+      labels: [native]
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      # Every commit in the PR must reference an issue of this repository
+      # with an "Issue: <number>" line. If that issue has a Jira reference
+      # ("Jira: PAN-123456" in its title or description), the commit must
+      # also carry a matching "Jira: PAN-123456" line. Every commit also
+      # needs at least one "Signed-off-by: Name <email>" line.
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            // Trailer lines in the commit message (one per line, may repeat).
+            const COMMIT_ISSUE_RE = /^Issue:[ \t]*#?(\d+)[ \t]*$/gim;
+            const COMMIT_JIRA_RE = /^Jira:[ \t]*(PAN-\d+)[ \t]*$/gim;
+            const SIGNOFF_RE = /^Signed-off-by:[ \t]*\S.*<[^<>\s]+@[^<>\s]+>[ \t]*$/im;
+            // Jira reference inside the issue (tolerates markdown like **Jira:**).
+            const ISSUE_JIRA_RE = /\bJira\b[*_:\s]*(PAN-\d+)\b/gi;
+
+            const matches = (re, text) =>
+              [...new Set([...(text || '').matchAll(re)].map(m => m[1].toUpperCase()))];
+
+            const issueCache = new Map();
+            const linkedIssues = new Map();
+            const getIssue = (number) => {
+              if (!issueCache.has(number)) {
+                issueCache.set(number, github.rest.issues
+                  .get({ owner, repo, issue_number: number })
+                  .then(r => r.data)
+                  .catch(e => {
+                    if (e.status === 404 || e.status === 410) return null;
+                    throw e;
+                  }));
+              }
+              return issueCache.get(number);
+            };
+
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner, repo, pull_number, per_page: 100,
+            });
+
+            const rows = [];
+            let failed = 0;
+
+            for (const c of commits) {
+              const sha = c.sha.substring(0, 12);
+              const subject = c.commit.message.split('\n')[0];
+
+              if (c.parents.length > 1) {
+                rows.push([sha, subject, '-', '-', 'skipped (merge commit)']);
+                continue;
+              }
+
+              const msg = c.commit.message;
+              const issues = matches(COMMIT_ISSUE_RE, msg);
+              const jiras = matches(COMMIT_JIRA_RE, msg);
+              const errors = [];
+              const required = new Set();
+
+              if (!SIGNOFF_RE.test(msg)) {
+                errors.push('missing "Signed-off-by: Name <email>" line');
+              }
+
+              if (issues.length === 0) {
+                errors.push('missing "Issue: <number>" line');
+              }
+
+              for (const n of issues) {
+                const issue = await getIssue(Number(n));
+                if (!issue) {
+                  errors.push(`issue #${n} does not exist in ${owner}/${repo}`);
+                  continue;
+                }
+                if (issue.pull_request) {
+                  errors.push(`#${n} is a pull request, not an issue`);
+                  continue;
+                }
+                linkedIssues.set(Number(n), issue);
+                for (const j of matches(ISSUE_JIRA_RE, `${issue.title}\n${issue.body}`)) {
+                  required.add(j);
+                }
+              }
+
+              if (required.size > 0 && !jiras.some(j => required.has(j))) {
+                errors.push(`missing "Jira: ${[...required].join('" or "Jira: ')}" line ` +
+                            `(referenced by issue ${issues.map(n => '#' + n).join(', ')})`);
+              }
+              for (const j of jiras) {
+                if (required.size > 0 && !required.has(j)) {
+                  core.warning(`${sha}: Jira ${j} is not referenced by issue ` +
+                               `${issues.map(n => '#' + n).join(', ')}`);
+                }
+              }
+
+              if (errors.length) {
+                failed++;
+                core.error(`${sha} "${subject}": ${errors.join('; ')}`);
+              }
+              rows.push([
+                sha,
+                subject,
+                issues.map(n => '#' + n).join(', ') || '-',
+                jiras.join(', ') || '-',
+                errors.length ? '❌ ' + errors.join('; ') : '✅ ok',
+              ]);
+            }
+
+            await core.summary
+              .addHeading('Commit message check')
+              .addTable([
+                [
+                  { data: 'Commit', header: true },
+                  { data: 'Subject', header: true },
+                  { data: 'Issue', header: true },
+                  { data: 'Jira', header: true },
+                  { data: 'Result', header: true },
+                ],
+                ...rows,
+              ])
+              .addRaw('Each commit needs a <code>Signed-off-by: Name &lt;email&gt;</code> line ' +
+                      'and an <code>Issue: &lt;number&gt;</code> line. ' +
+                      'If the issue has a Jira reference, a matching ' +
+                      '<code>Jira: PAN-&lt;number&gt;</code> line is required as well.')
+              .write();
+
+            // Once all commits pass, cross-link the PR and the linked issues:
+            // one PR comment listing the issues, and one comment on each issue
+            // pointing back to the PR. (Mentions made with GITHUB_TOKEN do not
+            // create timeline cross-references, hence the explicit comments.)
+            // Nothing is posted twice, so re-runs on push/edit add no duplicates.
+            if (!failed && linkedIssues.size) {
+              const PR_MARKER = "<!-- commit-message-check:issue-refs -->";
+              const ISSUE_MARKER = `<!-- commit-message-check:pr-ref:${pull_number} -->`;
+              const isOwn = (c, marker) => c.user?.type === "Bot" && c.body?.startsWith(marker);
+              const listComments = (issue_number) => github.paginate(
+                github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+
+              // PR comment, listing only issues not referenced by an earlier one.
+              try {
+                const referenced = new Set((await listComments(pull_number))
+                  .filter(c => isOwn(c, PR_MARKER))
+                  .flatMap(c => [...c.body.matchAll(/^- #(\d+)\b/gm)].map(m => Number(m[1]))));
+                const newIssues = [...linkedIssues.entries()]
+                  .filter(([n]) => !referenced.has(n))
+                  .sort((a, b) => a[0] - b[0]);
+                if (newIssues.length) {
+                  const body = PR_MARKER + "\n### Referenced issues\n\n" +
+                    newIssues.map(([n, i]) => `- #${n}: ${i.title}`).join("\n");
+                  await github.rest.issues.createComment({ owner, repo, issue_number: pull_number, body });
+                }
+              } catch (e) {
+                core.warning(`Could not post the issue reference comment on the PR: ${e.message}`);
+              }
+
+              // Comment on each issue, once per PR.
+              const pr = context.payload.pull_request;
+              for (const n of [...linkedIssues.keys()].sort((a, b) => a - b)) {
+                try {
+                  if ((await listComments(n)).some(c => isOwn(c, ISSUE_MARKER))) continue;
+                  const body = ISSUE_MARKER + "\n" +
+                    `Referenced by pull request #${pull_number}: [${pr.title}](${pr.html_url})`;
+                  await github.rest.issues.createComment({ owner, repo, issue_number: n, body });
+                } catch (e) {
+                  core.warning(`Could not post the PR reference comment on issue #${n}: ${e.message}`);
+                }
+              }
+            }
+
+            if (failed) {
+              core.setFailed(`${failed} of ${commits.length} commit(s) have an invalid commit message.`);
+            }
