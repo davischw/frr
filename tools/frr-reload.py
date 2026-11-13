@@ -255,6 +255,17 @@ def get_normalized_static_route_line(line):
     written with the keywords in a different order is not seen as a change.
     Otherwise frr-reload deletes and re-adds the route on every reload,
     briefly creating a routing hole.
+
+    The "blackhole" and "Null0" nexthop keywords (any capitalization of the
+    latter) are the same discard route: staticd keeps them apart only so the
+    running configuration echoes what was typed, and a route created through
+    the northbound without an explicit blackhole type renders as "Null0".
+    Both are normalized to "Null0" so that a configuration file saying
+    "blackhole" does not cause a delete/re-add on every reload. "reject" is
+    a different forwarding behaviour (ICMP unreachable) and is left alone.
+
+    The dpd-specific "address-list NAME" nexthop is kept together as one
+    unit so lines using it pass through unchanged.
     """
     match = re.match(r"^(ip|ipv6) route\s+(\S+)\s+(.*)$", line)
     if not match:
@@ -293,8 +304,13 @@ def get_normalized_static_route_line(line):
 
     while i < len(rest):
         tok = rest[i]
-        if tok in ("blackhole", "reject", "Null0"):
+        if tok.lower() in ("blackhole", "null0"):
+            nexthop.append("Null0")
+        elif tok == "reject":
             nexthop.append(tok)
+        elif tok == "address-list" and i + 1 < len(rest):
+            i += 1
+            nexthop.append("address-list " + rest[i])
         elif tok == "tag" and i + 1 < len(rest):
             i += 1
             tag = rest[i]
