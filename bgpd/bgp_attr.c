@@ -2212,6 +2212,20 @@ int bgp_mp_reach_parse(struct bgp_attr_parser_args *args,
 
 			attr->mp_nexthop_len = IPV6_MAX_BYTELEN;
 		}
+
+		/* For EBGP multi-hop sessions the link-local nexthop is not
+		 * reachable.  Discard it and treat the UPDATE as global-only.
+		 */
+		if (peer->sort == BGP_PEER_EBGP && peer->ttl != BGP_DEFAULT_TTL) {
+			if (bgp_debug_update(peer, NULL, NULL, 1))
+				zlog_debug(
+					"%s: discarding link-local nexthop %pI6 received over multi-hop EBGP",
+					peer->host, &attr->mp_nexthop_local);
+			memset(&attr->mp_nexthop_local, 0, IPV6_MAX_BYTELEN);
+			attr->mp_nexthop_len = IPV6_MAX_BYTELEN;
+			break;
+		}
+
 		if (!peer->nexthop.ifp) {
 			zlog_warn("%s sent a v6 LL next-hop and there's no peer interface information. Hence, withdrawing",
 				  peer->host);
